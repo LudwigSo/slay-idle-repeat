@@ -1,0 +1,189 @@
+# 07 — Hero, Pets & Mounts
+
+🔒 LOCKED: One hero. No roster, no team building, no hero gacha. Pets and mounts are the collection layer.
+
+---
+
+## 1. The Hero
+
+There is exactly one hero: **the Rogue**. The player's identity is expressed through gear, talents, pets, mount and die — not through character selection.
+
+| Property | Detail |
+|---|---|
+| Name | Player-chosen at first launch (12 chars, profanity-filtered), default "Wanderer" |
+| Visual | Chibi hooded adventurer. Equipped weapon, helmet and armor are **visible on the sprite** (see §1.2). |
+| Base stats | See `05_COMBAT_SIMULATION.md` §2 |
+| Progression | Legend Level 1 → 200 |
+
+### 1.1 Legend Level
+
+The meta level. Gained from **Legend XP**, earned in runs.
+
+```
+LegendXpForLevel(L) = 120 * L^1.05      // XP needed to go from level L to L+1
+CumulativeXp(L)     = Σ(i=1..L-1) LegendXpForLevel(i)
+```
+
+| Level | Cumulative XP | Unlocks |
+|---|---|---|
+| 1 | 0 | Start |
+| 5 | ~1.3k | Pet slot 1, Menagerie screen |
+| 8 | ~3.6k | Forge (merge + enhance) |
+| 10 | ~5.9k | **PvP Ghost Duel** |
+| 15 | ~14.1k | Pet slot 2 |
+| 20 | ~25.8k | Mount slot |
+| 30 | ~60.3k | Pet slot 3 |
+| 40 | ~109.7k | Talent tree branch 3 (Fortune) |
+| 60 | ~254.2k | Mythic difficulty tier |
+| 100 | ~729.4k | Codex mastery bonuses |
+| 200 | ~3.04M | Level cap |
+
+**Each Legend Level grants:** +1 Talent Point, and the base stat increase from the formula in `05` §2. Reaching the level 200 cap requires **199 level-ups** and ~3.07M total Legend XP.
+
+📐 TUNABLE: the exponent 1.05 is the single dial controlling long-term pacing. Raising it to 1.15 roughly doubles the total; lowering it to 0.95 roughly halves it.
+
+### 1.2 Gear visualisation
+
+Three gear slots change the hero sprite: **Weapon**, **Helmet**, **Armor**. Each has 4 families × 5 rarities, but the sprite only swaps by **family + rarity colourway** (20 variants per slot), not per individual item. This keeps the art budget sane while preserving the "I look different now" payoff.
+
+Boots, Ring and Amulet are stat-only, no visual.
+
+---
+
+## 2. Pets
+
+### 2.1 Overview
+
+| Property | Value |
+|---|---|
+| Total pets in v1 | 24 |
+| Equipped simultaneously | up to 3 (unlocked at Legend Level 5 / 15 / 30) |
+| Roles | Each pet has a **passive aura** (always on) and an **active ability** (on a cooldown during battle) |
+| Targetable | ❌ Pets cannot be attacked or killed (see `05` §3.2) |
+| Rarity | B / A / S / SS (no C-tier pets) |
+| Levels | 1 → 60 |
+| Stars | ★1 → ★5 via duplicates |
+
+### 2.2 Pet progression
+
+**Levelling** — costs **Beast Feed** (from `TILE_CACHE`, daily quests, ad rewards) and Crowns.
+```
+BeastFeedCost(level) = 8 * level^1.3
+```
+Pet level scales its passive aura linearly: `AuraValue = Base * (1 + 0.035 * (level-1))`.
+
+**Ascension (Stars)** — costs duplicates of the same pet.
+```
+★1 → ★2 : 2 duplicates
+★2 → ★3 : 4 duplicates
+★3 → ★4 : 8 duplicates
+★4 → ★5 : 16 duplicates
+```
+Each star: `+20%` to the passive aura and `−8%` to the active ability cooldown. ★5 unlocks a bonus clause on the active.
+
+**Acquisition:** Pet Eggs from bosses, `TILE_CACHE`, daily login, PvP season rewards, and the earned-currency shop. **Never purchasable with money.** Egg rarity odds are disclosed in-game.
+
+```
+Egg rarity odds:  B 62% · A 28% · S 9% · SS 1%
+Pity: guaranteed S or better every 30 eggs; guaranteed SS every 150 eggs.
+```
+
+### 2.3 Pet catalogue (24)
+
+| ID | Name | Rarity | Passive aura | Active ability (cooldown) |
+|---|---|---|---|---|
+| `PET_SPARKLING` | Sparkling | B | +6% ATK | Zap: 80% ATK to one enemy (6 s) |
+| `PET_MOSSLING` | Mossling | B | +8% Max HP | Bloom: heal 5% Max HP (10 s) |
+| `PET_PEBBLE` | Pebble | B | +10% DEF | Harden: +25% DEF for 4 s (12 s) |
+| `PET_WISP` | Wisp | B | +5% Attack Speed | Haste: +30% ASPD for 3 s (10 s) |
+| `PET_NIPPER` | Nipper | B | +4% Crit Chance | Snap: guaranteed crit next attack (8 s) |
+| `PET_SNAILGUARD` | Snailguard | B | +5% Damage Reduction | Shell: shield 10% Max HP (14 s) |
+| `PET_EMBERCUB` | Embercub | A | +9% ATK, applies `BURN` on your crits | Firebreath: 120% ATK to all (9 s) |
+| `PET_FROSTKIT` | Frostkit | A | +7% DEF, 10% chance to `FREEZE` on hit | Rime: `FREEZE` all enemies 2 s (14 s) |
+| `PET_THORNBUD` | Thornbud | A | +12% Thorns | Lash: reflect ×3 for 5 s (12 s) |
+| `PET_GILDBEAK` | Gildbeak | A | +18% Gold | Peck for Coin: next kill drops Treasure (20 s) |
+| `PET_SHADEPAW` | Shadepaw | A | +6% Dodge | Vanish: 100% dodge for 2 s (16 s) |
+| `PET_LEECHLING` | Leechling | A | +7% Lifesteal | Drain: 100% ATK, heals full amount (10 s) |
+| `PET_RUNEMOTH` | Runemoth | A | +5% all stats | Flutter: reset all pet cooldowns (25 s) |
+| `PET_TOADKING` | Toadking | A | +14% Max HP, +6% Healing Received | Croak: `WEAKEN` all enemies −20% ATK, 5 s (15 s) |
+| `PET_STORMFANG` | Stormfang | S | +14% ATK, +6% Attack Speed | Thunderclap: 200% ATK to all, `STUN` 1 s (12 s) |
+| `PET_AEGISOWL` | Aegis Owl | S | +12% DEF, +10% Max HP | Sanctum: shield 25% Max HP + `REGEN` 5 s (16 s) |
+| `PET_VOIDKITTEN` | Void Kitten | S | +10% Crit Chance, +25% Crit Damage | Rift: 350% ATK to the lowest-HP enemy (14 s) |
+| `PET_GOLDWYRM` | Goldwyrm | S | +30% Gold, +12% gear drop chance | Hoard: instantly gain 250 Gold (20 s) |
+| `PET_SPOREMOTHER` | Sporemother | S | Your DoTs deal +40% | Bloomburst: apply `POISON` ×3 to all (12 s) |
+| `PET_CLOCKHOUND` | Clockhound | S | −12% all pet cooldowns, +8% ASPD | Rewind: restore 15% Max HP and clear all debuffs (22 s) |
+| `PET_DICEBEAST` | Dicebeast | SS | +8% all stats; +1 Reroll Charge per stage | Loaded Fate: your next 3 rolls are `Star` faces (once per battle, out-of-combat effect) |
+| `PET_SOLARION` | Solarion | SS | +18% ATK, +18% Max HP | Solar Lance: 500% ATK to one enemy, ignores 50% DEF (15 s) |
+| `PET_NYXWEAVER` | Nyxweaver | SS | +15% all stats while below 50% HP | Web of Night: enemies take +35% damage for 6 s (18 s) |
+| `PET_ARCHIVIST` | The Archivist | SS | Your active perks gain +1 effective tier (max III) | Recall: re-trigger every perk's on-battle-start effect (once per battle) |
+
+📐 TUNABLE: all values.
+
+✅ `PET_DICEBEAST`'s active is ruled in `18_EFFECT_DSL.md` §9.2: it is **not** on a combat cooldown. It fires `ON_BATTLE_END` (win only) and turns the player's next 3 rolls into `Star` faces. This makes it a board-layer reward rather than a combat ability, which fits its identity.
+
+---
+
+## 3. Mounts
+
+### 3.1 Overview
+
+| Property | Value |
+|---|---|
+| Total mounts in v1 | 12 |
+| Equipped | 1 (slot unlocked at Legend Level 20) |
+| Effect shape | A **stat block** + **one run-level perk** (not a combat ability) |
+| Rarity | A / S / SS |
+| Levels | 1 → 30, via **Beast Feed** |
+| No stars | Mounts do not ascend; duplicates convert to Beast Feed |
+
+Mounts are the "run modifier" slot. Where pets shape combat, mounts shape the **run**: die faces, board movement, shop access, drop rates. This gives the two systems clearly separate identities.
+
+### 3.2 Mount catalogue (12)
+
+| ID | Name | Rarity | Stat block | Run perk |
+|---|---|---|---|---|
+| `MNT_SADDLEBOAR` | Saddleboar | A | +10% Max HP, +5% DEF | Start each run with a shield = 10% Max HP |
+| `MNT_DUSTRUNNER` | Dustrunner | A | +8% ATK, +5% ASPD | +1 node of movement on Pip rolls of 1 or 2 |
+| `MNT_PACKMULE` | Pack Mule | A | +6% Max HP | Start each run with 400 Gold |
+| `MNT_GLIDEWING` | Glidewing | A | +6% Dodge | `TILE_PORTAL` jumps 2 extra nodes and heals 10% |
+| `MNT_STARHOOF` | Starhoof Stag | S | +10% all stats | Your `3` face becomes a `Fortune` face |
+| `MNT_IRONSHELL` | Ironshell Tortoise | S | +22% DEF, +15% Max HP, −5% ASPD | Curse tiles have no effect on you |
+| `MNT_CINDERMANE` | Cindermane | S | +16% ATK, +10% Crit Damage | Elite tiles drop +1 gear item |
+| `MNT_TIDECALLER` | Tidecaller | S | +12% Max HP, +10% Healing Received | Campfires and Shrines can be used twice |
+| `MNT_COINWYRM` | Coinwyrm | S | +8% all stats | Shops always show one Epic perk offer |
+| `MNT_VOIDSTEED` | Voidsteed | SS | +14% all stats | +1 Reroll Charge per stage; rerolls never repeat the previous face |
+| `MNT_FATESPINNER` | Fatespinner | SS | +12% all stats | Your `6` face becomes a `Star` face |
+| `MNT_WORLDBEARER` | Worldbearer | SS | +20% Max HP, +20% ATK, +20% DEF | Board length +4 nodes (more content per run, more risk) |
+
+📐 TUNABLE.
+
+---
+
+## 4. Loadout rules
+
+- Equipping and unequipping is **free and unlimited** outside a run. Never gate loadout changes behind currency or timers.
+- Loadout **cannot** be changed during a run. It is snapshotted at run start.
+- The player may save **3 named loadout presets** (e.g. "Boss push", "Gold farm", "PvP"). Presets store gear + pets + mount + PvP perk set.
+- A **PvP loadout** is stored separately from the PvE loadout, so a player never has to re-equip after a duel. See `11_PVP_GHOST_DUEL.md` §3.
+
+---
+
+## 5. Duplicate and disposal rules
+
+Nothing in the collection should ever be dead weight.
+
+| Item | Duplicate handling |
+|---|---|
+| Pet | Converts to ascension progress. Beyond ★5 → 200 Beast Feed each. |
+| Mount | Converts to 300 Beast Feed. |
+| Gear | Feeds the merge system (`08_GEAR_AND_MERGING.md`) or salvages to Merge Dust. |
+
+---
+
+## 6. Presentation notes
+
+- **Menagerie screen:** grid of pet portraits, locked ones shown as silhouettes with their rarity frame visible (aspiration). Tapping a pet shows a large idle-animated sprite, its aura, its active, and the star track.
+- Pets appear in battle orbiting the hero at a small scale, with a distinct 2-frame idle bob and a one-shot ability animation.
+- Mount appears **on the board**, carrying the hero token between tiles. It does not appear in battle. This is a deliberate split: mounts are the board layer, pets are the combat layer, and the player can see that at a glance.
+
+🔒 **The hero does not visually dismount.** The board cuts straight to the battle scene, where the mount is simply absent. Speed beats flourish, and a 0.4 s transition played 20 times per run costs eight seconds of the player's life for no information.
