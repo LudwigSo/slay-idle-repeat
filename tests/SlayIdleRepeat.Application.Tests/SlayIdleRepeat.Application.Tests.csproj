@@ -1,8 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Use-case tests. Runs against SlayIdleRepeat.Adapters.InMemory exclusively —
-    no real adapter, no container, no network (23 §8).
+    Use-case tests. Every content case runs against SlayIdleRepeat.Adapters.InMemory
+    exclusively — no real adapter, no container, no network (23 §8).
+
+    The one exception is the 📐 tunable audit, which is a build-time audit of a
+    repository rather than a runtime read of content: it enumerates game-design/*.md,
+    which never ships. Its composition therefore lives in tools/ContentValidator, and
+    this project references that tool so the guarding test runs the SAME wiring CI runs.
+    Re-assembling it here would leave the tool's doc glob, its governsTuningFile
+    derivation and its baseline path unexercised, with the test still green.
   -->
 
   <PropertyGroup>
@@ -20,6 +27,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
     <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
+    <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,7 @@
-using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Application.Services.Content.Tunables;
 
-namespace SlayIdleRepeat.Application.Services.Content.Tunables;
+namespace SlayIdleRepeat.ContentValidator;
 
 /// <summary>
 /// Assembles the 📐 audit from a checkout: scan the design docs, scan the schemas, read the
@@ -15,6 +16,17 @@ namespace SlayIdleRepeat.Application.Services.Content.Tunables;
 /// It takes paths rather than an <c>IContentSourcePort</c> because it is a build-time audit of a
 /// repository, not a runtime read of content: it is the one piece of the pipeline that reads
 /// <c>game-design/</c>, which does not ship.
+/// </para>
+/// <para>
+/// 🔒 Which is exactly why it lives <b>here</b> and not in <c>SlayIdleRepeat.Application</c>. `23`'s
+/// preamble names the filesystem among the dependencies that must sit behind a port, and
+/// <c>IContentSourcePort</c> is that seam. This was the only place in <c>Application</c> touching
+/// <c>System.IO</c>, and its <c>ScanMarkers</c>/<c>ScanCitations</c> were public and callable from
+/// an M1 use case — a use case that would then be enumerating <c>game-design/*.md</c>, on a
+/// player's phone, over markdown that never ships. The <em>pure</em> algorithms it composes —
+/// <c>TunableMarkerScanner.Scan</c>, <c>SchemaCitationScanner.Scan</c>, <c>TunableMarkerAudit.Run</c>
+/// and the <c>TunableModel</c> types, all total functions over <c>string</c> and
+/// <c>ContentValue</c> — stay in <c>Application</c>, where the unit tests reach them.
 /// </para>
 /// </remarks>
 public static class TunableAuditComposition

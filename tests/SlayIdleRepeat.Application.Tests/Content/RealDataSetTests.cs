@@ -2,6 +2,7 @@ using System.Text;
 using FluentAssertions;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Content.Tunables;
+using SlayIdleRepeat.ContentValidator;
 using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
