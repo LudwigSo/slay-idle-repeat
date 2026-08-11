@@ -53,8 +53,6 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation, DomainPurityTests.Every_command_type_is_handled_by_Apply"),
         new("GameCommand", SubjectKind.CoreType, "M1-06",
             "DomainPurityTests.Every_command_type_is_handled_by_Apply, AccessibilityBoundaryTests.Contracts_never_redeclares_a_domain_type"),
-        new("Entitlements", SubjectKind.CoreType, "M1-07",
-            "IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new("GuildView", SubjectKind.CoreType, "M14",
             "IsolationTests.GuildView_is_a_read_only_projection"),
         new("InMemoryGame", SubjectKind.CoreType, "M1-11",

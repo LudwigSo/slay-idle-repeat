@@ -149,6 +149,7 @@ public sealed class CommandSeedPinTests
                 "BEGIN_SESSION", "OPEN_CHEST", "OPEN_CRATE", "OPEN_EGG", "REFORGE_ITEM",
                 "REROLL_QUEST", "RETUNE_ITEM", "SPIN_WHEEL", "START_DUEL",
             },
+            StringComparer.Ordinal,
             ignoreOrder: true,
             "these are the nine meta commands 14 §2.3 marks as drawing randomness. Every other rule " +
             "in this file quantifies over this set, so a substitution here silences all of them.");

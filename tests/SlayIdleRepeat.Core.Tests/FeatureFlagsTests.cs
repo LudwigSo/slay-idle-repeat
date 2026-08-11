@@ -72,6 +72,7 @@ public sealed class FeatureFlagsTests
                 "get_PlusOfferEnabled",
                 "get_PvpEnabled",
             },
+            Case.Sensitive,
             "14 §14 names four kill switches: PvP, each ad placement, the Plus offer, each chapter. " +
             "This record is closed at those four on purpose — M5-10 is the task that extends it, and " +
             "a flag added here without a decision is the ungoverned config edit the list exists to " +
@@ -99,7 +100,8 @@ public sealed class FeatureFlagsTests
                 $"plusOfferEnabled:{typeof(bool).FullName}",
                 $"disabledAdPlacements:{typeof(IEnumerable<string>).FullName}",
                 $"disabledChapters:{typeof(IEnumerable<string>).FullName}",
-            });
+            },
+            Case.Sensitive);
 
         typeof(FeatureFlags).GetProperty(nameof(FeatureFlags.PvpEnabled))!.PropertyType.ShouldBe(typeof(bool));
         typeof(FeatureFlags).GetProperty(nameof(FeatureFlags.PlusOfferEnabled))!.PropertyType.ShouldBe(typeof(bool));
@@ -197,8 +199,8 @@ public sealed class FeatureFlagsTests
         placements.Add(LuckPlacement);
         chapters.Add(UnnamedChapter);
 
-        flags.DisabledAdPlacements.ShouldBe(new[] { ElitePlacement }, ignoreOrder: true);
-        flags.DisabledChapters.ShouldBe(new[] { FirstChapter }, ignoreOrder: true);
+        flags.DisabledAdPlacements.ShouldBe(new[] { ElitePlacement }, StringComparer.Ordinal, ignoreOrder: true);
+        flags.DisabledChapters.ShouldBe(new[] { FirstChapter }, StringComparer.Ordinal, ignoreOrder: true);
         flags.IsAdPlacementEnabled(LuckPlacement).ShouldBeTrue();
     }
 
@@ -225,7 +227,7 @@ public sealed class FeatureFlagsTests
     {
         var flags = new FeatureFlags(true, true, [ElitePlacement, ElitePlacement], []);
 
-        flags.DisabledAdPlacements.ShouldBe(new[] { ElitePlacement });
+        flags.DisabledAdPlacements.ShouldBe(new[] { ElitePlacement }, Case.Sensitive);
         flags.IsAdPlacementEnabled(ElitePlacement).ShouldBeFalse();
     }
 

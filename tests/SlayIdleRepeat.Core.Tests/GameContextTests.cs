@@ -49,6 +49,7 @@ public sealed class GameContextTests
 
         actual.ShouldBe(
             expected,
+            Case.Sensitive,
             "GameContext is the closed list of what a rule may know about the outside world (30 §3). " +
             "Adding, removing, retyping or reordering a member changes that contract — and 30 §3's " +
             "generalising rule is that anything a rule needs from the outside world is an argument, " +

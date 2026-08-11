@@ -34,11 +34,13 @@ public sealed class EntitlementsTests
             .GetParameters()
             .Select(p => $"{p.Name}:{p.ParameterType.FullName}");
 
-        actual.ShouldBe(new[]
-        {
-            $"hasPlus:{typeof(bool).FullName}",
-            $"expiresAtUtc:{typeof(DateTimeOffset?).FullName}",
-        });
+        actual.ShouldBe(
+            new[]
+            {
+                $"hasPlus:{typeof(bool).FullName}",
+                $"expiresAtUtc:{typeof(DateTimeOffset?).FullName}",
+            },
+            Case.Sensitive);
 
         typeof(Entitlements).GetProperty(nameof(Entitlements.HasPlus))!.PropertyType.ShouldBe(typeof(bool));
         typeof(Entitlements).GetProperty(nameof(Entitlements.ExpiresAtUtc))!.PropertyType.ShouldBe(typeof(DateTimeOffset?));
@@ -93,6 +95,7 @@ public sealed class EntitlementsTests
 
         declared.ShouldBe(
             new[] { ".ctor", "ExpiresAtUtc", "HasPlus", "get_ExpiresAtUtc", "get_HasPlus" },
+            Case.Sensitive,
             "Entitlements declares two getters and a constructor and nothing else. An Equals, a " +
             "Deconstruct or a record's synthesized equality all read HasPlus and branch, which " +
             "No_entitlement_branch_outside_a_composition_root forbids inside Core (12 §3.2, 23 §7.2).");
