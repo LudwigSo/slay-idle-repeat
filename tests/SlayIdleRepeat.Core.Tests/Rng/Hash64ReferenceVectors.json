@@ -1,0 +1,629 @@
+{
+  "_README": [
+    "THE DETERMINISM PIN FOR Hash64 AND DeterministicRng (14 section 8.0 / 8.1).",
+    "",
+    "*** CHANGING A ROW IN THIS FILE IS A DETERMINISM BREAK, NEVER A TEST FIX. ***",
+    "",
+    "Every row is a committed (inputs -> hash) fact. If a row starts failing, the",
+    "implementation changed, not the expectation: every seed derivation, every board",
+    "layout, every die roll and every drop the game has ever produced for a given seed",
+    "just moved. Saved runs stop reproducing, client and server stop agreeing on a",
+    "battle, and bug-report replays become fiction. Fix the code.",
+    "",
+    "The only legitimate edit is ADDING rows. If a row must genuinely change, that is a",
+    "deliberate, announced break: it needs its own commit, a note in the decision log,",
+    "and a migration story for every persisted runSeed and stream counter.",
+    "",
+    "These rows are asserted byte-identical on every target platform -- Linux x64",
+    "(server), Android ARM64 and iOS ARM64 -- by the cross-platform determinism job",
+    "(14 section 8.2, task M5-12). They are embedded in the SlayIdleRepeat.Core.Tests",
+    "assembly so that job finds them regardless of working directory.",
+    "",
+    "PROVENANCE. These rows were NOT generated from SlayIdleRepeat.Core. They were",
+    "generated from Microsoft's System.IO.Hashing.XxHash64 -- a second, independent",
+    "XXH64 implementation -- driven by a canonical encoder transcribed directly from",
+    "the 14 section 8.0 spec table. That generator first reproduced all nine published",
+    "xxHash sanity vectors below, which is what proves it is really XXH64 and not just",
+    "self-consistent. SlayIdleRepeat.Core then had to match it."
+  ],
+
+  "xxh64PublishedKnownAnswerVectors": {
+    "_README": [
+      "The reference implementation's own known-answer tests, copied verbatim from",
+      "cli/xsum_sanity_check.c in https://github.com/Cyan4973/xxHash (XSUM_XXH64_testdata).",
+      "This is the external check: an implementation that passes these IS XXH64.",
+      "",
+      "The input is the first `length` bytes of the sanity buffer, which xsum builds as:",
+      "",
+      "    byteGen = PRIME32;",
+      "    for (i = 0; i < len; i++) { buffer[i] = (U8)(byteGen >> 56); byteGen *= PRIME64; }",
+      "",
+      "with PRIME32 = 2654435761 and PRIME64 = 11400714785074694797. Note that xsum's",
+      "PRIME64 is NOT XXH_PRIME64_1 (11400714785074694791) -- the last digit differs.",
+      "",
+      "`seed` is the XXH64 hash-seed parameter. SlayIdleRepeat's Hash64 always uses 0;",
+      "the PRIME32-seeded rows are here because they exercise the seed initialisation of",
+      "the accumulators, which the seed-0 rows cannot."
+    ],
+    "bufferGenerator": {
+      "prime32": "2654435761",
+      "prime64": "11400714785074694797",
+      "byteExpression": "buffer[i] = (byte)(byteGen >> 56), then byteGen *= prime64"
+    },
+    "rows": [
+    { "length": 0, "seed": "0x0000000000000000", "hash": "0xef46db3751d8e999" },
+    { "length": 0, "seed": "0x000000009e3779b1", "hash": "0xac75fda2929b17ef" },
+    { "length": 1, "seed": "0x0000000000000000", "hash": "0xe934a84adb052768" },
+    { "length": 1, "seed": "0x000000009e3779b1", "hash": "0x5014607643a9b4c3" },
+    { "length": 4, "seed": "0x0000000000000000", "hash": "0x9136a0dca57457ee" },
+    { "length": 14, "seed": "0x0000000000000000", "hash": "0x8282dcc4994e35c8" },
+    { "length": 14, "seed": "0x000000009e3779b1", "hash": "0xc3bd6bf63deb6df0" },
+    { "length": 222, "seed": "0x0000000000000000", "hash": "0xb641ae8cb691c174" },
+    { "length": 222, "seed": "0x000000009e3779b1", "hash": "0x20cb8ab7ae10c14a" }
+  ],
+    "asciiRows": [
+      { "input": "", "hash": "0xef46db3751d8e999" },
+      { "input": "a", "hash": "0xd24ec4f1a98c6e5b" },
+      { "input": "abc", "hash": "0x44bc2cf5ad770999" }
+    ],
+    "_asciiRowsREADME": [
+      "The three short ASCII XXH64 vectors that circulate in almost every port of xxHash",
+      "(seed 0, the raw UTF-8 bytes, no length prefix -- these are NOT canonical-encoding",
+      "rows). The empty-input row is the same fact as the length-0 row above, restated in",
+      "the form people actually recognise. All three were reproduced by",
+      "System.IO.Hashing.XxHash64 before being written here."
+    ]
+  },
+
+  "canonicalEncodingVectors": {
+    "_README": [
+      "Hash64 over the canonical byte encoding of 14 section 8.0:",
+      "",
+      "  ulong / long / int / enum  ->  widened to 64 bits (ints and signed enums",
+      "                                 SIGN-extended), written as 8 bytes little-endian",
+      "  string                     ->  a 4-byte little-endian UTF-8 BYTE count,",
+      "                                 then the UTF-8 bytes",
+      "",
+      "Arguments are concatenated in argument order and the whole buffer is hashed once.",
+      "",
+      "`encodedByteLength` is the length of that buffer. It is asserted too: it catches an",
+      "encoder that produces the right hash for the wrong reason, and it is the quickest",
+      "way to see why a row moved.",
+      "",
+      "Enum rows name a test enum declared in Hash64ReferenceVectorTests, one per",
+      "underlying integral type, so the widening rule is pinned for all eight.",
+      "",
+      "Some rows deliberately share a hash -- int -1, long -1 and ulong.MaxValue all encode",
+      "to the same eight bytes. That is the rule working: the encoding is by value, not by",
+      "declared type."
+    ],
+    "rows": [
+    {
+      "id": "ulong-zero",
+      "why": "ulong 0 \u2014 eight zero bytes",
+      "encodedByteLength": 8,
+      "args": [ { "type": "ulong", "value": "0" } ],
+      "hash": "0x34c96acdcadb1bbb"
+    },
+    {
+      "id": "ulong-one",
+      "why": "ulong 1 \u2014 little-endian, not big-endian",
+      "encodedByteLength": 8,
+      "args": [ { "type": "ulong", "value": "1" } ],
+      "hash": "0x9f29cb17a2a49995"
+    },
+    {
+      "id": "ulong-max",
+      "why": "ulong.MaxValue \u2014 all bits set",
+      "encodedByteLength": 8,
+      "args": [ { "type": "ulong", "value": "18446744073709551615" } ],
+      "hash": "0x85d136adb773c6c9"
+    },
+    {
+      "id": "ulong-above-long-max",
+      "why": "ulong above long.MaxValue \u2014 reinterpreted, never clamped",
+      "encodedByteLength": 8,
+      "args": [ { "type": "ulong", "value": "11400714785074694791" } ],
+      "hash": "0x3f986068045d2cd2"
+    },
+    {
+      "id": "long-zero",
+      "why": "long 0 \u2014 identical encoding to ulong 0",
+      "encodedByteLength": 8,
+      "args": [ { "type": "long", "value": "0" } ],
+      "hash": "0x34c96acdcadb1bbb"
+    },
+    {
+      "id": "long-minus-one",
+      "why": "long -1 \u2014 all bits set, the same eight bytes as ulong.MaxValue",
+      "encodedByteLength": 8,
+      "args": [ { "type": "long", "value": "-1" } ],
+      "hash": "0x85d136adb773c6c9"
+    },
+    {
+      "id": "long-min",
+      "why": "long.MinValue \u2014 boundary",
+      "encodedByteLength": 8,
+      "args": [ { "type": "long", "value": "-9223372036854775808" } ],
+      "hash": "0x3f425eacf01544e0"
+    },
+    {
+      "id": "long-max",
+      "why": "long.MaxValue \u2014 boundary",
+      "encodedByteLength": 8,
+      "args": [ { "type": "long", "value": "9223372036854775807" } ],
+      "hash": "0xff70cc60366e770c"
+    },
+    {
+      "id": "int-zero",
+      "why": "int 0",
+      "encodedByteLength": 8,
+      "args": [ { "type": "int", "value": "0" } ],
+      "hash": "0x34c96acdcadb1bbb"
+    },
+    {
+      "id": "int-one",
+      "why": "int 1 \u2014 widened to eight bytes, not four",
+      "encodedByteLength": 8,
+      "args": [ { "type": "int", "value": "1" } ],
+      "hash": "0x9f29cb17a2a49995"
+    },
+    {
+      "id": "int-minus-one",
+      "why": "int -1 \u2014 SIGN-extended to 0xFFFFFFFFFFFFFFFF, not zero-extended",
+      "encodedByteLength": 8,
+      "args": [ { "type": "int", "value": "-1" } ],
+      "hash": "0x85d136adb773c6c9"
+    },
+    {
+      "id": "int-minus-two",
+      "why": "int -2 \u2014 sign extension again, distinct from -1",
+      "encodedByteLength": 8,
+      "args": [ { "type": "int", "value": "-2" } ],
+      "hash": "0xbab3b83cf164d97f"
+    },
+    {
+      "id": "int-min",
+      "why": "int.MinValue \u2014 sign extension at the boundary",
+      "encodedByteLength": 8,
+      "args": [ { "type": "int", "value": "-2147483648" } ],
+      "hash": "0x0afbfe0f1bb918a7"
+    },
+    {
+      "id": "int-max",
+      "why": "int.MaxValue \u2014 boundary",
+      "encodedByteLength": 8,
+      "args": [ { "type": "int", "value": "2147483647" } ],
+      "hash": "0x53d3d5d7c3af4670"
+    },
+    {
+      "id": "enum-sbyte-negative",
+      "why": "sbyte-backed enum, negative \u2014 sign-extended",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "SByteEnum", "value": "-3" } ],
+      "hash": "0xdfb98331207f3823"
+    },
+    {
+      "id": "enum-byte",
+      "why": "byte-backed enum \u2014 zero-extended",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "ByteEnum", "value": "200" } ],
+      "hash": "0xebee2a270c507d59"
+    },
+    {
+      "id": "enum-short-negative",
+      "why": "short-backed enum, negative \u2014 sign-extended",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "Int16Enum", "value": "-300" } ],
+      "hash": "0x135f60402aa46397"
+    },
+    {
+      "id": "enum-ushort",
+      "why": "ushort-backed enum \u2014 zero-extended",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "UInt16Enum", "value": "60000" } ],
+      "hash": "0x84d44fa89e25065d"
+    },
+    {
+      "id": "enum-int",
+      "why": "int-backed enum \u2014 the common case",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "Int32Enum", "value": "7" } ],
+      "hash": "0x0876cd406afde455"
+    },
+    {
+      "id": "enum-int-negative",
+      "why": "int-backed enum, negative \u2014 sign-extended",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "Int32Enum", "value": "-7" } ],
+      "hash": "0xa8d154f80f8cba5a"
+    },
+    {
+      "id": "enum-uint",
+      "why": "uint-backed enum above int.MaxValue \u2014 zero-extended",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "UInt32Enum", "value": "4000000000" } ],
+      "hash": "0x212b8c5fc9fcd4d3"
+    },
+    {
+      "id": "enum-long",
+      "why": "long-backed enum at long.MinValue",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "Int64Enum", "value": "-9223372036854775808" } ],
+      "hash": "0x3f425eacf01544e0"
+    },
+    {
+      "id": "enum-ulong",
+      "why": "ulong-backed enum above long.MaxValue \u2014 reinterpreted",
+      "encodedByteLength": 8,
+      "args": [ { "type": "enum", "enum": "UInt64Enum", "value": "18446744073709551614" } ],
+      "hash": "0xbab3b83cf164d97f"
+    },
+    {
+      "id": "string-empty",
+      "why": "the empty string \u2014 a four-byte zero count and no payload",
+      "encodedByteLength": 4,
+      "args": [ { "type": "string", "value": "" } ],
+      "hash": "0x3aefa6fd5cf2deb4"
+    },
+    {
+      "id": "string-a",
+      "why": "one ASCII byte",
+      "encodedByteLength": 5,
+      "args": [ { "type": "string", "value": "a" } ],
+      "hash": "0xde685b5f47fff3b8"
+    },
+    {
+      "id": "string-combat",
+      "why": "the \u0027combat\u0027 stream name",
+      "encodedByteLength": 10,
+      "args": [ { "type": "string", "value": "combat" } ],
+      "hash": "0xea1534815abcf41c"
+    },
+    {
+      "id": "string-dice",
+      "why": "the \u0027dice\u0027 stream name",
+      "encodedByteLength": 8,
+      "args": [ { "type": "string", "value": "dice" } ],
+      "hash": "0x0a1d27054a220adb"
+    },
+    {
+      "id": "string-minigame-3",
+      "why": "a parameterised stream name",
+      "encodedByteLength": 14,
+      "args": [ { "type": "string", "value": "minigame:3" } ],
+      "hash": "0xe960a25faca5a553"
+    },
+    {
+      "id": "string-german",
+      "why": "non-ASCII Latin-1 supplement: five chars, seven UTF-8 bytes",
+      "encodedByteLength": 11,
+      "args": [ { "type": "string", "value": "gr\u00F6\u00DFe" } ],
+      "hash": "0xa08d98d15f83da94"
+    },
+    {
+      "id": "string-cjk",
+      "why": "CJK: three chars, nine UTF-8 bytes",
+      "encodedByteLength": 13,
+      "args": [ { "type": "string", "value": "\u65E5\u672C\u8A9E" } ],
+      "hash": "0x23fd0a537de04c3a"
+    },
+    {
+      "id": "string-astral",
+      "why": "astral plane: one codepoint, two UTF-16 chars, four UTF-8 bytes",
+      "encodedByteLength": 8,
+      "args": [ { "type": "string", "value": "\uD83C\uDFB2" } ],
+      "hash": "0x13a2c93200318b77"
+    },
+    {
+      "id": "string-mixed-script",
+      "why": "mixed ASCII \u002B astral \u2014 char count and byte count disagree",
+      "encodedByteLength": 10,
+      "args": [ { "type": "string", "value": "a\uD83C\uDFB2b" } ],
+      "hash": "0x395704e7d52081f1"
+    },
+    {
+      "id": "string-len-1",
+      "why": "canonical buffer length 5 \u2014 4-byte tail then 1-byte tail",
+      "encodedByteLength": 5,
+      "args": [ { "type": "string", "value": "x" } ],
+      "hash": "0x1c2732d86ebb2cec"
+    },
+    {
+      "id": "string-len-3",
+      "why": "canonical buffer length 7 \u2014 4-byte tail then three 1-byte",
+      "encodedByteLength": 7,
+      "args": [ { "type": "string", "value": "xyz" } ],
+      "hash": "0xb0684942a5e72488"
+    },
+    {
+      "id": "string-len-4",
+      "why": "canonical buffer length 8 \u2014 exactly one 8-byte tail read",
+      "encodedByteLength": 8,
+      "args": [ { "type": "string", "value": "wxyz" } ],
+      "hash": "0xddc8947e9f350e35"
+    },
+    {
+      "id": "string-len-28",
+      "why": "canonical buffer length 32 \u2014 exactly one full 32-byte stripe",
+      "encodedByteLength": 32,
+      "args": [ { "type": "string", "value": "0123456789abcdef0123456789ab" } ],
+      "hash": "0x4a2d3491ce1e1638"
+    },
+    {
+      "id": "string-len-60",
+      "why": "canonical buffer length 64 \u2014 two full stripes",
+      "encodedByteLength": 64,
+      "args": [ { "type": "string", "value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789ab" } ],
+      "hash": "0x66bf724a7f42698a"
+    },
+    {
+      "id": "string-len-61",
+      "why": "canonical buffer length 65 \u2014 two stripes plus a 1-byte tail",
+      "encodedByteLength": 65,
+      "args": [ { "type": "string", "value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abc" } ],
+      "hash": "0x5a5417c95e155843"
+    },
+    {
+      "id": "order-int-then-string",
+      "why": "Hash64(1, \u0022a\u0022)",
+      "encodedByteLength": 13,
+      "args": [ { "type": "int", "value": "1" }, { "type": "string", "value": "a" } ],
+      "hash": "0x6ff6f52b078f8db3"
+    },
+    {
+      "id": "order-string-then-int",
+      "why": "Hash64(\u0022a\u0022, 1) \u2014 must differ from the row above",
+      "encodedByteLength": 13,
+      "args": [ { "type": "string", "value": "a" }, { "type": "int", "value": "1" } ],
+      "hash": "0x8a23c03b84c86d86"
+    },
+    {
+      "id": "ambiguity-two-strings-a",
+      "why": "Hash64(\u0022ab\u0022, \u0022c\u0022)",
+      "encodedByteLength": 11,
+      "args": [ { "type": "string", "value": "ab" }, { "type": "string", "value": "c" } ],
+      "hash": "0x1946f94533421fa1"
+    },
+    {
+      "id": "ambiguity-two-strings-b",
+      "why": "Hash64(\u0022a\u0022, \u0022bc\u0022) \u2014 must differ from the row above",
+      "encodedByteLength": 11,
+      "args": [ { "type": "string", "value": "a" }, { "type": "string", "value": "bc" } ],
+      "hash": "0x4f0334fe878fc9d0"
+    },
+    {
+      "id": "mixed-all-types",
+      "why": "ulong, long, int, enum and string in one call",
+      "encodedByteLength": 39,
+      "args": [ { "type": "ulong", "value": "1" }, { "type": "long", "value": "-1" }, { "type": "int", "value": "-1" }, { "type": "enum", "enum": "Int32Enum", "value": "7" }, { "type": "string", "value": "mix" } ],
+      "hash": "0x53ec850d0bf206c5"
+    },
+    {
+      "id": "draw-dice-0",
+      "why": "draw 0 of \u0027dice\u0027 over seed 0",
+      "encodedByteLength": 24,
+      "args": [ { "type": "ulong", "value": "0" }, { "type": "string", "value": "dice" }, { "type": "ulong", "value": "0" } ],
+      "hash": "0xdb99ab831d9fe1e8"
+    },
+    {
+      "id": "draw-dice-1",
+      "why": "draw 1 of \u0027dice\u0027 over seed 0",
+      "encodedByteLength": 24,
+      "args": [ { "type": "ulong", "value": "0" }, { "type": "string", "value": "dice" }, { "type": "ulong", "value": "1" } ],
+      "hash": "0xe32e9b81a5dcf2ae"
+    },
+    {
+      "id": "draw-dice-12",
+      "why": "draw 12 of \u0027dice\u0027 \u2014 the wire example\u0027s counter",
+      "encodedByteLength": 24,
+      "args": [ { "type": "ulong", "value": "0" }, { "type": "string", "value": "dice" }, { "type": "ulong", "value": "12" } ],
+      "hash": "0x5fcb2421e00bfec1"
+    },
+    {
+      "id": "draw-board-8",
+      "why": "draw 8 of \u0027board\u0027 \u2014 the wire example\u0027s counter",
+      "encodedByteLength": 25,
+      "args": [ { "type": "ulong", "value": "0" }, { "type": "string", "value": "board" }, { "type": "ulong", "value": "8" } ],
+      "hash": "0xc919e47e1ee64bfe"
+    },
+    {
+      "id": "draw-dice-seeded",
+      "why": "draw 0 of \u0027dice\u0027 over a non-zero seed",
+      "encodedByteLength": 24,
+      "args": [ { "type": "ulong", "value": "81985529216486895" }, { "type": "string", "value": "dice" }, { "type": "ulong", "value": "0" } ],
+      "hash": "0xce5151eef2fc8f7d"
+    },
+    {
+      "id": "draw-minigame-3",
+      "why": "draw 5 of \u0027minigame:3\u0027",
+      "encodedByteLength": 30,
+      "args": [ { "type": "ulong", "value": "81985529216486895" }, { "type": "string", "value": "minigame:3" }, { "type": "ulong", "value": "5" } ],
+      "hash": "0x30704acbf7b8c5f8"
+    },
+    {
+      "id": "draw-index-max",
+      "why": "draw index ulong.MaxValue",
+      "encodedByteLength": 24,
+      "args": [ { "type": "ulong", "value": "81985529216486895" }, { "type": "string", "value": "dice" }, { "type": "ulong", "value": "18446744073709551615" } ],
+      "hash": "0x07f6f93ea935c07c"
+    },
+    {
+      "id": "derivation-runseed",
+      "why": "runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter) \u2014 02 \u00A72",
+      "encodedByteLength": 54,
+      "args": [ { "type": "string", "value": "PLR_01HZX8Q2VN4M7B" }, { "type": "int", "value": "3" }, { "type": "int", "value": "7" }, { "type": "long", "value": "1723459200" }, { "type": "int", "value": "42" } ],
+      "hash": "0x7f31a5bb5ff82efd"
+    },
+    {
+      "id": "derivation-runseed-next-run",
+      "why": "the same run one runCounter later \u2014 must differ",
+      "encodedByteLength": 54,
+      "args": [ { "type": "string", "value": "PLR_01HZX8Q2VN4M7B" }, { "type": "int", "value": "3" }, { "type": "int", "value": "7" }, { "type": "long", "value": "1723459200" }, { "type": "int", "value": "43" } ],
+      "hash": "0x95cc03dc3c895f50"
+    },
+    {
+      "id": "derivation-battleseed-0",
+      "why": "battleSeed = Hash64(runSeed, \u0022combat\u0022, 0) \u2014 14 \u00A78.1",
+      "encodedByteLength": 26,
+      "args": [ { "type": "ulong", "value": "81985529216486895" }, { "type": "string", "value": "combat" }, { "type": "int", "value": "0" } ],
+      "hash": "0xf5a45ee9b8f9c7bf"
+    },
+    {
+      "id": "derivation-battleseed-1",
+      "why": "battleSeed = Hash64(runSeed, \u0022combat\u0022, 1)",
+      "encodedByteLength": 26,
+      "args": [ { "type": "ulong", "value": "81985529216486895" }, { "type": "string", "value": "combat" }, { "type": "int", "value": "1" } ],
+      "hash": "0xb7de304e53e12c01"
+    }
+  ]
+  },
+
+  "deterministicRngVectors": {
+    "_README": [
+      "DeterministicRng over the same Hash64. Draw i of stream s over seed r is",
+      "Hash64(r, s, i); the accessors are pure functions of that one draw:",
+      "",
+      "  nextUInt   = (uint)(draw >> 32)                      -- the top 32 bits",
+      "  nextDouble = (draw >> 11) * 2^-53                    -- the 53-bit construction",
+      "  range      = min + (int)(draw % (ulong)(max - min))  -- modulo bias accepted",
+      "",
+      "`nextDoubleBits` is the IEEE-754 bit pattern of nextDouble, asserted exactly -- no",
+      "tolerance. The construction is exact in binary floating point (a 53-bit integer",
+      "times a power of two), so any tolerance would only hide a real divergence. The",
+      "decimal `nextDouble` alongside it is round-trippable and for human eyes only.",
+      "",
+      "nextDouble is NOT rounded to 4 decimal places. The 4-dp rule of 14 section 8.2",
+      "applies to combat ACCUMULATION points, not to a raw draw; rounding here would",
+      "throw away 49 bits of every draw the game makes."
+    ],
+    "rows": [
+    {
+      "id": "dice-0",
+      "why": "draw 0 of \u0027dice\u0027 over seed 0",
+      "seed": "0x0000000000000000",
+      "stream": "dice",
+      "position": "0",
+      "draw": "0xdb99ab831d9fe1e8",
+      "nextUInt": "0xdb99ab83",
+      "nextDoubleBits": "0x3feb73357063b3fc",
+      "nextDouble": "0.8578135676485767",
+      "rangeMinInclusive": 1,
+      "rangeMaxExclusive": 7,
+      "range": 3
+    },
+    {
+      "id": "dice-1",
+      "why": "draw 1 of \u0027dice\u0027",
+      "seed": "0x0000000000000000",
+      "stream": "dice",
+      "position": "1",
+      "draw": "0xe32e9b81a5dcf2ae",
+      "nextUInt": "0xe32e9b81",
+      "nextDoubleBits": "0x3fec65d37034bb9e",
+      "nextDouble": "0.8874299232028198",
+      "rangeMinInclusive": 1,
+      "rangeMaxExclusive": 7,
+      "range": 3
+    },
+    {
+      "id": "dice-12",
+      "why": "draw 12 of \u0027dice\u0027 \u2014 the wire example\u0027s counter",
+      "seed": "0x0000000000000000",
+      "stream": "dice",
+      "position": "12",
+      "draw": "0x5fcb2421e00bfec1",
+      "nextUInt": "0x5fcb2421",
+      "nextDoubleBits": "0x3fd7f2c9087802fe",
+      "nextDouble": "0.37419343783408",
+      "rangeMinInclusive": 1,
+      "rangeMaxExclusive": 7,
+      "range": 6
+    },
+    {
+      "id": "board-8",
+      "why": "draw 8 of \u0027board\u0027 \u2014 the wire example\u0027s counter",
+      "seed": "0x0000000000000000",
+      "stream": "board",
+      "position": "8",
+      "draw": "0xc919e47e1ee64bfe",
+      "nextUInt": "0xc919e47e",
+      "nextDoubleBits": "0x3fe9233c8fc3dcc9",
+      "nextDouble": "0.7855513389503354",
+      "rangeMinInclusive": 0,
+      "rangeMaxExclusive": 25,
+      "range": 24
+    },
+    {
+      "id": "draft-0-seeded",
+      "why": "draw 0 of \u0027draft\u0027 over a non-zero run seed",
+      "seed": "0x0123456789abcdef",
+      "stream": "draft",
+      "position": "0",
+      "draw": "0x36011a7b6660bf86",
+      "nextUInt": "0x36011a7b",
+      "nextDoubleBits": "0x3fcb008d3db3305c",
+      "nextDouble": "0.2109543372411079",
+      "rangeMinInclusive": 0,
+      "rangeMaxExclusive": 3,
+      "range": 1
+    },
+    {
+      "id": "drops-99",
+      "why": "draw 99 of \u0027drops\u0027 \u2014 random access far from zero",
+      "seed": "0x0123456789abcdef",
+      "stream": "drops",
+      "position": "99",
+      "draw": "0xe966dc0f7ef1a21b",
+      "nextUInt": "0xe966dc0f",
+      "nextDoubleBits": "0x3fed2cdb81efde34",
+      "nextDouble": "0.91172576311414",
+      "rangeMinInclusive": -5,
+      "rangeMaxExclusive": 5,
+      "range": -4
+    },
+    {
+      "id": "combat-0",
+      "why": "draw 0 of \u0027combat\u0027 re-rooted at a battleSeed",
+      "seed": "0xf5a45ee9b8f9c7bf",
+      "stream": "combat",
+      "position": "0",
+      "draw": "0x4e2bf53a8058ff63",
+      "nextUInt": "0x4e2bf53a",
+      "nextDoubleBits": "0x3fd38afd4ea0163e",
+      "nextDouble": "0.3053582446885662",
+      "rangeMinInclusive": 1,
+      "rangeMaxExclusive": 21,
+      "range": 20
+    },
+    {
+      "id": "minigame-3-5",
+      "why": "draw 5 of the parameterised stream \u0027minigame:3\u0027",
+      "seed": "0x0123456789abcdef",
+      "stream": "minigame:3",
+      "position": "5",
+      "draw": "0x30704acbf7b8c5f8",
+      "nextUInt": "0x30704acb",
+      "nextDoubleBits": "0x3fc8382565fbdc60",
+      "nextDouble": "0.1892134426086356",
+      "rangeMinInclusive": 0,
+      "rangeMaxExclusive": 100,
+      "range": 68
+    },
+    {
+      "id": "shrine-near-max",
+      "why": "draw at ulong.MaxValue - 1, the last index the counter may occupy",
+      "seed": "0x0000000000000007",
+      "stream": "shrine",
+      "position": "18446744073709551614",
+      "draw": "0xff8396ac47d466c5",
+      "nextUInt": "0xff8396ac",
+      "nextDoubleBits": "0x3feff072d588fa8c",
+      "nextDouble": "0.9981016321761031",
+      "rangeMinInclusive": 0,
+      "rangeMaxExclusive": 2,
+      "range": 1
+    }
+  ]
+  }
+}
