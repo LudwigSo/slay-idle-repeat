@@ -59,15 +59,11 @@ public sealed class SubjectSetFloorTests
             "IsolationTests.GuildView_is_a_read_only_projection"),
         new("InMemoryGame", SubjectKind.CoreType, "M1-11",
             "DomainPurityTests.The_whole_game_is_playable_from_Core_alone"),
-        new("CurrencyId", SubjectKind.CoreType, "M1-01",
-            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged"),
         new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged"),
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
-            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
@@ -86,6 +82,14 @@ public sealed class SubjectSetFloorTests
     /// </summary>
     private static readonly PendingSubject[] Live =
     {
+        // Moved out of Pending by M1-01 rather than deleted: Every_rule_subject_is_present_or_
+        // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these
+        // two lists, so a namespace that has arrived is TRACKED here, not dropped. Primitives is
+        // the bottom layer of Core_internal_layering_holds' five-row table — the row that forbids
+        // it from naming Content, Rng, Model, Rules or Handlers was quantifying over nothing until
+        // this commit.
+        new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
+            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RngNamespace, SubjectKind.CoreNamespace, "M0-06",
