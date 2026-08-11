@@ -124,7 +124,7 @@ inventing one.
 |---|---|---|
 | **Godot** | **4.7.1-stable, .NET/Mono build**, released **2026-07-14** | **[S]** [release](https://github.com/godotengine/godot-builds/releases/tag/4.7.1-stable). Tag `4.7.1-stable` → commit `a13da4feb8d8aefc283c3763d33a2f170a18d541`, whose short form `a13da4feb` **matches the build hash the Android leg recorded** (`4.7.1.stable.mono.official.a13da4feb`). The pin is real and the two legs are on the same engine. |
 | Export templates | `Godot_v4.7.1-stable_mono_export_templates.tpz` → `4.7.1.stable.mono/` | **[S]** same `.tpz` the Android leg used. The exporter looks for `ios.zip` inside the template directory (`exists_export_template(get_platform_name() + ".zip")`). **Must be the mono templates.** |
-| macOS Godot editor archive | filename **[U]** — expected `Godot_v4.7.1-stable_mono_macos.universal.zip` by convention; the release asset list did not render when fetched. **Check the downloads page.** | **[U]** |
+| macOS Godot editor archive | `Godot_v4.7.1-stable_mono_macos.universal.zip` — universal (arm64 + x86_64), self-contained, needs the .NET SDK installed separately | **[S]** [godotengine.org/download/macos](https://godotengine.org/download/macos/), which lists 4.7.1 as current stable and offers `…_mono_macos.universal.zip`. The `Godot_v<ver>-stable_` prefix follows the same convention as the Windows archive the Android leg used. |
 | **Host OS** | **macOS, mandatory** | **[S]** engine source, §1.1. Also docs: *"You must export for iOS from a computer running macOS with Xcode installed."* |
 | **Minimum Xcode** | **Not specified by Godot.** The docs' Requirements section says only "with Xcode installed" — no version floor anywhere in the docs or the exporter. | **[S]** [Exporting for iOS, 4.7](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_ios.html). **The practical floor is whatever Xcode the export template's `.xcframework` slices were built against** — and that is exactly what breaks (§8 R4). |
 | **Minimum iOS deployment target** | **15.0**, the default of `application/min_ios_version` | **[S]** `EditorExportPlatformIOS::get_minimum_deployment_target() { return "15.0"; }` — `platform/ios/export/export_plugin.h` @ 4.7.1-stable. It is a **preset option**, so it is ours to raise, not to discover. |
@@ -162,7 +162,7 @@ The iOS answer is different, and — for once — better.
 
 | Input | Where it comes from | Notes |
 |---|---|---|
-| **Xcode / iOS SDK location** | **`xcode-select -p`**, i.e. macOS-global state | **[S]** No editor setting, no env var. If it points at `/Library/Developer/CommandLineTools` instead of `/Applications/Xcode.app/Contents/Developer`, the export dies inside `clang` with `MSB3073`. The docs' own troubleshooting section is about exactly this. **CI must run `sudo xcode-select -switch` (or `DEVELOPER_DIR=`) explicitly** — this is the closest iOS analogue of the Android editor-settings trap, and it is one line. |
+| **Xcode / iOS SDK location** | **`xcode-select -p`**, i.e. macOS-global state | **[S]** No editor setting, no env var. The exporter reads **exactly one** editor setting, `export/ios/ios_deploy`, and it is only used by one-click *deploy to a device* — **the export itself touches no editor state at all**. That is the whole difference from the Android leg. If `xcode-select` points at `/Library/Developer/CommandLineTools` instead of `/Applications/Xcode.app/Contents/Developer`, the export dies inside `clang` with `MSB3073`. The docs' own troubleshooting section is about exactly this. **CI must run `sudo xcode-select -switch` (or `DEVELOPER_DIR=`) explicitly** — this is the closest iOS analogue of the Android editor-settings trap, and it is one line. |
 | **App Store Team ID** | 🔴 **Export preset only** — `application/app_store_team_id`. No environment override exists. | **[S]** `ERR_FAIL_COND_V_MSG(team_id.length() == 0, ERR_CANT_OPEN, "App Store Team ID not specified - cannot configure the project.")`. Declared `required=true`. Ten characters, e.g. `ABCDE12XYZ`. **A blank Team ID aborts the export before anything is written.** |
 | **Bundle identifier** | **Export preset only** — `application/bundle_identifier`, `required=true`. Ours: `de.ludwigso.slayidlerepeat`. | **[S]** |
 | **Signing identity** | Export preset — `application/code_sign_identity_debug` / `_release`. **Empty means "Apple Development" / "Apple Distribution"**, not "unsigned". | **[S]** The identity itself must be a certificate in the **runner's keychain** — that is the part CI has to import, and the part no preset can carry. |
@@ -175,8 +175,8 @@ The iOS answer is different, and — for once — better.
 | **Keychain / certificates** | **Runner state.** Import a `.p12` into a temporary keychain before the export. | **[U]** — standard iOS CI practice, but unexercised here. |
 
 **The one-line summary:** on Android the CI-hostile state was a per-machine
-**editor settings file**; on iOS it is the **export preset plus the runner's
-keychain**. The preset is a committed file, which is a large improvement — but
+**editor settings file**; on iOS the export reads **no editor settings at all** —
+the state is the **export preset plus the runner's keychain plus `xcode-select`**. The preset is a committed file, which is a large improvement — but
 the Team ID inside it is account-specific, so `export_presets.cfg` cannot be
 fully committed with real values until an Apple Developer account exists. Keep it
 committed with the Team ID injected by the CI step, exactly the way the Android
@@ -202,7 +202,7 @@ xcode-select -p          # must print .../Xcode.app/Contents/Developer, NOT Comm
 dotnet --list-sdks
 
 # 3. Godot 4.7.1 MONO editor + MONO export templates.
-#    Editor:    Godot_v4.7.1-stable_mono_macos.universal.zip     [U] verify the exact asset name
+#    Editor:    Godot_v4.7.1-stable_mono_macos.universal.zip     [S] universal, needs the .NET SDK separately
 #    Templates: Godot_v4.7.1-stable_mono_export_templates.tpz    [S] same file the Android leg used
 #    Unpack the .tpz and copy the CONTENTS of its templates/ folder into:
 #      ~/Library/Application Support/Godot/export_templates/4.7.1.stable.mono/
@@ -230,6 +230,27 @@ OUT=$PWD/build/ios
 mkdir -p "$OUT"
 "$GODOT" --headless --path "$PROJ" --export-debug "iOS" "$OUT/SlayIdleRepeatSpike.xcodeproj"
 ```
+
+The path is split as `dest_dir = <base dir>` and `binary_name = <filename without
+extension>` (**[S]** `_export_project_helper`), so the above writes
+`build/ios/SlayIdleRepeatSpike.xcodeproj/` **and** a sibling
+`build/ios/SlayIdleRepeatSpike/`. The exporter's own leftover-detection lists
+what it expects to find in that sibling directory, which is the best available
+description of the output: `<name>-Info.plist`, `<name>.entitlements`,
+`Launch Screen.storyboard`, `export_options.plist`, `dummy.*`, `*.gdip`,
+`dylibs/`, `Images.xcassets/`, `*.lproj/`, **`godot-publish-dotnet/`** and
+**`*.xcframework` / `*.framework`**. **[S]**
+
+**`dest_dir` must already exist** — the export errors out with *"Target folder
+does not exist or is inaccessible"* rather than creating it.
+
+⚠️ **[U]** The .NET publish is also written to the Godot project's own
+`ProjectBaseOutputPath/godot-publish-dotnet/<BuildConfig>-<rid>/` — the mono
+export plugin deliberately keeps it out of a temp directory on iOS *"[because the]
+xcode project links directly to files in the publish dir"*. So the publish output
+may live in **both** places, or the Xcode project may reference the in-project
+one. Whichever it is decides which path §5's assertion should glob; settle it on
+the Mac (§9 step 5).
 
 ⚠️ **`application/app_store_team_id` must still be non-empty** even here — the
 export aborts on a blank Team ID before it writes anything (§3). A **[U]**
@@ -591,8 +612,7 @@ Apple Developer account.** Budget: one sitting.
 1. **Toolchain.** `xcode-select -p` prints an `Xcode.app` path; `xcodebuild -version`
    works; `dotnet --list-sdks` shows an 8.0.x that satisfies `global.json`;
    the Godot 4.7.1 **mono** editor runs and reports
-   `4.7.1.stable.mono.official.a13da4feb`. Record the exact macOS editor archive
-   filename — this document could not verify it (§2 **[U]**).
+   `4.7.1.stable.mono.official.a13da4feb`.
 2. **Templates.** `ios.zip` is present in
    `~/Library/Application Support/Godot/export_templates/4.7.1.stable.mono/`.
    Then, before building anything: `lipo -info` the simulator slice inside it and
