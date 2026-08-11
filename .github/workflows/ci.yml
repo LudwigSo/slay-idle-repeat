@@ -257,10 +257,16 @@ jobs:
   #                14 §13 Portability + Integration,
   #                14 §1.1 🔒 "up on a laptop with no cloud account"
   #
-  # ⚠️ RED UNTIL M0-03 LANDS docker-compose.yml. That is planned sequencing, not
-  # a defect: M0-02 (this file) authors the job; M0-03 authors the stack it boots.
-  # The explicit existence check below is there so the failure reads as "M0-03 has
-  # not landed" instead of a bare `no configuration file provided` from Docker.
+  # ✅ M0-03 has landed. docker-compose.yml at the repository root brings up the
+  # API, Postgres, Redis, MinIO, the OTel Collector, Jaeger, Prometheus and
+  # Grafana — every image pinned by tag AND digest, every service health-checked,
+  # no credential of any kind. See infra/README.md.
+  #
+  # The whole sequence below was walked locally against Docker 28.4.0 before this
+  # comment was written; the outputs are in the M0-03 completion report. The
+  # existence check is kept: it costs one `[ -f ]` and it is the difference
+  # between a readable failure and Docker's bare `no configuration file provided`
+  # if the file is ever moved or renamed.
   #
   # The assertion that matters is not that the stack boots — it is that it boots
   # with NO credentials of any kind. That is what Test-NoCloudCredentials.ps1
@@ -284,7 +290,7 @@ jobs:
       - name: Assert docker-compose.yml exists
         run: |
           if [ ! -f docker-compose.yml ]; then
-            echo "::error file=docker-compose.yml::docker-compose.yml does not exist yet. It is authored by M0-03 (local dev stack: API stub, Postgres, Redis, MinIO, observability). Until then this job is expected to fail — see .github/workflows/README.md."
+            echo "::error file=docker-compose.yml::docker-compose.yml is missing from the repository root. It is the local dev stack (M0-03: API, Postgres, Redis, MinIO, OTel Collector, Jaeger, Prometheus, Grafana) and this job cannot run without it — see infra/README.md."
             exit 1
           fi
 
@@ -300,8 +306,12 @@ jobs:
 
       - name: Run integration suite against the live stack
         # 14 §13: "Full run played end-to-end against a Docker Compose stack in CI."
-        # SlayIdleRepeat.Integration.Tests is empty until M1 — the empty-suite rule
-        # in build/ci/test-suites.json governs when that stops being acceptable.
+        #
+        # No longer a green tick over nothing: M0-03 removed this suite's
+        # knownEmpty exemption in build/ci/test-suites.json and filled it with its
+        # own acceptance criteria (API /health, object store reachable, every
+        # telemetry scrape target up). The full end-to-end run arrives with the
+        # adapters from M5-05 and is added alongside those, not instead of them.
         shell: pwsh
         run: ./build/ci/Invoke-UnitTests.ps1 -Group integration -Configuration Release
 
