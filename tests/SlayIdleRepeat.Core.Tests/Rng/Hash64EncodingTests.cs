@@ -170,6 +170,18 @@ public sealed class Hash64EncodingTests
         Hash64.Of(7UL, "dice", index).Should().Be(Hash64.Of(7UL, "dice", 12UL));
     }
 
+    /// <summary>
+    /// Concatenating no arguments is the empty buffer, so <c>Hash64.Of()</c> is XXH64 of nothing.
+    /// Pinned rather than rejected: the encoding has no special cases, and one fewer special
+    /// case is one fewer thing for a second implementation of this spec to disagree about.
+    /// </summary>
+    [Fact]
+    public void The_encoding_of_no_arguments_is_the_empty_buffer()
+    {
+        Hash64.CanonicalByteCount(Array.Empty<Hash64Argument>()).Should().Be(0);
+        Hash64.Of().Should().Be(0xEF46DB3751D8E999UL);
+    }
+
     /// <summary>A null string has no canonical encoding; it is a caller bug, not a draw.</summary>
     [Fact]
     public void The_encoding_rejects_a_null_string_argument()

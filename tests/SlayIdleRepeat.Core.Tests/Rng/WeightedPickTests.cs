@@ -46,11 +46,18 @@ public sealed class WeightedPickTests
     /// re-assigns the same unit interval to different items — that is the contract, and content
     /// authors need it to be true and stated.
     /// </summary>
+    /// <remarks>
+    /// The two weights are <b>equal</b> on purpose. With equal weights the reversal flips the
+    /// answer for every value the draw can take, so the test states the property rather than
+    /// depending on where this one draw happens to land in the unit interval. A lopsided table
+    /// (1 against 99) would only differ for the outer 2% of the interval, and would report a
+    /// perfectly correct implementation as broken for the other 98%.
+    /// </remarks>
     [Fact]
     public void WeightedPick_walks_the_table_in_order_so_reordering_it_changes_the_outcome()
     {
-        var forwards = new[] { ("first", 1.0), ("second", 99.0) };
-        var backwards = new[] { ("second", 99.0), ("first", 1.0) };
+        var forwards = new[] { ("first", 1.0), ("second", 1.0) };
+        var backwards = new[] { ("second", 1.0), ("first", 1.0) };
 
         var fromForwards = new DeterministicRng(RunSeed, RngStreams.Drops).WeightedPick(forwards);
         var fromBackwards = new DeterministicRng(RunSeed, RngStreams.Drops).WeightedPick(backwards);
@@ -79,11 +86,18 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// The rule stated directly, on the pure walk rather than through a draw: the first
-    /// cumulative weight <b>strictly greater</b> than <c>x</c> wins. The weights sum to exactly
-    /// 1 and are exact in binary, so the boundary rows below are boundaries and not
-    /// floating-point luck — at <c>x = 0.25</c> item "a" (cumulative 0.25) does <i>not</i> win.
+    /// The rule stated directly, on the pure walk rather than through a draw: <c>x</c> is the
+    /// unit interval <b>scaled by Σ weights</b>, and the first cumulative weight <b>strictly
+    /// greater</b> than <c>x</c> wins. At a unit interval of 0.25 item "a" (a quarter of the
+    /// table) does <i>not</i> win.
     /// </summary>
+    /// <remarks>
+    /// The weights sum to 4, not to 1, and that is load-bearing: on a table summing to exactly 1
+    /// the scaling step is the identity, so every row below would pass just as happily against a
+    /// walk that compared cumulative weights against the raw unit interval and never scaled at
+    /// all. All the values are exact in binary, so the boundary rows are boundaries and not
+    /// floating-point luck.
+    /// </remarks>
     [Theory]
     [InlineData(0.0, "a")]
     [InlineData(0.125, "a")]
@@ -91,19 +105,26 @@ public sealed class WeightedPickTests
     [InlineData(0.375, "b")]
     [InlineData(0.5, "c")]
     [InlineData(0.75, "c")]
-    public void The_walk_returns_the_first_item_whose_cumulative_weight_exceeds_the_value(double x, string expected)
+    public void The_walk_returns_the_first_item_whose_cumulative_weight_exceeds_the_value(
+        double unitInterval, string expected)
     {
-        var table = new[] { ("a", 0.25), ("b", 0.25), ("c", 0.5) };
+        var table = new[] { ("a", 1.0), ("b", 1.0), ("c", 2.0) };
 
-        DeterministicRng.PickAt(x, table).Should().Be(expected);
+        DeterministicRng.PickAt(unitInterval, table).Should().Be(expected);
     }
 
     /// <summary>
-    /// 🔒 The top of the range. <c>x = (1 − 2^-53) × Σ weights</c> can round <i>up</i> to
-    /// exactly <c>Σ weights</c> when the total is a power of two, so a naive walk finds no
-    /// cumulative weight greater than <c>x</c> and falls off the end. It must return the last
-    /// weighted item instead of throwing or returning nothing.
+    /// 🔒 The top of the range must still land on the last weighted item — never on nothing, and
+    /// never on an exception.
     /// </summary>
+    /// <remarks>
+    /// The walk's terminating case is the one the arithmetic cannot guarantee for it. Whether
+    /// <c>x = (1 − 2^-53) × Σ</c> stays strictly below the final cumulative weight depends on the
+    /// order the implementation accumulates Σ in versus the order it walks: sum the table one way
+    /// and compare against a total summed another, and the last cumulative weight can come out
+    /// below <c>x</c>, at which point a naive walk runs off the end of the table. The contract is
+    /// that it returns the last weighted row regardless.
+    /// </remarks>
     [Fact]
     public void The_walk_does_not_fall_off_the_end_at_the_top_of_the_unit_interval()
     {
@@ -139,16 +160,51 @@ public sealed class WeightedPickTests
     /// Weights are relative, so scaling the whole table changes nothing. This is what lets
     /// content authors write 90/9/1 or 0.9/0.09/0.01 without shifting a single outcome.
     /// </summary>
-    [Fact]
-    public void WeightedPick_is_unchanged_by_scaling_every_weight()
+    /// <remarks>
+    /// Asserted over every committed draw rather than at one arbitrary position. A walk that
+    /// forgets to scale the unit interval by Σ agrees with itself on the two tables for most of
+    /// the interval and only diverges in its top tenth — at a single unpinned position this test
+    /// would pass or fail on where that one draw happened to land.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(DrawIds))]
+    public void WeightedPick_is_unchanged_by_scaling_every_weight(string rowId)
     {
+        var row = ReferenceVectors.DrawRow(rowId);
         var small = new[] { ("a", 0.9), ("b", 0.09), ("c", 0.01) };
         var large = new[] { ("a", 90.0), ("b", 9.0), ("c", 1.0) };
 
-        var fromSmall = new DeterministicRng(RunSeed, RngStreams.Drops).WeightedPick(small);
-        var fromLarge = new DeterministicRng(RunSeed, RngStreams.Drops).WeightedPick(large);
+        var fromSmall = new DeterministicRng(row.Seed, row.Stream, row.Position).WeightedPick(small);
+        var fromLarge = new DeterministicRng(row.Seed, row.Stream, row.Position).WeightedPick(large);
 
         fromSmall.Should().Be(fromLarge);
+    }
+
+    /// <summary>
+    /// 🔒 The pick is taken at <b>this draw's</b> unit interval — the same value
+    /// <c>NextDouble</c> would have returned, not some other function of the draw.
+    /// </summary>
+    /// <remarks>
+    /// Nothing else in this file pins that link: an implementation deriving <c>x</c> from
+    /// <c>NextUInt</c>, or straight from <c>draw % Σ</c>, satisfies every other test here and
+    /// still moves every drop, draft and treasure table in the game. Both halves of the
+    /// composition are pinned independently — <c>NextDouble</c> bit for bit against the committed
+    /// table, the walk against the boundary theory above — so asserting the composition adds the
+    /// one fact neither of them carries. The table is ten equal rows so a pick taken at the wrong
+    /// unit interval lands on a different row rather than coincidentally agreeing.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(DrawIds))]
+    public void WeightedPick_picks_at_this_draws_unit_interval(string rowId)
+    {
+        var row = ReferenceVectors.DrawRow(rowId);
+        var expected = DeterministicRng.PickAt(
+            BitConverter.UInt64BitsToDouble(row.NextDoubleBits), UniformTenEntryTable());
+
+        var picked = new DeterministicRng(row.Seed, row.Stream, row.Position)
+            .WeightedPick(UniformTenEntryTable());
+
+        picked.Should().Be(expected);
     }
 
     /// <summary>An empty table has nothing to return; there is no sensible draw to make.</summary>
@@ -233,4 +289,13 @@ public sealed class WeightedPickTests
 
         picks.Should().BeEquivalentTo(new[] { "a", "b", "c" });
     }
+
+    /// <summary>Ten equally weighted rows — one row per tenth of the unit interval.</summary>
+    private static (string, double)[] UniformTenEntryTable() => new[]
+    {
+        ("a", 1.0), ("b", 1.0), ("c", 1.0), ("d", 1.0), ("e", 1.0),
+        ("f", 1.0), ("g", 1.0), ("h", 1.0), ("i", 1.0), ("j", 1.0),
+    };
+
+    public static TheoryData<string> DrawIds() => ReferenceVectors.DrawIds();
 }

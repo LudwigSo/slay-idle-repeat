@@ -75,15 +75,18 @@ public sealed class Hash64KnownAnswerTests
 
     /// <summary>
     /// XXH64 changes shape at 32 bytes: below it the accumulators are never used, at and above
-    /// it four of them run over whole stripes. A hash that gets one branch right and the other
-    /// wrong passes half a suite, so both sides of the boundary and the boundary itself are
-    /// pinned against the independent table.
+    /// it four of them run over whole stripes, and whatever is left over is drained in 8-, 4- and
+    /// 1-byte steps. A hash that gets one branch right and the other wrong passes half a suite,
+    /// so both sides of the boundary, the boundary itself, and a stripe with a ragged tail are
+    /// each pinned against the independent table.
     /// </summary>
     [Theory]
+    [InlineData("draw-minigame-3", 30)]
     [InlineData("string-len-28", 32)]
+    [InlineData("mixed-all-types", 39)]
     [InlineData("string-len-60", 64)]
     [InlineData("string-len-61", 65)]
-    public void XxHash64_hashes_inputs_at_and_above_the_32_byte_stripe_boundary(string rowId, int expectedLength)
+    public void XxHash64_hashes_inputs_on_both_sides_of_the_32_byte_stripe_boundary(string rowId, int expectedLength)
     {
         var row = ReferenceVectors.Row(rowId);
 

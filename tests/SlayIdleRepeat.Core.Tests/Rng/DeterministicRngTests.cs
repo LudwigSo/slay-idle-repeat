@@ -35,6 +35,28 @@ public sealed class DeterministicRngTests
         rng.Position.Should().Be(12UL);
     }
 
+    /// <summary>
+    /// 🔒 The identity the rest of the model is built on: draw <c>i</c> of stream <c>s</c> over
+    /// seed <c>r</c> <b>is</c> <c>Hash64(r, s, i)</c> — not some other function of the three, and
+    /// not a generator stepped <c>i</c> times.
+    /// </summary>
+    /// <remarks>
+    /// Without this, nothing joins the two halves of the committed table: the accessor tests
+    /// below pin <c>NextUInt</c>/<c>NextDouble</c>/<c>Range</c> against the <i>accessor</i>
+    /// columns, and only the <c>draw</c> column records where those columns came from. The second
+    /// assertion closes that join by re-deriving one accessor column from the draw, so a row whose
+    /// columns drifted apart fails here rather than silently weakening every test below.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(DrawIds))]
+    public void A_draw_is_Hash64_of_the_seed_the_stream_name_and_the_draw_index(string rowId)
+    {
+        var row = ReferenceVectors.DrawRow(rowId);
+
+        Hash64.Of(row.Seed, row.Stream, row.Position).Should().Be(row.Draw);
+        row.NextUInt.Should().Be((uint)(row.Draw >> 32));
+    }
+
     /// <summary>The top 32 bits of the draw, pinned against the committed table.</summary>
     [Theory]
     [MemberData(nameof(DrawIds))]
@@ -114,18 +136,28 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// The widest range an <c>int</c> has. The spec's literal expression overflows <c>int</c>
-    /// here, so this pins that the result is still inside the requested bounds rather than
-    /// wrapping to something outside them.
+    /// 🔒 The widest range an <c>int</c> has: <c>max − min</c> is <c>2^32 − 1</c>, which does not
+    /// fit in an <c>int</c>, so the width must be computed in 64 bits.
     /// </summary>
+    /// <remarks>
+    /// Pinned to the exact value, because bounds alone prove nothing here. An implementation that
+    /// evaluates the spec's expression in <c>int</c> arithmetic wraps <c>max − min</c> to −1,
+    /// takes the modulus against <c>ulong.MaxValue</c> — which is the draw itself — and returns
+    /// the draw's low 32 bits offset from <c>int.MinValue</c>. That answer is still an
+    /// <c>int</c>, and still inside <c>[int.MinValue, int.MaxValue)</c>; only the value tells the
+    /// two apart. For the committed <c>drops-99</c> draw <c>0xE966DC0F7EF1A21B</c> the correct
+    /// answer is <c>int.MinValue + (draw mod 4294967295)</c> = −396853717, and the overflowing
+    /// one is −17718757.
+    /// </remarks>
     [Fact]
-    public void Range_stays_within_bounds_across_the_full_int_span()
+    public void Range_spans_the_full_int_range_without_overflowing_its_width()
     {
-        var rng = new DeterministicRng(RunSeed, RngStreams.Board);
+        var row = ReferenceVectors.DrawRow("drops-99");
+        var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
 
         var value = rng.Range(int.MinValue, int.MaxValue);
 
-        value.Should().BeGreaterThanOrEqualTo(int.MinValue).And.BeLessThan(int.MaxValue);
+        value.Should().Be(-396853717);
     }
 
     /// <summary>A negative lower bound is ordinary; the modulo must not fold it away.</summary>
@@ -212,16 +244,11 @@ public sealed class DeterministicRngTests
     [Fact]
     public void A_stream_rehydrated_at_a_position_yields_the_draw_made_there()
     {
-        var replayed = new DeterministicRng(RunSeed, RngStreams.Drops);
-        for (var i = 0; i < 5; i++)
-        {
-            replayed.NextUInt();
-        }
+        var byReplay = Sequence(RngStreams.Drops, 6);
 
-        var sixthByReplay = replayed.NextUInt();
         var sixthByRandomAccess = new DeterministicRng(RunSeed, RngStreams.Drops, 5UL).NextUInt();
 
-        sixthByRandomAccess.Should().Be(sixthByReplay);
+        sixthByRandomAccess.Should().Be(byReplay[5]);
     }
 
     /// <summary>Rehydration is construction: two instances at the same position agree forever after.</summary>
@@ -246,11 +273,7 @@ public sealed class DeterministicRngTests
     {
         var undisturbed = new DeterministicRng(RunSeed, RngStreams.Board).NextUInt();
 
-        var dice = new DeterministicRng(RunSeed, RngStreams.Dice);
-        for (var i = 0; i < 50; i++)
-        {
-            dice.NextUInt();
-        }
+        _ = Sequence(RngStreams.Dice, 50);
 
         var board = new DeterministicRng(RunSeed, RngStreams.Board).NextUInt();
 
@@ -292,17 +315,13 @@ public sealed class DeterministicRngTests
 
         var dice = new DeterministicRng(RunSeed, RngStreams.Dice);
         var board = new DeterministicRng(RunSeed, RngStreams.Board);
-        var actualDice = new List<uint>();
-        var actualBoard = new List<uint>();
 
-        for (var i = 0; i < 4; i++)
-        {
-            actualDice.Add(dice.NextUInt());
-            actualBoard.Add(board.NextUInt());
-        }
+        var interleaved = Enumerable.Range(0, 4)
+            .Select(_ => (FromDice: dice.NextUInt(), FromBoard: board.NextUInt()))
+            .ToArray();
 
-        actualDice.Should().Equal(expectedDice);
-        actualBoard.Should().Equal(expectedBoard);
+        interleaved.Select(pair => pair.FromDice).Should().Equal(expectedDice);
+        interleaved.Select(pair => pair.FromBoard).Should().Equal(expectedBoard);
     }
 
     /// <summary>
@@ -325,15 +344,54 @@ public sealed class DeterministicRngTests
     /// <c>ulong.MaxValue</c> would restart a stream at draw 0 while the wire still reported a
     /// huge position — the one way a counter-based model can lie.
     /// </summary>
+    /// <remarks>
+    /// 🔒 The final index is <b>reserved</b>: a stream sitting at <c>ulong.MaxValue</c> refuses
+    /// to draw at all, rather than drawing once and then having nowhere to put the next
+    /// position. The alternative — allow that last draw and remember that it happened — would
+    /// mean state beyond the counter, and the counter being the entire persistable state is the
+    /// whole design (`14` §8). One forfeited index out of 2^64 is the cheaper side of that
+    /// trade by an unimaginable margin: a stream consuming a draw every nanosecond since the
+    /// Big Bang would be four orders of magnitude short.
+    /// </remarks>
     [Fact]
-    public void Exhausting_the_counter_throws_rather_than_wrapping_to_zero()
+    public void A_stream_at_the_reserved_final_index_refuses_to_draw_rather_than_wrapping()
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Shrine, ulong.MaxValue);
 
-        rng.NextUInt();
-
         var act = () => rng.NextUInt();
+
         act.Should().Throw<InvalidOperationException>();
+        rng.Position.Should().Be(ulong.MaxValue);
+    }
+
+    /// <summary>The index below the reserved one is ordinary and draws normally.</summary>
+    [Fact]
+    public void A_stream_one_below_the_reserved_final_index_still_draws()
+    {
+        var row = ReferenceVectors.DrawRow("shrine-near-max");
+        var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
+
+        rng.NextUInt().Should().Be(row.NextUInt);
+        rng.Position.Should().Be(ulong.MaxValue);
+    }
+
+    /// <summary>
+    /// 🔒 A rejected call is not a draw. <c>Position</c> is specified as the number of calls
+    /// ever <i>made</i> on the stream, and an argument the method refused to act on made none —
+    /// otherwise a caller's validation bug would silently desynchronise the persisted counter
+    /// from the sequence it indexes.
+    /// </summary>
+    [Fact]
+    public void A_rejected_call_consumes_no_draw_index()
+    {
+        var rng = new DeterministicRng(RunSeed, RngStreams.Dice, 12UL);
+
+        var invertedRange = () => rng.Range(5, 4);
+        var emptyTable = () => rng.WeightedPick(Array.Empty<(string, double)>());
+
+        invertedRange.Should().Throw<ArgumentOutOfRangeException>();
+        emptyTable.Should().Throw<ArgumentException>();
+        rng.Position.Should().Be(12UL);
     }
 
     /// <summary>

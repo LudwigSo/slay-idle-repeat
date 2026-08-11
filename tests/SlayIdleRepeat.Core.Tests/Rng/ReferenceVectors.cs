@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using SlayIdleRepeat.Core.Rng;
+using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
