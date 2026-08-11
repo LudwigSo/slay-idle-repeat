@@ -318,8 +318,9 @@ public static class TunableMarkerAudit
         // content/feats/.
         "feats.json",
 
-        // 19 §14 — the first-time-user-experience script: which tutorial beat fires when. Sequencing,
-        // not economy; 21 sweeps nothing in it. Authored by M10.
+        // 19 Part D — the first-time-user-experience script: which tutorial beat fires when, and
+        // the fixed tutorial-shop row 16 A7 rules is NOT derived from 03 §7. Sequencing, not
+        // economy; 21 sweeps nothing in it. Authored by M10.
         "ftue.json",
 
         // 17 §1.2 — boss definitions: phases, mechanics, HP shape. Content identity and combat

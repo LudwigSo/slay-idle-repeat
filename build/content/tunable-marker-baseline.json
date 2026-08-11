@@ -143,7 +143,7 @@
       "closedBy": "M3-08" },
 
     { "doc": "19", "section": "",
-      "reason": "The FTUE script's tutorial-only full heal. ftue.json is a sequencing file, not economy; 19 has no numbered sections for the join to bind to.",
+      "reason": "Part D's FTUE script (the tutorial-only heal, the fixed shop row). ftue.json is a sequencing file, not economy — and 19 numbers its sections 'PART D / D4.2', which the doc-section join cannot bind to at all.",
       "closedBy": "M10-02" },
 
     { "doc": "21", "section": "3.1",

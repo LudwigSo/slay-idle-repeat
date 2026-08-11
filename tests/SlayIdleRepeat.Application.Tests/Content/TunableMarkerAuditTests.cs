@@ -321,7 +321,7 @@ public sealed class TunableMarkerAuditTests
             // currencies.json; the definitions are content. Authored by M11.
             "feats.json",
 
-            // 19 §14 — the tutorial script. Sequencing, not economy. Authored by M10.
+            // 19 Part D — the tutorial script. Sequencing, not economy. Authored by M10.
             "ftue.json",
 
             // 17 §1.2 — boss phases and mechanics. Combat balance and content identity; the kill
