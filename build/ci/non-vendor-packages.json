@@ -23,7 +23,7 @@
     { "id": "Microsoft.NET.Test.Sdk", "reason": "Test host. Required in every test project by construction." },
     { "id": "xunit", "reason": "Test framework." },
     { "id": "xunit.runner.visualstudio", "reason": "Test adapter; without it the suite reports zero tests." },
-    { "id": "FluentAssertions", "reason": "Assertion library." },
+    { "id": "Shouldly", "reason": "Assertion library. In all four test suites by construction. Replaced its predecessor in M1-00, whose next major moved to a paid commercial licence - the kind of lock-in this list exists to keep visible." },
     { "id": "NetArchTest.Rules", "reason": "The engine the 23 §6 architecture rules are written against." },
     { "id": "Mono.Cecil", "reason": "IL reader used by SlayIdleRepeat.Architecture.Tests (M0-08, Infrastructure/Il.cs) to inspect method bodies for the banned-API rules. It reads assemblies; it is not a service behind a port and cannot lock anything in." },
     { "id": "coverlet.collector", "reason": "Coverage collector. Test-time only." },

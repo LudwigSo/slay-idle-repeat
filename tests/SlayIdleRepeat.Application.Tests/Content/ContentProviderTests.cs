@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using Xunit;
 
@@ -20,7 +20,7 @@ public sealed class ContentProviderTests
     {
         var provider = DevProvider(ContentTestData.Valid());
 
-        provider.Current.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
+        provider.Current.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(3);
     }
 
     [Fact]
@@ -28,9 +28,9 @@ public sealed class ContentProviderTests
     {
         var source = ContentTestData.WithTuningEdit("\"inputCount\": 3", "\"inputCount\": 99");
 
-        var act = () => new ContentProvider(source, ContentLoadOptions.Canonical, ContentReloadPolicy.Disabled);
+        Action act = () => _ = new ContentProvider(source, ContentLoadOptions.Canonical, ContentReloadPolicy.Disabled);
 
-        act.Should().Throw<ContentLoadException>();
+        Should.Throw<ContentLoadException>(act);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class ContentProviderTests
 
         var reloaded = provider.Reload();
 
-        reloaded.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(4);
+        reloaded.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(4);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ContentProviderTests
 
         provider.Reload();
 
-        provider.Current.Should().NotBeSameAs(before);
+        provider.Current.ShouldNotBeSameAs(before);
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public sealed class ContentProviderTests
 
         provider.Reload();
 
-        handedOut.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
-        handedOut.Version.Should().Be(stampWhenHandedOut);
+        handedOut.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(3);
+        handedOut.Version.ShouldBe(stampWhenHandedOut);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class ContentProviderTests
 
         provider.Reload();
 
-        provider.Current.Version.Should().NotBe(before);
+        provider.Current.Version.ShouldNotBe(before);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class ContentProviderTests
 
         provider.Reload();
 
-        provider.Current.Version.Should().Be(before);
+        provider.Current.Version.ShouldBe(before);
     }
 
     [Fact]
@@ -111,10 +111,10 @@ public sealed class ContentProviderTests
         source.Set(ContentTestData.TuningPath,
             ContentTestData.WidgetTuning.Replace("\"inputCount\": 3", "\"inputCount\": 99", StringComparison.Ordinal));
 
-        var act = () => provider.Reload();
+        Action act = () => _ = provider.Reload();
 
-        act.Should().Throw<ContentLoadException>();
-        provider.Current.Should().BeSameAs(lastGood);
+        Should.Throw<ContentLoadException>(act);
+        provider.Current.ShouldBeSameAs(lastGood);
     }
 
     [Fact]
@@ -123,9 +123,9 @@ public sealed class ContentProviderTests
         var provider = new ContentProvider(
             ContentTestData.Valid(), ContentLoadOptions.Canonical, ContentReloadPolicy.Disabled);
 
-        var act = () => provider.Reload();
+        Action act = () => _ = provider.Reload();
 
-        act.Should().Throw<ContentReloadNotPermittedException>();
+        Should.Throw<ContentReloadNotPermittedException>(act);
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public sealed class ContentProviderTests
 
         var reloaded = provider.TryReloadIfChanged(out var snapshot);
 
-        reloaded.Should().BeFalse();
-        snapshot.Should().BeSameAs(booted);
+        reloaded.ShouldBeFalse();
+        snapshot.ShouldBeSameAs(booted);
     }
 
     [Fact]
@@ -152,8 +152,8 @@ public sealed class ContentProviderTests
 
         var reloaded = provider.TryReloadIfChanged(out var snapshot);
 
-        reloaded.Should().BeFalse();
-        snapshot.Should().BeSameAs(before);
+        reloaded.ShouldBeFalse();
+        snapshot.ShouldBeSameAs(before);
     }
 
     [Fact]
@@ -166,8 +166,8 @@ public sealed class ContentProviderTests
 
         var reloaded = provider.TryReloadIfChanged(out var snapshot);
 
-        reloaded.Should().BeTrue();
-        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(4);
+        reloaded.ShouldBeTrue();
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(4);
     }
 
     /// <summary>
@@ -186,11 +186,11 @@ public sealed class ContentProviderTests
         source.Set(ContentTestData.TuningPath,
             ContentTestData.WidgetTuning.Replace("\"inputCount\": 3", "\"inputCount\": 4", StringComparison.Ordinal));
 
-        var act = () => provider.TryReloadIfChanged(out _);
+        Action act = () => _ = provider.TryReloadIfChanged(out _);
 
-        act.Should().NotThrow();
-        provider.TryReloadIfChanged(out var snapshot).Should().BeFalse();
-        snapshot.Should().BeSameAs(booted);
+        Should.NotThrow(act);
+        provider.TryReloadIfChanged(out var snapshot).ShouldBeFalse();
+        snapshot.ShouldBeSameAs(booted);
     }
 
     /// <summary>
@@ -209,10 +209,10 @@ public sealed class ContentProviderTests
         source.Set(ContentTestData.TuningPath,
             ContentTestData.WidgetTuning.Replace("\"inputCount\": 3", "\"inputCount\": 99", StringComparison.Ordinal));
 
-        var act = () => provider.TryReloadIfChanged(out _);
+        Action act = () => _ = provider.TryReloadIfChanged(out _);
 
-        act.Should().Throw<ContentLoadException>();
-        provider.Current.Should().BeSameAs(booted);
-        provider.Current.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
+        Should.Throw<ContentLoadException>(act);
+        provider.Current.ShouldBeSameAs(booted);
+        provider.Current.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(3);
     }
 }

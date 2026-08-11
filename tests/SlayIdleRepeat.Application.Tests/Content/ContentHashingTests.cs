@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
@@ -19,7 +19,7 @@ public sealed class ContentHashingTests
     {
         var version = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1m)))]);
 
-        version.Value.Should().MatchRegex("^[0-9a-f]{64}$");
+        version.Value.ShouldMatch("^[0-9a-f]{64}$");
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class ContentHashingTests
     {
         var documents = new[] { Doc("tuning/a.json", ("x", ContentValue.Number(1m))) };
 
-        ContentHashing.Compute(documents).Should().Be(ContentHashing.Compute(documents));
+        ContentHashing.Compute(documents).ShouldBe(ContentHashing.Compute(documents));
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class ContentHashingTests
         var a = Doc("tuning/a.json", ("x", ContentValue.Number(1m)));
         var b = Doc("tuning/b.json", ("y", ContentValue.Number(2m)));
 
-        ContentHashing.Compute([a, b]).Should().Be(ContentHashing.Compute([b, a]));
+        ContentHashing.Compute([a, b]).ShouldBe(ContentHashing.Compute([b, a]));
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class ContentHashingTests
         var before = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1m)))]);
         var after = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(2m)))]);
 
-        after.Should().NotBe(before);
+        after.ShouldNotBe(before);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class ContentHashingTests
         var before = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1m)))]);
         var after = ContentHashing.Compute([Doc("tuning/a.json", ("y", ContentValue.Number(1m)))]);
 
-        after.Should().NotBe(before);
+        after.ShouldNotBe(before);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class ContentHashingTests
         var before = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1m)))]);
         var after = ContentHashing.Compute([Doc("tuning/b.json", ("x", ContentValue.Number(1m)))]);
 
-        after.Should().NotBe(before);
+        after.ShouldNotBe(before);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class ContentHashingTests
         var a = Doc("tuning/a.json", ("x", ContentValue.Number(1m)));
         var b = Doc("tuning/b.json", ("x", ContentValue.Number(1m)));
 
-        ContentHashing.Compute([a, b]).Should().NotBe(ContentHashing.Compute([a]));
+        ContentHashing.Compute([a, b]).ShouldNotBe(ContentHashing.Compute([a]));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class ContentHashingTests
         var unauthorised = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Unauthorised))]);
         var zero = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(0m)))]);
 
-        unauthorised.Should().NotBe(zero);
+        unauthorised.ShouldNotBe(zero);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class ContentHashingTests
         var number = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1m)))]);
         var text = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Text("1")))]);
 
-        number.Should().NotBe(text);
+        number.ShouldNotBe(text);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class ContentHashingTests
         var plain = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1.5m)))]);
         var padded = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1.500m)))]);
 
-        padded.Should().Be(plain);
+        padded.ShouldBe(plain);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class ContentHashingTests
         var descending = new ContentDocument("tuning/a.json",
             ContentValue.Array([ContentValue.Number(2m), ContentValue.Number(1m)]));
 
-        ContentHashing.Compute([descending]).Should().NotBe(ContentHashing.Compute([ascending]));
+        ContentHashing.Compute([descending]).ShouldNotBe(ContentHashing.Compute([ascending]));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class ContentHashingTests
         var left = ContentHashing.Compute([Doc("tuning/a.json", ("ab", ContentValue.Text("c")))]);
         var right = ContentHashing.Compute([Doc("tuning/a.json", ("a", ContentValue.Text("bc")))]);
 
-        right.Should().NotBe(left,
+        right.ShouldNotBe(left,
             "the canonical encoding length-prefixes every string, so concatenation cannot collide");
     }
 
@@ -128,7 +128,7 @@ public sealed class ContentHashingTests
     {
         var bytes = ContentHashing.CanonicalBytes([Doc("tuning/a.json", ("x", ContentValue.Number(1m)))]);
 
-        bytes[0].Should().Be(ContentHashing.CanonicalFormatVersion);
+        bytes[0].ShouldBe(ContentHashing.CanonicalFormatVersion);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class ContentHashingTests
         var first = ContentLoader.Load(RepoData.Source()).Require().Version;
         var second = ContentLoader.Load(RepoData.Source()).Require().Version;
 
-        second.Should().Be(first);
+        second.ShouldBe(first);
     }
 
     // -------------------------------------- 🔒 the two decimal decisions, which had no test
@@ -154,8 +154,8 @@ public sealed class ContentHashingTests
     {
         var sum = ContentValue.Number(0.1m).AsNumber() + ContentValue.Number(0.2m).AsNumber();
 
-        sum.Should().Be(0.3m);
-        ContentValue.Number(sum).Should().Be(ContentValue.Number(0.3m));
+        sum.ShouldBe(0.3m);
+        ContentValue.Number(sum).ShouldBe(ContentValue.Number(0.3m));
     }
 
     /// <summary>
@@ -166,10 +166,10 @@ public sealed class ContentHashingTests
     [Fact]
     public void The_same_number_written_at_two_scales_is_one_value_and_one_hash_code()
     {
-        ContentValue.Number(1.5m).Should().Be(ContentValue.Number(1.500m));
+        ContentValue.Number(1.5m).ShouldBe(ContentValue.Number(1.500m));
 
         ContentValue.Number(1.500m).GetHashCode()
-                    .Should().Be(ContentValue.Number(1.5m).GetHashCode());
+                    .ShouldBe(ContentValue.Number(1.5m).GetHashCode());
     }
 
     /// <summary>And the stamp agrees with equality: the canonical encoding normalises the scale.</summary>
@@ -179,6 +179,6 @@ public sealed class ContentHashingTests
         var left = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1.5m)))]);
         var right = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1.500m)))]);
 
-        right.Should().Be(left);
+        right.ShouldBe(left);
     }
 }

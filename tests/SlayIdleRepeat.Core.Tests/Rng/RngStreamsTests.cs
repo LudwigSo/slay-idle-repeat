@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
@@ -23,22 +23,24 @@ public sealed class RngStreamsTests
     [Fact]
     public void The_registry_holds_exactly_the_eight_fixed_streams_of_the_specification()
     {
-        RngStreams.FixedNames.Should().Equal(
-            "board", "dice", "draft", "drops", "treasure", "shrine", "combat", "events");
+        RngStreams.FixedNames.ShouldBe(new[]
+        {
+            "board", "dice", "draft", "drops", "treasure", "shrine", "combat", "events",
+        });
     }
 
     /// <summary>Each constant carries the exact wire name — these strings reach the client.</summary>
     [Fact]
     public void Each_stream_constant_carries_its_specified_wire_name()
     {
-        RngStreams.Board.Should().Be("board");
-        RngStreams.Dice.Should().Be("dice");
-        RngStreams.Draft.Should().Be("draft");
-        RngStreams.Drops.Should().Be("drops");
-        RngStreams.Treasure.Should().Be("treasure");
-        RngStreams.Shrine.Should().Be("shrine");
-        RngStreams.Combat.Should().Be("combat");
-        RngStreams.Events.Should().Be("events");
+        RngStreams.Board.ShouldBe("board");
+        RngStreams.Dice.ShouldBe("dice");
+        RngStreams.Draft.ShouldBe("draft");
+        RngStreams.Drops.ShouldBe("drops");
+        RngStreams.Treasure.ShouldBe("treasure");
+        RngStreams.Shrine.ShouldBe("shrine");
+        RngStreams.Combat.ShouldBe("combat");
+        RngStreams.Events.ShouldBe("events");
     }
 
     /// <summary>The ninth row is parameterised: <c>minigame:{index}</c>.</summary>
@@ -48,7 +50,7 @@ public sealed class RngStreamsTests
     [InlineData(42, "minigame:42")]
     public void Minigame_builds_the_parameterised_stream_name(int index, string expected)
     {
-        RngStreams.Minigame(index).Should().Be(expected);
+        RngStreams.Minigame(index).ShouldBe(expected);
     }
 
     /// <summary>A negative minigame index is not a row in the registry.</summary>
@@ -57,14 +59,14 @@ public sealed class RngStreamsTests
     {
         var act = () => RngStreams.Minigame(-1);
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Theory]
     [MemberData(nameof(FixedStreamNames))]
     public void IsRegistered_accepts_every_fixed_stream_name(string streamName)
     {
-        RngStreams.IsRegistered(streamName).Should().BeTrue();
+        RngStreams.IsRegistered(streamName).ShouldBeTrue();
     }
 
     [Theory]
@@ -73,7 +75,7 @@ public sealed class RngStreamsTests
     [InlineData("minigame:2147483647")]
     public void IsRegistered_accepts_a_parameterised_minigame_stream(string streamName)
     {
-        RngStreams.IsRegistered(streamName).Should().BeTrue();
+        RngStreams.IsRegistered(streamName).ShouldBeTrue();
     }
 
     /// <summary>
@@ -100,13 +102,13 @@ public sealed class RngStreamsTests
     [InlineData("run")]
     public void IsRegistered_rejects_anything_that_is_not_a_registry_row(string streamName)
     {
-        RngStreams.IsRegistered(streamName).Should().BeFalse();
+        RngStreams.IsRegistered(streamName).ShouldBeFalse();
     }
 
     [Fact]
     public void IsRegistered_rejects_null()
     {
-        RngStreams.IsRegistered(null!).Should().BeFalse();
+        RngStreams.IsRegistered(null!).ShouldBeFalse();
     }
 
     /// <summary>
@@ -119,14 +121,18 @@ public sealed class RngStreamsTests
     {
         var produced = RngStreams.FixedNames.Concat(new[] { RngStreams.Minigame(0), RngStreams.Minigame(11) });
 
-        produced.Should().AllSatisfy(name => RngStreams.IsRegistered(name).Should().BeTrue());
+        produced.ShouldNotBeEmpty();
+        foreach (var name in produced)
+        {
+            RngStreams.IsRegistered(name).ShouldBeTrue($"the registry produced '{name}' but does not accept it");
+        }
     }
 
     /// <summary>The registry names are distinct — two rows sharing a name would share a sequence.</summary>
     [Fact]
     public void The_registry_names_are_unique()
     {
-        RngStreams.FixedNames.Should().OnlyHaveUniqueItems();
+        RngStreams.FixedNames.ShouldBeUnique();
     }
 
     public static TheoryData<string> FixedStreamNames()

@@ -18,7 +18,7 @@ public sealed class ProjectFileTests
     /// </summary>
     /// <remarks>
     /// Scoped to <c>src/</c> and <c>tools/</c>. Test projects legitimately share xUnit,
-    /// FluentAssertions and the test SDK — `23` §3 has `Contract.Tests` running one suite
+    /// Shouldly and the test SDK — `23` §3 has `Contract.Tests` running one suite
     /// against every adapter, so a solution-wide uniqueness rule would contradict the
     /// document it enforces. <c>tools/</c> is in scope because nothing about "one adapter per
     /// vendor SDK" stops applying to a project that happens not to ship.

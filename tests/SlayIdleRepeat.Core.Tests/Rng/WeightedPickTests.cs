@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
@@ -29,7 +29,7 @@ public sealed class WeightedPickTests
 
         rng.WeightedPick(new[] { ("common", 90.0), ("rare", 9.0), ("epic", 1.0) });
 
-        rng.Position.Should().Be(41UL);
+        rng.Position.ShouldBe(41UL);
     }
 
     /// <summary>A single-entry table always yields its one item, and still costs its one draw.</summary>
@@ -38,7 +38,7 @@ public sealed class WeightedPickTests
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Drops);
 
-        rng.WeightedPick(new[] { ("only", 1.0) }).Should().Be("only");
+        rng.WeightedPick(new[] { ("only", 1.0) }).ShouldBe("only");
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ public sealed class WeightedPickTests
         var fromForwards = new DeterministicRng(RunSeed, RngStreams.Drops).WeightedPick(forwards);
         var fromBackwards = new DeterministicRng(RunSeed, RngStreams.Drops).WeightedPick(backwards);
 
-        fromForwards.Should().NotBe(fromBackwards);
+        fromForwards.ShouldNotBe(fromBackwards);
     }
 
     /// <summary>
@@ -82,7 +82,7 @@ public sealed class WeightedPickTests
 
         var picks = Enumerable.Range(0, 500).Select(_ => rng.WeightedPick(table)).ToArray();
 
-        picks.Should().NotContain(table[zeroIndex].Item1);
+        picks.ShouldNotContain(table[zeroIndex].Item1);
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public sealed class WeightedPickTests
     {
         var table = new[] { ("a", 1.0), ("b", 1.0), ("c", 2.0) };
 
-        DeterministicRng.PickAt(unitInterval, table).Should().Be(expected);
+        DeterministicRng.PickAt(unitInterval, table).ShouldBe(expected);
     }
 
     /// <summary>
@@ -132,7 +132,7 @@ public sealed class WeightedPickTests
 
         var act = () => DeterministicRng.PickAt(TopOfUnitInterval, table);
 
-        act.Should().NotThrow().Which.Should().Be("b");
+        Should.NotThrow(act).ShouldBe("b");
     }
 
     /// <summary>
@@ -144,7 +144,7 @@ public sealed class WeightedPickTests
     {
         var table = new[] { ("a", 0.5), ("b", 0.5), ("disabled", 0.0) };
 
-        DeterministicRng.PickAt(TopOfUnitInterval, table).Should().Be("b");
+        DeterministicRng.PickAt(TopOfUnitInterval, table).ShouldBe("b");
     }
 
     /// <summary>The bottom of the range picks the first weighted item.</summary>
@@ -153,7 +153,7 @@ public sealed class WeightedPickTests
     {
         var table = new[] { ("disabled", 0.0), ("a", 0.5), ("b", 0.5) };
 
-        DeterministicRng.PickAt(0.0, table).Should().Be("a");
+        DeterministicRng.PickAt(0.0, table).ShouldBe("a");
     }
 
     /// <summary>
@@ -177,7 +177,7 @@ public sealed class WeightedPickTests
         var fromSmall = new DeterministicRng(row.Seed, row.Stream, row.Position).WeightedPick(small);
         var fromLarge = new DeterministicRng(row.Seed, row.Stream, row.Position).WeightedPick(large);
 
-        fromSmall.Should().Be(fromLarge);
+        fromSmall.ShouldBe(fromLarge);
     }
 
     /// <summary>
@@ -204,7 +204,7 @@ public sealed class WeightedPickTests
         var picked = new DeterministicRng(row.Seed, row.Stream, row.Position)
             .WeightedPick(UniformTenEntryTable());
 
-        picked.Should().Be(expected);
+        picked.ShouldBe(expected);
     }
 
     /// <summary>An empty table has nothing to return; there is no sensible draw to make.</summary>
@@ -215,7 +215,7 @@ public sealed class WeightedPickTests
 
         var act = () => rng.WeightedPick(Array.Empty<(string, double)>());
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public sealed class WeightedPickTests
 
         var act = () => rng.WeightedPick<string>(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>
@@ -239,7 +239,7 @@ public sealed class WeightedPickTests
 
         var act = () => rng.WeightedPick(new[] { ("a", 0.0), ("b", 0.0) });
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     /// <summary>
@@ -256,7 +256,7 @@ public sealed class WeightedPickTests
 
         var act = () => rng.WeightedPick(new[] { ("a", 1.0), ("b", weight) });
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     /// <summary>
@@ -271,7 +271,7 @@ public sealed class WeightedPickTests
         var first = new DeterministicRng(RunSeed, RngStreams.Treasure, 17UL).WeightedPick(table);
         var second = new DeterministicRng(RunSeed, RngStreams.Treasure, 17UL).WeightedPick(table);
 
-        first.Should().Be(second);
+        first.ShouldBe(second);
     }
 
     /// <summary>
@@ -287,7 +287,7 @@ public sealed class WeightedPickTests
 
         var picks = Enumerable.Range(0, 300).Select(_ => rng.WeightedPick(table)).Distinct();
 
-        picks.Should().BeEquivalentTo(new[] { "a", "b", "c" });
+        picks.ShouldBe(new[] { "a", "b", "c" }, ignoreOrder: true);
     }
 
     /// <summary>Ten equally weighted rows — one row per tenth of the unit interval.</summary>

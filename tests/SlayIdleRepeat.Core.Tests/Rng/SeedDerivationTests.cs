@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
@@ -26,7 +26,7 @@ public sealed class SeedDerivationTests
         var row = ReferenceVectors.Row(rowId);
         var runSeed = 0x0123456789ABCDEFUL;
 
-        SeedDerivation.BattleSeed(runSeed, battleIndex).Should().Be(row.Hash);
+        SeedDerivation.BattleSeed(runSeed, battleIndex).ShouldBe(row.Hash);
     }
 
     /// <summary>
@@ -46,9 +46,9 @@ public sealed class SeedDerivationTests
     {
         var runSeed = 0xDEADBEEFCAFEF00DUL;
 
-        RngStreams.Combat.Should().Be("combat");
+        RngStreams.Combat.ShouldBe("combat");
         SeedDerivation.BattleSeed(runSeed, 5)
-            .Should().Be(Hash64.Of(runSeed, "combat", 5UL));
+            .ShouldBe(Hash64.Of(runSeed, "combat", 5UL));
     }
 
     /// <summary>Each battle of a run gets its own seed.</summary>
@@ -59,22 +59,22 @@ public sealed class SeedDerivationTests
 
         var seeds = Enumerable.Range(0, 32).Select(index => SeedDerivation.BattleSeed(runSeed, index));
 
-        seeds.Should().OnlyHaveUniqueItems();
+        seeds.ShouldBeUnique();
     }
 
     /// <summary>And the same battle index of two runs is two different battles.</summary>
     [Fact]
     public void BattleSeed_differs_between_runs_for_the_same_battle_index()
     {
-        SeedDerivation.BattleSeed(1UL, 0).Should().NotBe(SeedDerivation.BattleSeed(2UL, 0));
+        SeedDerivation.BattleSeed(1UL, 0).ShouldNotBe(SeedDerivation.BattleSeed(2UL, 0));
     }
 
     [Fact]
     public void BattleSeed_rejects_a_negative_battle_index()
     {
-        var act = () => SeedDerivation.BattleSeed(1UL, -1);
+        Action act = () => _ = SeedDerivation.BattleSeed(1UL, -1);
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     /// <summary>
@@ -89,9 +89,9 @@ public sealed class SeedDerivationTests
         var runSeed = 0x0123456789ABCDEFUL;
         var battleSeed = SeedDerivation.BattleSeed(runSeed, 0);
 
-        battleSeed.Should().Be(row.Seed);
-        new DeterministicRng(battleSeed, RngStreams.Combat).NextUInt().Should().Be(row.NextUInt);
-        new DeterministicRng(runSeed, RngStreams.Combat).NextUInt().Should().NotBe(row.NextUInt);
+        battleSeed.ShouldBe(row.Seed);
+        new DeterministicRng(battleSeed, RngStreams.Combat).NextUInt().ShouldBe(row.NextUInt);
+        new DeterministicRng(runSeed, RngStreams.Combat).NextUInt().ShouldNotBe(row.NextUInt);
     }
 
     /// <summary>
@@ -110,6 +110,6 @@ public sealed class SeedDerivationTests
         var afterTheRevive = new DeterministicRng(battleSeed, RngStreams.Combat);
 
         new[] { afterTheRevive.NextUInt(), afterTheRevive.NextUInt(), afterTheRevive.NextUInt() }
-            .Should().Equal(beforeTheRevive);
+            .ShouldBe(beforeTheRevive);
     }
 }

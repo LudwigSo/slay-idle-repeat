@@ -1,5 +1,5 @@
 using System.Text;
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Content.Tunables;
 using SlayIdleRepeat.ContentValidator;
@@ -26,7 +26,7 @@ public sealed partial class RealDataSetTests
     {
         var result = ContentLoader.Load(RepoData.Source());
 
-        result.Issues.Should().BeEmpty();
+        result.Issues.ShouldBeEmpty();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed partial class RealDataSetTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        snapshot.DocumentPaths.Should().NotBeEmpty();
+        snapshot.DocumentPaths.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -44,13 +44,13 @@ public sealed partial class RealDataSetTests
 
         snapshot.DocumentPaths
             .Where(p => p.StartsWith("tuning/", StringComparison.Ordinal))
-            .Should().HaveCount(16, "21 §3.1 catalogues exactly sixteen tuning files");
+            .Count().ShouldBe(16, "21 §3.1 catalogues exactly sixteen tuning files");
     }
 
     [Fact]
     public void The_only_schemas_governing_nothing_are_the_two_whose_content_has_an_owner_and_a_milestone()
     {
-        ContentLoader.SchemasAwaitingContent.Should().Equal(
+        ContentLoader.SchemasAwaitingContent.ShouldBe(
         [
             // 14 §6 (the schema example) / 19 — content/chapters/*.json is authored by M2.
             "schema/chapter.schema.json",
@@ -73,7 +73,7 @@ public sealed partial class RealDataSetTests
         { "$schema": "../../schema/chapter.schema.json" }
         """);
 
-        ContentLoader.Load(source).Issues.Should().Contain(i =>
+        ContentLoader.Load(source).Issues.ShouldContain(i =>
             i.Code == ContentIssueCode.OrphanSchema && i.Location == "schema/chapter.schema.json");
     }
 
@@ -90,8 +90,8 @@ public sealed partial class RealDataSetTests
 
         var issues = ContentLoader.Load(source).Issues;
 
-        issues.Should().NotContain(i => i.Code == ContentIssueCode.MissingSchema);
-        issues.Should().Contain(i =>
+        issues.ShouldNotContain(i => i.Code == ContentIssueCode.MissingSchema);
+        issues.ShouldContain(i =>
             i.Code == ContentIssueCode.SchemaViolation &&
             i.Location.StartsWith("content/chapters/CH_02_DUSKMIRE.json#", StringComparison.Ordinal),
             "both files were validated against schema/chapter.schema.json, whose required keys they lack");
@@ -102,7 +102,7 @@ public sealed partial class RealDataSetTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        snapshot.IsAuthorised("tuning/forge.json#/enhance/perLevelSuccessRate").Should().BeFalse();
+        snapshot.IsAuthorised("tuning/forge.json#/enhance/perLevelSuccessRate").ShouldBeFalse();
     }
 
     [Fact]
@@ -110,9 +110,9 @@ public sealed partial class RealDataSetTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        var act = () => snapshot.ReadDouble("tuning/forge.json#/enhance/perLevelSuccessRate");
+        Action act = () => _ = snapshot.ReadDouble("tuning/forge.json#/enhance/perLevelSuccessRate");
 
-        act.Should().Throw<Core.Content.UnauthorisedTunableException>();
+        Should.Throw<Core.Content.UnauthorisedTunableException>(act);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed partial class RealDataSetTests
         var source = RepoData.SourceWithEdit(
             "tuning/forge.json", "\"statBonusPerLevel\": 0.07", "\"statBonusPerLevel\": 7");
 
-        ContentLoader.Load(source).Issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        ContentLoader.Load(source).Issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed partial class RealDataSetTests
         var source = RepoData.SourceWithEdit(
             "tuning/forge.json", "\"currency\": \"MERGE_DUST\"", "\"currency\": \"MERGE_DUSTT\"");
 
-        ContentLoader.Load(source).Issues.Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        ContentLoader.Load(source).Issues.ShouldContain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
     // -------------------------------------------------------------- 16 D20 · the ship gate
@@ -146,7 +146,7 @@ public sealed partial class RealDataSetTests
     {
         var issues = ContentLoader.Load(RepoData.Source(), ContentLoadOptions.Shipping).Issues;
 
-        issues.Should().Contain(i =>
+        issues.ShouldContain(i =>
             i.Code == ContentIssueCode.LocalisationMismatch &&
             i.Location == "loc/de.json#/strings/loc.currency.gold.name");
     }
@@ -158,7 +158,7 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void A_development_build_does_not_fail_on_the_sentinels_it_is_supposed_to_still_have()
     {
-        ContentLoader.Load(RepoData.Source(), ContentLoadOptions.Canonical).Issues.Should().BeEmpty();
+        ContentLoader.Load(RepoData.Source(), ContentLoadOptions.Canonical).Issues.ShouldBeEmpty();
     }
 
     // ------------------------------------------------- the declared rules are still alive
@@ -177,13 +177,13 @@ public sealed partial class RealDataSetTests
 
         var references = ContentInvariants.DeclaredRuleReferences;
 
-        references.Should().HaveCountGreaterThan(120,
+        references.Count.ShouldBeGreaterThan(120,
             "the declared rules resolve well over a hundred pointers today; a collapse means the " +
             "rules stopped running, not that the design docs stopped stating them");
 
         foreach (var reference in references)
         {
-            snapshot.TryRead(reference, out _).Should().BeTrue(
+            snapshot.TryRead(reference, out _).ShouldBeTrue(
                 $"the rule that names '{reference}' resolves it today. A pointer that stops " +
                 "resolving does not fail — it makes its rule vacuous, and the data set then " +
                 "validates more cleanly than before.");
@@ -197,7 +197,7 @@ public sealed partial class RealDataSetTests
     {
         var report = RunAudit();
 
-        report.Issues.Should().BeEmpty(
+        report.Issues.ShouldBeEmpty(
             "the 📐 check fails on anything the dated baseline does not record, and equally on a " +
             "baseline entry that no longer describes a real mismatch");
     }
@@ -205,7 +205,7 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void The_documentation_set_still_carries_markers_so_the_check_is_not_passing_vacuously()
     {
-        Markers().Should().HaveCountGreaterThan(40,
+        Markers().Count().ShouldBeGreaterThan(40,
             "M0-10 counted 58 markers across 24 docs; a sudden collapse means the scanner broke, " +
             "not that the docs did");
     }
@@ -218,7 +218,7 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void The_marker_scan_still_reaches_the_whole_documentation_set()
     {
-        Markers().Select(m => m.Section.DocId).Distinct().Should().HaveCountGreaterThan(20,
+        Markers().Select(m => m.Section.DocId).Distinct().Count().ShouldBeGreaterThan(20,
             "M0-10 counted 58 markers across 24 docs; markers surviving in a handful of documents " +
             "means the glob stopped reaching the rest");
     }
@@ -233,7 +233,7 @@ public sealed partial class RealDataSetTests
     public void The_tuning_schemas_still_carry_citations_so_the_reverse_direction_is_not_vacuous()
     {
         Citations().Where(c => c.GovernsTuningFile && c.GovernsNumericKey)
-                   .Should().HaveCountGreaterThan(30,
+                   .Count().ShouldBeGreaterThan(30,
                        "the audited set is 37 numeric tuning citations today; a collapse toward " +
                        "zero is DeclaresANumber breaking, not the schemas losing their provenance");
     }
@@ -241,14 +241,17 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void The_baseline_records_the_date_it_was_taken()
     {
-        File.Exists(BaselinePath).Should().BeTrue($"{BaselineRelativePath} is a committed deliverable of M0-09");
-        Baseline().RecordedOn.Should().MatchRegex(@"^\d{4}-\d{2}-\d{2}$");
+        File.Exists(BaselinePath).ShouldBeTrue($"{BaselineRelativePath} is a committed deliverable of M0-09");
+        Baseline().RecordedOn.ShouldMatch(@"^\d{4}-\d{2}-\d{2}$");
     }
 
     [Fact]
     public void Every_baseline_entry_carries_a_reason()
     {
-        Entries().Should().OnlyContain(e => e.Reason.Length > 0,
+        var entries = Entries();
+
+        entries.ShouldNotBeEmpty();
+        entries.ShouldAllBe(e => e.Reason.Length > 0,
             "a baseline without reasons is a place mismatches go to be forgotten");
     }
 
@@ -259,7 +262,10 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void Spec_debt_names_an_owner_and_a_scope_exclusion_does_not()
     {
-        Entries().Should().OnlyContain(e => e.Kind == TunableBaselineKind.SpecDebt
+        var entries = Entries();
+
+        entries.ShouldNotBeEmpty();
+        entries.ShouldAllBe(e => e.Kind == TunableBaselineKind.SpecDebt
             ? e.ClosedBy.Length > 0
             : e.ClosedBy.Length == 0);
     }
@@ -276,16 +282,16 @@ public sealed partial class RealDataSetTests
         var tracker = File.ReadAllText(Path.Combine(RepoData.RepositoryRoot, TrackerRelativePath));
         var known = TrackerTaskId().Matches(tracker).Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
 
-        known.Should().HaveCountGreaterThan(150,
+        known.Count.ShouldBeGreaterThan(150,
             $"{TrackerRelativePath} lists every milestone task; finding almost none means the " +
             "id pattern broke, not that the tracker emptied");
 
         foreach (var entry in Entries().Where(e => e.Kind == TunableBaselineKind.SpecDebt))
         {
-            entry.ClosedBy.Should().MatchRegex(@"^M\d+-\d+[a-z]?$",
+            entry.ClosedBy.ShouldMatch(@"^M\d+-\d+[a-z]?$",
                 $"the 📐 baseline entry for {entry.Section} must name a milestone task id");
 
-            known.Should().Contain(entry.ClosedBy,
+            known.ShouldContain(entry.ClosedBy,
                 $"the 📐 baseline entry for {entry.Section} is closed by a task that has to exist. " +
                 "Whoever reaches that task and deletes the entry as instructed turns content " +
                 "validation red on a mismatch that is still real.");
@@ -299,7 +305,7 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void The_baseline_carries_exactly_seven_permanent_scope_exclusions()
     {
-        Entries().Count(e => e.Kind == TunableBaselineKind.OutOfScope).Should().Be(7);
+        Entries().Count(e => e.Kind == TunableBaselineKind.OutOfScope).ShouldBe(7);
     }
 
     private static IReadOnlyList<TunableBaselineEntry> Entries()

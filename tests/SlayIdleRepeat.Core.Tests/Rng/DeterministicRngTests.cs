@@ -1,5 +1,5 @@
 using System.Reflection;
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
@@ -25,7 +25,7 @@ public sealed class DeterministicRngTests
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Dice);
 
-        rng.Position.Should().Be(0UL);
+        rng.Position.ShouldBe(0UL);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class DeterministicRngTests
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Dice, 12UL);
 
-        rng.Position.Should().Be(12UL);
+        rng.Position.ShouldBe(12UL);
     }
 
     /// <summary>
@@ -54,8 +54,8 @@ public sealed class DeterministicRngTests
     {
         var row = ReferenceVectors.DrawRow(rowId);
 
-        Hash64.Of(row.Seed, row.Stream, row.Position).Should().Be(row.Draw);
-        row.NextUInt.Should().Be((uint)(row.Draw >> 32));
+        Hash64.Of(row.Seed, row.Stream, row.Position).ShouldBe(row.Draw);
+        row.NextUInt.ShouldBe((uint)(row.Draw >> 32));
     }
 
     /// <summary>The top 32 bits of the draw, pinned against the committed table.</summary>
@@ -66,7 +66,7 @@ public sealed class DeterministicRngTests
         var row = ReferenceVectors.DrawRow(rowId);
         var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
 
-        rng.NextUInt().Should().Be(row.NextUInt);
+        rng.NextUInt().ShouldBe(row.NextUInt);
     }
 
     /// <summary>
@@ -82,7 +82,7 @@ public sealed class DeterministicRngTests
         var row = ReferenceVectors.DrawRow(rowId);
         var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
 
-        BitConverter.DoubleToUInt64Bits(rng.NextDouble()).Should().Be(row.NextDoubleBits);
+        BitConverter.DoubleToUInt64Bits(rng.NextDouble()).ShouldBe(row.NextDoubleBits);
     }
 
     /// <summary>
@@ -98,7 +98,7 @@ public sealed class DeterministicRngTests
 
         var value = rng.NextDouble();
 
-        value.Should().NotBe(Math.Round(value, 4));
+        value.ShouldNotBe(Math.Round(value, 4));
     }
 
     /// <summary>[0,1) — never 1.0, or a weighted pick could fall off the end of its table.</summary>
@@ -109,7 +109,10 @@ public sealed class DeterministicRngTests
         var row = ReferenceVectors.DrawRow(rowId);
         var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
 
-        rng.NextDouble().Should().BeGreaterThanOrEqualTo(0.0).And.BeLessThan(1.0);
+        var draw = rng.NextDouble();
+
+        draw.ShouldBeGreaterThanOrEqualTo(0.0);
+        draw.ShouldBeLessThan(1.0);
     }
 
     /// <summary>
@@ -124,7 +127,7 @@ public sealed class DeterministicRngTests
         var row = ReferenceVectors.DrawRow(rowId);
         var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
 
-        rng.Range(row.RangeMinInclusive, row.RangeMaxExclusive).Should().Be(row.Range);
+        rng.Range(row.RangeMinInclusive, row.RangeMaxExclusive).ShouldBe(row.Range);
     }
 
     /// <summary>A one-value range still costs a draw, and still returns its one value.</summary>
@@ -133,7 +136,7 @@ public sealed class DeterministicRngTests
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Board);
 
-        rng.Range(7, 8).Should().Be(7);
+        rng.Range(7, 8).ShouldBe(7);
     }
 
     /// <summary>
@@ -158,7 +161,7 @@ public sealed class DeterministicRngTests
 
         var value = rng.Range(int.MinValue, int.MaxValue);
 
-        value.Should().Be(-396853717);
+        value.ShouldBe(-396853717);
     }
 
     /// <summary>A negative lower bound is ordinary; the modulo must not fold it away.</summary>
@@ -168,11 +171,12 @@ public sealed class DeterministicRngTests
         var row = ReferenceVectors.DrawRow("drops-99");
         var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
 
-        row.RangeMinInclusive.Should().BeNegative();
-        rng.Range(row.RangeMinInclusive, row.RangeMaxExclusive)
-            .Should().Be(row.Range)
-            .And.BeGreaterThanOrEqualTo(row.RangeMinInclusive)
-            .And.BeLessThan(row.RangeMaxExclusive);
+        row.RangeMinInclusive.ShouldBeNegative();
+        var value = rng.Range(row.RangeMinInclusive, row.RangeMaxExclusive);
+
+        value.ShouldBe(row.Range);
+        value.ShouldBeGreaterThanOrEqualTo(row.RangeMinInclusive);
+        value.ShouldBeLessThan(row.RangeMaxExclusive);
     }
 
     /// <summary>An empty or inverted range has no value to return; that is a caller bug.</summary>
@@ -185,9 +189,9 @@ public sealed class DeterministicRngTests
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Board);
 
-        var act = () => rng.Range(minInclusive, maxExclusive);
+        Action act = () => _ = rng.Range(minInclusive, maxExclusive);
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     /// <summary>
@@ -199,10 +203,10 @@ public sealed class DeterministicRngTests
     {
         var table = new[] { ("a", 1.0), ("b", 1.0) };
 
-        AdvanceOf(rng => rng.NextUInt()).Should().Be(1UL);
-        AdvanceOf(rng => rng.NextDouble()).Should().Be(1UL);
-        AdvanceOf(rng => rng.Range(0, 10)).Should().Be(1UL);
-        AdvanceOf(rng => rng.WeightedPick(table)).Should().Be(1UL);
+        AdvanceOf(rng => rng.NextUInt()).ShouldBe(1UL);
+        AdvanceOf(rng => rng.NextDouble()).ShouldBe(1UL);
+        AdvanceOf(rng => rng.Range(0, 10)).ShouldBe(1UL);
+        AdvanceOf(rng => rng.WeightedPick(table)).ShouldBe(1UL);
     }
 
     /// <summary>
@@ -222,7 +226,7 @@ public sealed class DeterministicRngTests
         rng.WeightedPick(table);
         rng.NextUInt();
 
-        rng.Position.Should().Be(6UL);
+        rng.Position.ShouldBe(6UL);
     }
 
     /// <summary>The counter continues from where it was rehydrated, not from zero.</summary>
@@ -234,7 +238,7 @@ public sealed class DeterministicRngTests
         rng.NextUInt();
         rng.NextUInt();
 
-        rng.Position.Should().Be(14UL);
+        rng.Position.ShouldBe(14UL);
     }
 
     /// <summary>
@@ -249,7 +253,7 @@ public sealed class DeterministicRngTests
 
         var sixthByRandomAccess = new DeterministicRng(RunSeed, RngStreams.Drops, 5UL).NextUInt();
 
-        sixthByRandomAccess.Should().Be(byReplay[5]);
+        sixthByRandomAccess.ShouldBe(byReplay[5]);
     }
 
     /// <summary>Rehydration is construction: two instances at the same position agree forever after.</summary>
@@ -262,7 +266,7 @@ public sealed class DeterministicRngTests
         var fromFirst = new[] { first.NextUInt(), first.NextUInt(), first.NextUInt() };
         var fromSecond = new[] { second.NextUInt(), second.NextUInt(), second.NextUInt() };
 
-        fromFirst.Should().Equal(fromSecond);
+        fromFirst.ShouldBe(fromSecond);
     }
 
     /// <summary>
@@ -278,7 +282,7 @@ public sealed class DeterministicRngTests
 
         var board = new DeterministicRng(RunSeed, RngStreams.Board).NextUInt();
 
-        board.Should().Be(undisturbed);
+        board.ShouldBe(undisturbed);
     }
 
     /// <summary>Two streams over the same seed are different sequences, not the same one relabelled.</summary>
@@ -291,7 +295,7 @@ public sealed class DeterministicRngTests
         var fromDice = new[] { dice.NextUInt(), dice.NextUInt(), dice.NextUInt() };
         var fromBoard = new[] { board.NextUInt(), board.NextUInt(), board.NextUInt() };
 
-        fromDice.Should().NotEqual(fromBoard);
+        fromDice.SequenceEqual(fromBoard).ShouldBeFalse();
     }
 
     /// <summary>The same stream over two seeds is likewise two sequences.</summary>
@@ -301,7 +305,7 @@ public sealed class DeterministicRngTests
         var first = new DeterministicRng(RunSeed, RngStreams.Dice);
         var second = new DeterministicRng(RunSeed + 1, RngStreams.Dice);
 
-        first.NextUInt().Should().NotBe(second.NextUInt());
+        first.NextUInt().ShouldNotBe(second.NextUInt());
     }
 
     /// <summary>
@@ -321,8 +325,8 @@ public sealed class DeterministicRngTests
             .Select(_ => (FromDice: dice.NextUInt(), FromBoard: board.NextUInt()))
             .ToArray();
 
-        interleaved.Select(pair => pair.FromDice).Should().Equal(expectedDice);
-        interleaved.Select(pair => pair.FromBoard).Should().Equal(expectedBoard);
+        interleaved.Select(pair => pair.FromDice).ShouldBe(expectedDice);
+        interleaved.Select(pair => pair.FromBoard).ShouldBe(expectedBoard);
     }
 
     /// <summary>
@@ -345,13 +349,14 @@ public sealed class DeterministicRngTests
     {
         var type = typeof(DeterministicRng);
 
-        type.GetProperty(nameof(DeterministicRng.Position))!.CanWrite.Should().BeFalse();
+        type.GetProperty(nameof(DeterministicRng.Position))!.CanWrite.ShouldBeFalse();
 
         type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(method => !method.IsPrivate)
             .Select(method => method.Name)
-            .Should().BeEquivalentTo(
-                "get_Position", "NextUInt", "NextDouble", "Range", "WeightedPick");
+            .ShouldBe(
+                new[] { "get_Position", "NextUInt", "NextDouble", "Range", "WeightedPick" },
+                ignoreOrder: true);
     }
 
     /// <summary>
@@ -373,10 +378,10 @@ public sealed class DeterministicRngTests
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Shrine, ulong.MaxValue);
 
-        var act = () => rng.NextUInt();
+        Action act = () => _ = rng.NextUInt();
 
-        act.Should().Throw<InvalidOperationException>();
-        rng.Position.Should().Be(ulong.MaxValue);
+        Should.Throw<InvalidOperationException>(act);
+        rng.Position.ShouldBe(ulong.MaxValue);
     }
 
     /// <summary>The index below the reserved one is ordinary and draws normally.</summary>
@@ -386,8 +391,8 @@ public sealed class DeterministicRngTests
         var row = ReferenceVectors.DrawRow("shrine-near-max");
         var rng = new DeterministicRng(row.Seed, row.Stream, row.Position);
 
-        rng.NextUInt().Should().Be(row.NextUInt);
-        rng.Position.Should().Be(ulong.MaxValue);
+        rng.NextUInt().ShouldBe(row.NextUInt);
+        rng.Position.ShouldBe(ulong.MaxValue);
     }
 
     /// <summary>
@@ -401,12 +406,12 @@ public sealed class DeterministicRngTests
     {
         var rng = new DeterministicRng(RunSeed, RngStreams.Dice, 12UL);
 
-        var invertedRange = () => rng.Range(5, 4);
-        var emptyTable = () => rng.WeightedPick(Array.Empty<(string, double)>());
+        Action invertedRange = () => _ = rng.Range(5, 4);
+        Action emptyTable = () => _ = rng.WeightedPick(Array.Empty<(string, double)>());
 
-        invertedRange.Should().Throw<ArgumentOutOfRangeException>();
-        emptyTable.Should().Throw<ArgumentException>();
-        rng.Position.Should().Be(12UL);
+        Should.Throw<ArgumentOutOfRangeException>(invertedRange);
+        Should.Throw<ArgumentException>(emptyTable);
+        rng.Position.ShouldBe(12UL);
     }
 
     /// <summary>
@@ -422,17 +427,17 @@ public sealed class DeterministicRngTests
     [InlineData("")]
     public void The_constructor_rejects_a_stream_name_that_is_not_in_the_registry(string streamName)
     {
-        var act = () => new DeterministicRng(RunSeed, streamName);
+        Action act = () => _ = new DeterministicRng(RunSeed, streamName);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
     public void The_constructor_rejects_a_null_stream_name()
     {
-        var act = () => new DeterministicRng(RunSeed, null!);
+        Action act = () => _ = new DeterministicRng(RunSeed, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>Every registered stream name is constructible — the registry and the guard agree.</summary>
@@ -440,17 +445,17 @@ public sealed class DeterministicRngTests
     [MemberData(nameof(FixedStreamNames))]
     public void The_constructor_accepts_every_registered_stream_name(string streamName)
     {
-        var act = () => new DeterministicRng(RunSeed, streamName);
+        Action act = () => _ = new DeterministicRng(RunSeed, streamName);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
     public void The_constructor_accepts_a_parameterised_minigame_stream()
     {
-        var act = () => new DeterministicRng(RunSeed, RngStreams.Minigame(3));
+        Action act = () => _ = new DeterministicRng(RunSeed, RngStreams.Minigame(3));
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     private static ulong AdvanceOf(Action<DeterministicRng> call)

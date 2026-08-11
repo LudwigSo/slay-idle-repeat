@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
 
@@ -44,7 +44,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.Version.Value.Should().Be(new string('a', ContentVersion.HexLength));
+        snapshot.Version.Value.ShouldBe(new string('a', ContentVersion.HexLength));
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class ContentSnapshotTests
                 new ContentDocument("tuning/ads.json", ContentValue.EmptyObject),
             ]);
 
-        snapshot.DocumentPaths.Should().Equal("loc/en.json", "tuning/ads.json", "tuning/luck.json");
+        snapshot.DocumentPaths.ShouldBe(new[] { "loc/en.json", "tuning/ads.json", "tuning/luck.json" });
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class ContentSnapshotTests
                 new ContentDocument(ForgePath, ContentValue.EmptyObject),
             ]);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.ReadInt32($"{ForgePath}#/merge/inputCount").Should().Be(3);
+        snapshot.ReadInt32($"{ForgePath}#/merge/inputCount").ShouldBe(3);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.ReadDouble($"{ForgePath}#/enhance/statBonusPerLevel").Should().Be(0.07d);
+        snapshot.ReadDouble($"{ForgePath}#/enhance/statBonusPerLevel").ShouldBe(0.07d);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.ReadBoolean($"{ForgePath}#/enhance/neverDestroysOrDowngrades").Should().BeTrue();
+        snapshot.ReadBoolean($"{ForgePath}#/enhance/neverDestroysOrDowngrades").ShouldBeTrue();
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.ReadText($"{ForgePath}#/_status").Should().Be("partial");
+        snapshot.ReadText($"{ForgePath}#/_status").ShouldBe("partial");
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.ReadInt32($"{ForgePath}#/enhance/stoneCostPerLevel/2").Should().Be(4);
+        snapshot.ReadInt32($"{ForgePath}#/enhance/stoneCostPerLevel/2").ShouldBe(4);
     }
 
     [Fact]
@@ -119,10 +119,10 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        var act = () => snapshot.ReadDouble($"{ForgePath}#/enhance/perLevelSuccessRate");
+        Action act = () => _ = snapshot.ReadDouble($"{ForgePath}#/enhance/perLevelSuccessRate");
 
-        act.Should().Throw<UnauthorisedTunableException>()
-           .Which.Reference.Should().Be($"{ForgePath}#/enhance/perLevelSuccessRate");
+        Should.Throw<UnauthorisedTunableException>(act)
+            .Reference.ShouldBe($"{ForgePath}#/enhance/perLevelSuccessRate");
     }
 
     [Fact]
@@ -130,9 +130,9 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        var act = () => snapshot.ReadInt32($"{ForgePath}#/merge/dustSubstituteCost/SS");
+        Action act = () => _ = snapshot.ReadInt32($"{ForgePath}#/merge/dustSubstituteCost/SS");
 
-        act.Should().Throw<UnauthorisedTunableException>();
+        Should.Throw<UnauthorisedTunableException>(act);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class ContentSnapshotTests
 
         var value = snapshot.Read($"{ForgePath}#/enhance/perLevelSuccessRate");
 
-        value.IsUnauthorised.Should().BeTrue();
+        value.IsUnauthorised.ShouldBeTrue();
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.IsAuthorised($"{ForgePath}#/enhance/perLevelSuccessRate").Should().BeFalse();
+        snapshot.IsAuthorised($"{ForgePath}#/enhance/perLevelSuccessRate").ShouldBeFalse();
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.IsAuthorised($"{ForgePath}#/enhance/thereIsNoSuchKey").Should().BeFalse();
+        snapshot.IsAuthorised($"{ForgePath}#/enhance/thereIsNoSuchKey").ShouldBeFalse();
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        snapshot.IsAuthorised($"{ForgePath}#/enhance/statBonusPerLevel").Should().BeTrue();
+        snapshot.IsAuthorised($"{ForgePath}#/enhance/statBonusPerLevel").ShouldBeTrue();
     }
 
     [Fact]
@@ -174,9 +174,9 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        var act = () => snapshot.ReadInt32($"{ForgePath}#/merge/thereIsNoSuchKey");
+        Action act = () => _ = snapshot.ReadInt32($"{ForgePath}#/merge/thereIsNoSuchKey");
 
-        act.Should().Throw<MissingContentException>();
+        Should.Throw<MissingContentException>(act);
     }
 
     [Fact]
@@ -184,9 +184,9 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        var act = () => snapshot.ReadInt32("tuning/there_is_no_such_file.json#/a");
+        Action act = () => _ = snapshot.ReadInt32("tuning/there_is_no_such_file.json#/a");
 
-        act.Should().Throw<MissingContentException>();
+        Should.Throw<MissingContentException>(act);
     }
 
     [Fact]
@@ -194,9 +194,9 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        var act = () => snapshot.ReadInt32($"{ForgePath}#/enhance/stoneCostPerLevel/3");
+        Action act = () => _ = snapshot.ReadInt32($"{ForgePath}#/enhance/stoneCostPerLevel/3");
 
-        act.Should().Throw<MissingContentException>();
+        Should.Throw<MissingContentException>(act);
     }
 
     [Fact]
@@ -204,9 +204,9 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        var act = () => snapshot.ReadText($"{ForgePath}#/merge/inputCount");
+        Action act = () => _ = snapshot.ReadText($"{ForgePath}#/merge/inputCount");
 
-        act.Should().Throw<ContentTypeMismatchException>();
+        Should.Throw<ContentTypeMismatchException>(act);
     }
 
     [Fact]
@@ -216,8 +216,8 @@ public sealed class ContentSnapshotTests
 
         var found = snapshot.TryRead($"{ForgePath}#/merge/thereIsNoSuchKey", out var value);
 
-        found.Should().BeFalse();
-        value.Should().BeNull();
+        found.ShouldBeFalse();
+        value.ShouldBeNull();
     }
 
     [Fact]
@@ -225,9 +225,9 @@ public sealed class ContentSnapshotTests
     {
         var snapshot = Snapshot();
 
-        var act = () => snapshot.GetDocument("tuning/there_is_no_such_file.json");
+        Action act = () => _ = snapshot.GetDocument("tuning/there_is_no_such_file.json");
 
-        act.Should().Throw<MissingContentException>();
+        Should.Throw<MissingContentException>(act);
     }
 
     [Fact]
@@ -238,18 +238,29 @@ public sealed class ContentSnapshotTests
 
         var properties = typeof(ContentSnapshot).GetProperties(Public);
 
-        properties.Where(p => p.CanWrite).Select(p => p.Name).Should().BeEmpty(
+        properties.Where(p => p.CanWrite).Select(p => p.Name).ShouldBeEmpty(
             "14 §6 requires the snapshot to be immutable — a settable property is how hot-reload " +
             "starts mutating instead of swapping");
 
-        typeof(ContentSnapshot).GetFields(Public).Select(f => f.Name).Should().BeEmpty(
+        typeof(ContentSnapshot).GetFields(Public).Select(f => f.Name).ShouldBeEmpty(
             "a public field is a settable property that reflection over properties cannot see");
 
         // The realistic hazard is not a setter but an exposed mutable collection: a caller that can
         // Add to DocumentPaths has mutated a snapshot somebody else is still reading.
-        properties.Select(p => p.PropertyType)
+        var mutableCollections = new[] { typeof(List<>), typeof(Dictionary<,>), typeof(HashSet<>) };
+
+        var genericPropertyTypes = properties.Select(p => p.PropertyType)
             .Where(t => t.IsGenericType)
             .Select(t => t.GetGenericTypeDefinition())
-            .Should().NotContain([typeof(List<>), typeof(Dictionary<,>), typeof(HashSet<>)]);
+            .ToArray();
+
+        // 🔒 The floor. This rule is only ever as good as its subject set, and that set is
+        // built by reflection: if ContentSnapshot ever stops exposing a generic-typed
+        // property, "none of them is mutable" becomes true of nothing and passes forever.
+        genericPropertyTypes.ShouldNotBeEmpty(
+            "ContentSnapshot exposes no generic-typed property, so the mutable-collection "
+            + "rule below is asserting over an empty set and can no longer fail");
+
+        genericPropertyTypes.ShouldAllBe(t => !mutableCollections.Contains(t));
     }
 }

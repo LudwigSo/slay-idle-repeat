@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using Xunit;
 
@@ -32,7 +32,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
 
         var hex = Convert.ToHexString(BytesFor(row)).ToLowerInvariant();
 
-        hex.Should().Be(row.EncodedHex, "'{0}' pins {1}", row.Id, row.Why);
+        hex.ShouldBe(row.EncodedHex, $"'{row.Id}' pins {row.Why}");
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     {
         var row = CanonicalReferenceVectors.Row(rowId);
 
-        BytesFor(row).Should().HaveCount(row.EncodedByteLength, "'{0}' pins {1}", row.Id, row.Why);
+        BytesFor(row).Length.ShouldBe(row.EncodedByteLength, $"'{row.Id}' pins {row.Why}");
     }
 
     /// <summary>Every committed row: those bytes hash to exactly the committed 64-bit value.</summary>
@@ -58,7 +58,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
 
         var hash = CanonicalStateWriter.Fnv1a64(BytesFor(row));
 
-        hash.Should().Be(row.Hash, "'{0}' pins {1}", row.Id, row.Why);
+        hash.ShouldBe(row.Hash, $"'{row.Id}' pins {row.Why}");
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
 
         var wire = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Instance(row.Id));
 
-        wire.Should().Be(row.Wire, "'{0}' pins {1}", row.Id, row.Why);
+        wire.ShouldBe(row.Wire, $"'{row.Id}' pins {row.Why}");
     }
 
     /// <summary>Every committed <c>run</c> row, through the two-snapshot public entry point.</summary>
@@ -86,7 +86,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
         var wire = CanonicalStateWriter.HashRunCommandState(
             ReferenceSnapshots.Instance(row.Id), ReferenceSnapshots.SecondInstance(row.Id));
 
-        wire.Should().Be(row.Wire, "'{0}' pins {1}", row.Id, row.Why);
+        wire.ShouldBe(row.Wire, $"'{row.Id}' pins {row.Why}");
     }
 
     /// <summary>
@@ -117,14 +117,14 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     public void The_reference_table_still_covers_every_load_bearing_rule(string rowId)
     {
         CanonicalReferenceVectors.Canonical
-            .Should().ContainSingle(row => row.Id == rowId);
+            .Where(row => row.Id == rowId).ShouldHaveSingleItem();
     }
 
     /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
     [Fact]
     public void The_reference_table_ids_are_unique()
     {
-        CanonicalReferenceVectors.Canonical.Select(row => row.Id).Should().OnlyHaveUniqueItems();
+        CanonicalReferenceVectors.Canonical.Select(row => row.Id).ShouldBeUnique();
     }
 
     /// <summary>Both hashing modes are represented — a table with one mode pins half the contract.</summary>
@@ -133,7 +133,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     [InlineData("run")]
     public void The_reference_table_still_covers_both_hashing_modes(string mode)
     {
-        CanonicalReferenceVectors.Canonical.Where(row => row.Mode == mode).Should().NotBeEmpty();
+        CanonicalReferenceVectors.Canonical.Where(row => row.Mode == mode).ShouldNotBeEmpty();
     }
 
     /// <summary>
@@ -152,8 +152,8 @@ public sealed class CanonicalStateWriterReferenceVectorTests
         var first = CanonicalReferenceVectors.Row(firstId);
         var second = CanonicalReferenceVectors.Row(secondId);
 
-        first.Hash.Should().NotBe(second.Hash);
-        CanonicalStateWriter.Fnv1a64(BytesFor(first)).Should().NotBe(CanonicalStateWriter.Fnv1a64(BytesFor(second)));
+        first.Hash.ShouldNotBe(second.Hash);
+        CanonicalStateWriter.Fnv1a64(BytesFor(first)).ShouldNotBe(CanonicalStateWriter.Fnv1a64(BytesFor(second)));
     }
 
     /// <summary>
@@ -167,7 +167,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     {
         var row = CanonicalReferenceVectors.Row(rowId);
 
-        row.Wire.Should().Be("fnv1a:" + row.Hash.ToString("x16", System.Globalization.CultureInfo.InvariantCulture));
+        row.Wire.ShouldBe("fnv1a:" + row.Hash.ToString("x16", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     /// <summary>Every row carries a reason, so a failing row explains what it was defending.</summary>
@@ -175,7 +175,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     [MemberData(nameof(CanonicalIds))]
     public void Every_committed_row_says_what_it_pins(string rowId)
     {
-        CanonicalReferenceVectors.Row(rowId).Why.Should().NotBeNullOrWhiteSpace();
+        CanonicalReferenceVectors.Row(rowId).Why.ShouldNotBeNullOrWhiteSpace();
     }
 
     private static byte[] BytesFor(CanonicalReferenceVectors.CanonicalRow row) =>
