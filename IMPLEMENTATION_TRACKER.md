@@ -87,7 +87,7 @@ These live across the whole project; they start in M0 and grow with every milest
 | M0-05b | **Spike O23 (iOS, on paper):** the CocoaPods/Xcode export path as a written CI recipe + risk findings; macOS runner job authored but not executed (no Mac/Apple Developer account) | 14 §1, 12 §3.2 | ⬜ |
 | M0-06 | `Core/Rng`: `Hash64` (xxHash64, pinned encoding) + committed reference-vector table; `DeterministicRng` counter-based streams (`WeightedPick` = one draw) | 14 §8.0–8.1 | ⬜ |
 | M0-07 | `CanonicalStateWriter` — the single FNV-1a serialiser for `stateHash` / `LogHash` / parity hashes, with the field-order/SchemaVersion CI pin | 14 §16.6 | ⬜ |
-| M0-08 | Seed `SlayIdleRepeat.Architecture.Tests` with the dependency rules + banned-API greps (`System.Random`, `DateTime.Now`, `Guid.NewGuid`, …) | 23 §6 | 🔄 `feature-M0-08-architecture-tests` |
+| M0-08 | Seed `SlayIdleRepeat.Architecture.Tests` with the dependency rules + banned-API greps (`System.Random`, `DateTime.Now`, `Guid.NewGuid`, …) | 23 §6 | 🔍 merged · `feature-M0-08-architecture-tests` — **33 live rules, 0 skipped**, green on the integration branch. Six red-then-green demonstrations prove the suite bites, incl. a vacuous rule converting to a live one when a GameCommand hierarchy is added |
 | M0-09 | Content pipeline base: immutable version-stamped `ContentSnapshot`, schema validation harness, dev hot-reload; 📐-marker-vs-schema build check | 14 §6, 30 §3 | ⬜ |
 | M0-10 | `SlayIdleRepeat.Data` initial layout: `schema/`, `tuning/` (**the 16 files catalogued in `21` §3.1**, incl. `sim_thresholds.json` — `14` §6's "14 files" is stale prose and defers to 21), `loc/en.json` + `de.json`, `content/` | 21 §3.1 | 🔄 `feature-M0-10-data-layout` |
 
