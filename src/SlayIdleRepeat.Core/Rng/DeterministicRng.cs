@@ -144,6 +144,13 @@ public sealed class DeterministicRng
     /// Exposed to the domain test suite (`30` §11.3) so the walk's boundaries can be asserted at
     /// exact values — including the top of the unit interval, 1 − 2^-53, which no seed can be
     /// searched for.
+    /// <para>
+    /// ⚠️ It is a seam for asserting the walk, <b>not</b> the body of <see cref="WeightedPick"/>.
+    /// Folding the two together — <c>PickAt(UnitInterval(NextDraw()), table)</c> — reads like a
+    /// tidy-up and is a determinism break: it draws before the table is validated, so a call
+    /// rejected for a bad table would consume a draw index and shift every later draw on the
+    /// stream. 🔒 A rejected call is not a call.
+    /// </para>
     /// </remarks>
     internal static T PickAt<T>(double unitInterval, IReadOnlyList<(T item, double weight)> table)
     {
