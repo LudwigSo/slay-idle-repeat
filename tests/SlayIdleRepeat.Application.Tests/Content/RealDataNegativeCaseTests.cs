@@ -22,57 +22,80 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// </para>
 /// <para>
 /// 🔒 Four <b>positive controls</b> close the file. They assert that the shipped <c>null</c>s are
-/// still accepted — because a validator that rejected them would be "fixed" by filling 98 holes
+/// still accepted — because a validator that rejected them would be "fixed" by filling 96 holes
 /// with plausible zeroes, which is the single worst outcome this pipeline can have.
 /// </para>
 /// </remarks>
 public sealed class RealDataNegativeCaseTests
 {
-    private static IReadOnlyList<ContentIssue> After(string document, string find, string replaceWith) =>
-        ContentLoader.Load(RepoData.SourceWithEdit(document, find, replaceWith)).Issues;
+    /// <summary>
+    /// 🔒 Asserts the code <b>and the pointer</b>. Schema rules and cross-file rules are two
+    /// independent producers of the same codes — <c>OutOfRange</c> alone comes from roughly twenty
+    /// sites, and <see cref="ContentLoader"/> only runs <c>ContentInvariants</c> when schema
+    /// validation is clean, so deleting the schema bound a case names hands the case straight to a
+    /// different rule at a different pointer and it stays green. Two of these were already
+    /// surviving that way: an uncapped ad reward and a 150%-per-level enhance bonus both shipped
+    /// green once the bound their name cited was deleted.
+    /// </summary>
+    private static void Rejects(
+        string document, string find, string replaceWith, ContentIssueCode code, string location)
+    {
+        var issues = ContentLoader.Load(RepoData.SourceWithEdit(document, find, replaceWith)).Issues;
+
+        issues.Should().Contain(i => i.Code == code && i.Location == location,
+            "the rule this case names reports at {0}; another rule reporting {1} elsewhere is a " +
+            "different rule, and would leave this one free to stop biting", location, code);
+    }
 
     // ═══════════════════════════════════════════════════════ 14 §6 · unknown IDs (1-6)
 
     [Fact]
     public void a_rarity_outside_the_C_to_SS_ladder_is_rejected()
     {
-        After("tuning/luck.json", "\"guaranteeRarityAtLeast\": \"SS\"", "\"guaranteeRarityAtLeast\": \"SSS\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        Rejects("tuning/luck.json",
+            "{ \"everyNth\": 160, \"guaranteeRarityAtLeast\": \"SS\" }",
+            "{ \"everyNth\": 160, \"guaranteeRarityAtLeast\": \"SSS\" }",
+            ContentIssueCode.UnknownId,
+            "tuning/luck.json#/chestStandard/hardPity/2/guaranteeRarityAtLeast");
     }
 
     [Fact]
     public void a_currency_that_is_not_in_the_wallet_is_rejected()
     {
-        After("tuning/currencies.json", "\"currency\": \"SOUL_SHARDS\"", "\"currency\": \"SOULSHARDS\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        Rejects("tuning/currencies.json",
+            "\"currency\": \"SOUL_SHARDS\", \"price\": 900",
+            "\"currency\": \"SOULSHARDS\", \"price\": 900",
+            ContentIssueCode.UnknownId,
+            "tuning/currencies.json#/shop/dailyTab/staples/0/currency");
     }
 
     [Fact]
     public void a_dungeon_paying_a_currency_its_schema_does_not_allow_is_rejected()
     {
-        After("tuning/dungeons.json", "\"currency\": \"CROWNS\"", "\"currency\": \"GOLD\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        Rejects("tuning/dungeons.json", "\"currency\": \"CROWNS\"", "\"currency\": \"GOLD\"",
+            ContentIssueCode.UnknownId, "tuning/dungeons.json#/dungeons/2/currency");
     }
 
     [Fact]
     public void a_status_value_outside_the_three_the_schema_enumerates_is_rejected()
     {
-        After("tuning/forge.json", "\"_status\": \"partial\"", "\"_status\": \"draft\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        Rejects("tuning/forge.json", "\"_status\": \"partial\"", "\"_status\": \"draft\"",
+            ContentIssueCode.UnknownId, "tuning/forge.json#/_status");
     }
 
     [Fact]
     public void a_locale_key_that_breaks_the_key_convention_is_rejected()
     {
-        After("loc/en.json", "\"loc.currency.gold.name\"", "\"Loc.Currency.Gold.Name\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        Rejects("loc/en.json", "\"loc.currency.gold.name\"", "\"Loc.Currency.Gold.Name\"",
+            ContentIssueCode.UnknownId, "loc/en.json#/strings/Loc.Currency.Gold.Name");
     }
 
     [Fact]
     public void a_property_no_schema_declares_is_rejected()
     {
-        After("tuning/dungeons.json", "\"_status\": \"transcribed\",", "\"_status\": \"transcribed\", \"_note\": \"x\",")
-            .Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        Rejects("tuning/dungeons.json",
+            "\"_status\": \"transcribed\",", "\"_status\": \"transcribed\", \"_note\": \"x\",",
+            ContentIssueCode.UnknownId, "tuning/dungeons.json#/_note");
     }
 
     // ═══════════════════════════════════════════════════════ 14 §6 · missing icons (7-10)
@@ -80,29 +103,29 @@ public sealed class RealDataNegativeCaseTests
     [Fact]
     public void a_displayName_that_no_locale_carries_is_rejected()
     {
-        After("tuning/currencies.json", "\"loc.currency.gold.name\"", "\"loc.currency.gold.label\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.MissingIcon);
+        Rejects("tuning/currencies.json", "\"loc.currency.gold.name\"", "\"loc.currency.gold.label\"",
+            ContentIssueCode.MissingIcon, "tuning/currencies.json#/wallet/0/displayName");
     }
 
     [Fact]
     public void a_string_deleted_from_one_locale_only_is_rejected()
     {
-        After("loc/de.json", "\"loc.currency.gold.name\"", "\"loc.currency.gold.title\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.MissingIcon);
+        Rejects("loc/de.json", "\"loc.currency.gold.name\"", "\"loc.currency.gold.title\"",
+            ContentIssueCode.MissingIcon, "tuning/currencies.json#/wallet/0/displayName");
     }
 
     [Fact]
     public void an_affix_naming_a_string_that_does_not_exist_is_rejected()
     {
-        After("tuning/drops.json", "\"loc.affix.crit_chance.name\"", "\"loc.affix.critchance.name\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.MissingIcon);
+        Rejects("tuning/drops.json", "\"loc.affix.crit_chance.name\"", "\"loc.affix.critchance.name\"",
+            ContentIssueCode.MissingIcon, "tuning/drops.json#/affixPool/affixes/0/displayName");
     }
 
     [Fact]
     public void a_dungeon_naming_a_string_that_does_not_exist_is_rejected()
     {
-        After("tuning/dungeons.json", "\"loc.dungeon.mint.name\"", "\"loc.dungeon.themint.name\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.MissingIcon);
+        Rejects("tuning/dungeons.json", "\"loc.dungeon.mint.name\"", "\"loc.dungeon.themint.name\"",
+            ContentIssueCode.MissingIcon, "tuning/dungeons.json#/dungeons/2/displayName");
     }
 
     // ═════════════════════════════════════════════════ 14 §6 · out-of-range values (11-17)
@@ -110,50 +133,53 @@ public sealed class RealDataNegativeCaseTests
     [Fact]
     public void a_percentage_above_its_maximum_is_rejected()
     {
-        After("tuning/forge.json", "\"statBonusPerLevel\": 0.07", "\"statBonusPerLevel\": 1.5")
-            .Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Rejects("tuning/forge.json", "\"statBonusPerLevel\": 0.07", "\"statBonusPerLevel\": 1.5",
+            ContentIssueCode.OutOfRange, "tuning/forge.json#/enhance/statBonusPerLevel");
     }
 
     [Fact]
     public void an_uncapped_ad_reward_is_rejected_because_12_section_1_forbids_one()
     {
-        After("tuning/ads.json", "\"cap\": 1,", "\"cap\": 0,")
-            .Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Rejects("tuning/ads.json",
+            "\"id\": \"AD_REVIVE\", \"cap\": 1,",
+            "\"id\": \"AD_REVIVE\", \"cap\": 0,",
+            ContentIssueCode.OutOfRange, "tuning/ads.json#/inRunPlacements/0/cap");
     }
 
     [Fact]
     public void a_probability_above_one_is_rejected()
     {
-        After("tuning/sim_profiles.json", "\"defaultWatchRate\": 0.5", "\"defaultWatchRate\": 1.2")
-            .Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Rejects("tuning/sim_profiles.json", "\"defaultWatchRate\": 0.3", "\"defaultWatchRate\": 1.2",
+            ContentIssueCode.OutOfRange, "tuning/sim_profiles.json#/profiles/5/ads/defaultWatchRate");
     }
 
     [Fact]
     public void an_enhance_stone_ladder_that_stops_ascending_is_rejected()
     {
-        After("tuning/forge.json", "[2, 3, 4, 6, 8, 12,", "[2, 3, 4, 6, 8, 5,")
-            .Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Rejects("tuning/forge.json", "[2, 3, 4, 6, 8, 12,", "[2, 3, 4, 6, 8, 5,",
+            ContentIssueCode.OutOfRange, "tuning/forge.json#/enhance/stoneCostPerLevel/5");
     }
 
     [Fact]
     public void an_expected_power_curve_that_goes_down_is_rejected()
     {
-        After("tuning/expected_progression.json", "950000, 2400000", "450000, 2400000")
-            .Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Rejects("tuning/expected_progression.json", "460000, 800000, 1900000", "460000, 400000, 1900000",
+            ContentIssueCode.OutOfRange,
+            "tuning/expected_progression.json#/profiles/2/expectedPower/6");
     }
 
     [Fact]
     public void a_soft_pity_that_sits_above_the_hard_pity_it_protects_is_rejected()
     {
-        After("tuning/luck.json", "\"missThreshold\": 15", "\"missThreshold\": 30")
-            .Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Rejects("tuning/luck.json", "\"missThreshold\": 15", "\"missThreshold\": 30",
+            ContentIssueCode.OutOfRange, "tuning/luck.json#/chestPremium/softPity/missThreshold");
     }
 
     [Fact]
     public void a_global_ad_cap_that_is_not_the_sum_of_its_placements_is_rejected()
     {
-        After("tuning/ads.json", "\"maxInRunImpressionsPerRun\": 17", "\"maxInRunImpressionsPerRun\": 18")
-            .Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Rejects("tuning/ads.json", "\"maxInRunImpressionsPerRun\": 17", "\"maxInRunImpressionsPerRun\": 18",
+            ContentIssueCode.OutOfRange, "tuning/ads.json#/globalCaps/maxInRunImpressionsPerRun");
     }
 
     // ═══════════════════════════════════════════════ 14 §6 · orphaned references (18-25)
@@ -161,57 +187,63 @@ public sealed class RealDataNegativeCaseTests
     [Fact]
     public void a_profile_name_no_behavioural_profile_declares_is_rejected()
     {
-        After("tuning/expected_progression.json", "\"profile\": \"DungeonOnly\"", "\"profile\": \"DungeonsOnly\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/expected_progression.json",
+            "\"profile\": \"DungeonOnly\"", "\"profile\": \"DungeonsOnly\"",
+            ContentIssueCode.OrphanedReference, "tuning/expected_progression.json#/profiles");
     }
 
     [Fact]
     public void a_tolerance_ladder_that_is_not_declared_is_rejected()
     {
-        After("tuning/expected_progression.json", "\"toleranceLadder\": \"wide\"", "\"toleranceLadder\": \"widest\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/expected_progression.json",
+            "\"toleranceLadder\": \"plusLapsed\"", "\"toleranceLadder\": \"plusLapsedd\"",
+            ContentIssueCode.OrphanedReference,
+            "tuning/expected_progression.json#/profiles/2/toleranceLadder");
     }
 
     [Fact]
     public void an_ad_placement_that_is_not_in_the_catalogue_is_rejected()
     {
-        After("tuning/dungeons.json", "\"AD_EXTRA_DUNGEON\"", "\"AD_EXTRA_DUNGEONS\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/dungeons.json", "\"AD_EXTRA_DUNGEON\"", "\"AD_EXTRA_DUNGEONS\"",
+            ContentIssueCode.OrphanedReference, "tuning/dungeons.json#/entries/adPlacementId");
     }
 
     [Fact]
     public void renaming_an_unlock_gate_orphans_everything_that_names_it()
     {
-        After("tuning/progression.json", "\"DUNGEONS\":", "\"DUNGEON_ACCESS\":")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/progression.json", "\"DUNGEONS\":", "\"DUNGEON_ACCESS\":",
+            ContentIssueCode.OrphanedReference, "tuning/guilds.json#/quests/pool/5/gatedOn");
     }
 
     [Fact]
     public void an_assertion_grading_a_profile_that_does_not_exist_is_rejected()
     {
-        After("tuning/sim_thresholds.json", "\"profile\": \"NoAds_Core\"", "\"profile\": \"NoAds_Core2\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/sim_thresholds.json",
+            "\"profile\": \"NoAds_Core\", \"maxEnergyBlockedDayShare\"",
+            "\"profile\": \"NoAds_Core2\", \"maxEnergyBlockedDayShare\"",
+            ContentIssueCode.OrphanedReference, "tuning/sim_thresholds.json#/coreEconomy/A7/profile");
     }
 
     [Fact]
     public void a_mirrored_forge_cost_that_stops_agreeing_with_luck_is_rejected()
     {
-        After("tuning/forge.json", "\"C\": 100, \"B\": 300", "\"C\": 150, \"B\": 300")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/forge.json", "\"C\": 100, \"B\": 300", "\"C\": 150, \"B\": 300",
+            ContentIssueCode.OrphanedReference, "tuning/forge.json#/reforge/costByRarity/C");
     }
 
     [Fact]
     public void an_ad_bundle_that_stops_being_worth_its_Crown_equivalence_is_rejected()
     {
-        After("tuning/currencies.json", "\"crownsPerUnit\": 25", "\"crownsPerUnit\": 26")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/currencies.json", "\"crownsPerUnit\": 25", "\"crownsPerUnit\": 26",
+            ContentIssueCode.OrphanedReference,
+            "tuning/ads.json#/rewardScaling/baseValue/AD_ENHANCE_STONES");
     }
 
     [Fact]
     public void a_dungeon_paying_a_currency_the_same_file_says_it_never_pays_is_rejected()
     {
-        After("tuning/dungeons.json", "\"MERGE_DUST\",", "\"CROWNS\",")
-            .Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Rejects("tuning/dungeons.json", "\"MERGE_DUST\",", "\"CROWNS\",",
+            ContentIssueCode.OrphanedReference, "tuning/dungeons.json#/dungeons/2/currency");
     }
 
     // ══════════════════════════════════════════════════════ 14 §6 · duplicate IDs (26-29)
@@ -219,29 +251,33 @@ public sealed class RealDataNegativeCaseTests
     [Fact]
     public void the_same_wallet_currency_declared_twice_is_rejected()
     {
-        After("tuning/currencies.json", "\"id\": \"ENERGY\"", "\"id\": \"CROWNS\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
+        Rejects("tuning/currencies.json", "\"id\": \"ENERGY\"", "\"id\": \"CROWNS\"",
+            ContentIssueCode.DuplicateId, "tuning/currencies.json#/wallet");
     }
 
     [Fact]
     public void the_same_ad_placement_id_in_both_arrays_is_rejected()
     {
-        After("tuning/ads.json", "\"id\": \"AD_MERGE_DUST\"", "\"id\": \"AD_REVIVE\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
+        Rejects("tuning/ads.json", "\"id\": \"AD_MERGE_DUST\"", "\"id\": \"AD_REVIVE\"",
+            ContentIssueCode.DuplicateId,
+            "tuning/ads.json#/inRunPlacements/0/id, tuning/ads.json#/metaPlacements/7/id");
     }
 
     [Fact]
     public void the_same_guild_quest_id_twice_is_rejected()
     {
-        After("tuning/guilds.json", "\"id\": \"GQ_STARS\"", "\"id\": \"GQ_ENEMIES\"")
-            .Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
+        Rejects("tuning/guilds.json", "\"id\": \"GQ_STARS\"", "\"id\": \"GQ_ENEMIES\"",
+            ContentIssueCode.DuplicateId,
+            "tuning/guilds.json#/quests/pool/0/id, tuning/guilds.json#/quests/pool/14/id");
     }
 
     [Fact]
     public void a_duplicated_object_key_is_rejected_even_though_every_parser_would_swallow_it()
     {
-        After("tuning/currencies.json", "\"crownsPerUnit\": 6,", "\"crownsPerUnit\": 6, \"crownsPerUnit\": 3,")
-            .Should().Contain(i => i.Code == ContentIssueCode.DuplicateKey);
+        Rejects("tuning/currencies.json",
+            "\"crownsPerUnit\": 6,", "\"crownsPerUnit\": 6, \"crownsPerUnit\": 3,",
+            ContentIssueCode.DuplicateKey,
+            "tuning/currencies.json#/shop/materialsTab/MERGE_DUST/crownsPerUnit");
     }
 
     // ═══════════════════════════════════════════ 🔒 null is not a default — rejection (30)
@@ -249,15 +285,15 @@ public sealed class RealDataNegativeCaseTests
     [Fact]
     public void a_null_where_the_schema_does_not_permit_one_is_rejected()
     {
-        After("tuning/forge.json", "\"statBonusPerLevel\": 0.07", "\"statBonusPerLevel\": null")
-            .Should().Contain(i => i.Code == ContentIssueCode.SchemaViolation);
+        Rejects("tuning/forge.json", "\"statBonusPerLevel\": 0.07", "\"statBonusPerLevel\": null",
+            ContentIssueCode.SchemaViolation, "tuning/forge.json#/enhance/statBonusPerLevel");
     }
 
     [Fact]
     public void A_null_ad_cap_is_rejected_because_ads_json_says_outright_that_a_null_cap_is_not_legal()
     {
-        After("tuning/ads.json", "\"cap\": 4,", "\"cap\": null,")
-            .Should().Contain(i => i.Code == ContentIssueCode.SchemaViolation);
+        Rejects("tuning/ads.json", "\"cap\": 4,", "\"cap\": null,",
+            ContentIssueCode.SchemaViolation, "tuning/ads.json#/metaPlacements/0/cap");
     }
 
     // ═══════════════════════════ 🔒 positive controls — these nulls MUST still be accepted
@@ -283,6 +319,40 @@ public sealed class RealDataNegativeCaseTests
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
             "decision, made deliberately, changing this number in the same commit.");
+    }
+
+    /// <summary>
+    /// 🔒 The same population, <b>per file</b>. A total of 96 cannot see a <em>compensating</em>
+    /// change — one hole filled in <c>guilds.json</c> and one opened in <c>drops.json</c> nets to
+    /// zero, and the filled one is precisely the design decision this suite exists to make
+    /// deliberate. The breakdown was already written down in the remark above; asserting it costs
+    /// nothing and closes the hole in the guard.
+    /// </summary>
+    [Theory]
+    [InlineData("tuning/guilds.json", 32)]
+    [InlineData("tuning/drops.json", 25)]
+    [InlineData("tuning/power_model.json", 13)]
+    [InlineData("tuning/events.json", 7)]
+    [InlineData("tuning/progression.json", 5)]
+    [InlineData("tuning/luck.json", 4)]
+    [InlineData("tuning/sim_profiles.json", 4)]
+    [InlineData("tuning/currencies.json", 2)]
+    [InlineData("tuning/forge.json", 2)]
+    [InlineData("tuning/beasts.json", 1)]
+    [InlineData("tuning/calibration_builds.json", 1)]
+    [InlineData("tuning/ads.json", 0)]
+    [InlineData("tuning/dungeons.json", 0)]
+    [InlineData("tuning/expected_progression.json", 0)]
+    [InlineData("tuning/par_power.json", 0)]
+    [InlineData("tuning/sim_thresholds.json", 0)]
+    [InlineData("loc/en.json", 0)]
+    [InlineData("loc/de.json", 0)]
+    public void Each_shipped_file_carries_exactly_the_unauthorised_holes_it_is_recorded_as_carrying(
+        string documentPath, int expected)
+    {
+        var snapshot = ContentLoader.Load(RepoData.Source()).Require();
+
+        Count(snapshot.GetDocument(documentPath).Root).Should().Be(expected);
     }
 
     private static int CountUnauthorised(Core.Content.ContentSnapshot snapshot) =>
@@ -311,7 +381,7 @@ public sealed class RealDataNegativeCaseTests
 
         snapshot.Read(reference).IsUnauthorised.Should().BeTrue(
             "SlayIdleRepeat.Data/README.md: null means the design docs do not authorise a value " +
-            "here. A validator that rejected these would be 'fixed' by filling 98 holes with " +
+            "here. A validator that rejected these would be 'fixed' by filling 96 holes with " +
             "plausible zeroes, which is the worst outcome this pipeline can have");
     }
 }

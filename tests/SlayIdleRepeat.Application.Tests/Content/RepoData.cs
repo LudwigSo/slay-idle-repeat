@@ -16,7 +16,7 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// </para>
 /// <para>
 /// It earns its place because the miniature fixture cannot: a validator that has only ever seen a
-/// 40-line stand-in has not been shown to survive 16 real tuning files, 19 real schemas and 98
+/// 40-line stand-in has not been shown to survive 16 real tuning files, 19 real schemas and 96
 /// deliberate <c>null</c>s.
 /// </para>
 /// </remarks>
@@ -59,17 +59,51 @@ internal static class RepoData
     }
 
     /// <summary>The real data set with one document's text edited — a single-edit mutation.</summary>
-    internal static InMemoryContentSource SourceWithEdit(string documentPath, string find, string replaceWith)
+    /// <param name="documentPath">The shipped document to corrupt.</param>
+    /// <param name="find">The anchor. 🔒 Must occur exactly once unless <paramref name="occurrences"/> says otherwise.</param>
+    /// <param name="replaceWith">What to put there instead.</param>
+    /// <param name="occurrences">
+    /// How many times the anchor is expected to occur. Defaults to one, because
+    /// <c>string.Replace</c> replaces them all: <c>"cap": 1,</c> occurs ten times in
+    /// <c>ads.json</c>, so a case that reads as one edit was corrupting ten placements and could
+    /// have been passing on any of them. Raise it deliberately, per case, or narrow the anchor.
+    /// </param>
+    internal static InMemoryContentSource SourceWithEdit(
+        string documentPath, string find, string replaceWith, int occurrences = 1)
     {
         var original = Documents[documentPath];
-        if (!original.Contains(find, StringComparison.Ordinal))
+        var found = Occurrences(original, find);
+
+        if (found == 0)
         {
             throw new InvalidOperationException(
                 $"'{find}' does not occur in {documentPath}, so this negative case would silently " +
                 "test nothing. The data moved — fix the mutation, do not delete the case.");
         }
 
+        if (found != occurrences)
+        {
+            throw new InvalidOperationException(
+                $"'{find}' occurs {found} time(s) in {documentPath}, not the {occurrences} this case " +
+                "declares. string.Replace hits every one of them, so the mutation is not the single " +
+                "edit it reads as — and the rule that fires may not be the rule the case names. " +
+                "Narrow the anchor, or pass the count deliberately.");
+        }
+
         return Source().Set(documentPath, original.Replace(find, replaceWith, StringComparison.Ordinal));
+    }
+
+    private static int Occurrences(string text, string value)
+    {
+        var count = 0;
+        var at = text.IndexOf(value, StringComparison.Ordinal);
+        while (at >= 0)
+        {
+            count++;
+            at = text.IndexOf(value, at + value.Length, StringComparison.Ordinal);
+        }
+
+        return count;
     }
 
     private static IReadOnlyDictionary<string, string> ReadDocuments()
