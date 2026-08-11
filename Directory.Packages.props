@@ -1,0 +1,90 @@
+<Project>
+
+  <!--
+    Central Package Management for EVERY project in SlayIdleRepeat.
+
+    One version per package id, declared once, here. A .csproj names WHAT it
+    depends on; this file decides WHICH VERSION, and MSBuild rejects a Version=
+    attribute on a PackageReference (NU1008) so the two can never disagree.
+
+    Why it exists: M1-00 needed Shouldly at one version across four test
+    projects, and "four csproj files that each happen to say 4.3.0 today" is not
+    a pin — it is four opportunities to drift, silently, in four different
+    milestones. The same argument had already been made for FluentAssertions
+    7.2.0, which was held back from a licence-changing v8 by nothing but four
+    copies of the same string.
+
+    🔒 This does NOT weaken build/ci/Test-VendorPackageUniqueness.ps1 or
+    SlayIdleRepeat.Architecture.Tests' ProjectFileTests. Both read the
+    `Include` attribute of `PackageReference` in the .csproj, which CPM leaves
+    exactly where it was; only `Version` moves here. The vendor gate even
+    carries a vacuity guard naming this migration by name — it fails loudly if
+    a future change ever empties the .csproj of references altogether.
+
+    Adding a package: add the PackageVersion here AND the PackageReference in
+    the one project that needs it. If it is not a vendor SDK behind a port, it
+    also needs an entry in build/ci/non-vendor-packages.json, or A9-UNIQUE goes
+    red the moment a second project wants it.
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <!--
+      A PackageReference that names a package with no PackageVersion here is an
+      error, not a silent floating resolve.
+    -->
+    <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
+  </PropertyGroup>
+
+  <!--
+    Test infrastructure. Shared by every suite under tests/ by construction, and
+    allow-listed as non-vendor in build/ci/non-vendor-packages.json for exactly
+    that reason.
+  -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+
+    <!--
+      The assertion library, in all four test suites.
+
+      🔒 It is Shouldly, and it is not FluentAssertions. FluentAssertions v8
+      moved to a paid commercial licence; this repository sat pinned at 7.2.0
+      (Apache-2.0) to stay off it, which is a pin that has to hold for the life
+      of the project and buys nothing. M1-00 left the library instead, while the
+      exposure was 561 assertions rather than the several thousand M1-M4 add.
+      Shouldly 4.3.0 is BSD-3-Clause. Do not reintroduce FluentAssertions.
+    -->
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+  </ItemGroup>
+
+  <!--
+    Architecture-suite machinery. Not a vendor SDK: these read assemblies, they
+    do not talk to a service, so they cannot lock the project in to anything.
+  -->
+  <ItemGroup>
+    <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
+    <PackageVersion Include="Mono.Cecil" Version="0.11.3" />
+  </ItemGroup>
+
+  <!--
+    Vendor SDKs. 14 §1.1 🔒: each of these belongs to exactly ONE adapter
+    project, and Test-VendorPackageUniqueness.ps1 fails the build if a second
+    project references one. Listing a version here does not grant anyone the
+    right to reference it — the uniqueness gate reads the .csproj files, not
+    this file.
+  -->
+  <ItemGroup>
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.102" />
+    <PackageVersion Include="FirebaseAdmin" Version="3.6.0" />
+    <PackageVersion Include="Google.Apis.AndroidPublisher.v3" Version="1.75.0.4221" />
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageVersion Include="Sentry" Version="6.8.0" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.1.13" />
+  </ItemGroup>
+
+</Project>

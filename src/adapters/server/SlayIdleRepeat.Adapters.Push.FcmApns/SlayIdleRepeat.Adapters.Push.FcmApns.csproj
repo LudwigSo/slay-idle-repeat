@@ -6,7 +6,7 @@
   -->
 
   <ItemGroup>
-    <PackageReference Include="FirebaseAdmin" Version="3.6.0" />
+    <PackageReference Include="FirebaseAdmin" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,18 +24,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <!-- 🔒 FluentAssertions stays on 7.x — v8+ is a paid commercial licence, v7 is Apache-2.0. -->
-    <PackageReference Include="FluentAssertions" Version="7.2.0" />
-    <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <!--
+      🔒 Shouldly, not FluentAssertions. FluentAssertions v8 went to a paid
+      commercial licence and this repo was pinned at 7.2.0 to avoid it; M1-00 left the
+      library instead. The version lives in Directory.Packages.props (BSD-3-Clause).
+    -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="NetArchTest.Rules" />
     <!--
       Mono.Cecil arrives transitively with NetArchTest; named explicitly because
       this suite scans IL directly for the rules NetArchTest cannot express
       (field writes, banned member references, async state machines).
     -->
-    <PackageReference Include="Mono.Cecil" Version="0.11.3" />
+    <PackageReference Include="Mono.Cecil" />
   </ItemGroup>
 
   <ItemGroup>
