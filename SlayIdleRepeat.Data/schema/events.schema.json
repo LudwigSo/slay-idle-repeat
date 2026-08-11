@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/events.schema.json",
+  "title": "events.json (live-ops framework tuning)",
+  "description": "26 — the live-ops framework's GLOBAL tuning: calendar cadence, package field limits, the Score Rush scoring default. NOT to be confused with schema/event.schema.json, which validates a single event package in content/events/. 26 §1: the framework is the deliverable, events are data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "calendar", "archetypes", "packageLimits", "earnSources", "trackRewardKeys", "scoreRush", "collection", "presentation", "defaultEarnRates", "defaultTrackThresholds", "defaultShopPrices"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "calendar": {
+      "description": "26 §4 — exactly one EVENT_CHAPTER or EVENT_COLLECTION is live at any time, plus the always-on weekly EVENT_SCORE_RUSH. Seasons and events must never end on the same day.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["majorEventLengthDays", "gapBetweenMajorEventsDays", "offsetFromPvpSeasonsDays", "scoreRushLengthDays", "scoreRushAlwaysOn", "announcementLeadDays", "startEndUtc", "maxConcurrentMajorEvents", "chapterEventShare", "collectionEventShare"],
+      "properties": {
+        "majorEventLengthDays": { "type": "integer", "exclusiveMinimum": 0 },
+        "gapBetweenMajorEventsDays": { "type": "integer", "minimum": 0 },
+        "offsetFromPvpSeasonsDays": { "type": "integer", "minimum": 0 },
+        "scoreRushLengthDays": { "type": "integer", "exclusiveMinimum": 0 },
+        "scoreRushAlwaysOn": { "type": "boolean" },
+        "announcementLeadDays": { "type": "integer", "minimum": 0 },
+        "startEndUtc": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+        "maxConcurrentMajorEvents": { "const": 1 },
+        "chapterEventShare": { "type": "number", "minimum": 0, "maximum": 1 },
+        "collectionEventShare": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "archetypes": {
+      "description": "26 §3 — three is the whole taxonomy. A fourth archetype is a new feature, not a new event.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "enum": ["EVENT_CHAPTER", "EVENT_SCORE_RUSH", "EVENT_COLLECTION"] }
+    },
+    "packageLimits": {
+      "description": "26 §2.1 — the field rules every event package in content/events/ is validated against.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "maxTrackMilestones", "trackStrictlyAscending", "finalMilestoneReachableByWindowShare", "conversionAtEndRequired", "featureFlagRequired", "stageCount", "shopStockIsPerPlayer", "weeklyModifierPoolSize"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "maxTrackMilestones": { "type": "integer", "exclusiveMinimum": 0 },
+        "trackStrictlyAscending": { "const": true },
+        "finalMilestoneReachableByWindowShare": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "conversionAtEndRequired": { "const": true },
+        "featureFlagRequired": { "const": true },
+        "stageCount": { "type": "integer", "exclusiveMinimum": 0 },
+        "shopStockIsPerPlayer": { "const": true },
+        "weeklyModifierPoolSize": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "earnSources": {
+      "description": "26 §2 — the closed set of event-currency earn sources a package may reference.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+    },
+    "trackRewardKeys": {
+      "description": "26 §2 — the closed set of reward keys a track milestone may pay.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" }
+    },
+    "scoreRush": {
+      "description": "26 §3.2 — the default scoring formula, stored per event at leaderboard.formula and tunable per event and per week. Rewards are paid by percentile band, not absolute rank, so the design is identical at 10,000 players and at 1,000,000. The band boundaries are not authored in the design docs.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "defaultFormulaWeights", "rewardsByPercentileBand", "percentileBands"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "defaultFormulaWeights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tilesCleared", "enemiesKilled", "bossKilled", "secondsElapsed"],
+          "properties": {
+            "tilesCleared": { "type": "number" },
+            "enemiesKilled": { "type": "number" },
+            "bossKilled": { "type": "number" },
+            "secondsElapsed": { "type": "number" }
+          }
+        },
+        "rewardsByPercentileBand": { "const": true },
+        "percentileBands": { "type": ["array", "null"] }
+      }
+    },
+    "collection": {
+      "description": "26 §3.3 — the low-pressure archetype. No numbers at all are given for it in the design docs: the album size, row count and row payouts are entirely unspecified.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "albumSize", "rowCount", "rowPayouts"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "albumSize": { "type": ["integer", "null"], "exclusiveMinimum": 0 },
+        "rowCount": { "type": ["integer", "null"], "exclusiveMinimum": 0 },
+        "rowPayouts": { "type": ["array", "null"] }
+      }
+    },
+    "presentation": {
+      "description": "26 §6, §8 — no countdown timers below 24 hours; at most one push notification per event, at start, and none at event end.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minCountdownDisplayHours", "configCacheHours", "pushNotificationsPerEvent", "pushAtEventEnd"],
+      "properties": {
+        "minCountdownDisplayHours": { "type": "number", "minimum": 0 },
+        "configCacheHours": { "type": "number", "exclusiveMinimum": 0 },
+        "pushNotificationsPerEvent": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "pushAtEventEnd": { "const": false }
+      }
+    },
+    "defaultEarnRates": {
+      "description": "Deliberately null. 26 §2's earn/track/shop numbers belong to the EVT_EMBERFALL_2026_10 example package, not to a global default set, and 26 §5 flags the launch track's thresholds as NEEDS DETAIL until the simulator validates them against the day-1 cohort (E14).",
+      "type": "null"
+    },
+    "defaultTrackThresholds": { "type": "null" },
+    "defaultShopPrices": { "type": "null" }
+  }
+}

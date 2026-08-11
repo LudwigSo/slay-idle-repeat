@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/beasts.schema.json",
+  "title": "beasts.json",
+  "description": "07 §2.2, §3.1a, §5 — pet and mount level costs and egg/crate odds. Pity for EGG_PET and CRATE_MOUNT is owned by 24 §4.4-4.5 and lives in luck.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "pets", "mounts", "containerPrices"],
+  "$defs": {
+    "powerCurve": {
+      "description": "A cost curve of the form coefficient * level^exponent.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coefficient", "exponent"],
+      "properties": {
+        "coefficient": { "type": "number", "exclusiveMinimum": 0 },
+        "exponent": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "pets": {
+      "description": "07 §2.1-2.2 — 24 pets in v1, up to 3 equipped, no C-tier pets.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalInV1", "maxEquipped", "equipSlotUnlockLegendLevels", "rarities", "minLevel", "maxLevel", "minStar", "maxStar", "feedCost", "crownCost", "auraPerLevel", "ascensionDuplicates", "auraBonusPerStar", "cooldownReductionPerStar", "eggOdds", "duplicateBeyondMaxStarBeastFeed"],
+      "properties": {
+        "totalInV1": { "type": "integer", "exclusiveMinimum": 0 },
+        "maxEquipped": { "type": "integer", "exclusiveMinimum": 0 },
+        "equipSlotUnlockLegendLevels": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 1, "maximum": 200 } },
+        "rarities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["C", "B", "A", "S", "SS"] } },
+        "minLevel": { "type": "integer", "minimum": 1 },
+        "maxLevel": { "type": "integer", "minimum": 1 },
+        "minStar": { "type": "integer", "minimum": 0 },
+        "maxStar": { "type": "integer", "minimum": 1 },
+        "feedCost": { "$ref": "#/$defs/powerCurve" },
+        "crownCost": { "$ref": "#/$defs/powerCurve" },
+        "auraPerLevel": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ascensionDuplicates": {
+          "description": "07 §2.2 — duplicates required to reach each star level.",
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": { "^[1-9][0-9]*$": { "type": "integer", "exclusiveMinimum": 0 } }
+        },
+        "auraBonusPerStar": { "type": "number", "minimum": 0, "maximum": 1 },
+        "cooldownReductionPerStar": { "type": "number", "minimum": 0, "maximum": 1 },
+        "eggOdds": {
+          "description": "07 §2.2 — percentages; must sum to 100. 24 §4.4 is the authority for the EGG_PET pity that sits on top.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["B", "A", "S", "SS"],
+          "patternProperties": { "^(C|B|A|S|SS)$": { "type": "number", "minimum": 0, "maximum": 100 } }
+        },
+        "duplicateBeyondMaxStarBeastFeed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "mounts": {
+      "description": "07 §3.1, §3.1a — 12 mounts in v1, 1 equipped, no B or C tier, no stars. Mount levelling costs Beast Feed only, no Crown component.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalInV1", "maxEquipped", "equipSlotUnlockLegendLevel", "rarities", "minLevel", "maxLevel", "statPerLevel", "feedCost", "mountFeedScalar", "crownCost", "runPerkScalesWithLevel", "crateOdds", "ascends", "duplicateBeastFeed"],
+      "properties": {
+        "totalInV1": { "type": "integer", "exclusiveMinimum": 0 },
+        "maxEquipped": { "type": "integer", "exclusiveMinimum": 0 },
+        "equipSlotUnlockLegendLevel": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "rarities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["C", "B", "A", "S", "SS"] } },
+        "minLevel": { "type": "integer", "minimum": 1 },
+        "maxLevel": { "type": "integer", "minimum": 1 },
+        "statPerLevel": { "type": "number", "minimum": 0, "maximum": 1 },
+        "feedCost": { "$ref": "#/$defs/powerCurve" },
+        "mountFeedScalar": {
+          "description": "07 §3.1a — MountFeedCost is the pet Beast Feed formula times this scalar.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "crownCost": {
+          "description": "07 §3.1a — mount levelling has no Crown component. Must be null.",
+          "type": "null"
+        },
+        "runPerkScalesWithLevel": {
+          "description": "07 §3.1a — the run perk never scales with level; only the stat block grows.",
+          "const": false
+        },
+        "crateOdds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["A", "S", "SS"],
+          "patternProperties": { "^(A|S|SS)$": { "type": "number", "minimum": 0, "maximum": 100 } }
+        },
+        "ascends": { "const": false },
+        "duplicateBeastFeed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "containerPrices": {
+      "description": "10 §2 — Soul Shard sinks. Containers are granted unopened; odds, pity and Focus are read at open, not at purchase (24 §4.0).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "petEggSoulShards", "mountCrateSoulShards"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "petEggSoulShards": { "type": "integer", "exclusiveMinimum": 0 },
+        "mountCrateSoulShards": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

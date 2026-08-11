@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/loc.schema.json",
+  "title": "loc/<locale>.json",
+  "description": "X-04 and 16 D20 — every user-facing string is a loc key from day one, EN + DE, and nothing ships machine-translated. Key convention: loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments (14 §6 uses loc.chapter.5.name; 26 §2 uses loc.event.emberfall.name).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_locale", "_doc", "strings"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_locale": {
+      "description": "16 D20 — EN and DE only at launch. A third locale is a staffing decision, not a data edit.",
+      "enum": ["en", "de"]
+    },
+    "_doc": { "type": "string", "minLength": 1 },
+    "strings": {
+      "description": "The key set MUST be identical across every locale file. A key present in one and absent from another is a string that will render as its own key in front of a player. Values must be non-empty.",
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "propertyNames": { "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+      "patternProperties": {
+        "^loc(\\.[a-z0-9_]+)+$": {
+          "description": "An untranslated string carries the ##TODO_DE## sentinel followed by the EN source, so a validation rule can find every hole and a human translator has the context. A build that ships to players must fail while any sentinel remains.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

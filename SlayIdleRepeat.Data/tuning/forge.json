@@ -55,9 +55,10 @@
     "wishlistMissWeightBonus": 0.1
   },
   "inventory": {
-    "_doc": "08 §5 and 10 §4 — expansion prices are authored in currencies.json (the Crown ladder) and 10 §2 (the flat Soul Shard alternative).",
+    "_doc": "08 §5 and 10 §4 — expansion prices are authored in currencies.json (the Crown ladder) and 10 §2 (the flat Soul Shard alternative). CONFLICT: 08 §5 caps capacity at 400, but 10 §4's later ruling (16 A7) authors a hard cap of 10 purchases of +20 slots from a base of 120, which reaches only 320. Both are transcribed as written; maxCapacity holds 08 §5's figure and the ladder in currencies.json holds 10 §4's. The two cannot both be right and the docs must pick one.",
     "baseCapacity": 120,
     "expansionStep": 20,
-    "maxCapacity": 400
+    "maxCapacity": 400,
+    "maxCapacityReachableFromLadder": 320
   }
 }

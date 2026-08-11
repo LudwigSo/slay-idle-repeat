@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/par_power.schema.json",
+  "title": "par_power.json",
+  "description": "29 §4-5 — content par (24 chapter/tier cells), dungeon and guild-boss pars, and the ExpectedPower(L) factor curves.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "defaultFill", "parPower", "dungeonParScalar", "guildBossParScalar", "clearRateAtPar", "expectedPowerByLevel", "expectedPowerProperties"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "defaultFill": {
+      "description": "29 §4.1 — ChapterPowerTarget(c) = base * growth^(c-1), times TierMult. This is the default fill, not a constraint: every parPower cell is independently editable.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chapterPowerTargetBase", "chapterPowerTargetGrowth", "tierMultiplier"],
+      "properties": {
+        "chapterPowerTargetBase": { "type": "number", "exclusiveMinimum": 0 },
+        "chapterPowerTargetGrowth": { "type": "number", "exclusiveMinimum": 1 },
+        "tierMultiplier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["NORMAL", "HEROIC", "MYTHIC"],
+          "properties": {
+            "NORMAL": { "type": "number", "exclusiveMinimum": 0 },
+            "HEROIC": { "type": "number", "exclusiveMinimum": 0 },
+            "MYTHIC": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
+    "parPower": {
+      "description": "29 §4.1 — a flat table of 24 numbers, not an expression. Exactly one row per chapter 1..8, no duplicates.",
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chapter", "NORMAL", "HEROIC", "MYTHIC"],
+        "properties": {
+          "chapter": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "NORMAL": { "type": "number", "exclusiveMinimum": 0 },
+          "HEROIC": { "type": "number", "exclusiveMinimum": 0 },
+          "MYTHIC": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "dungeonParScalar": {
+      "description": "29 §4.1 / 25 §4.1 — Resource Dungeon tier t par = ChapterPowerTarget(t) * this.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "guildBossParScalar": {
+      "description": "29 §4.1 / 27 §4 — Guild Boss tier t par = ChapterPowerTarget(t) * this. No clear condition, so par means 'the median bracket'.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "clearRateAtPar": {
+      "description": "29 §4 — the definition of ParPower: a player at exactly par clears approximately 70% of the time. 29 §4.3 / 21 A11 give the 62-78% assertion band.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "assertionMin", "assertionMax"],
+      "properties": {
+        "target": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "assertionMin": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "assertionMax": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 }
+      }
+    },
+    "tooWeakWarningRatio": {
+      "description": "29 §4.2 / 02 §4.4 — Chapter Select shows a soft warning below this multiple of ParPower. Never a block.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "expectedPowerByLevel": {
+      "description": "29 §5 — ExpectedPower(L) = base * gearFactor * talentFactor * beastFactor. All values are shaped, not derived; they express intent and are the first thing the simulator will contradict.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["level", "base", "gearFactor", "talentFactor", "beastFactor", "expected"],
+        "properties": {
+          "level": { "type": "integer", "minimum": 1, "maximum": 200 },
+          "base": { "type": "number", "exclusiveMinimum": 0 },
+          "gearFactor": { "type": "number", "minimum": 1 },
+          "talentFactor": { "type": "number", "minimum": 1 },
+          "beastFactor": { "type": "number", "minimum": 1 },
+          "expected": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "expectedPowerProperties": {
+      "description": "29 §5.1 — the two properties this table must hold, asserted as 21 A12 (P1) and A13 (P2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["p1MinRatioToParNormal", "p1MaxRatioToParNormal", "p2MaxSingleFactorShare"],
+      "properties": {
+        "p1MinRatioToParNormal": { "type": "number", "exclusiveMinimum": 0 },
+        "p1MaxRatioToParNormal": { "type": "number", "exclusiveMinimum": 0 },
+        "p2MaxSingleFactorShare": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}
