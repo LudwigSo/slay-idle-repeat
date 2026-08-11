@@ -325,9 +325,30 @@ jobs:
         shell: pwsh
         run: ./build/ci/Invoke-UnitTests.ps1 -Group integration -Configuration Release
 
+      # Everything below runs on failure too, and the ORDER matters: the two
+      # capture steps must both come before `down --volumes`. A red integration
+      # suite against a live stack is the one failure in this workflow whose
+      # post-mortem data cannot be reproduced from the repository — it depends on
+      # the state of eight containers at that moment — and `down --volumes`
+      # deletes it. The `test` and `architecture-tests` jobs have uploaded their
+      # TRX since M0-05; this job was collecting the same TRX and then throwing
+      # it away.
       - name: Stack logs
         if: always()
-        run: docker compose logs --no-color || true
+        # tee, not `>`: the log stays readable inline in the job output (which is
+        # how you triage a red run in thirty seconds) and is also kept as a file
+        # for the artifact below (which is how you triage one a week later).
+        run: docker compose logs --no-color 2>&1 | tee compose-logs.txt || true
+
+      - name: Upload integration results and stack logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration
+          path: |
+            artifacts/testresults/*.trx
+            compose-logs.txt
+          if-no-files-found: warn
 
       - name: docker compose down
         if: always()
@@ -367,7 +388,13 @@ jobs:
           - platform: android-arm64
             runner: ubuntu-24.04
           - platform: ios-arm64
-            runner: macos-14
+            # macos-15, not macos-14 and never macos-latest — the same pin, for
+            # the same reasons, as the ios-export job below (see its note 2:
+            # macos-14 is deprecated and unsupported from 2026-11-02; macos-26
+            # ships no Xcode 16). This leg is gated off, but a dormant job that
+            # is wrong is worse than one that is right: whoever turns it on is
+            # doing so for the determinism work, not to audit the runner image.
+            runner: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: 10,000 (seed, build, enemy) triples -> LogHash
