@@ -23,4 +23,13 @@
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Core\SlayIdleRepeat.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    The Hash64 / DeterministicRng determinism pin (14 §8.0, §8.2). Embedded rather than
+    copied to the output directory so the cross-platform determinism job (M5-12) finds it
+    on Android/iOS ARM64 regardless of the working directory the runner happens to use.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Rng\Hash64ReferenceVectors.json" />
+  </ItemGroup>
+
 </Project>

@@ -11,4 +11,13 @@
     InternalsVisibleTo is permitted for SlayIdleRepeat.Core.Tests ONLY (30 §11.3).
   -->
 
+  <!--
+    The one sanctioned opening (30 §11.3): handlers and rule calculators are internal by
+    design, so the domain test suite is the only assembly that can drive them directly.
+    InternalsVisibleTo_names_only_the_Core_test_assembly asserts nothing else appears here.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SlayIdleRepeat.Core.Tests" />
+  </ItemGroup>
+
 </Project>
