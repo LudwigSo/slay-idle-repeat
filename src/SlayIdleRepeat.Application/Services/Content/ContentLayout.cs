@@ -6,7 +6,8 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// <remarks>
 /// From <c>SlayIdleRepeat.Data/README.md</c>: <c>schema/</c> holds JSON Schema and never content;
 /// <c>loc/*.json</c> is governed by <c>schema/loc.schema.json</c>; <c>tuning/experiments/*.json</c>
-/// are override patches and 🔒 never part of a snapshot; everything else is governed by
+/// are override patches and 🔒 never part of a snapshot; each <c>content/&lt;type&gt;/</c> directory
+/// is governed by the one schema for that content <em>type</em>; everything else is governed by
 /// <c>schema/&lt;stem&gt;.schema.json</c>.
 /// <para>
 /// It is a type rather than a set of private constants because <c>tools/ContentValidator</c> needs
@@ -34,6 +35,44 @@ public static class ContentLayout
     /// <summary>The one schema that governs every locale file.</summary>
     public const string LocaleSchema = SchemaDirectory + "loc" + SchemaSuffix;
 
+    /// <summary>Where the content-type directories live.</summary>
+    public const string ContentDirectory = "content/";
+
+    /// <summary>
+    /// 🔒 Content is paired by <b>directory</b>, because content is paired by <em>type</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>SlayIdleRepeat.Data/README.md</c> declares 15 content directories, each holding many files
+    /// of one type: <c>content/chapters/CH_01_EMBERFALL.json</c>, <c>CH_02_….json</c>, … all
+    /// governed by the single <c>schema/chapter.schema.json</c> whose own <c>title</c> is
+    /// <c>content/chapters/*.json</c>. The <see cref="SchemaFor"/> stem rule would look for
+    /// <c>schema/CH_01_EMBERFALL.schema.json</c> per file — one <c>MissingSchema</c> per chapter, and
+    /// a content-type schema that governs nothing.
+    /// </para>
+    /// <para>
+    /// 🔒 A <b>declared table</b> rather than a smarter stemming rule, because
+    /// <c>content/liveops_events/</c> → <c>event.schema.json</c> is not derivable by any rule: the
+    /// README is explicit that <c>event.schema.json</c> (the path `26` §2 names) and
+    /// <c>events.schema.json</c> (the framework-wide tuning file) differ by one letter and that the
+    /// difference is load-bearing.
+    /// </para>
+    /// <para>
+    /// A content directory with no entry here still resolves through the stem rule and therefore
+    /// still fails loudly the day its first file lands — which is the point. Authoring a content
+    /// type means authoring its schema <em>and</em> naming it here, in the same commit.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyDictionary<string, string> ContentTypeSchemas { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            // 14 §6 (whose worked example IS a chapter definition) / 19 — authored by M3-14.
+            [ContentDirectory + "chapters/"] = SchemaDirectory + "chapter" + SchemaSuffix,
+
+            // 26 §2 — one live-ops event package per file. Authored by M13-06.
+            [ContentDirectory + "liveops_events/"] = SchemaDirectory + "event" + SchemaSuffix,
+        };
+
     /// <summary>True for a document under <c>schema/</c>.</summary>
     public static bool IsSchema(string documentPath) =>
         documentPath.StartsWith(SchemaDirectory, StringComparison.Ordinal);
@@ -48,10 +87,30 @@ public static class ContentLayout
         documentPath.StartsWith(ExperimentDirectory, StringComparison.Ordinal);
 
     /// <summary>The schema that governs a data document.</summary>
-    public static string SchemaFor(string documentPath) =>
-        documentPath.StartsWith(LocaleDirectory, StringComparison.Ordinal)
-            ? LocaleSchema
-            : SchemaDirectory + StemOf(documentPath) + SchemaSuffix;
+    /// <remarks>
+    /// The declared tables come first — <c>loc/</c>, then <see cref="ContentTypeSchemas"/> — and the
+    /// <c>schema/&lt;stem&gt;.schema.json</c> convention is the fallback, which is exactly the 1:1
+    /// relationship <c>tuning/</c> has and content does not.
+    /// </remarks>
+    public static string SchemaFor(string documentPath)
+    {
+        ArgumentNullException.ThrowIfNull(documentPath);
+
+        if (documentPath.StartsWith(LocaleDirectory, StringComparison.Ordinal))
+        {
+            return LocaleSchema;
+        }
+
+        foreach (var (directory, schema) in ContentTypeSchemas)
+        {
+            if (documentPath.StartsWith(directory, StringComparison.Ordinal))
+            {
+                return schema;
+            }
+        }
+
+        return SchemaDirectory + StemOf(documentPath) + SchemaSuffix;
+    }
 
     /// <summary>The bare data file name a schema governs, e.g. <c>forge.json</c>.</summary>
     public static string DataFileNameGovernedBy(string schemaPath) =>

@@ -132,6 +132,23 @@ Naming:
   load-bearing.
 - `schema/loc.schema.json` — the locale files.
 
+🔒 **`tuning/` pairs by file; `content/` pairs by *directory*.** A tuning file is one schema's only
+subject, so the stem rule (`tuning/forge.json` → `schema/forge.schema.json`) holds. A content
+*directory* holds many files of one **type** — `content/chapters/CH_01_EMBERFALL.json`,
+`CH_02_….json`, … — and all of them are governed by that type's single schema. The pairing is a
+**declared table**, `ContentLayout.ContentTypeSchemas`, not a stemming rule: `liveops_events/` →
+`event.schema.json` is not derivable from either name, and guessing it is exactly the one-letter
+mistake the paragraph above warns about.
+
+| Content directory | Schema |
+|---|---|
+| `content/chapters/` | `schema/chapter.schema.json` |
+| `content/liveops_events/` | `schema/event.schema.json` |
+
+The other thirteen directories have no schema yet. Their first file therefore fails the build with
+`MissingSchema` — deliberately. Authoring a content type means authoring its schema **and** adding
+its row to that table, in the same commit.
+
 ### `loc/` — every user-facing string, from day one
 
 Key convention, following `14` §6 (`loc.chapter.5.name`) and `26` §2 (`loc.event.emberfall.name`):

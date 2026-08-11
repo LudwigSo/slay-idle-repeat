@@ -113,6 +113,34 @@ public sealed class ContentLoaderTests
         result.Issues.Should().Contain(i => i.Code == ContentIssueCode.MissingSchema);
     }
 
+    /// <summary>
+    /// 🔒 Content pairs by <b>directory</b>. Under the stem rule this file would look for
+    /// <c>schema/CH_01_EMBERFALL.schema.json</c> — one <c>MissingSchema</c> per chapter, and a
+    /// <c>chapter.schema.json</c> still governing nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("content/chapters/CH_01_EMBERFALL.json", "schema/chapter.schema.json")]
+    [InlineData("content/liveops_events/EVT_EMBERFALL.json", "schema/event.schema.json")]
+    public void A_content_file_is_paired_with_its_content_type_schema_not_with_its_own_stem(
+        string documentPath, string schemaPath)
+    {
+        ContentLayout.SchemaFor(documentPath).Should().Be(schemaPath);
+    }
+
+    /// <summary>
+    /// A file under a content directory nobody declared: the stem rule takes over and it fails
+    /// loudly, which is what forces the table row to be written beside the new schema.
+    /// </summary>
+    [Fact]
+    public void Load_fails_loudly_for_a_content_directory_that_no_schema_is_declared_for()
+    {
+        var source = ContentTestData.Valid()
+            .Set("content/runes/RUNE_EMBER.json", """{ "id": "RUNE_EMBER" }""");
+
+        ContentLoader.Load(source).Issues.Should().Contain(i =>
+            i.Code == ContentIssueCode.MissingSchema && i.Location == "content/runes/RUNE_EMBER.json");
+    }
+
     [Fact]
     public void Load_reports_a_schema_that_governs_no_data_document()
     {

@@ -24,6 +24,8 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// experiments README is explicit that they are "never shipped, never served from the content
 /// endpoint, and never part of a <c>ContentSnapshot</c>". They load only when named in
 /// <see cref="ContentLoadOptions.OverrideDocuments"/>.</item>
+/// <item><c>content/&lt;type&gt;/*.json</c> — many files of one type, all governed by that type's
+/// one schema, declared in <see cref="ContentLayout.ContentTypeSchemas"/>.</item>
 /// <item>everything else — governed by <c>schema/&lt;stem&gt;.schema.json</c>.</item>
 /// </list>
 /// </para>
@@ -51,6 +53,8 @@ public static class ContentLoader
         // 14 §6 (whose worked example IS a chapter definition) / 19 — the 8 chapter data
         // files are authored by tracker task M3-14 ("8 chapter data files: weights, pools,
         // targets, unlock conditions"), not by M2, which authors bosses.json and enemies.json.
+        // The exemption expires the moment content/chapters/ holds its first file, because
+        // ContentLayout.ContentTypeSchemas pairs the whole directory to this schema.
         "schema/chapter.schema.json",
 
         // 26 §2 — one live-ops event package. The first authored package is EVT_EMBERFALL,
