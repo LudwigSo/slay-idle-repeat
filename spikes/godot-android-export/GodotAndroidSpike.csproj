@@ -1,0 +1,25 @@
+<Project Sdk="Godot.NET.Sdk/4.7.1">
+  <PropertyGroup>
+    <!-- net8.0 is the locked project-wide target framework. Godot 4.7.1 ships
+         GodotSharp as lib/net8.0, so this pin holds for the engine version
+         verified by this spike. See docs/spikes/O23-godot-android-export.md. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SlayIdleRepeat.Spike</RootNamespace>
+  </PropertyGroup>
+
+  <!-- MANDATORY for the custom Android build template.
+       "Use Gradle Build" installs the template into res://android/, i.e. INSIDE
+       the Godot project, and the Gradle build then copies project files into
+       android/build/src/main/assets/ and android/build/build/intermediates/.
+       The SDK's default **/*.cs glob happily compiles those copies as well,
+       which fails the ExportDebug build with CS0101/CS0111 duplicate-definition
+       errors. Excluding android/ is the fix. Any real Godot C# project using
+       the Gradle path needs this line. -->
+  <ItemGroup>
+    <Compile Remove="android/**" />
+    <Compile Remove="bin/**" />
+  </ItemGroup>
+</Project>
