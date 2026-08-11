@@ -152,6 +152,13 @@ internal static class Il
     }
 
     /// <summary>Every type an instruction's operand mentions.</summary>
+    /// <remarks>
+    /// ⚠️ THE ORDER OF THESE ARMS IS LOAD-BEARING. <see cref="GenericInstanceMethod"/>
+    /// derives from <see cref="MethodReference"/>, and a C# <c>switch</c> takes the first arm
+    /// that matches — move it below the <c>MethodReference</c> arm and it stops running.
+    /// (<see cref="CallSite"/> is unrelated to all three: in Cecil 0.11 it derives straight
+    /// from <c>object</c>, which is why <c>calli</c> used to yield nothing at all here.)
+    /// </remarks>
     internal static IEnumerable<TypeReference?> OperandTypes(Instruction instruction)
     {
         switch (instruction.Operand)
@@ -159,6 +166,51 @@ internal static class Il
             case TypeReference type:
                 yield return type;
                 break;
+
+            // A constructed generic call: `things.OfType<Godot.Node>()`,
+            // `Activator.CreateInstance<System.Random>()`. Cecil forwards ReturnType and
+            // Parameters on a GenericInstanceMethod to the OPEN element method, so under
+            // the MethodReference arm below the instantiated GenericArguments are never
+            // yielded at all — the operand reads as `OfType<!!0>`, and `Godot.Node` and
+            // `System.Random` vanish. That matters because BannedApi.Violations drives
+            // entirely off ReferencedTypeReferences, and neither of those two calls
+            // matches any SourcePatterns entry either, so nothing else would catch them.
+            case GenericInstanceMethod genericMethod:
+                yield return genericMethod.DeclaringType;
+                yield return genericMethod.ReturnType;
+
+                foreach (var parameter in genericMethod.Parameters)
+                {
+                    yield return parameter.ParameterType;
+                }
+
+                foreach (var argument in genericMethod.GenericArguments)
+                {
+                    yield return argument;
+                }
+
+                break;
+
+            // `calli` — an indirect call through a function pointer. Cecil models it as a
+            // CallSite, which is NOT a MethodReference (or a TypeReference, or a
+            // FieldReference): it derives from object, so before this arm existed the switch
+            // fell through every case and a calli contributed ZERO types. Every type crossing
+            // a function-pointer call was invisible to every rule in this suite.
+            //
+            // Verified with a hand-built CallSite: `Random f(string)` now yields System.Random
+            // and System.String, and yielded nothing before. C# emits calli only for
+            // `delegate*`, which needs AllowUnsafeBlocks that no project here sets — so this
+            // is latent rather than live, and it stays latent only until someone sets it.
+            case CallSite callSite:
+                yield return callSite.ReturnType;
+
+                foreach (var parameter in callSite.Parameters)
+                {
+                    yield return parameter.ParameterType;
+                }
+
+                break;
+
             case MethodReference method:
                 yield return method.DeclaringType;
                 yield return method.ReturnType;
@@ -220,12 +272,64 @@ internal static class Il
         };
     }
 
+    /// <summary>
+    /// Assemblies whose name begins <c>System.</c> and which are nevertheless NuGet
+    /// packages, not the .NET shared framework.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 This list is the difference between <c>The_whole_game_is_playable_from_Core_alone</c>
+    /// meaning something and meaning nothing. That rule — <c>30</c> §9 calls it the
+    /// load-bearing one — walks <c>Core</c>'s transitive assembly closure and skips anything
+    /// <see cref="IsBclAssembly"/> calls BCL. A bare <c>StartsWith("System.")</c> waves through
+    /// <c>System.Data.SqlClient</c>: a SQL Server driver, in <c>Core</c>'s closure, silently
+    /// classified as part of the framework. <c>ProjectFileTests</c> is the backstop, but it
+    /// sees only direct <c>PackageReference</c>s — not the closure this BFS exists to walk.
+    /// </para>
+    /// <para>
+    /// Everything here ships on nuget.org and is NOT in <c>Microsoft.NETCore.App</c> for
+    /// net8.0. Adding a name is a deliberate diff; removing one needs proof the assembly is
+    /// genuinely in the shared framework, because getting that wrong turns a real vendor
+    /// dependency back into an invisible one.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] SystemNamedVendorPackages =
+    {
+        "System.Data.SqlClient",                    // SQL Server driver
+        "System.Data.OleDb",                        // OLE DB provider
+        "System.Data.Odbc",                         // ODBC provider
+        "System.Drawing.Common",                    // GDI+ bindings
+        "System.Management",                        // WMI
+        "System.DirectoryServices",                 // LDAP / Active Directory
+        "System.DirectoryServices.AccountManagement",
+        "System.DirectoryServices.Protocols",
+        "System.ServiceProcess.ServiceController",   // Windows services
+        "System.Diagnostics.EventLog",               // Windows event log
+        "System.Configuration.ConfigurationManager", // app.config
+        "System.IO.Ports",                           // serial ports
+        "System.Speech",
+        "System.Windows.Extensions",
+        "System.Runtime.Caching",
+        "System.CodeDom",
+        "System.ComponentModel.Composition",         // MEF
+        "System.Reactive",                           // Rx.NET
+        "System.Reactive.Linq",
+        "System.Linq.Async",
+        "System.Interactive",
+        "System.CommandLine",
+    };
+
     /// <summary>True for the BCL: <c>System.*</c>, <c>mscorlib</c>, <c>netstandard</c>.</summary>
+    /// <remarks>
+    /// "Begins with <c>System.</c>" is a heuristic, not a fact — see
+    /// <see cref="SystemNamedVendorPackages"/> for the names it gets wrong.
+    /// </remarks>
     internal static bool IsBclAssembly(string assemblyName) =>
-        assemblyName.Equals("System", StringComparison.Ordinal) ||
-        assemblyName.StartsWith("System.", StringComparison.Ordinal) ||
-        assemblyName.Equals("mscorlib", StringComparison.Ordinal) ||
-        assemblyName.Equals("netstandard", StringComparison.Ordinal);
+        !SystemNamedVendorPackages.Contains(assemblyName, StringComparer.Ordinal) &&
+        (assemblyName.Equals("System", StringComparison.Ordinal) ||
+         assemblyName.StartsWith("System.", StringComparison.Ordinal) ||
+         assemblyName.Equals("mscorlib", StringComparison.Ordinal) ||
+         assemblyName.Equals("netstandard", StringComparison.Ordinal));
 
     /// <summary>Every method that references a member of the named type, anywhere in its IL.</summary>
     internal static IEnumerable<MethodDefinition> MethodsWithBodies(ModuleDefinition module) =>

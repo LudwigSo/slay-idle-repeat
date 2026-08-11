@@ -54,4 +54,38 @@ public sealed class AmbientApiTests
             offenders,
             "Core and Application source contains no banned ambient API — source grep (14 §8.1).");
     }
+
+    /// <summary>
+    /// `14` §8.2 — 🔒 no culture-sensitive formatting or parsing in `Core` or `Application`:
+    /// no `ToString`/`Parse`/`TryParse` on a number or a date without an `IFormatProvider`,
+    /// and no parameterless `ToUpper`/`ToLower`.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `14` §8.2 requires a byte-identical `LogHash` across x64 and ARM64, and the ban list
+    /// this suite inherited covered time, identity and randomness — everything that varies by
+    /// WHEN the code runs — and nothing that varies by WHERE. `CanonicalStateWriter` is
+    /// exactly where the difference would land: a parameterless `double.ToString()` renders
+    /// `1,5` on a `de-DE` laptop and `1.5` in the Linux container, which is two byte streams,
+    /// two hashes, and a determinism failure that reproduces only on the machine of whoever
+    /// wrote it.
+    /// </para>
+    /// <para>
+    /// Not covered by `InvariantGlobalization`: `tools/ContentValidator` sets it, the Godot
+    /// client does not, and a defence that is on in one host and off in another is worse than
+    /// none — it makes the bug appear only in the host nobody tests on.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Core_and_Application_contain_no_culture_sensitive_formatting()
+    {
+        var offenders = BannedApi.CultureViolations(ProductionAssemblies.CoreModule)
+            .Select(v => $"[Core] {v}")
+            .Concat(BannedApi.CultureViolations(ProductionAssemblies.ApplicationModule).Select(v => $"[Application] {v}"));
+
+        ArchRule.Empty(
+            offenders,
+            "Core and Application format and parse with an explicit culture — LogHash is byte-identical " +
+            "across architectures and locales (14 §8.2).");
+    }
 }

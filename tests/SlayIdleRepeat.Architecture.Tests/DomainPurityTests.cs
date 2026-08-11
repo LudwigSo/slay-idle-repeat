@@ -32,9 +32,17 @@ public sealed class DomainPurityTests
     /// <summary>
     /// `30` §9 — the domain is synchronous: no `Task`, `ValueTask`, `async`,
     /// `CancellationToken` or `IAsyncEnumerable` in any public or private signature in
-    /// `SlayIdleRepeat.Core`. IL/metadata scan over member signatures plus the
-    /// `AsyncStateMachineAttribute` the compiler stamps on every `async` method.
+    /// `SlayIdleRepeat.Core`, nor anywhere in a method body. IL/metadata scan over member
+    /// signatures, locals and IL operands, plus the `AsyncStateMachineAttribute` the compiler
+    /// stamps on every `async` method.
     /// </summary>
+    /// <remarks>
+    /// The body scan is the half that was missing. A signature scan sees a method that
+    /// RETURNS a `Task`; it does not see one that starts work and drops it —
+    /// `_ = Task.Run(Recalculate);` has a `void` signature, no async state machine, and
+    /// launches a thread inside a domain `30` §9 requires to be deterministic and
+    /// replayable. `Il.ReferencedTypeNames` already walks locals and operands.
+    /// </remarks>
     [Fact]
     public void Domain_is_synchronous()
     {
@@ -43,6 +51,11 @@ public sealed class DomainPurityTests
 
         foreach (var type in Domain.CoreTypes)
         {
+            offenders.AddRange(
+                Il.ReferencedTypeNames(type)
+                  .Where(banned.Contains)
+                  .Select(n => $"{type.FullName} names {n} somewhere in its members or their bodies"));
+
             foreach (var field in type.Fields)
             {
                 offenders.AddRange(

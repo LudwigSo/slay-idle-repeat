@@ -58,6 +58,106 @@ internal static class BannedApi
     };
 
     /// <summary>
+    /// Types whose <c>ToString</c>/<c>Parse</c>/<c>TryParse</c> render or read differently
+    /// depending on the ambient <see cref="System.Globalization.CultureInfo"/>.
+    /// </summary>
+    private static readonly string[] CultureSensitiveFormattables =
+    {
+        "System.Double", "System.Single", "System.Decimal",
+        "System.Int16", "System.Int32", "System.Int64",
+        "System.UInt16", "System.UInt32", "System.UInt64",
+        "System.Byte", "System.SByte",
+        "System.DateTime", "System.DateTimeOffset", "System.TimeSpan",
+        "System.DateOnly", "System.TimeOnly",
+    };
+
+    /// <summary>
+    /// String operations that consult the current culture unless told otherwise, and whose
+    /// culture-free overload exists precisely so nobody has to.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Matched on the FULL PARAMETER TYPE LIST, not on the parameter count. The
+    /// <c>char</c> overloads — <c>StartsWith('^')</c>, <c>EndsWith('$')</c> — are ordinal by
+    /// specification and are not violations; only the <c>string</c> overloads consult
+    /// <c>CultureInfo.CurrentCulture</c>. A count-based match calls all six of this repo's
+    /// <c>StartsWith('_')</c> calls defects, and a rule that cries wolf on correct code is
+    /// one people learn to suppress.
+    /// </remarks>
+    private static readonly (string DeclaringType, string Member, string Signature, string Reason)[] CultureSensitiveStringMembers =
+    {
+        ("System.String", "ToUpper", "", "string.ToUpper() with no CultureInfo — use ToUpperInvariant()"),
+        ("System.String", "ToLower", "", "string.ToLower() with no CultureInfo — use ToLowerInvariant()"),
+        ("System.String", "StartsWith", "System.String", "string.StartsWith(string) uses the current culture — pass StringComparison.Ordinal"),
+        ("System.String", "EndsWith", "System.String", "string.EndsWith(string) uses the current culture — pass StringComparison.Ordinal"),
+        ("System.String", "IndexOf", "System.String", "string.IndexOf(string) uses the current culture — pass StringComparison.Ordinal"),
+        ("System.String", "LastIndexOf", "System.String", "string.LastIndexOf(string) uses the current culture — pass StringComparison.Ordinal"),
+        ("System.String", "Compare", "System.String,System.String", "string.Compare(a, b) uses the current culture — pass StringComparison.Ordinal"),
+    };
+
+    /// <summary>
+    /// Every culture-sensitive conversion in a module: a number or date formatted or parsed
+    /// with no <see cref="IFormatProvider"/>, or a culture-sensitive string operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <c>14</c> §8.2 requires a byte-identical <c>LogHash</c> across x64 and ARM64, and
+    /// <c>CanonicalStateWriter</c> is exactly where that would break. A parameterless
+    /// <c>double.ToString()</c> renders <c>1,5</c> on a German laptop and <c>1.5</c> in the
+    /// Linux container: two different byte streams, two different hashes, and a determinism
+    /// failure that reproduces only on the machine of whoever wrote it.
+    /// </para>
+    /// <para>
+    /// <c>BannedApi</c> bans time, identity and randomness — everything that varies by WHEN
+    /// the code runs. This is the same class of defect varying by WHERE it runs, and it was
+    /// unbanned. <c>InvariantGlobalization</c> would mask it in some hosts and not others,
+    /// which is worse than not having it: the Godot client does not set it.
+    /// </para>
+    /// </remarks>
+    internal static IEnumerable<string> CultureViolations(ModuleDefinition module)
+    {
+        foreach (var method in Il.MethodsWithBodies(module))
+        {
+            foreach (var instruction in Il.Instructions(method))
+            {
+                if (instruction.Operand is not MethodReference called)
+                {
+                    continue;
+                }
+
+                var declaring = called.DeclaringType?.FullName ?? string.Empty;
+                var parameters = called.Parameters;
+
+                var isFormattable = CultureSensitiveFormattables.Contains(declaring, StringComparer.Ordinal);
+
+                if (isFormattable &&
+                    (called.Name.Equals("ToString", StringComparison.Ordinal) ||
+                     called.Name.Equals("Parse", StringComparison.Ordinal) ||
+                     called.Name.Equals("TryParse", StringComparison.Ordinal)) &&
+                    !parameters.Any(p => p.ParameterType.FullName == "System.IFormatProvider"))
+                {
+                    yield return
+                        $"{Il.Describe(method)} calls {declaring}.{called.Name}(" +
+                        $"{string.Join(", ", parameters.Select(p => p.ParameterType.Name))}) with no IFormatProvider — " +
+                        "pass CultureInfo.InvariantCulture. 14 §8.2 requires a byte-identical LogHash across " +
+                        "x64 and ARM64, and 'de-DE' renders 1,5 where the container renders 1.5.";
+                }
+
+                var signature = string.Join(",", parameters.Select(p => p.ParameterType.FullName));
+
+                var stringHit = CultureSensitiveStringMembers.FirstOrDefault(
+                    b => b.DeclaringType.Equals(declaring, StringComparison.Ordinal) &&
+                         b.Member.Equals(called.Name, StringComparison.Ordinal) &&
+                         b.Signature.Equals(signature, StringComparison.Ordinal));
+
+                if (stringHit.DeclaringType is not null)
+                {
+                    yield return $"{Il.Describe(method)} calls {stringHit.Reason} (14 §8.2).";
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Every use of a banned ambient API in a module, as a message naming the offending
     /// member and the API it reached for.
     /// </summary>
