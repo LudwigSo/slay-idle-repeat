@@ -26,7 +26,7 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `build` | 🟢 live | `dotnet restore` + `dotnet build SlayIdleRepeat.sln -c Release`. Warnings are errors via `Directory.Build.props`, so a new warning fails here. NuGet cached on the project files. | `14` §14 |
 | `test` | 🟢 live | The unit and contract suites, discovered by glob. Fails on a suite that contains **zero** tests without a declared exemption — see [The empty-suite rule](#the-empty-suite-rule). | `14` §13 |
 | `architecture-tests` | 🟢 live | `SlayIdleRepeat.Architecture.Tests` alone, in its own job. `23` §6 says these fail the build, so they are not lumped in with `test` where an unrelated flake could mask them. | `23` §6, `30` §9 |
-| `content-validation` | 🔴 red until **M0-10** | Every JSON under `SlayIdleRepeat.Data/` parses strictly, has no duplicate property names, and pairs with a schema — no orphan data, no orphan schema. | `14` §6, `14` §13 |
+| `content-validation` | 🟢 live | Every JSON under `SlayIdleRepeat.Data/` is validated against its schema and against the cross-file invariants: `14` §6's five failure classes (unknown IDs, missing icons, out-of-range values, orphaned references, duplicate IDs), plus malformed JSON, duplicate property names, unpaired schemas, and any JSON Schema keyword the validator does not implement. Then the 📐 audit, in three directions, against the dated baseline in `build/content/`. Runs the same code the game loads content with (M0-09). | `14` §6 🔒, `14` §13 |
 | `vendor-package-uniqueness` | 🟢 live | Fails if a vendor `PackageReference` appears in more than one `.csproj` (**A9-UNIQUE**), or in a project that is not an adapter (**A9-LOCATION**). | `14` §1.1 🔒 |
 | `server-image` | 🟢 live | Builds `src/SlayIdleRepeat.Server/Dockerfile`, starts the container, asserts it is **not running as root**, and waits for `GET /health` → 200 `{"status":"ok"}`. Build and smoke only — **no registry login, no push**. | `14` §14 |
 | `compose-boot` | 🟢 live *(since M0-03)* | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → wait for `/health` → integration suite → `down`. The stack it boots is `docker-compose.yml` + `infra/` — see [`infra/README.md`](../../infra/README.md). | `14` §14, `14` §13, `14` §1.1 🔒 |
@@ -53,17 +53,12 @@ Both report **skipped**, not success. Neither runs `exit 0` over an empty step.
 
 ## Jobs that are red today, on purpose
 
-| Job | Red because | Green when |
-|---|---|---|
-| `content-validation` | `SlayIdleRepeat.Data/` holds only `.gitkeep` files. A validator with nothing to validate reports failure rather than a green tick over an empty directory. | **M0-10** lands `schema/`, `tuning/` (the 16 files of `21` §3.1), `loc/`, `content/`. |
+**None.** Both entries this section carried during M0 have since gone green, and neither was made to pass by weakening it:
 
-`compose-boot` **had** a row here and no longer does: M0-03 landed
-`docker-compose.yml` and the whole `infra/` tree, and the job's sequence was
-walked locally against Docker 28.4.0 — `config` → `up -d --wait` (all 8 services
-healthy, 2 init containers completed) → `/health` → 200 `{"status":"ok"}` →
-integration suite 3/3 → `down -v`.
+- **`content-validation`** was red while `SlayIdleRepeat.Data/` held only `.gitkeep` files — a validator with nothing to validate reported failure rather than a green tick over an empty directory. **M0-10** landed `schema/`, `tuning/` (the 16 files of `21` §3.1), `loc/` and `content/`; **M0-09** then replaced the script's body with a call into `tools/ContentValidator`, so CI now runs the same code the game loads content with.
+- **`compose-boot`** was red while `docker-compose.yml` did not exist; the job checked for it explicitly so the failure read as "M0-03 has not landed" rather than Docker's bare `no configuration file provided`. **M0-03** landed the stack, and the sequence was walked locally against Docker 28.4.0 — `config` → `up -d --wait` (all 8 services healthy, 2 init containers completed) → `/health` → 200 `{"status":"ok"}` → integration suite 3/3 → `down -v`.
 
-This is planned sequencing, not defects. Neither was made to pass by weakening it.
+Keep this section honest: a job that is red for a *planned* reason belongs here with the task that clears it. A job that is red for any other reason is a defect, not a row.
 
 ---
 
@@ -131,20 +126,34 @@ PowerShell, because it is the one shell that runs identically on the Windows
 development machine and on the `ubuntu-24.04` runners, where `pwsh` is
 preinstalled.
 
-### Handover: `content-validation` → M0-09
+### Handover: `content-validation` → M0-09 · **done**
 
-`Invoke-ContentValidation.ps1` is **the floor, not the ceiling**. Today it does
-structural work only: strict RFC 8259 parse, duplicate-property detection, and
-schema↔data orphan checks. The real harness — JSON Schema enforcement,
-cross-file reference resolution, the 📐-marker-vs-schema-key check of `14` §6 — is
-**M0-09**.
+M0-02 authored `Invoke-ContentValidation.ps1` as a structural floor and asked
+M0-09 to **replace the body, not the interface**. That is what happened: same
+script path, same parameters, same exit codes.
 
-M0-09 should **replace the body, not the interface**: same script path, same
-parameters, same exit codes, and `ci.yml` needs no edit. If the pairing
-convention (`schema/<stem>.schema.json` ↔ `tuning|content/<stem>.json`,
-`schema/loc.schema.json` ↔ `loc/*.json`) does not match what M0-10 actually
-lands, declare the real mapping in `SlayIdleRepeat.Data/schema/schema-map.json`
-rather than loosening the orphan check.
+The body is now a call into `tools/ContentValidator`, which runs the **same code
+the game loads content with** — the loader, the JSON Schema validator, the
+cross-file invariants and the 📐 audit all live in
+`SlayIdleRepeat.Application/Services/Content/` and are unit-tested in
+`SlayIdleRepeat.Application.Tests` against the in-memory fake. A CI-only
+validator written a second time in PowerShell would drift from the runtime one,
+and the day it did, CI would be green about content the game cannot load.
+
+The pairing convention M0-02 guessed turned out to be right, so no
+`schema-map.json` was needed. Two schemas govern nothing yet (`chapter`,
+`event`); rather than loosening the orphan check they are named in
+`ContentLoader.SchemasAwaitingContent` with the milestone that authors their
+content, and the check **fails if one of them ever does govern a file** — the
+exemption cannot outlive its milestone.
+
+The one edit `ci.yml` did need: an `actions/setup-dotnet` step on the job, since
+the check is .NET now rather than pure PowerShell.
+
+📐 mismatches that exist today are recorded in
+`build/content/tunable-marker-baseline.json` — dated, with a reason and a closing
+milestone each. The check fails on anything that file does not record, and
+equally on an entry it records that is no longer real.
 
 ### Deliberate overlap with the architecture tests
 
@@ -207,7 +216,7 @@ relaxed to let CI itself log in.
 | Thing | Owner |
 |---|---|
 | ~~`docker-compose.yml` itself~~ | ✅ landed with M0-03 — `docker-compose.yml` + `infra/`, documented in [`infra/README.md`](../../infra/README.md) |
-| The real content-validation harness | M0-09 |
+| ~~The real content-validation harness~~ | ✅ landed with M0-09 — `tools/ContentValidator` over `SlayIdleRepeat.Application/Services/Content/`, so CI runs the same code the game loads content with |
 | The `SchemaVersion` snapshot field-list pin (`14` §16.6) | M0-07 — it lands as a test and the `test` job picks it up automatically via glob discovery |
 | The determinism + parity harness | M5-12 |
 | The real Android/iOS client CI | M7-10; the iOS recipe is M0-05b |
@@ -227,7 +236,7 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 | `dotnet restore` + `dotnet build -c Release` — 33 projects, 0 warnings, 0 errors | Every `actions/*` step (`checkout`, `setup-dotnet`, `cache`, `upload-artifact`) |
 | All three test groups via `Invoke-UnitTests.ps1`, plus **both** failure modes of the empty-suite rule (undeclared-empty, and stale-exemption) proven against a throwaway suite | `global-json-file: global.json` actually selecting the 8.0 SDK on a runner |
 | `Test-VendorPackageUniqueness.ps1` — passes on the real tree; A9-UNIQUE and A9-LOCATION both proven to fire | NuGet cache hit/miss behaviour |
-| `Invoke-ContentValidation.ps1` — correct failure on today's empty tree; pass, bad-parse, duplicate-key, both orphan directions and the `schema-map.json` override all proven on fixtures | Runner-label availability (`ubuntu-24.04`, `macos-14`) |
+| `Invoke-ContentValidation.ps1` — pass, bad-parse, duplicate-key and both orphan directions proven on fixtures. **Superseded by M0-09**: the body now calls `tools/ContentValidator`, and the schema-awaiting-content declaration moved from `schema-map.json` into `ContentLoader.SchemasAwaitingContent` | Runner-label availability (`ubuntu-24.04`, `macos-14`) |
 | `Test-NoCloudCredentials.ps1` — passes on the real workflows; all seven bans proven to fire on a fixture | `schedule:` firing, and GitHub's 60-day disable of scheduled workflows on an inactive repo |
 | `docker build` of the server image, non-root uid **1654**, `GET /health` → 200 `{"status":"ok"}`, and `ASPNETCORE_HTTP_PORTS` override proving 12-factor config | Concurrency cancellation, artifact upload |
 | The whole `compose-boot` command sequence (`config` → `up --wait` → health poll → `down`) against a throwaway stack in a scratch directory | |
@@ -242,5 +251,5 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 2. **Run `actionlint`** over both workflows, and consider adding it as a job.
 3. **Branch protection**: `build`, `test`, `architecture-tests` and
    `vendor-package-uniqueness` are the checks that pass today and are safe to
-   require immediately, and `compose-boot` joins them now that M0-03 has landed
-   the stack. Add `content-validation` after M0-10.
+   require immediately. `compose-boot` joined them with M0-03 and
+   `content-validation` with M0-09, so all six are now safe to require.

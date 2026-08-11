@@ -1,33 +1,60 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Validates every JSON file under SlayIdleRepeat.Data.
+    Validates every JSON file under SlayIdleRepeat.Data, and audits the 📐 TUNABLE
+    markers in game-design/ against the schema keys.
 
 .DESCRIPTION
     14 §6 🔒: "JSON is validated at build time against schemas in
     SlayIdleRepeat.Data/schema/. The build fails on unknown IDs, missing icons,
     out-of-range values, orphaned references or duplicate IDs."
-    14 §13 names 'Content: build-time schema validation of all JSON' as a testing
-    requirement CI must run.
 
-    ⚠️ THIS IS THE FLOOR, NOT THE CEILING. The real validator - JSON Schema
-    enforcement, cross-file reference resolution, the 📐-marker-vs-schema-key
-    check - is M0-09 (content pipeline base). What this script does today:
+    14 §6 🔒: "a build-time check enumerates every 📐 marker in the documentation
+    set against the schema keys and fails on a mismatch. That check is what stops
+    the tuning surface eroding over eighteen months."
 
-      C1  Every *.json under the data root parses as strict RFC 8259 JSON.
-      C2  No object in any file has a duplicate property name. System.Text.Json
-          silently keeps the last one, so a duplicated key is a value that
-          vanishes with no error anywhere - the cheapest possible version of
-          14 §6's 'duplicate IDs' rule.
-      C3  Schema <-> data pairing has no orphans in either direction: no data
-          file without a schema, no schema governing nothing.
+    M0-02 authored this script as a structural floor (strict parse, duplicate-key
+    detection, schema<->data orphan pairing) with the instruction:
 
-    M0-09 REPLACES THE BODY, NOT THE INTERFACE. Keep the parameters, the exit
-    codes (0 pass / 1 fail) and the script path, and .github/workflows/ci.yml
-    needs no edit when the real harness lands.
+        "M0-09 REPLACES THE BODY, NOT THE INTERFACE. Keep the parameters, the exit
+         codes (0 pass / 1 fail) and the script path, and .github/workflows/ci.yml
+         needs no edit when the real harness lands."
+
+    That is exactly what happened. The body is now a call into tools/ContentValidator,
+    which runs the SAME code the game loads content with - the loader, the JSON Schema
+    validator, the cross-file invariants and the 📐 audit all live in
+    SlayIdleRepeat.Application/Services/Content/ and are unit-tested in
+    SlayIdleRepeat.Application.Tests against the in-memory fake. A CI-only validator
+    written a second time in PowerShell would drift from the runtime one, and the day
+    it did, CI would be green about content the game cannot load.
+
+    What it enforces today:
+
+      14 §6's five failure classes - unknown IDs, missing icons, out-of-range values,
+      orphaned references, duplicate IDs - plus malformed JSON, duplicate object keys,
+      unpaired schemas, and any JSON Schema keyword the validator does not implement
+      (a hard failure, never a silent pass).
+
+      The 📐 audit, in three directions: every marker must be claimed by a schema key,
+      every numeric key in a tuning/ schema must carry a marker, and an economy-affecting
+      📐 number must name a file under tuning/. Known mismatches are recorded, dated and
+      reasoned in build/content/tunable-marker-baseline.json; the check fails on anything
+      that file does not record, and equally on an entry it records that is no longer real.
+
+    The one change this needed in .github/workflows/ci.yml is an actions/setup-dotnet
+    step on the content-validation job: the check is now .NET rather than PowerShell.
+
+.PARAMETER RepositoryRoot
+    Defaults to the repository containing this script.
 
 .PARAMETER DataRoot
     Defaults to <repo>/SlayIdleRepeat.Data.
+
+.PARAMETER Configuration
+    Build configuration for the validator tool. Defaults to Release.
+
+.PARAMETER NoBuild
+    Skip building the tool - use when a previous step already built the solution.
 
 .EXAMPLE
     pwsh build/ci/Invoke-ContentValidation.ps1
@@ -35,7 +62,9 @@
 [CmdletBinding()]
 param(
     [string]$RepositoryRoot,
-    [string]$DataRoot
+    [string]$DataRoot,
+    [string]$Configuration = 'Release',
+    [switch]$NoBuild
 )
 
 Set-StrictMode -Version Latest
@@ -45,205 +74,55 @@ $ErrorActionPreference = 'Stop'
 $root = Get-RepositoryRoot -Override $RepositoryRoot
 if (-not $DataRoot) { $DataRoot = Join-Path $root 'SlayIdleRepeat.Data' }
 
+$designDocs = Join-Path $root 'game-design'
+$baseline = Join-Path $root 'build/content/tunable-marker-baseline.json'
+$project = Join-Path $root 'tools/ContentValidator/SlayIdleRepeat.ContentValidator.csproj'
+
 Write-Section 'Content validation (14 §6, §13)'
-Write-Host "Data root : $DataRoot"
+Write-Host "Data root   : $DataRoot"
+Write-Host "Design docs : $designDocs"
+Write-Host "Baseline    : $baseline"
+Write-Host "Validator   : $project"
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
-if (-not (Test-Path -LiteralPath $DataRoot)) {
-    Write-CiError "Data root '$DataRoot' does not exist."
+foreach ($required in @(
+        @{ Path = $DataRoot;    What = 'the data root' },
+        @{ Path = $designDocs;  What = 'the design-doc set the 📐 audit reads' },
+        @{ Path = $baseline;    What = 'the 📐 baseline (a missing one is not the same as a clean run)' },
+        @{ Path = $project;     What = 'the validator project' })) {
+    if (-not (Test-Path -LiteralPath $required.Path)) {
+        $failures.Add("'$($required.Path)' does not exist - $($required.What).")
+    }
+}
+
+if ($failures.Count -gt 0) {
+    Exit-WithFailures -Failures $failures.ToArray() -CheckName 'Content validation'
+}
+
+$arguments = @(
+    'run', '--project', $project, '--configuration', $Configuration
+)
+if ($NoBuild) { $arguments += '--no-build' }
+$arguments += @(
+    '--',
+    '--repository-root', $root,
+    '--data-root', $DataRoot,
+    '--design-docs', $designDocs,
+    '--baseline', $baseline
+)
+
+Write-Section 'Running the validator'
+& dotnet @arguments
+$exitCode = $LASTEXITCODE
+
+if ($exitCode -ne 0) {
+    # The tool has already printed every finding with its location and what to do
+    # about it; repeating them here would only make the log harder to read.
+    Write-CiError ("Content validation failed (exit $exitCode). Every finding is listed above, " +
+        "each naming the document, the JSON pointer and the design-doc rule it breaks.")
     exit 1
 }
 
-$dataRootResolved = (Resolve-Path -LiteralPath $DataRoot).Path
-$schemaDir = Join-Path $dataRootResolved 'schema'
-
-$jsonFiles = @(Get-ChildItem -Path $dataRootResolved -Filter '*.json' -Recurse -File | Sort-Object FullName)
-
-# ------------------------------------------------------------------------ C0
-# A validator that finds nothing to validate must not report success. Today this
-# is the expected state on a branch cut before M0-10 (SlayIdleRepeat.Data initial
-# layout) merges; it turns green the moment the data tree lands.
-if ($jsonFiles.Count -eq 0) {
-    Write-CiError (
-        "No JSON files found under '$dataRootResolved'. There is nothing to validate, so this " +
-        "check cannot honestly pass. The data tree - schema/, tuning/ (the 16 files of 21 §3.1), " +
-        "loc/, content/ - lands with M0-10.")
-    exit 1
-}
-
-Write-Host "JSON files: $($jsonFiles.Count)"
-
-# --------------------------------------------------------------------- C1/C2
-function Test-DuplicateKeys {
-    <#
-        JsonDocument keeps every duplicate property, so enumerating and grouping
-        finds what the object model would silently collapse.
-    #>
-    param(
-        [Parameter(Mandatory)][System.Text.Json.JsonElement]$Element,
-        [Parameter(Mandatory)][AllowEmptyString()][string]$Pointer,
-        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Found
-    )
-
-    switch ($Element.ValueKind) {
-        ([System.Text.Json.JsonValueKind]::Object) {
-            $names = [System.Collections.Generic.List[string]]::new()
-            foreach ($property in $Element.EnumerateObject()) {
-                $names.Add($property.Name)
-                Test-DuplicateKeys -Element $property.Value -Pointer "$Pointer/$($property.Name)" -Found $Found
-            }
-            $where = if ($Pointer) { $Pointer } else { '(document root)' }
-            foreach ($group in ($names | Group-Object | Where-Object { $_.Count -gt 1 })) {
-                $Found.Add("$where -> property '$($group.Name)' appears $($group.Count) times")
-            }
-        }
-        ([System.Text.Json.JsonValueKind]::Array) {
-            $index = 0
-            foreach ($item in $Element.EnumerateArray()) {
-                Test-DuplicateKeys -Element $item -Pointer "$Pointer/$index" -Found $Found
-                $index++
-            }
-        }
-    }
-}
-
-$parsed = @{}
-
-foreach ($file in $jsonFiles) {
-    $relative = Get-RelativePath -Root $root -Path $file.FullName
-    $text = Get-Content -Raw -LiteralPath $file.FullName
-
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        $failures.Add("C1 $relative : file is empty. An empty content file is never intentional.")
-        continue
-    }
-
-    try {
-        # Strict parse: no comments, no trailing commas - exactly what the runtime
-        # loader will accept, so CI cannot be more forgiving than production.
-        $document = [System.Text.Json.JsonDocument]::Parse($text)
-    } catch {
-        $failures.Add("C1 $relative : does not parse as JSON - $($_.Exception.Message)")
-        continue
-    }
-
-    try {
-        $duplicates = [System.Collections.Generic.List[string]]::new()
-        Test-DuplicateKeys -Element $document.RootElement -Pointer '' -Found $duplicates
-        foreach ($duplicate in $duplicates) {
-            $failures.Add("C2 $relative : duplicate property name at $duplicate. One of the values is silently discarded on load (14 §6 forbids duplicate IDs).")
-        }
-        $parsed[$relative] = $true
-    } finally {
-        $document.Dispose()
-    }
-}
-
-# ------------------------------------------------------------------------ C3
-# Pairing. The convention below is the fallback; SlayIdleRepeat.Data/schema/schema-map.json
-# overrides it when M0-09/M0-10 need something the convention cannot express.
-#
-#   schema/<stem>.schema.json  governs  tuning/<stem>.json and/or content/<stem>.json
-#   schema/loc.schema.json     governs  loc/*.json          (all locales share one schema)
-#
-# schema-map.json shape:
-#   { "map": { "<data path or glob>": "<schema path>" , ... } }
-#
-# schema-map.json may additionally declare "pendingData": schemas whose data has not been
-# authored yet, each naming the milestone task that authors it. C1 requires the full schema
-# to ship in the client, and 26 §2 names schema/event.schema.json explicitly, so a schema
-# written ahead of its content is correct — the orphan reading below ("outlived its content")
-# is the wrong one for those. A pendingData entry that HAS since gained data fails as stale,
-# so it cannot outlive its milestone. Same discipline as test-suites.json's knownEmpty.
-$schemaMapPath = Join-Path $schemaDir 'schema-map.json'
-$schemaMap = $null
-$pendingData = $null
-if (Test-Path -LiteralPath $schemaMapPath) {
-    $schemaMapDoc = Get-Content -Raw -LiteralPath $schemaMapPath | ConvertFrom-Json
-    # Property-bag access, not dot access: both keys are optional and Set-StrictMode
-    # turns a missing property into a terminating error.
-    $mapProperty = $schemaMapDoc.PSObject.Properties['map']
-    $pendingProperty = $schemaMapDoc.PSObject.Properties['pendingData']
-    $schemaMap = if ($mapProperty) { $mapProperty.Value } else { $null }
-    $pendingData = if ($pendingProperty) { $pendingProperty.Value } else { $null }
-    $pairingMode = if ($schemaMap) { 'schema-map.json (explicit)' } else { 'convention (schema-map.json declares no overrides)' }
-    Write-Host "Pairing   : $pairingMode"
-    if ($pendingData) {
-        Write-Host "Pending   : $(@($pendingData.PSObject.Properties).Count) schema(s) awaiting their data — see schema/schema-map.json"
-    }
-} else {
-    Write-Host "Pairing   : convention (no schema/schema-map.json present)"
-}
-
-$schemaFiles = @($jsonFiles | Where-Object { (Get-RelativePath -Root $dataRootResolved -Path $_.FullName) -like 'schema/*' })
-$dataFiles = @($jsonFiles | Where-Object { (Get-RelativePath -Root $dataRootResolved -Path $_.FullName) -notlike 'schema/*' })
-
-if ($schemaFiles.Count -eq 0) {
-    $failures.Add("C3 SlayIdleRepeat.Data/schema/ holds no schema files, so no data file can be validated against anything. 14 §6 requires schemas to live there.")
-}
-
-$schemaUsage = @{}
-foreach ($schemaFile in $schemaFiles) {
-    $schemaRelative = Get-RelativePath -Root $dataRootResolved -Path $schemaFile.FullName
-    if ($schemaRelative -eq 'schema/schema-map.json') { continue }
-    $schemaUsage[$schemaRelative] = 0
-}
-
-function Resolve-SchemaFor {
-    param([Parameter(Mandatory)][string]$DataRelativePath)
-
-    if ($schemaMap) {
-        foreach ($property in $schemaMap.PSObject.Properties) {
-            if ($DataRelativePath -like $property.Name) { return $property.Value }
-        }
-        return $null
-    }
-
-    $directory = [IO.Path]::GetDirectoryName($DataRelativePath) -replace '\\', '/'
-    $stem = [IO.Path]::GetFileNameWithoutExtension($DataRelativePath)
-
-    if ($directory -eq 'loc') { return 'schema/loc.schema.json' }
-    return "schema/$stem.schema.json"
-}
-
-foreach ($dataFile in $dataFiles) {
-    $dataRelative = Get-RelativePath -Root $dataRootResolved -Path $dataFile.FullName
-    $expected = Resolve-SchemaFor -DataRelativePath $dataRelative
-
-    if (-not $expected) {
-        $failures.Add("C3 ORPHAN DATA: '$dataRelative' matches no entry in schema/schema-map.json. Every content file is governed by a schema (14 §6).")
-        continue
-    }
-
-    if ($schemaUsage.ContainsKey($expected)) {
-        $schemaUsage[$expected] = $schemaUsage[$expected] + 1
-    } else {
-        $failures.Add("C3 ORPHAN DATA: '$dataRelative' expects schema '$expected', which does not exist. Either add the schema or record the real pairing in SlayIdleRepeat.Data/schema/schema-map.json.")
-    }
-}
-
-foreach ($schemaRelative in $schemaUsage.Keys) {
-    $pending = if ($pendingData) { $pendingData.PSObject.Properties[$schemaRelative] } else { $null }
-
-    if ($schemaUsage[$schemaRelative] -eq 0) {
-        if ($pending) {
-            Write-Host "  pending  $schemaRelative -> data authored by $($pending.Value.authoredBy)"
-        } else {
-            $failures.Add("C3 ORPHAN SCHEMA: '$schemaRelative' governs no data file. Either the data it describes is missing — in which case declare it under 'pendingData' in schema/schema-map.json with the milestone task that authors it — or the schema outlived its content and should be deleted.")
-        }
-    } elseif ($pending) {
-        $failures.Add("C3 STALE EXEMPTION: '$schemaRelative' is declared pendingData (authored by $($pending.Value.authoredBy)) but now governs $($schemaUsage[$schemaRelative]) data file(s). Remove the entry from schema/schema-map.json — an exemption that has been satisfied must not outlive its milestone.")
-    }
-}
-
-Write-Section 'Pairing'
-$pairingReport = foreach ($schemaRelative in ($schemaUsage.Keys | Sort-Object)) {
-    [pscustomobject]@{ Schema = $schemaRelative; DataFiles = $schemaUsage[$schemaRelative] }
-}
-if ($pairingReport) { $pairingReport | Format-Table -AutoSize | Out-String -Width 200 | Write-Host }
-
-Write-Host "Parsed OK : $($parsed.Count) of $($jsonFiles.Count)"
-Write-CiWarning "Structural validation only. JSON Schema enforcement, cross-file reference resolution and the 📐-marker check arrive with M0-09."
-
-Exit-WithFailures -Failures $failures.ToArray() -CheckName 'Content validation'
+Write-CiSuccess 'Content validation passed.'
+exit 0

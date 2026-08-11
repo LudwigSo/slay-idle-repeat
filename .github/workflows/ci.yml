@@ -165,21 +165,31 @@ jobs:
   # ===========================================================================
   # content-validation — 14 §6 🔒, 14 §13 "build-time schema validation of all JSON"
   #
-  # Today: strict parse of every JSON under SlayIdleRepeat.Data, duplicate-key
-  # detection, and schema<->data orphan checks in both directions.
-  # M0-09 swaps the body of Invoke-ContentValidation.ps1 for the real harness
-  # (JSON Schema, cross-file references, the 📐-marker check). Same script path,
-  # same parameters, same exit codes — this job does not change.
+  # M0-09 swapped the body of Invoke-ContentValidation.ps1 for the real harness:
+  # JSON Schema enforcement, cross-file reference resolution and the 📐-marker
+  # check, all running the SAME code the game loads content with
+  # (SlayIdleRepeat.Application/Services/Content/, unit-tested against the
+  # in-memory fake). Same script path, same parameters, same exit codes.
   #
-  # ⚠️ RED until M0-10 lands SlayIdleRepeat.Data's schema/ tuning/ loc/ content/
-  # files: a validator with nothing to validate reports failure rather than a
-  # green tick over an empty directory.
+  # The one change M0-09 needed here: the check is .NET now rather than pure
+  # PowerShell, so the job needs the SDK. Everything else is untouched.
   # ===========================================================================
   content-validation:
     name: content validation (14 §6)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
 
       - name: Validate SlayIdleRepeat.Data
         shell: pwsh
