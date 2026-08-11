@@ -10,7 +10,12 @@ config_version=5
 
 config/name="Slay. Idle. Repeat."
 config/description="Roll. Fight. Merge. Repeat."
-config/features=PackedStringArray("4.4", "C#", "Mobile")
+; 4.7 — M0-05a pinned the engine at 4.7.1-stable, and both spike projects say
+; "4.7". config/features is what the editor reads to decide whether a project
+; needs an upgrade pass, so a stale "4.4" here would make the first person to
+; open this in M7 run a version conversion nobody asked for. It is the only
+; Godot version string under src/.
+config/features=PackedStringArray("4.7", "C#", "Mobile")
 
 [android]
 

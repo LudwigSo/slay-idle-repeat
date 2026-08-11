@@ -57,9 +57,12 @@ Two notes for whoever turns the macOS jobs on:
 
 - **`macos-15` is the pin, deliberately.** `macos-14` is marked *deprecated* in
   [`actions/runner-images`](https://github.com/actions/runner-images) as of the
-  2026-07 image manifest. The `determinism` job's `ios-arm64` leg still names
-  `macos-14`; **M5-12 should move it to `macos-15`** rather than inherit a
-  deprecated label.
+  2026-07 image manifest. The `determinism` job's `ios-arm64` leg named
+  `macos-14` until the M0 review moved it to `macos-15` — the deadline was
+  ~3 months out and recorded only as prose sixty lines from the job that broke
+  it. Both macOS jobs are `if: false`, so nothing was red; a dormant job that is
+  wrong is worse than one that is right, because whoever turns it on will be
+  doing determinism work, not auditing runner images.
 - **macOS runners bill at a 10× minute multiplier** on private repositories, and
   the Godot mono export templates are ~1.1 GB to fetch. Neither macOS job should
   inherit this workflow's every-push trigger without someone deciding to pay for
@@ -86,7 +89,7 @@ code therefore reports success for a suite that was emptied, never wired up, or
 whose test adapter stopped being registered.
 
 `build/ci/Invoke-UnitTests.ps1` reads the real per-suite count out of the TRX and
-applies three rules:
+applies six rules:
 
 1. **Test projects are discovered by glob** (`tests/*/*.csproj`). A new suite —
    `SlayIdleRepeat.Client.Tests`, or the `14` §16.6 `SchemaVersion` field-list pin
@@ -98,25 +101,48 @@ applies three rules:
    exemption. The entry cannot outlive its milestone — removing it is forced, not
    remembered.
 
-Current exemptions, all seeded empty by M0-01:
+Three further rules were added by the M0 review, all of the same kind — a
+declaration that matches nothing is a declaration that changes what runs without
+changing what goes red:
 
-| Suite | Filled by |
-|---|---|
-| `SlayIdleRepeat.Core.Tests` | M0-06 |
-| `SlayIdleRepeat.Application.Tests` | M1-09 |
-| `SlayIdleRepeat.Contract.Tests` | M1-09 |
+4. **A name in a group's `include`/`exclude` that matches no discovered suite
+   fails the build.** Neither list errors on its own: a typo in `include`
+   quietly shrinks the group, a typo in `exclude` quietly stops excluding.
+5. **A `knownEmpty` entry naming a project that is not among the discovered
+   suites fails the build** — a renamed or deleted project takes its exemption
+   with it, rather than leaving one pre-armed for whatever lands on that name.
+6. **A `knownEmpty` entry must carry a well-formed `turnsOn` and a non-empty
+   `reason`.** An exemption with no milestone has no expiry.
 
-Two suites **had** a row here and no longer do, and in both cases the
+### Current exemptions: **none**
+
+`knownEmpty` in `build/ci/test-suites.json` is empty. Every suite under `tests/`
+contains tests and is required to keep containing them.
+
+All five suites **had** a row here and no longer do, and in every case the
 stale-exemption rule is what forced the removal rather than anyone remembering:
 
-- `SlayIdleRepeat.Architecture.Tests` — M0-08 merged mid-task with 33 live rules.
+- `SlayIdleRepeat.Core.Tests` — filled by M0-06 (Rng), M0-07 (the `14` §16.6
+  field-order pin) and M0-09 (the Content value tree). **799 tests.**
+- `SlayIdleRepeat.Application.Tests` — filled by M0-09's content services.
+  **256 tests.**
+- `SlayIdleRepeat.Contract.Tests` — its exemption said "there are no ports with
+  two implementations yet", and M0-09 landed `IContentSourcePort` with a shared
+  contract suite and two derived fixtures. **24 tests.** Its `turnsOn` was
+  independently wrong: it said M1-09, and M1-09 is the `BEGIN_SESSION` handler —
+  the port catalogue and the shared contract suites are M5-01. So an entry can be
+  stale on its milestone as well as on its test count, and only the count is
+  mechanically checkable. See `$knownGapInThisMechanism` in
+  `build/ci/test-suites.json` for what these six rules deliberately do NOT catch.
+- `SlayIdleRepeat.Architecture.Tests` — M0-08 merged mid-task with live rules;
+  **38** as of the M0 review.
 - `SlayIdleRepeat.Integration.Tests` — its exemption said "needs the compose
   stack, which does not exist until M0-03". M0-03 landed the stack, so the reason
   expired. Rather than re-point the marker at M5 and leave `compose-boot`'s
   "run integration suite against the live stack" step executing zero assertions
   for five milestones, M0-03 filled the suite with its own acceptance criteria
-  (`ComposeStackSmokeTests`). `14` §13's full end-to-end run still arrives with
-  the adapters in M5-05 and after.
+  (`ComposeStackSmokeTests`). **3 tests.** `14` §13's full end-to-end run still
+  arrives with the adapters in M5-05 and after.
 
 ---
 
@@ -220,11 +246,20 @@ committed, obviously-local values for containers on a laptop, all of them listed
 in [`infra/README.md`](../../infra/README.md#dev-credentials). MinIO speaks the S3
 API, so an S3-shaped key pair there is not a cloud account.
 
+It scans **every** `.github/workflows/*.yml`, not a list of filenames. Until the
+M0 review it named `ci.yml` and `nightly.yml` literally, which meant renaming
+`nightly.yml` — or adding `codeql.yml` in M1 — left the new file silently never
+scanned while the check still reported success. This is the one gate whose entire
+value is "it looked at everything CI can reach for", so it also fails when a glob
+matches nothing at all.
+
 `14` §14's **server release** (image → registry, rolling deploy, migrations as a
 pre-deploy job) genuinely needs a registry credential. When that workflow is
-written it goes in **its own file** — `Test-NoCloudCredentials.ps1`'s
-`-WorkflowGlob` keeps pointing at the CI workflows only, and must never be
-relaxed to let CI itself log in.
+written it goes in **its own file**, and that file's name goes in
+`Test-NoCloudCredentials.ps1`'s `-WorkflowExclusion` **with its reason** — never
+by narrowing the glob, and never by relaxing a ban for a file that is CI. An
+exclusion naming a workflow that does not exist fails the check, so the
+exemption cannot outlive the file it was written for.
 
 ## Not in scope here
 
@@ -232,7 +267,7 @@ relaxed to let CI itself log in.
 |---|---|
 | ~~`docker-compose.yml` itself~~ | ✅ landed with M0-03 — `docker-compose.yml` + `infra/`, documented in [`infra/README.md`](../../infra/README.md) |
 | ~~The real content-validation harness~~ | ✅ landed with M0-09 — `tools/ContentValidator` over `SlayIdleRepeat.Application/Services/Content/`, so CI runs the same code the game loads content with |
-| The `SchemaVersion` snapshot field-list pin (`14` §16.6) | M0-07 — it lands as a test and the `test` job picks it up automatically via glob discovery |
+| ~~The `SchemaVersion` snapshot field-list pin (`14` §16.6)~~ | ✅ landed with M0-07 — `tests/SlayIdleRepeat.Core.Tests/Model/Snapshots/SnapshotFieldOrderPin.cs`, picked up by the `test` job through glob discovery with no YAML edit, exactly as this row predicted |
 | The determinism + parity harness | M5-12 |
 | The real Android/iOS client CI | M7-10. Android recipe: `docs/spikes/O23-godot-android-export.md` (executed). iOS recipe: `docs/spikes/O23-godot-ios-export.md` (**written, not executed — O23 still open**) |
 | Server release: registry push, rolling deploy, pre-deploy migrations | Not yet scheduled — `14` §14 |
@@ -248,16 +283,16 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 
 | Verified by execution | Unverifiable without a runner |
 |---|---|
-| `dotnet restore` + `dotnet build -c Release` — 33 projects, 0 warnings, 0 errors | Every `actions/*` step (`checkout`, `setup-dotnet`, `cache`, `upload-artifact`) |
-| All three test groups via `Invoke-UnitTests.ps1`, plus **both** failure modes of the empty-suite rule (undeclared-empty, and stale-exemption) proven against a throwaway suite | `global-json-file: global.json` actually selecting the 8.0 SDK on a runner |
-| `Test-VendorPackageUniqueness.ps1` — passes on the real tree; A9-UNIQUE and A9-LOCATION both proven to fire | NuGet cache hit/miss behaviour |
-| `Invoke-ContentValidation.ps1` — pass, bad-parse, duplicate-key and both orphan directions proven on fixtures. **Superseded by M0-09**: the body now calls `tools/ContentValidator`, and the schema-awaiting-content declaration moved from `schema-map.json` into `ContentLoader.SchemasAwaitingContent` | Runner-label availability (`ubuntu-24.04`, `macos-14`, `macos-15`). ⚠️ `macos-14` is deprecated and unsupported from **2026-11-02** — the `determinism` job's `ios-arm64` leg still names it; **M5-12 must move it to `macos-15`** |
-| `Test-NoCloudCredentials.ps1` — passes on the real workflows; all seven bans proven to fire on a fixture | `schedule:` firing, and GitHub's 60-day disable of scheduled workflows on an inactive repo |
+| `dotnet restore` + `dotnet build -c Release` — 34 projects, 0 warnings, 0 errors | Every `actions/*` step (`checkout`, `setup-dotnet`, `cache`, `upload-artifact`) |
+| All three test groups via `Invoke-UnitTests.ps1`, plus **both** failure modes of the empty-suite rule (undeclared-empty, and stale-exemption) proven against a throwaway suite, and all four manifest-validation failures (unmatched `include`/`exclude` name, `knownEmpty` naming a missing project, malformed `turnsOn`, empty `reason`) proven against a throwaway manifest | `global-json-file: global.json` actually selecting the 8.0 SDK on a runner |
+| `Test-VendorPackageUniqueness.ps1` — passes on the real tree (34 projects, 12 with a `PackageReference`, 8 vendor SDKs); A9-UNIQUE and A9-LOCATION both proven to fire, including through a project carrying the legacy MSBuild `xmlns` that the previous namespace-sensitive XPath returned zero nodes for; the "scanned N projects and found no PackageReference at all" vacuity guard proven against a scratch tree | NuGet cache hit/miss behaviour |
+| `Invoke-ContentValidation.ps1` — pass, bad-parse, duplicate-key and both orphan directions proven on fixtures. **Superseded by M0-09**: the body now calls `tools/ContentValidator`, and the schema-awaiting-content declaration moved from `schema-map.json` into `ContentLoader.SchemasAwaitingContent` | Runner-label availability (`ubuntu-24.04`, `macos-15`). `macos-14` is deprecated and unsupported from **2026-11-02**; no job names it any more — the M0 review moved the `determinism` job's `ios-arm64` leg to `macos-15` |
+| `Test-NoCloudCredentials.ps1` — passes on the real workflows; all seven bans proven to fire on a fixture; the glob proven to pick up a newly-added `codeql.yml` that the previous hard-coded file list would never have read, and the stale-`-WorkflowExclusion` failure proven | `schedule:` firing, and GitHub's 60-day disable of scheduled workflows on an inactive repo |
 | `docker build` of the server image, non-root uid **1654**, `GET /health` → 200 `{"status":"ok"}`, and `ASPNETCORE_HTTP_PORTS` override proving 12-factor config | Concurrency cancellation, artifact upload |
 | The whole `compose-boot` command sequence (`config` → `up --wait` → health poll → `down`) against a throwaway stack in a scratch directory | |
 | Both `nightly.yml` commands (`dotnet run` on each tool, exit 0) | |
 | YAML parse + `yamllint` clean on both workflows | `actionlint` (not installed; not fetched — no unvetted binaries) |
-| **Integration rehearsal**: every live check re-run against a scratch export of `milestone/M0` **with M0-08 merged** — build clean, architecture suite **33/33**, all checks green except the two documented reds | |
+| **Integration rehearsal**, re-run on `review/M0` at the end of the M0 review: build clean (34 projects, 0 warnings), architecture suite **38/38**, `Core.Tests` 799, `Application.Tests` 256, `Contract.Tests` 24, `Integration.Tests` 3 against a live stack, all four `build/ci/` checks exit 0, and **no job red** — the two documented reds of the earlier rehearsal were cleared by M0-03 and M0-09/M0-10, see "Jobs that are red today" above | |
 
 ### Follow-ups for when the repository exists
 

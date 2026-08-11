@@ -7,7 +7,7 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// <summary>
 /// `14` §6 / `SlayIdleRepeat.Data/README.md` — the value tree `Core` reads content out of.
 /// The load-bearing property here is that a JSON <c>null</c> is a <em>kind</em>, not a value:
-/// 98 leaves in the shipped tuning files are unauthorised holes, and a silent zero in any of them
+/// 96 leaves in the shipped tuning files are unauthorised holes, and a silent zero in any of them
 /// would produce a plausible, wrong economy.
 /// </summary>
 public sealed class ContentValueTests

@@ -4,7 +4,10 @@
     The domain test suite. References SlayIdleRepeat.Core and nothing else — it is
     the assembly Core grants InternalsVisibleTo (30 §11.3).
 
-    M0 seeds the project only; the tests arrive with their milestones.
+    Seeded empty by M0-01, and no longer empty: 799 tests as of the M0 review,
+    covering Rng (M0-06), CanonicalStateWriter and the 14 §16.6 field-order pin
+    (M0-07) and the Content value tree (M0-09). The rest arrive with their
+    milestones.
   -->
 
   <PropertyGroup>

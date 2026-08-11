@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Open item** | **O14** (`16_DECISION_LOG.md` Part D), raised by `12_MONETIZATION_ADS.md` §3.3 |
+| **Open item** | **O14** (`16_DECISION_LOG.md` Part B — Part D is the build order), raised by `12_MONETIZATION_ADS.md` §3.3 |
 | **Milestone / task** | M0 / M0-04 |
 | **Method** | **Source-and-docs verdict.** No AppLovin account, no SDK binaries, no device build. Scope set at the M0 kickoff. |
 | **Plugin version inspected** | **1.2.0** (tag `release_1_2_0`, published **2025-04-24**) — the latest release, and `master` is byte-identical for the GDScript API (see §2.1) |
