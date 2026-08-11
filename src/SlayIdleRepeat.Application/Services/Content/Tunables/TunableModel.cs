@@ -82,11 +82,35 @@ public sealed record SchemaCitation(
     bool GovernsTuningFile,
     bool GovernsNumericKey = false);
 
+/// <summary>
+/// 🔒 What sort of mismatch a baseline entry records. The two are not interchangeable.
+/// </summary>
+public enum TunableBaselineKind
+{
+    /// <summary>
+    /// A real hole that a real milestone task closes. Carries a <c>closedBy</c> naming a task id
+    /// that exists in <c>IMPLEMENTATION_TRACKER.md</c>.
+    /// </summary>
+    SpecDebt = 0,
+
+    /// <summary>
+    /// The marker is not a tunable at all — a glossary row, prose about the rule itself, a
+    /// verification instruction, an art-budget line, server configuration. Nothing closes it
+    /// because there is nothing to close, so it carries no <c>closedBy</c>.
+    /// </summary>
+    OutOfScope = 1,
+}
+
 /// <summary>One accepted, dated, reasoned mismatch.</summary>
 /// <param name="Section">The doc section that does not match.</param>
+/// <param name="Kind">Spec debt with an owner, or a permanent scope exclusion.</param>
 /// <param name="Reason">Why, in one line.</param>
-/// <param name="ClosedBy">The milestone task that removes this entry.</param>
-public sealed record TunableBaselineEntry(DocSection Section, string Reason, string ClosedBy);
+/// <param name="ClosedBy">
+/// The milestone task that removes this entry. Empty — and required to be empty — for
+/// <see cref="TunableBaselineKind.OutOfScope"/>.
+/// </param>
+public sealed record TunableBaselineEntry(
+    DocSection Section, TunableBaselineKind Kind, string Reason, string ClosedBy);
 
 /// <summary>
 /// 🔒 The committed record of every known 📐 mismatch — spec debt, measured rather than hidden.
@@ -122,6 +146,12 @@ public sealed record TunableBaseline(
             Entries(root, "unmarkedSchemaCitations"));
     }
 
+    /// <summary>
+    /// The literal a regenerated-but-unreviewed entry carries. The reader refuses it, which is how
+    /// <c>--write-baseline</c> can emit a shape without emitting an owner nobody wrote.
+    /// </summary>
+    public const string UnreviewedKind = "unreviewed";
+
     private static string Text(ContentValue value, string member) =>
         value.TryGetMember(member, out var found) && found!.Kind == ContentValueKind.Text
             ? found.AsText()
@@ -136,10 +166,52 @@ public sealed record TunableBaseline(
             return [];
         }
 
-        return list.Items.Select(item => new TunableBaselineEntry(
-            new DocSection(Text(item, "doc"), Text(item, "section")),
-            Text(item, "reason"),
-            Text(item, "closedBy"))).ToArray();
+        return list.Items.Select(Entry).ToArray();
+    }
+
+    /// <summary>
+    /// 🔒 The two kinds are enforced here rather than left to a convention.
+    /// </summary>
+    /// <remarks>
+    /// <c>--write-baseline</c> emits <c>kind: "unreviewed"</c> and no owner, so a regenerated file
+    /// that nobody hand-edited fails the very next run by name. The alternative it replaced — a
+    /// literal <c>"TODO"</c> owner — passed every check, because the only assertion in reach was
+    /// <c>ClosedBy.Length &gt; 0</c>.
+    /// </remarks>
+    private static TunableBaselineEntry Entry(ContentValue item)
+    {
+        var section = new DocSection(Text(item, "doc"), Text(item, "section"));
+        var kindName = Text(item, "kind");
+
+        var kind = kindName switch
+        {
+            "specDebt" => TunableBaselineKind.SpecDebt,
+            "outOfScope" => TunableBaselineKind.OutOfScope,
+            UnreviewedKind => throw new FormatException(
+                $"The 📐 baseline entry for {section} is still 'unreviewed'. --write-baseline writes " +
+                "the SHAPE; the reason and the owning milestone task are written by hand. A generated " +
+                "reason is not a reason."),
+            _ => throw new FormatException(
+                $"The 📐 baseline entry for {section} has kind '{kindName}'. It is either 'specDebt' " +
+                "(a hole a milestone task closes) or 'outOfScope' (not a tunable at all, so nothing " +
+                "closes it). Those are different facts and the file records which."),
+        };
+
+        var hasOwner = item.TryGetMember("closedBy", out var closedBy) &&
+                       closedBy!.Kind == ContentValueKind.Text;
+
+        return kind switch
+        {
+            TunableBaselineKind.SpecDebt when !hasOwner => throw new FormatException(
+                $"The 📐 baseline entry for {section} is spec debt with no 'closedBy'. Spec debt " +
+                "nobody owns is spec debt nobody closes."),
+            TunableBaselineKind.OutOfScope when hasOwner => throw new FormatException(
+                $"The 📐 baseline entry for {section} is out of scope but names a closing task " +
+                $"'{closedBy!.AsText()}'. Nothing closes it — that is what out of scope means. If a " +
+                "milestone really does close it, it is spec debt."),
+            _ => new TunableBaselineEntry(
+                section, kind, Text(item, "reason"), hasOwner ? closedBy!.AsText() : string.Empty),
+        };
     }
 }
 

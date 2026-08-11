@@ -418,9 +418,13 @@ public static class TunableMarkerAudit
 
         foreach (var entry in stale)
         {
+            var owner = entry.Kind == TunableBaselineKind.OutOfScope
+                ? "out of scope, so nothing was ever going to close it"
+                : $"closed by {entry.ClosedBy}";
+
             issues.Add(new ContentIssue(
                 ContentIssueCode.StaleBaselineEntry, entry.Section.ToString(),
-                $"is recorded in the 📐 baseline ('{entry.Reason}', closed by {entry.ClosedBy}) but " +
+                $"is recorded in the 📐 baseline ('{entry.Reason}', {owner}) but " +
                 "no longer describes a real mismatch. Remove the entry — a baseline that outlives " +
                 "its debt is a place mismatches go to be forgotten."));
         }

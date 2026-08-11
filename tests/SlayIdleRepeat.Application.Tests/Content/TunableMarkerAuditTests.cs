@@ -251,7 +251,7 @@ public sealed class TunableMarkerAuditTests
     {
         var baseline = new TunableBaseline(
             "2026-08-11",
-            [new TunableBaselineEntry(new DocSection("09", "2"), "Talent respec costs are M4 work.", "M4-03")],
+            [new TunableBaselineEntry(new DocSection("09", "2"), TunableBaselineKind.SpecDebt, "Talent respec costs are M4 work.", "M4-03")],
             []);
 
         var report = TunableMarkerAudit.Run(
@@ -268,7 +268,7 @@ public sealed class TunableMarkerAuditTests
     {
         var baseline = new TunableBaseline(
             "2026-08-11",
-            [new TunableBaselineEntry(new DocSection("09", "2"), "Closed by M4-03.", "M4-03")],
+            [new TunableBaselineEntry(new DocSection("09", "2"), TunableBaselineKind.SpecDebt, "Closed by M4-03.", "M4-03")],
             []);
 
         var report = TunableMarkerAudit.Run(
@@ -347,6 +347,90 @@ public sealed class TunableMarkerAuditTests
         ],
         "14 §6's rule survives only while this list is short enough to read in one glance and " +
         "argue with line by line — an escape hatch that widens quietly defeats the whole rule");
+    }
+
+    // ------------------------------------------------------- the baseline's own two kinds
+
+    [Fact]
+    public void A_baseline_entry_is_either_owned_spec_debt_or_an_argued_scope_exclusion()
+    {
+        var baseline = TunableBaseline.FromContent(ParseBaseline("""
+        {
+          "recordedOn": "2026-08-11",
+          "unmatchedMarkers": [
+            { "doc": "09", "section": "2", "kind": "specDebt", "reason": "M4 work.", "closedBy": "M4-06" },
+            { "doc": "00", "section": "0", "kind": "outOfScope", "reason": "The glossary row." }
+          ]
+        }
+        """));
+
+        baseline.UnmatchedMarkers.Should().SatisfyRespectively(
+            debt =>
+            {
+                debt.Kind.Should().Be(TunableBaselineKind.SpecDebt);
+                debt.ClosedBy.Should().Be("M4-06");
+            },
+            excluded =>
+            {
+                excluded.Kind.Should().Be(TunableBaselineKind.OutOfScope);
+                excluded.ClosedBy.Should().BeEmpty();
+            });
+    }
+
+    /// <summary>
+    /// 🔒 The failure <c>--write-baseline</c> used to ship silently. A literal <c>"TODO"</c> owner
+    /// satisfied every assertion in reach, because the only one was <c>ClosedBy.Length &gt; 0</c>.
+    /// </summary>
+    [Fact]
+    public void A_regenerated_baseline_nobody_wrote_the_reasons_into_is_refused_by_name()
+    {
+        var act = () => TunableBaseline.FromContent(ParseBaseline($$"""
+        {
+          "recordedOn": "2026-08-11",
+          "unmatchedMarkers": [
+            { "doc": "09", "section": "2", "kind": "{{TunableBaseline.UnreviewedKind}}",
+              "reason": "UNREVIEWED — write this by hand." }
+          ]
+        }
+        """));
+
+        act.Should().Throw<FormatException>().WithMessage("*09 §2*unreviewed*");
+    }
+
+    [Fact]
+    public void Spec_debt_with_no_owner_is_refused()
+    {
+        var act = () => TunableBaseline.FromContent(ParseBaseline("""
+        {
+          "recordedOn": "2026-08-11",
+          "unmatchedMarkers": [{ "doc": "09", "section": "2", "kind": "specDebt", "reason": "M4 work." }]
+        }
+        """));
+
+        act.Should().Throw<FormatException>().WithMessage("*no 'closedBy'*");
+    }
+
+    [Fact]
+    public void A_scope_exclusion_that_names_a_closing_task_is_refused_because_nothing_closes_it()
+    {
+        var act = () => TunableBaseline.FromContent(ParseBaseline("""
+        {
+          "recordedOn": "2026-08-11",
+          "unmatchedMarkers": [
+            { "doc": "00", "section": "0", "kind": "outOfScope", "reason": "Glossary.", "closedBy": "M4-06" }
+          ]
+        }
+        """));
+
+        act.Should().Throw<FormatException>().WithMessage("*out of scope*M4-06*");
+    }
+
+    private static Core.Content.ContentValue ParseBaseline(string json)
+    {
+        JsonContentReader.TryRead("baseline.json", System.Text.Encoding.UTF8.GetBytes(json),
+            out var root, out var issues);
+        issues.Should().BeEmpty();
+        return root!;
     }
 
     private static Core.Content.ContentValue ParseSchema(string json)

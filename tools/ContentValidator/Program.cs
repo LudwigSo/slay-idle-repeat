@@ -120,6 +120,13 @@ internal static class Program
     /// whole point of the baseline is that it is a committed, reviewed record, and a generated
     /// reason is not a reason.
     /// </summary>
+    /// <remarks>
+    /// 🔒 It writes <c>kind: "unreviewed"</c> and <b>no owner at all</b>. It used to write the
+    /// literal <c>"closedBy": "TODO"</c>, which every check in the repository accepted — the only
+    /// assertion in reach was <c>ClosedBy.Length &gt; 0</c>, and <c>"TODO"</c> has a length. The
+    /// reader now refuses an unreviewed entry by name, so a regenerated file nobody hand-edited
+    /// fails the very next run instead of shipping a baseline of anonymous debt.
+    /// </remarks>
     private static class BaselineWriter
     {
         internal static void Write(string path, TunableAuditReport audit)
@@ -134,7 +141,10 @@ internal static class Program
                 "    \"an entry here that no longer describes a real mismatch. This file is therefore a\",",
                 "    \"measurement of spec debt, not a way to hide it: it can only shrink without a review.\",",
                 "    \"Regenerate the SHAPE with: dotnet run --project tools/ContentValidator -- --write-baseline\",",
-                "    \"and then WRITE THE REASONS BY HAND. A generated reason is not a reason.\"",
+                "    \"and then WRITE THE REASONS BY HAND. A generated reason is not a reason.\",",
+                "    \"Every entry below is kind 'unreviewed', which the reader REFUSES. Replace each with\",",
+                "    \"either kind 'specDebt' + a closedBy naming a task in IMPLEMENTATION_TRACKER.md, or\",",
+                "    \"kind 'outOfScope' and NO closedBy, because nothing closes it.\"",
                 "  ],",
 
                 // UTC, not local time: a committed artefact must not carry the author's timezone.
@@ -157,6 +167,8 @@ internal static class Program
         private static IEnumerable<string> Entries(IReadOnlyList<DocSection> sections) =>
             sections.Select((s, i) =>
                 $"    {{ \"doc\": \"{s.DocId}\", \"section\": \"{s.Section}\", " +
-                $"\"reason\": \"TODO\", \"closedBy\": \"TODO\" }}{(i == sections.Count - 1 ? string.Empty : ",")}");
+                $"\"kind\": \"{TunableBaseline.UnreviewedKind}\", " +
+                "\"reason\": \"UNREVIEWED — write this by hand.\" " +
+                $"}}{(i == sections.Count - 1 ? string.Empty : ",")}");
     }
 }
