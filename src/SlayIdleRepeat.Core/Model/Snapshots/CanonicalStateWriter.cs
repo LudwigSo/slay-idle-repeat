@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -138,6 +139,37 @@ public static class CanonicalStateWriter
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>
+    /// The encoding decision for a declared type, resolved once and reused for the life of the
+    /// process.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>What this may and may not cache, and why they are not the same question.</b> A
+    /// <see cref="Type"/>'s metadata is immutable and command-independent: <c>RunSnapshot</c> is a
+    /// record with the same eleven fields whichever command is being hashed. Resolving that once
+    /// therefore cannot make one command's <c>stateHash</c> depend on the command before it — the
+    /// plan is a function of the type alone, and the bytes are a function of the plan and the
+    /// value. The <b>buffer</b> is the opposite case and is deliberately <i>not</i> cached: see
+    /// <see cref="CanonicalBuffer"/>.
+    /// </para>
+    /// <para>
+    /// It is not a micro-optimisation. Without it, every record, list and dictionary node costs a
+    /// <see cref="Type.GetInterfaces"/> array per container probe (twice — dictionary, then list),
+    /// a <see cref="Type.GetConstructors(BindingFlags)"/>, a
+    /// <see cref="MethodBase.GetParameters"/> and a string-keyed <c>GetProperty</c> per field. A
+    /// <c>RunSnapshot</c> with a 60-tile board plus inventories is thousands of reflection calls
+    /// and array allocations per hash — and `14` §2.4 has the <b>client</b> recompute that on
+    /// every command, on a mid-range handset.
+    /// </para>
+    /// <para>
+    /// <see cref="ConcurrentDictionary{TKey, TValue}"/> because the server hashes commands on many
+    /// threads. A duplicate concurrent <see cref="BuildPlan"/> is harmless: the plan is derived
+    /// from immutable metadata, so two racing builders produce equivalent plans.
+    /// </para>
+    /// </remarks>
+    private static readonly ConcurrentDictionary<Type, TypePlan> Plans = new();
+
+    /// <summary>
     /// 🔒 The <c>stateHash</c> of a <b>run</b> command: <c>PlayerSnapshot</c> then
     /// <c>RunSnapshot</c>, concatenated, per `14` §16.6.
     /// </summary>
@@ -244,7 +276,7 @@ public static class CanonicalStateWriter
     internal static bool IsCanonicalRecord(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        return CanonicalProperties(type) is not null;
+        return PlanFor(type).Kind == PlanKind.Record;
     }
 
     /// <summary>
@@ -285,7 +317,7 @@ public static class CanonicalStateWriter
     /// runtime type — there is no slot above it to have declared anything else.
     /// </summary>
     private static void WriteRoot(CanonicalBuffer buffer, object root) =>
-        WriteValue(buffer, root, root.GetType(), 0);
+        WriteValue(buffer, root, PlanFor(root.GetType()), 0);
 
     /// <summary>
     /// One slot of the encoding: the presence byte where the declared type admits absence, then
@@ -293,12 +325,12 @@ public static class CanonicalStateWriter
     /// </summary>
     private static void WriteSlot(CanonicalBuffer buffer, object? value, Type declaredType, int depth)
     {
-        var underlying = Nullable.GetUnderlyingType(declaredType);
+        var slot = PlanFor(declaredType);
 
-        if (underlying is null && declaredType.IsValueType)
+        if (slot.NullableUnderlying is null && slot.IsValueType)
         {
             // A non-nullable value type cannot be absent, so it carries no presence byte.
-            WriteValue(buffer, value!, declaredType, depth);
+            WriteValue(buffer, value!, slot, depth);
             return;
         }
 
@@ -309,15 +341,15 @@ public static class CanonicalStateWriter
         }
 
         buffer.WriteByte(0x01);
-        WriteValue(buffer, value, underlying ?? declaredType, depth);
+        WriteValue(buffer, value, slot.NullableUnderlying is { } underlying ? PlanFor(underlying) : slot, depth);
     }
 
     /// <summary>
-    /// 🔒 The closed allowlist. Every shape §16.6 pins has a branch; everything else falls through
-    /// to the refusal at the bottom, which is what makes an unordered container unhashable rather
-    /// than merely discouraged.
+    /// 🔒 The closed allowlist. Every shape §16.6 pins is a <see cref="PlanKind"/>; everything else
+    /// is <see cref="PlanKind.Unsupported"/> and falls through to the refusal at the bottom, which
+    /// is what makes an unordered container unhashable rather than merely discouraged.
     /// </summary>
-    private static void WriteValue(CanonicalBuffer buffer, object value, Type type, int depth)
+    private static void WriteValue(CanonicalBuffer buffer, object value, TypePlan plan, int depth)
     {
         if (depth > MaxDepth)
         {
@@ -327,137 +359,89 @@ public static class CanonicalStateWriter
                 "itself, directly or through a collection.");
         }
 
-        if (IsCanonicalScalar(type))
+        switch (plan.Kind)
         {
-            WriteScalar(buffer, value, type);
-            return;
-        }
+            case PlanKind.Scalar:
+                WriteScalar(buffer, value, plan);
+                return;
 
-        if (TryGetDictionaryTypes(type, out var keyType, out var valueType))
-        {
-            WriteDictionary(buffer, value, keyType, valueType, depth);
-            return;
-        }
+            case PlanKind.Dictionary:
+                WriteDictionary(buffer, value, plan, depth);
+                return;
 
-        if (TryGetListElementType(type, out var elementType))
-        {
-            WriteList(buffer, value, elementType, depth);
-            return;
-        }
+            case PlanKind.List:
+                WriteList(buffer, value, plan, depth);
+                return;
 
-        if (CanonicalProperties(type) is { } properties)
-        {
-            WriteRecord(buffer, value, type, properties, depth);
-            return;
-        }
+            case PlanKind.Record:
+                WriteRecord(buffer, value, plan, depth);
+                return;
 
-        throw Unsupported(type);
+            default:
+                throw Unsupported(plan.Type);
+        }
     }
 
-    /// <summary>
-    /// 🔒 The scalar half of the allowlist: the shapes the §16.6 table pins a byte layout for.
-    /// </summary>
+    /// <summary>One scalar, by the §16.6 table row the plan resolved for its declared type.</summary>
     /// <remarks>
-    /// Asked by <see cref="WriteValue"/> before it writes a leaf and by <see cref="DescribeSlot"/>
-    /// before it pins one. One predicate, deliberately: a second list of "the scalars" would let
-    /// the <c>SchemaVersion</c> field list bless a field the bytes go on to refuse.
+    /// An enum has no branch here: <see cref="BuildPlan"/> already collapsed it to
+    /// <see cref="ScalarKind.Signed"/> or <see cref="ScalarKind.Unsigned"/> over its underlying
+    /// type code, which is why an enum can never sort as one number and hash as another — the same
+    /// two widening helpers impose the ascending order on an enum-keyed map.
     /// </remarks>
-    private static bool IsCanonicalScalar(Type type) =>
-        type.IsEnum ||
-        type == typeof(DateTimeOffset) ||
-        Type.GetTypeCode(type) is
-            TypeCode.Boolean or
-            TypeCode.SByte or TypeCode.Int16 or TypeCode.Int32 or TypeCode.Int64 or
-            TypeCode.Byte or TypeCode.UInt16 or TypeCode.UInt32 or TypeCode.UInt64 or
-            TypeCode.Double or TypeCode.String or TypeCode.DateTime;
-
-    /// <summary>One scalar, by the §16.6 table row for its declared type.</summary>
-    private static void WriteScalar(CanonicalBuffer buffer, object value, Type type)
+    private static void WriteScalar(CanonicalBuffer buffer, object value, TypePlan plan)
     {
-        if (type.IsEnum)
+        switch (plan.Scalar)
         {
-            WriteWidenedEnum(buffer, value, type);
-            return;
-        }
-
-        if (type == typeof(DateTimeOffset))
-        {
-            WriteSigned(buffer, ((DateTimeOffset)value).ToUnixTimeMilliseconds());
-            return;
-        }
-
-        switch (Type.GetTypeCode(type))
-        {
-            case TypeCode.Boolean:
+            case ScalarKind.Boolean:
                 buffer.WriteByte((bool)value ? (byte)0x01 : (byte)0x00);
                 return;
 
-            case TypeCode.SByte:
-                WriteSigned(buffer, (sbyte)value);
+            case ScalarKind.Signed:
+                WriteSigned(buffer, WidenSigned(value, plan.NumericCode));
                 return;
 
-            case TypeCode.Int16:
-                WriteSigned(buffer, (short)value);
+            case ScalarKind.Unsigned:
+                WriteUnsigned(buffer, WidenUnsigned(value, plan.NumericCode));
                 return;
 
-            case TypeCode.Int32:
-                WriteSigned(buffer, (int)value);
-                return;
-
-            case TypeCode.Int64:
-                WriteSigned(buffer, (long)value);
-                return;
-
-            case TypeCode.Byte:
-                WriteUnsigned(buffer, (byte)value);
-                return;
-
-            case TypeCode.UInt16:
-                WriteUnsigned(buffer, (ushort)value);
-                return;
-
-            case TypeCode.UInt32:
-                WriteUnsigned(buffer, (uint)value);
-                return;
-
-            case TypeCode.UInt64:
-                WriteUnsigned(buffer, (ulong)value);
-                return;
-
-            case TypeCode.Double:
+            case ScalarKind.Double:
                 WriteDouble(buffer, (double)value);
                 return;
 
-            case TypeCode.String:
+            case ScalarKind.String:
                 WriteString(buffer, (string)value);
                 return;
 
-            case TypeCode.DateTime:
+            case ScalarKind.Timestamp:
+                WriteSigned(buffer, ((DateTimeOffset)value).ToUnixTimeMilliseconds());
+                return;
+
+            case ScalarKind.UtcDateTime:
                 WriteUtcDateTime(buffer, (DateTime)value);
                 return;
 
             default:
-                // Unreachable: IsCanonicalScalar is the gate on every call site.
-                throw Unsupported(type);
+                // Unreachable: PlanKind.Scalar is the gate on every call site.
+                throw Unsupported(plan.Type);
         }
     }
 
     /// <summary>A record: its fields in declaration order, depth-first.</summary>
-    private static void WriteRecord(
-        CanonicalBuffer buffer, object value, Type type, PropertyInfo[] properties, int depth)
+    private static void WriteRecord(CanonicalBuffer buffer, object value, TypePlan plan, int depth)
     {
         // 🔒 The pinned field list belongs to the DECLARED type. A subclass in a base-typed slot
         // carries fields the SchemaVersion pin never saw, so it has no canonical encoding here.
         var runtimeType = value.GetType();
-        if (runtimeType != type)
+        if (runtimeType != plan.Type)
         {
             throw new NotSupportedException(
-                $"A {type.FullName} slot holds a {runtimeType.FullName}, whose extra state is " +
+                $"A {plan.Type.FullName} slot holds a {runtimeType.FullName}, whose extra state is " +
                 $"outside the field list pinned for SchemaVersion {SnapshotSchema.SchemaVersion} " +
                 $"({Specification}). Snapshot records are not polymorphic.");
         }
 
-        foreach (var property in properties)
+        foreach (var property in plan.Properties!)
         {
             WriteSlot(buffer, property.GetValue(value), property.PropertyType, depth + 1);
         }
@@ -469,7 +453,7 @@ public static class CanonicalStateWriter
     /// written. Sized up front wherever the container knows its own size, which is every list
     /// shape a snapshot actually uses.
     /// </remarks>
-    private static void WriteList(CanonicalBuffer buffer, object value, Type elementType, int depth)
+    private static void WriteList(CanonicalBuffer buffer, object value, TypePlan plan, int depth)
     {
         var elements = new List<object?>(value is ICollection sized ? sized.Count : 0);
         foreach (var element in (IEnumerable)value)
@@ -480,7 +464,7 @@ public static class CanonicalStateWriter
         WriteCount(buffer, elements.Count);
         foreach (var element in elements)
         {
-            WriteSlot(buffer, element, elementType, depth + 1);
+            WriteSlot(buffer, element, plan.ElementType!, depth + 1);
         }
     }
 
@@ -493,34 +477,38 @@ public static class CanonicalStateWriter
     /// happened to yield them, and none that consults the container's own comparer. The order is
     /// imposed, every time, or the encoding refuses the key type outright.
     /// </remarks>
-    private static void WriteDictionary(
-        CanonicalBuffer buffer, object value, Type keyType, Type valueType, int depth)
+    private static void WriteDictionary(CanonicalBuffer buffer, object value, TypePlan plan, int depth)
     {
-        var entryType = typeof(KeyValuePair<,>).MakeGenericType(keyType, valueType);
-        var keyProperty = entryType.GetProperty("Key")!;
-        var valueProperty = entryType.GetProperty("Value")!;
+        if (plan.KeyOrder is null)
+        {
+            throw NoAscendingKeyOrder(plan.KeyType!);
+        }
 
         var entries = new List<(object Key, object? Value)>(value is ICollection sized ? sized.Count : 0);
         foreach (var entry in (IEnumerable)value)
         {
-            entries.Add((keyProperty.GetValue(entry)!, valueProperty.GetValue(entry)));
+            entries.Add((plan.EntryKey!.GetValue(entry)!, plan.EntryValue!.GetValue(entry)));
         }
 
-        entries.Sort(KeyComparison(keyType));
+        entries.Sort(plan.KeyOrder);
 
         WriteCount(buffer, entries.Count);
         foreach (var (key, entryValue) in entries)
         {
-            WriteSlot(buffer, key, keyType, depth + 1);
-            WriteSlot(buffer, entryValue, valueType, depth + 1);
+            WriteSlot(buffer, key, plan.KeyType!, depth + 1);
+            WriteSlot(buffer, entryValue, plan.ElementType!, depth + 1);
         }
     }
 
     /// <summary>
     /// The ascending key order for a key type: ordinal for strings, numeric for every integral
-    /// and enum id. Any other key type has no defined order and is refused.
+    /// and enum id — or <c>null</c> when the key type has no defined order at all.
     /// </summary>
-    private static Comparison<(object Key, object? Value)> KeyComparison(Type keyType)
+    /// <remarks>
+    /// Resolved once per dictionary type by <see cref="BuildPlan"/> and stored on the plan, so the
+    /// closure is built once rather than per map, per hash, per command.
+    /// </remarks>
+    private static Comparison<(object Key, object? Value)>? KeyOrderFor(Type keyType)
     {
         if (keyType == typeof(string))
         {
@@ -529,64 +517,33 @@ public static class CanonicalStateWriter
             return (left, right) => string.CompareOrdinal((string)left.Key, (string)right.Key);
         }
 
-        var numericType = keyType.IsEnum ? Enum.GetUnderlyingType(keyType) : keyType;
+        var numericCode = Type.GetTypeCode(keyType.IsEnum ? Enum.GetUnderlyingType(keyType) : keyType);
 
-        switch (Type.GetTypeCode(numericType))
+        switch (numericCode)
         {
             case TypeCode.SByte:
             case TypeCode.Int16:
             case TypeCode.Int32:
             case TypeCode.Int64:
-                return (left, right) => WidenSigned(left.Key, numericType).CompareTo(WidenSigned(right.Key, numericType));
+                return (left, right) => WidenSigned(left.Key, numericCode).CompareTo(WidenSigned(right.Key, numericCode));
 
             case TypeCode.Byte:
             case TypeCode.UInt16:
             case TypeCode.UInt32:
             case TypeCode.UInt64:
                 // Compared as unsigned: a key above long.MaxValue is a large id, not a negative one.
-                return (left, right) => WidenUnsigned(left.Key, numericType).CompareTo(WidenUnsigned(right.Key, numericType));
+                return (left, right) => WidenUnsigned(left.Key, numericCode).CompareTo(WidenUnsigned(right.Key, numericCode));
 
             default:
-                throw new NotSupportedException(
-                    $"{keyType.FullName} has no ascending key order — {Specification} defines one " +
-                    "for strings (ordinal) and numeric ids (numeric), and no other. A map keyed by " +
-                    "anything else cannot be hashed in a defined order.");
+                return null;
         }
     }
 
-    /// <summary>An enum: its numeric value, widened through its underlying integral type.</summary>
-    /// <remarks>
-    /// 🔒 Widened by the same two helpers that impose the ascending order on an enum-keyed map — a
-    /// boxed enum unboxes straight to its underlying type — so an enum can never sort as one
-    /// number and hash as another. Routing one of the two through <c>Convert</c> instead would be
-    /// a second widening rule in the file whose entire point is that there is one.
-    /// </remarks>
-    private static void WriteWidenedEnum(CanonicalBuffer buffer, object value, Type enumType)
-    {
-        var underlying = Enum.GetUnderlyingType(enumType);
-
-        switch (Type.GetTypeCode(underlying))
-        {
-            case TypeCode.SByte:
-            case TypeCode.Int16:
-            case TypeCode.Int32:
-            case TypeCode.Int64:
-                WriteSigned(buffer, WidenSigned(value, underlying));
-                return;
-
-            case TypeCode.Byte:
-            case TypeCode.UInt16:
-            case TypeCode.UInt32:
-            case TypeCode.UInt64:
-                WriteUnsigned(buffer, WidenUnsigned(value, underlying));
-                return;
-
-            default:
-                // C# admits only the eight integral types above; an IL-authored enum over
-                // anything else is named here rather than reported as its underlying type.
-                throw Unsupported(enumType);
-        }
-    }
+    /// <summary>The refusal for a key type with no defined ascending order, said the same way twice.</summary>
+    private static NotSupportedException NoAscendingKeyOrder(Type keyType) => new(
+        $"{keyType.FullName} has no ascending key order — {Specification} defines one " +
+        "for strings (ordinal) and numeric ids (numeric), and no other. A map keyed by " +
+        "anything else cannot be hashed in a defined order.");
 
     /// <summary>
     /// A double: the IEEE-754 bit pattern of the <b>stored</b> value, 8 bytes little-endian.
@@ -693,23 +650,30 @@ public static class CanonicalStateWriter
         BinaryPrimitives.WriteInt32LittleEndian(buffer.Reserve(CountPrefixBytes), count);
 
     /// <summary>A boxed signed integral value as a <see cref="long"/>, by sign extension.</summary>
-    private static long WidenSigned(object value, Type numericType) => Type.GetTypeCode(numericType) switch
+    /// <remarks>
+    /// 🔒 The <b>one</b> signed widening rule in the file. It serves both the scalar write and the
+    /// ascending order of an enum-keyed map — a boxed enum unboxes straight to its underlying
+    /// type — so an enum can never sort as one number and hash as another. Routing one of the two
+    /// through <c>Convert</c> instead would be a second widening rule in the file whose entire
+    /// point is that there is one.
+    /// </remarks>
+    private static long WidenSigned(object value, TypeCode numericCode) => numericCode switch
     {
         TypeCode.SByte => (sbyte)value,
         TypeCode.Int16 => (short)value,
         TypeCode.Int32 => (int)value,
         TypeCode.Int64 => (long)value,
-        _ => throw Unsupported(numericType),
+        _ => throw Unsupported(value.GetType()),
     };
 
     /// <summary>A boxed unsigned integral value as a <see cref="ulong"/>, by zero extension.</summary>
-    private static ulong WidenUnsigned(object value, Type numericType) => Type.GetTypeCode(numericType) switch
+    private static ulong WidenUnsigned(object value, TypeCode numericCode) => numericCode switch
     {
         TypeCode.Byte => (byte)value,
         TypeCode.UInt16 => (ushort)value,
         TypeCode.UInt32 => (uint)value,
         TypeCode.UInt64 => (ulong)value,
-        _ => throw Unsupported(numericType),
+        _ => throw Unsupported(value.GetType()),
     };
 
     /// <summary>
@@ -737,8 +701,9 @@ public static class CanonicalStateWriter
     /// </para>
     /// <para>
     /// Recognising the shape and resolving the properties are one pass because the writer needs
-    /// both for every record it descends into — and nothing is memoised across calls, because a
-    /// command's <c>stateHash</c> may never depend on the command before it.
+    /// both for every record it descends into. The answer is then memoised on the type's
+    /// <see cref="TypePlan"/> — see <see cref="Plans"/> for why that is safe and
+    /// <see cref="CanonicalBuffer"/> for the thing that is not.
     /// </para>
     /// </remarks>
     private static PropertyInfo[]? CanonicalProperties(Type type)
@@ -789,6 +754,103 @@ public static class CanonicalStateWriter
         return properties;
     }
 
+    /// <summary>The cached encoding decision for a declared type, built on first sight.</summary>
+    private static TypePlan PlanFor(Type type) => Plans.GetOrAdd(type, BuildPlan);
+
+    /// <summary>
+    /// 🔒 The closed allowlist, resolved once per type: the four questions
+    /// <see cref="WriteValue"/> and <see cref="DescribeSlot"/> both ask, in the same order, with
+    /// the same refusal at the bottom.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One resolver, deliberately. A second list of "the scalars" — one for the bytes and one for
+    /// the pinned field list — would let the <c>SchemaVersion</c> field list bless a field the
+    /// bytes go on to refuse.
+    /// </para>
+    /// <para>
+    /// The plan holds child <b>types</b>, never child plans: a record that refers to itself
+    /// (<c>Next</c> of the same type) would otherwise recurse forever here instead of terminating
+    /// at <see cref="MaxDepth"/> where the failure is diagnosable.
+    /// </para>
+    /// </remarks>
+    private static TypePlan BuildPlan(Type type)
+    {
+        if (Nullable.GetUnderlyingType(type) is { } underlying)
+        {
+            // A Nullable<T> slot is a presence byte then T; the payload decision belongs to T.
+            return new TypePlan(type, PlanKind.Unsupported) { IsValueType = true, NullableUnderlying = underlying };
+        }
+
+        if (type.IsEnum)
+        {
+            // Collapsed to its underlying integral rule here, so the write path has no enum branch
+            // and the widening cannot diverge from the ascending order of an enum-keyed map.
+            var enumCode = Type.GetTypeCode(Enum.GetUnderlyingType(type));
+            var enumKind = ScalarKindOf(enumCode);
+
+            // C# admits only the eight integral types; an IL-authored enum over anything else is
+            // named as the enum rather than reported as its underlying type.
+            return enumKind is ScalarKind.Signed or ScalarKind.Unsigned
+                ? Scalar(type, enumKind, enumCode)
+                : new TypePlan(type, PlanKind.Unsupported) { IsValueType = true };
+        }
+
+        if (type == typeof(DateTimeOffset))
+        {
+            return Scalar(type, ScalarKind.Timestamp, TypeCode.Object);
+        }
+
+        var code = Type.GetTypeCode(type);
+        var scalar = ScalarKindOf(code);
+        if (scalar != ScalarKind.None)
+        {
+            return Scalar(type, scalar, code);
+        }
+
+        if (TryGetDictionaryTypes(type, out var keyType, out var valueType))
+        {
+            var entryType = typeof(KeyValuePair<,>).MakeGenericType(keyType, valueType);
+
+            return new TypePlan(type, PlanKind.Dictionary)
+            {
+                IsValueType = type.IsValueType,
+                KeyType = keyType,
+                ElementType = valueType,
+                EntryKey = entryType.GetProperty("Key")!,
+                EntryValue = entryType.GetProperty("Value")!,
+                KeyOrder = KeyOrderFor(keyType),
+            };
+        }
+
+        if (TryGetListElementType(type, out var elementType))
+        {
+            return new TypePlan(type, PlanKind.List) { IsValueType = type.IsValueType, ElementType = elementType };
+        }
+
+        if (CanonicalProperties(type) is { } properties)
+        {
+            return new TypePlan(type, PlanKind.Record) { IsValueType = type.IsValueType, Properties = properties };
+        }
+
+        return new TypePlan(type, PlanKind.Unsupported) { IsValueType = type.IsValueType };
+    }
+
+    /// <summary>The §16.6 scalar rule a type code falls under, or <see cref="ScalarKind.None"/>.</summary>
+    private static ScalarKind ScalarKindOf(TypeCode code) => code switch
+    {
+        TypeCode.Boolean => ScalarKind.Boolean,
+        TypeCode.SByte or TypeCode.Int16 or TypeCode.Int32 or TypeCode.Int64 => ScalarKind.Signed,
+        TypeCode.Byte or TypeCode.UInt16 or TypeCode.UInt32 or TypeCode.UInt64 => ScalarKind.Unsigned,
+        TypeCode.Double => ScalarKind.Double,
+        TypeCode.String => ScalarKind.String,
+        TypeCode.DateTime => ScalarKind.UtcDateTime,
+        _ => ScalarKind.None,
+    };
+
+    private static TypePlan Scalar(Type type, ScalarKind scalar, TypeCode numericCode) =>
+        new(type, PlanKind.Scalar) { IsValueType = type.IsValueType, Scalar = scalar, NumericCode = numericCode };
+
     /// <summary>The <see cref="IReadOnlyDictionary{TKey, TValue}"/> a type is, or implements once.</summary>
     private static bool TryGetDictionaryTypes(Type type, out Type keyType, out Type valueType) =>
         TryGetClosedInterface(type, typeof(IReadOnlyDictionary<,>), out keyType, out valueType);
@@ -838,9 +900,13 @@ public static class CanonicalStateWriter
     /// <summary>The field paths of a record, depth-first, appended to <paramref name="paths"/>.</summary>
     private static void DescribeRecord(Type type, string prefix, List<string> paths, int depth)
     {
-        var properties = CanonicalProperties(type) ?? throw Unsupported(type);
+        var plan = PlanFor(type);
+        if (plan.Kind != PlanKind.Record)
+        {
+            throw Unsupported(type);
+        }
 
-        foreach (var property in properties)
+        foreach (var property in plan.Properties!)
         {
             DescribeSlot(property.PropertyType, prefix + property.Name, paths, depth + 1);
         }
@@ -856,41 +922,41 @@ public static class CanonicalStateWriter
                 "tree; this nesting depth means a type refers to itself.");
         }
 
-        var effectiveType = Nullable.GetUnderlyingType(declaredType) ?? declaredType;
+        var slot = PlanFor(declaredType);
+        var plan = slot.NullableUnderlying is { } underlying ? PlanFor(underlying) : slot;
 
-        // 🔒 The same four questions, in the same order, as WriteValue — including the refusal at
-        // the bottom. A traversal that described a slot the writer will not write would pin a
-        // field list for a snapshot that cannot be hashed at all.
-        if (IsCanonicalScalar(effectiveType))
+        // 🔒 The same plan the writer dispatches on — including the refusal at the bottom. A
+        // traversal that described a slot the writer will not write would pin a field list for a
+        // snapshot that cannot be hashed at all.
+        switch (plan.Kind)
         {
-            paths.Add($"{path}:{DescribeType(declaredType)}");
-            return;
+            case PlanKind.Scalar:
+                paths.Add($"{path}:{DescribeType(declaredType)}");
+                return;
+
+            case PlanKind.Dictionary:
+                // The writer's own key-order decision, for its refusal: a key type with no
+                // ascending order must not be pinnable here and unhashable there.
+                if (plan.KeyOrder is null)
+                {
+                    throw NoAscendingKeyOrder(plan.KeyType!);
+                }
+
+                DescribeSlot(plan.KeyType!, path + "{key}", paths, depth + 1);
+                DescribeSlot(plan.ElementType!, path + "{value}", paths, depth + 1);
+                return;
+
+            case PlanKind.List:
+                DescribeSlot(plan.ElementType!, path + "[]", paths, depth + 1);
+                return;
+
+            case PlanKind.Record:
+                DescribeRecord(plan.Type, path + ".", paths, depth + 1);
+                return;
+
+            default:
+                throw Unsupported(declaredType);
         }
-
-        if (TryGetDictionaryTypes(effectiveType, out var keyType, out var valueType))
-        {
-            // Asking the writer's own comparer factory, for its refusal: a key type with no
-            // ascending order must not be pinnable here and unhashable there.
-            _ = KeyComparison(keyType);
-
-            DescribeSlot(keyType, path + "{key}", paths, depth + 1);
-            DescribeSlot(valueType, path + "{value}", paths, depth + 1);
-            return;
-        }
-
-        if (TryGetListElementType(effectiveType, out var elementType))
-        {
-            DescribeSlot(elementType, path + "[]", paths, depth + 1);
-            return;
-        }
-
-        if (IsCanonicalRecord(effectiveType))
-        {
-            DescribeRecord(effectiveType, path + ".", paths, depth + 1);
-            return;
-        }
-
-        throw Unsupported(declaredType);
     }
 
     /// <summary>A type's name for the pinned field list: <c>Namespace.Name&lt;Argument&gt;</c>.</summary>
@@ -920,12 +986,109 @@ public static class CanonicalStateWriter
         "be hashed as ZERO BYTES — two states differing only in it would share a stateHash, and " +
         "the SchemaVersion field-order pin would never see it. Move it into the primary constructor.");
 
+    /// <summary>Which branch of the closed allowlist a declared type falls into.</summary>
+    private enum PlanKind
+    {
+        /// <summary>No branch — the terminal refusal.</summary>
+        Unsupported = 0,
+
+        /// <summary>A leaf with a pinned byte layout in the §16.6 table.</summary>
+        Scalar,
+
+        /// <summary>An <see cref="IReadOnlyDictionary{TKey, TValue}"/>.</summary>
+        Dictionary,
+
+        /// <summary>An <see cref="IReadOnlyList{T}"/>.</summary>
+        List,
+
+        /// <summary>A positional record.</summary>
+        Record,
+    }
+
+    /// <summary>Which §16.6 scalar rule a leaf is written by.</summary>
+    private enum ScalarKind
+    {
+        /// <summary>Not a scalar.</summary>
+        None = 0,
+
+        /// <summary>One byte, <c>0x00</c> or <c>0x01</c>.</summary>
+        Boolean,
+
+        /// <summary>Sign-extended to 8 bytes. Enums over a signed integral land here too.</summary>
+        Signed,
+
+        /// <summary>Zero-extended to 8 bytes. Enums over an unsigned integral land here too.</summary>
+        Unsigned,
+
+        /// <summary>The IEEE-754 bit pattern of the already-rounded value, 8 bytes.</summary>
+        Double,
+
+        /// <summary>A 4-byte UTF-8 byte count, then the UTF-8 bytes.</summary>
+        String,
+
+        /// <summary>A <see cref="DateTimeOffset"/> as Unix milliseconds UTC.</summary>
+        Timestamp,
+
+        /// <summary>A <see cref="DateTime"/> as Unix milliseconds, and only if it says it is UTC.</summary>
+        UtcDateTime,
+    }
+
+    /// <summary>
+    /// Everything the encoder needs to know about a declared type, resolved once.
+    /// </summary>
+    /// <remarks>
+    /// Immutable, and derived only from immutable <see cref="Type"/> metadata — which is what
+    /// makes caching it in <see cref="Plans"/> safe. It holds child <b>types</b> rather than child
+    /// plans so a self-referencing record cannot make construction recurse.
+    /// </remarks>
+    private sealed class TypePlan(Type type, PlanKind kind)
+    {
+        /// <summary>The declared type this plan was built for.</summary>
+        internal Type Type { get; } = type;
+
+        /// <summary>Which branch of the allowlist it falls into.</summary>
+        internal PlanKind Kind { get; } = kind;
+
+        /// <summary>Whether the type is a value type, so the slot cannot be absent.</summary>
+        internal bool IsValueType { get; init; }
+
+        /// <summary>The <c>T</c> of a <see cref="Nullable{T}"/>, or <c>null</c>.</summary>
+        internal Type? NullableUnderlying { get; init; }
+
+        /// <summary>The scalar rule, when <see cref="Kind"/> is <see cref="PlanKind.Scalar"/>.</summary>
+        internal ScalarKind Scalar { get; init; }
+
+        /// <summary>The integral type code to unbox through, for a signed or unsigned scalar.</summary>
+        internal TypeCode NumericCode { get; init; }
+
+        /// <summary>A dictionary's key type.</summary>
+        internal Type? KeyType { get; init; }
+
+        /// <summary>A list's element type, or a dictionary's value type.</summary>
+        internal Type? ElementType { get; init; }
+
+        /// <summary><c>KeyValuePair&lt;K, V&gt;.Key</c>, resolved once rather than per entry.</summary>
+        internal PropertyInfo? EntryKey { get; init; }
+
+        /// <summary><c>KeyValuePair&lt;K, V&gt;.Value</c>, resolved once rather than per entry.</summary>
+        internal PropertyInfo? EntryValue { get; init; }
+
+        /// <summary>The ascending key order, or <c>null</c> when the key type has none.</summary>
+        internal Comparison<(object Key, object? Value)>? KeyOrder { get; init; }
+
+        /// <summary>A record's fields, in primary-constructor parameter order.</summary>
+        internal PropertyInfo[]? Properties { get; init; }
+    }
+
     /// <summary>
     /// The growable byte sink one hash writes into.
     /// </summary>
     /// <remarks>
-    /// Constructed per call and never shared, pooled or cached — a writer that carried a buffer
-    /// across calls would let a command's <c>stateHash</c> depend on the command before it.
+    /// 🔒 Constructed per call and never shared, pooled or cached — a writer that carried a buffer
+    /// across calls would let a command's <c>stateHash</c> depend on the command before it. This is
+    /// a different question from <see cref="Plans"/>, which caches only immutable, value-independent
+    /// <see cref="Type"/> metadata: the buffer holds one command's <b>state</b>, so reusing it is
+    /// exactly the cross-command dependency this class must not have.
     /// </remarks>
     private sealed class CanonicalBuffer
     {
