@@ -30,7 +30,7 @@ Everything in §4 is built from exactly three primitives. Do not invent a fourth
 | **No decay** | Counters never tick down over time. Bad luck is not a debt that expires. |
 | **Isolation** | Counters are **per source class** (§3). They never pool across classes, and one class's draw never advances another's counter. |
 | **Disclosure** | Every rate and every `N` in §4 is stated in-game on the relevant screen, and in a single **Odds & Guarantees** page in Settings. This is a store-policy requirement for randomised rewards on both platforms; it is also simply the honest thing to do. |
-| **Determinism** | Pity resolution happens inside `SlayIdleRepeat.Core` from a server-issued seed, and is therefore reproducible and testable like everything else. (`14` §8) |
+| **Determinism** | Pity resolution happens inside `SlayIdleRepeat.Core` from the run's committed seed streams (in-run drops, `02` §2) or the opening command's server-issued seed (container opens, `30` §3), and is therefore reproducible and testable like everything else. (`14` §8) |
 
 ### 1.2 The anti-farming rule 🔒
 
@@ -57,9 +57,9 @@ Every randomised grant in the game belongs to exactly one class. Classes are the
 
 | Class | Members | Counter key |
 |---|---|---|
-| `CHEST_STANDARD` | `AD_FREE_GEAR_CHEST`, daily-quest bonus chest, daily-login gear chests (except the day-14/28 S-tier chests), Lucky Wheel segment 7, `MG_CHEST_PICK` rewards that grant gear | `chest.standard` |
-| `CHEST_PREMIUM` | S-tier Gear Chest (Soul Shards), Honor Shop S Gear Chest, PvP season gear chests, weekly-challenge chest, the day-14/28 S-tier login-calendar chests (`19` Part G) | `chest.premium` |
-| `CHEST_APEX` | Honor Shop SS Gear Chest, Legend-tier season chest, chapter first-clear Mythic chest | `chest.apex` |
+| `CHEST_STANDARD` | `AD_FREE_GEAR_CHEST`, daily-quest bonus chest, daily-login gear chests (except the day-14/28 S-tier chests), Lucky Wheel segment 7, `MG_CHEST_PICK` rewards that grant gear, Daily-tab shop gear chest (`10` §5.1), event-track `CHEST_STANDARD` grants (`26` §3), inbox attachments with `chestClass: CHEST_STANDARD` (`28` A) | `chest.standard` |
+| `CHEST_PREMIUM` | S-tier Gear Chest (Soul Shards), Honor Shop S Gear Chest, PvP season gear chests, weekly-challenge chest, the day-14/28 S-tier login-calendar chests (`19` Part G), event-track `CHEST_PREMIUM` grants (`26` §3), inbox attachments with `chestClass: CHEST_PREMIUM` (`28` A) | `chest.premium` |
+| `CHEST_APEX` | Honor Shop SS Gear Chest, Legend-tier season chest, chapter first-clear Mythic chest, event-track `CHEST_APEX` grants (`26` §3), inbox attachments with `chestClass: CHEST_APEX` (`28` A) | `chest.apex` |
 | `DROP_RUN` | All in-run gear: elite kills, boss kills, normal-enemy drops, `TILE_TREASURE` gear | `drop.run` |
 | `EGG_PET` | Pet Eggs from every source | `egg.pet` |
 | `CRATE_MOUNT` | Mount Crates from every source | `crate.mount` |
@@ -73,6 +73,41 @@ Every randomised grant in the game belongs to exactly one class. Classes are the
 ---
 
 ## 4. The catalogue
+
+### 4.0 Container semantics 🔒 (ruled in `16` A7)
+
+Chests (all three classes), Pet Eggs and Mount Crates are **stored objects, not instant grants**. Every grant of one — shop purchase, login-calendar day, season reward, Lucky Wheel segment 8, first-clear bonus, inbox attachment (`28` A4) — places an *unopened container* on the player's shelf: gear chests on **S16 Inventory**, eggs and crates on **S19 Menagerie**. Opening is an explicit command — `OPEN_CHEST` / `OPEN_EGG` / `OPEN_CRATE` (payloads in `14` §2.3) — one container per command, plus an "OPEN ALL" convenience that issues them in sequence.
+
+| Rule | Specification |
+|---|---|
+| **Resolution at open** | Contents are rolled **at open**, from the opening command's seed (`30` §3 — a meta command). Nothing about the outcome exists before the open. |
+| **Pity at open** | The class counters (§3) advance and their guarantees fire **at open, not at grant**. A shelf of unopened chests holds no pity progress. |
+| **Focus at open** | The Focus bias (§5) uses the Focus in effect **at the moment of open**. |
+| **The hoard lever — accepted** | A player may bank containers, set Focus, and open them all under it. **Explicitly accepted**: it is persistence, not exploitation; the ×2.5 weight is modest; and the 12-hour Focus cooldown (§5) already bounds swap-farming. **Monitored**: telemetry tracks shelf dwell time and opens-within-1-hour-of-a-Focus-change 📐. If hoard-opening comes to dominate SS acquisition, the revisit is reading Focus at grant instead — a rules change, no data migration. |
+| **Shelf capacity** | Uncapped. A cap would force-open containers or discard grants — both worse than the hoard it would prevent. |
+| **Full inventory** | An `OPEN_*` whose contents cannot fit is rejected with *"Not enough inventory space"*; the container stays on the shelf. Mirrors `28` A4's held rule. |
+| **Display** | Every shelf entry shows its class and the class's live pity counter (§1.1 Visibility). |
+
+Per-class **contents** — items per open and the base rarity tables, including `baseSsWeight` — are §4.0a below.
+
+### 4.0a Container contents tables 🔒 (ruled in `16` A7)
+
+Containers are stored objects opened by explicit commands (§4.0); this table defines **what an open yields**. All values 📐, in `data/tuning/drops.json`. Egg and crate rarity odds are unchanged (`07` §2.2, §3.1) — this section covers gear chests.
+
+| Class | Items per open | Per-item base rarity table | `baseSsWeight` (for §4.1–4.2 soft pity) |
+|---|---|---|---|
+| `CHEST_STANDARD` | 1 | `DropShare(max(1, highestChapterCleared))` — `08` §2 | the SS share of that `DropShare` row |
+| `CHEST_PREMIUM` | 2 | B 20 · A 45 · S 30 · SS 5 | 5 |
+| `CHEST_APEX` | 2 | S 50 · SS 50 | — (no soft pity, §4.2) |
+
+**Rules:**
+
+1. 🔒 **"Chapter-appropriate" is defined as exactly `DropShare(max(1, highestChapterCleared))`, read at open time** — nowhere else, and never at grant time. This is also the definition used by D3's session-floor item. Every item from any chest class sets `chapterOrigin = max(1, highestChapterCleared)` at open.
+2. **Soft pity mechanics:** the §4.1/§4.2 multiplier applies to the SS weight *before* normalisation; the other shares shrink proportionally.
+3. **Rarity floors:** a source with a stated floor (e.g. Lucky Wheel segment 7, "A-rarity or better") draws its class table renormalised at/above the floor. The draw advances and resets counters normally — a floored A still resets the A-counter, per §4.1's overshoot rule. 📐
+4. **The premium promise, precisely:** the 1,800-Soul-Shard S-tier Gear Chest yields 2 items at 35% S-or-better each (≈ 58% chance of at least one S+ per chest) — strong, but **not a guaranteed S**; its every-5th-chest guarantee (§4.2) is the floor, and fires on only ~3% of chests at these odds. The name promises a *chase*, the pity makes the chase bounded, and the disclosure page (§1.1) states both.
+5. **Not chests, no counter class:** the chapter first-clear grants on Normal and Heroic (`02` §5.3 — one rarity above the chapter cap, deterministic) and the Daily tab's random S-item (`10` §5.1) have *authored* rarities, so they belong to no counter class and neither advance nor reset any chest counter. Their identity roll still routes through `LuckService`, and Focus (§5) applies.
+6. **Fixed riders stay with the granting feature:** e.g. the daily-quest bonus chest's 100 Soul Shards (`10` §2) are the quest system's grant; this table governs only the gear the chest contains.
 
 ### 4.1 `CHEST_STANDARD` — the ten-chest ladder 🔒
 
@@ -113,7 +148,7 @@ In-run drops are the highest-volume randomness in the game and the one most like
 |---|---|
 | **D1** | **Elite mercy.** Count consecutive Elite kills whose drop was below A-rarity. On the **6th**, force A or better. Resets on any natural A+. |
 | **D2** | **Boss mercy.** Count consecutive boss kills whose best drop was below S. On the **4th**, force S or better. Resets on any natural S+. |
-| **D3** | **Session floor.** If a completed run (Victory or a Stage-3 death) produced **zero** items at B-rarity or better, the run-end payout adds one guaranteed B item at chapter-appropriate power. This fires at most **twice per day** and is announced on the results screen as *"The road owed you one."* |
+| **D3** | **Session floor.** If a completed run (Victory or a Stage-3 death) produced **zero** items at B-rarity or better, the run-end payout adds one guaranteed B item at chapter-appropriate power — "chapter-appropriate" as defined in §4.0a rule 1: `chapterOrigin = max(1, highestChapterCleared)`, read when the floor fires. This fires at most **twice per day** and is announced on the results screen as *"The road owed you one."* |
 
 D3 is the anti-"that run was a waste" valve. It is cheap, it fires rarely for an equipped mid-game player, and it is worth more to retention than its expected value suggests.
 
@@ -226,13 +261,13 @@ This gives the endgame a deterministic spine: a player who keeps playing will fi
 
 ## 6. Quality and affix protection
 
-Rarity pity is worthless if the item that finally arrives rolls badly. `08` §3 gives every item a quality roll and 0–4 random affixes, with no way to influence either. Two operations close that, both in the Forge, both earned-currency only.
+Rarity pity is worthless if the item that finally arrives rolls badly. `08` §3 gives every item a quality scalar `q` and 0–4 random affixes, with no way to influence either. Two operations close that, both in the Forge, both earned-currency only.
 
 ### 6.1 Reforge (quality)
 
 | Property | Value |
 |---|---|
-| Effect | Re-rolls the item's quality value. **The result is the better of the two rolls** — quality can only go up. 🔒 |
+| Effect | Re-rolls the item's quality scalar `q` (`08` §3, ruled in `16` A7). **The result is `max(old q, new q)`** — quality can only go up. 🔒 |
 | Cost | Merge Dust, scaling with rarity: `C 100 · B 300 · A 1,000 · S 4,000 · SS 12,000` 📐 |
 | Limit | Unlimited attempts |
 | Why "better of two" | A reforge that can make an item worse is a gamble; a reforge that only improves is a grind. This game chooses grind every time. |
@@ -283,9 +318,9 @@ If the O10 review still wants seven wallet currencies, it can have them: these t
 
 | Screen | Addition |
 |---|---|
-| **S16 Inventory** | Focus selector; per-item Reforge / Retune entry points |
+| **S16 Inventory** | Focus selector; per-item Reforge / Retune entry points; the **unopened shelf** for gear chests — class, live pity counter, OPEN / OPEN ALL (§4.0) |
 | **S17 Forge** | Two new tabs: **Reforge** and **Retune**. Set Token counter in the header. Focus row. |
-| **S19 Menagerie** | Beast Mark exchange row with all three tiers and their counters |
+| **S19 Menagerie** | Beast Mark exchange row with all three tiers and their counters; the **unopened shelf** for Pet Eggs and Mount Crates — class, live pity counter, OPEN (§4.0) |
 | **S03 Home** | Chest-class counters shown on the chest widget: *"Guaranteed A in 4"* |
 | **S14 Run Results** | D3 announcement line when it fires; `DROP_RUN` mercy counters in the reward tally footer |
 | **S26 Settings** | **Odds & Guarantees** page: every rate and every `N` in this document, in plain language, in both launch languages |

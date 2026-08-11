@@ -15,6 +15,7 @@ Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outc
   "op": "STAT_ADD_PCT",
   "stat": "ATK",
   "value": 0.12,
+  "valueScale": null,
   "trigger": { "kind": "ALWAYS" },
   "condition": null,
   "target": "SELF",
@@ -24,7 +25,40 @@ Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outc
 }
 ```
 
-Every effect is the same seven-part shape: **op · trigger · condition · target · value · duration · stacking**. Everything in the game is a combination of those.
+Every effect is the same eight-part shape: **op · trigger · condition · target · value · valueScale · duration · stacking**. Everything in the game is a combination of those. *(`valueScale` added by ruling in `16` A7.)*
+
+### 1.1 `valueScale` — state-scaled values 🔒
+
+`valueScale` multiplies the effect's `value` by a whole number of *steps* read from live state:
+
+```
+effectiveValue = value × steps
+steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
+```
+
+| Field | Meaning |
+|---|---|
+| `fn` | Any condition function from §4 (`SELF_MISSING_HP_PCT`, `GOLD_HELD`, `PET_COUNT`, `STATUS_STACKS`, `DIE_FACE_COUNT`, `PERK_COUNT`, `DISTINCT_PERK_CATEGORIES`, `BATTLES_WON_THIS_RUN`, …), evaluated against current state and rounded to 4 dp **before** the division |
+| `per` | State units per step |
+| `cap` | Maximum number of steps; `null` = uncapped |
+
+`valueScale` is re-evaluated exactly when conditions are (§4): at every resolution pass for `ALWAYS` effects, at fire time for triggered ones. `valueScale: null` (the default) means `effectiveValue = value`.
+
+`PK_BERSERK` Tier I — *"+1% ATK per 1% missing HP, up to +45%"*:
+
+```json
+{ "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.01,
+  "trigger": {"kind":"ALWAYS"}, "target": "SELF",
+  "valueScale": { "fn": "SELF_MISSING_HP_PCT", "per": 0.01, "cap": 45 } }
+```
+
+`PK_HOARD` — *"+1% ATK per 100 Gold currently held"* (uncapped, per its `06` text):
+
+```json
+{ "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.01,
+  "trigger": {"kind":"ALWAYS"}, "target": "SELF",
+  "valueScale": { "fn": "GOLD_HELD", "per": 100, "cap": null } }
+```
 
 ---
 
@@ -56,7 +90,14 @@ Plus the non-combat stats: `GOLD_PCT · CROWNS_PCT · DROP_CHANCE · RARITY_SHIF
 | `SHIELD` | Grant a `WARD` absorb of a given size |
 | `REFLECT` | Return a % of incoming damage |
 
-`valueMode`: `ATK_MULT` (default) · `FLAT` · `SELF_MAXHP_PCT` · `TARGET_MAXHP_PCT` · `TARGET_MISSING_HP_PCT` · `DAMAGE_DEALT_PCT`
+`valueMode`: `ATK_MULT` (default) · `FLAT` · `SELF_MAXHP_PCT` · `TARGET_MAXHP_PCT` · `TARGET_MISSING_HP_PCT` · `DAMAGE_DEALT_PCT` · `HEAL_AMOUNT` · `OVERHEAL_AMOUNT`
+
+The last two exist only inside `ON_HEAL` contexts (`05` §4.3): `HEAL_AMOUNT` is the full amount actually healed, `OVERHEAL_AMOUNT` the clipped excess. A `SHIELD` op may carry `sourceCapPct`: the total unbroken ward contributed by that effect instance is clamped at `sourceCapPct × Max HP`. `PK_TRANSFUSION` (*"overheal converts into a shield, up to 20% Max HP"*):
+
+```json
+{ "op": "SHIELD", "valueMode": "OVERHEAL_AMOUNT", "value": 1.0, "sourceCapPct": 0.20,
+  "trigger": {"kind":"ON_HEAL"}, "target": "SELF" }
+```
 
 ### 2.3 Status operations
 
@@ -82,10 +123,14 @@ Plus the non-combat stats: `GOLD_PCT · CROWNS_PCT · DROP_CHANCE · RARITY_SHIF
 | `SUMMON` | Spawn N enemies of an archetype (boss use) |
 | `SET_TARGET_PRIORITY` | Adjust targeting weight (added for Sporequeen — `17` §8) |
 | `DAMAGE_TAKEN_MULT` | Multiply incoming damage (Rimehold's Core — `17` §6) |
+| `CLEAR_SUMMONS` | Despawn all living summons owned by the target (default `SELF`). Despawned ≠ killed: no `ON_DEATH`, no `ON_KILL`, no on-death explosions, no rewards (Ossuary King's Rise Again — `17` §4) |
+| `STAT_COPY` | Copy `value` × the copy-source's **final resolved** stat onto the holder as a percent-bucket add for `duration`. Reads the start-of-tick snapshot, so mutual copies cannot recurse. `stat` may be a stat name or `HIGHEST_PCT_BONUS` (Cogitator's Recalibrate — `17` §7; `PK_PACK_LEADER` copying the hero's CRIT to pets) |
 
 ### 2.5 Run and board operations
 
-These never appear in combat; they are resolved by the run controller.
+These are resolved by the run controller, never by the combat simulator.
+
+🔒 **Combat-context exception** *(ruled in `16` A7)*: a **combat trigger may emit a run/board op** — the sanctioned case is the Dicelord's Scramble firing `MODIFY_DIE_FACE` from a `PERIODIC` trigger (`17` §9). The simulator still never resolves it: it appends a `RunEffectQueued` event to the combat log (`05` §7) and the run controller applies the queued ops **in log order when the battle resolves** — after the outcome is fixed, before `ON_BATTLE_END` effects are granted. In a PvP duel the queue is discarded, consistent with `IS_PVP` skipping (§9.3). This keeps the simulator pure while letting combat mark consequences for the run.
 
 | Op | Meaning |
 |---|---|
@@ -116,7 +161,9 @@ These never appear in combat; they are resolved by the run controller.
 | `ON_CRIT` | Each critical hit | `chance` |
 | `ON_HIT_TAKEN` | Each hit received | `chance`, `cooldown` |
 | `ON_DODGE` / `ON_BLOCK` | On a successful avoid | `cooldown` |
-| `ON_KILL` | An enemy dies | — |
+| `ON_KILL` | The owner kills an enemy | `everyNth` |
+| `ON_DEATH` | The owning actor dies — fires in tick slot 6, before removal (`05` §3.1). The Volatile elite's explosion; Sporequeen's sporeling-death heal | — |
+| `ON_REVIVE` | The owning actor returns from 0 HP — the `REVIVE` op or the ad revive. `SURVIVE_LETHAL` does **not** count (the actor never died). `PK_PHOENIX` | — |
 | `ON_LOW_HP` | Self HP crosses a threshold downward | `threshold`, `once` |
 | `ON_LETHAL` | Would take fatal damage | `once` |
 | `ON_HEAL` | Healing is received | — |
@@ -127,6 +174,8 @@ These never appear in combat; they are resolved by the run controller.
 | `ON_PERK_TAKEN` | A perk is drafted | `category` |
 | `ON_STAGE_GATE` | A stage boundary is crossed | — |
 | `ON_RUN_START` / `ON_RUN_END` | Run boundaries | — |
+
+`everyNth` counters live on the effect instance: `ON_ATTACK` counters reset at battle start; `ON_KILL` counters **persist across battles for the run** (`PK_MIDAS`'s "every 6th enemy killed"). Never fires in PvP (`05` §3.3).
 
 ---
 
@@ -160,6 +209,7 @@ Conditions gate an effect without changing when it is evaluated. All are pure fu
 | `STAGE_INDEX` | 1..3 |
 | `CHAPTER` / `TIER` | int / enum |
 | `IS_PVP` | bool — **the hook that lets a perk behave differently in a duel** |
+| `ATTACKER_IS_ELITE` / `ATTACKER_IS_BOSS` / `ATTACKER_IS_SUMMON` | bool — valid only in contexts with an attacker (`ON_HIT_TAKEN`, `ON_DODGE`/`ON_BLOCK`, and `DAMAGE_TAKEN_MULT` evaluation inside `05` §4 step 6); `false` elsewhere. `PK_STALWART` |
 
 Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all · any · not`.
 
@@ -167,7 +217,10 @@ Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all
 
 ## 5. Targets
 
-`SELF · CURRENT_TARGET · ALL_ENEMIES · LOWEST_HP_ENEMY · HIGHEST_HP_ENEMY · RANDOM_ENEMY · ALL_PETS · ATTACKER · RUN` (the run itself, for board ops)
+`SELF · CURRENT_TARGET · OTHER_ENEMIES · ALL_ENEMIES · LOWEST_HP_ENEMY · HIGHEST_HP_ENEMY · RANDOM_ENEMY · ALL_PETS · ATTACKER · OWNER · RUN` (the run itself, for board ops)
+
+- `OTHER_ENEMIES`: all enemies **except the attack's primary target** — `PK_CLEAVE`'s splash no longer double-hits its primary. Valid only inside an attack context; elsewhere it degrades to `ALL_ENEMIES`.
+- `OWNER`: the summoner of the source actor (a sporeling's owner is Sporequeen). On an actor that is not a summon, the effect is skipped.
 
 ---
 
@@ -176,7 +229,10 @@ Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all
 ```json
 "duration": { "seconds": 4.0, "scope": "BATTLE" }
 ```
-`scope`: `INSTANT · BATTLE · STAGE · RUN · PERMANENT`
+`scope`: `INSTANT · BATTLE · PHASE · STAGE · RUN · PERMANENT`
+
+- `PHASE`: ends when the boss **exits the phase in which the effect was applied** (`05` §3.1's phase check fires the exits; `17` §1.1's `AURA` mechanics are `PHASE`-scoped by definition — Gulgrot's Bog Air). Outside a boss fight it behaves as `BATTLE`.
+- A duration may also carry an early terminator: `"until": "WARD_BROKEN"` ends the effect the moment the owner's ward pool breaks (`05` §4.1) — Ossify's DR buff. `until` fields fire whichever comes first, terminator or timer.
 
 ```json
 "stacking": { "mode": "ADDITIVE", "maxStacks": 5, "refreshOnReapply": true }
@@ -274,6 +330,52 @@ Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all
   "duration":{"scope":"RUN"}, "trigger":{"kind":"ON_TILE_RESOLVED","tileType":"TILE_DICE_FORGE"} }
 ```
 
+### 7.10 The A7 batch, worked — `PK_STALWART`, `PK_CLEAVE`, Volatile, Ossify, Bog Air
+
+`PK_STALWART` Tier I — *"−20% damage taken from Elites and Bosses"*:
+
+```json
+{ "op": "DAMAGE_TAKEN_MULT", "value": 0.80, "trigger": {"kind":"ALWAYS"},
+  "target": "SELF",
+  "condition": { "any": [
+      { "fn": "ATTACKER_IS_ELITE", "op": "eq", "value": true },
+      { "fn": "ATTACKER_IS_BOSS",  "op": "eq", "value": true } ] } }
+```
+
+`PK_CLEAVE` Tier I — *"attacks hit all enemies for 40% damage"* (primary takes the normal hit; the splash never double-hits it):
+
+```json
+{ "op": "DAMAGE", "value": 0.40, "trigger": {"kind":"ON_HIT"},
+  "target": "OTHER_ENEMIES" }
+```
+
+The `Volatile` elite modifier — *"explodes on death for 15% of hero Max HP"*:
+
+```json
+{ "op": "DAMAGE_MAXHP_PCT", "value": 0.15, "valueMode": "TARGET_MAXHP_PCT",
+  "trigger": {"kind":"ON_DEATH"}, "target": "ALL_ENEMIES" }
+```
+
+Ossify — Ossuary King phase 2 (`17` §4): ward plus a DR buff that dies with the ward:
+
+```json
+[
+  { "op": "SHIELD", "value": 0.20, "valueMode": "SELF_MAXHP_PCT",
+    "trigger": {"kind":"PERIODIC","interval":14.0}, "target": "SELF" },
+  { "op": "STAT_ADD_PCT", "stat": "DR_PCT", "value": 0.30,
+    "trigger": {"kind":"PERIODIC","interval":14.0}, "target": "SELF",
+    "duration": { "seconds": 6.0, "scope": "BATTLE", "until": "WARD_BROKEN" } }
+]
+```
+
+Bog Air — Gulgrot phase 2 (`17` §3): an aura that ends on phase exit:
+
+```json
+{ "op": "STAT_ADD_PCT", "stat": "HEAL_PCT", "value": -0.35,
+  "trigger": {"kind":"ON_PHASE_ENTER","phase":2}, "target": "ALL_ENEMIES",
+  "duration": { "scope": "PHASE" } }
+```
+
 ---
 
 ## 8. Resolution order 🔒
@@ -351,9 +453,11 @@ When a new design cannot be expressed:
 
 - [ ] `EffectDefinition` record and JSON schema
 - [ ] `EffectResolver` implementing §8's order exactly
-- [ ] All 41 ops implemented with unit tests
-- [ ] All 21 trigger kinds wired into the combat and run loops
-- [ ] All 20 condition functions
+- [ ] All 43 ops implemented with unit tests
+- [ ] All 23 trigger kinds wired into the combat and run loops
+- [ ] All 23 condition functions
 - [ ] All 98 perks, 60 talents, 14 affixes, 4 set bonuses, 24 pet definitions, 12 mount definitions, 12 statuses and 8 boss scripts authored as data — **zero hardcoded content**
 - [ ] Schema validation in the build, failing on unknown ops or ids
 - [ ] Parity test: client and server resolvers agree on 10,000 random build permutations
+
+*(Counts after the `16` A7 batch extension: 43 ops = 41 + `CLEAR_SUMMONS` + `STAT_COPY`; 23 triggers = 21 + `ON_DEATH` + `ON_REVIVE`; 23 conditions = 20 + the three `ATTACKER_IS_*`; 11 targets = 9 + `OTHER_ENEMIES` + `OWNER`; 6 duration scopes = 5 + `PHASE`.)*

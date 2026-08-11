@@ -76,9 +76,10 @@ Segment sends are **rate-limited and require a dry run** that reports the recipi
 
 ## A4. Claiming
 
-- **CLAIM ALL** is the primary button. Nobody wants to tap 40 messages.
+- **CLAIM ALL** is the primary button — a single `CLAIM_INBOX` command with the `messageIds` filter omitted; tapping one message sends `CLAIM_INBOX` with that `messageId` (`14` §2.3, ruled in `16` A7). Nobody wants to tap 40 messages.
 - Claims are idempotent on `messageId`; a duplicate claim replays the stored outcome, exactly like a run command (`14` §3.2).
 - Attachments that would exceed a cap (Energy above max) route to the **Energy Reserve** (Part C) rather than being discarded.
+- `CHEST` attachments (and any egg or crate attachment) claim as **unopened containers onto the shelf** (`24` §4.0), never as pre-opened contents — pity and Focus are read when the player opens them. Inventory capacity is therefore checked at open, not at claim; the capacity-held rule below applies only to attachments that grant items directly.
 - A claim that would exceed inventory capacity (`08` §5) is **held**, not lost: the message stays claimable and states *"Not enough inventory space."*
 
 ## A5. Surfaces

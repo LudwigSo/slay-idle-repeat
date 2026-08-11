@@ -73,6 +73,8 @@ public readonly record struct CommandResult(
     IReadOnlyList<DomainEvent> Events);
 ```
 
+`RejectionReason` is catalogued normatively in `14` §16.2 (ruled in `16` A7). Two tiers produce it: the **transport tier** — malformed envelopes, sequence and idempotency conflicts, rate limits, protocol/content version — rejects before the domain is ever invoked, so those values never appear in a `CommandResult`; `Apply` returns only the **domain-tier** values (`ILLEGAL_STATE`, `INSUFFICIENT_ENERGY`, `INSUFFICIENT_FUNDS`, `CAP_REACHED`, `COOLDOWN_ACTIVE`, `NOT_OWNED`, `NOT_ENTITLED`, `INVENTORY_FULL`, `RUN_EXPIRED`, `RUN_ALREADY_ENDED`). One enum, one wire field, two producers.
+
 ### 2.1 The five properties that make it work 🔒
 
 | # | Property | Why it matters |
@@ -93,6 +95,23 @@ Thirty use-case classes and one `Apply` with a thirty-case switch contain the sa
 
 Internally `Apply` dispatches to per-command handlers. It is a façade, not a god function.
 
+### 2.3 The day cycle: `BEGIN_SESSION` and lazy catch-up 🔒 *(ruled in `16` A7)*
+
+A pure `Apply` with no scheduled per-player jobs still has to handle two kinds of time: **login-anchored** grants (the calendar advances "on login"; the daily free refill pays on "first login of the day") and **clock-anchored** resets (quest expiry, the wheel's free spin, ad caps and dungeon entries all reset at 05:00 UTC whether or not anyone logs in). One command and one rule cover both.
+
+**`BEGIN_SESSION`** — a meta command (`14` §2.3) the client sends (a) as its first command whenever it establishes a server session, and (b) when it observes the 05:00 UTC game-day boundary while a session is live. Its handler, inside `Apply`:
+
+1. runs the same lazy catch-up as every other command (below);
+2. if this is the first `BEGIN_SESSION` of the game day: advances the login calendar (at most once per game day, and only if the open day has been claimed — otherwise the calendar stays paused, per `19` G's *"nothing is skipped or lost"*), grants the daily free Energy refill (`10` §3), draws the day's three quests under the draw rule in `19` B, **and draws the Daily shop tab's 6-offer block under `10` §5.1** — both draws from this command's `CommandSeed`, **the day's draw seed**;
+3. otherwise: succeeds as a no-op. Its daily effects are idempotent per game day.
+
+**Lazy catch-up** — the first step of **every** command handler is `AdvanceTime(state, context.NowUtc)`: an internal pure function that rolls the aggregate forward across every reset boundary crossed since `state.LastAppliedAtUtc` — Energy regeneration accrual, the 05:00 UTC daily resets (quest expiry, wheel free-spin, ad caps, dungeon entries, daily shop stock **expiry** — the redraw waits for the day's `BEGIN_SESSION` seed), weekly boundaries, Plus expiry, event-window state. No job, no timer, no clock call: `state + NowUtc → state`. This is what lets `InMemoryGame` (§6) cross 180 day boundaries by advancing `VirtualClock` and sending the next command.
+
+Two boundary notes:
+
+- **Correctness never depends on `BEGIN_SESSION` arriving.** Resets are lazy, so any command triggers them. `BEGIN_SESSION` exists because the login-anchored *grants* need an anchor and the daily draws need a **seed** — the quest slate and the Daily shop tab (`10` §5.1) are the only daily actions that consume randomness, both derive from this one seed, and everything else in catch-up is deterministic arithmetic.
+- **What `BEGIN_SESSION` does not do:** claims stay explicit commands (`CLAIM_CALENDAR`, `CLAIM_INBOX`, `CLAIM_QUEST`); inbox expiry auto-grants remain the nightly hosted job (`28` A6); guild settlement remains the scheduled pure function (§5).
+
 ---
 
 ## 3. `GameContext` — everything ambient, as data 🔒
@@ -102,7 +121,7 @@ This is the part that most often gets missed, and it is where "playable in memor
 ```csharp
 public sealed record GameContext(
     DateTimeOffset  NowUtc,           // NOT IClockPort — a value
-    ulong           CommandSeed,      // server-issued; the domain never generates a seed
+    ulong?          CommandSeed,      // server-issued; META COMMANDS ONLY — null on run commands (14 §8.1)
     ContentSnapshot Content,          // the loaded, validated, version-stamped data files
     Entitlements    Entitlements,     // { HasPlus, ExpiresAtUtc } — read-only to the domain
     FeatureFlags    Flags);           // remote config, resolved to a plain record
@@ -111,7 +130,7 @@ public sealed record GameContext(
 | Input | Currently | Must become |
 |---|---|---|
 | **Time** | `IClockPort` in `Application` (`23` §4.3) | ⚠️ **A value on `GameContext`.** Energy regeneration, daily resets at 05:00 UTC, event windows (`26` §4), guild weeks (`27` §4), PvP seasons (`11` §5.3) and subscription expiry (`12` §2.2) are *all* time-dependent rules. A rule that calls a clock is not pure. `IClockPort` remains — the **composition root** calls it and puts the answer in the context. |
-| **Randomness** | `DeterministicRng` in `Core`, seeded externally (`23` §4.3) | ✅ Already correct. The domain derives child streams from `CommandSeed` (`14` §8.1); it never seeds itself. |
+| **Randomness** | `DeterministicRng` in `Core`, seeded externally (`23` §4.3) | ⚠️ **Two regimes** (ruled in `16` A7). **In-run draws never touch the context:** they come from the `Run` aggregate's committed `runSeed` and its persisted per-stream draw counters (`02` §2, `14` §8) — state, not ambience. `CommandSeed` is **reserved for meta commands** — wheel spins, container opens, the `BEGIN_SESSION` quest draw — whose draws are `Hash64(CommandSeed, stream, i)` from `i = 0` (`14` §8.1). *(The earlier wording cited `14` §8.1 in support of a per-command-seed model; that was a mis-citation — §8.1 specifies the run-stream model.)* The invariant that survives, restated accurately: **the domain never invents entropy.** Every draw is a pure function of committed state or a server-supplied context value — `runSeed` itself is derived deterministically inside `Apply` on `START_RUN` from `(playerId, chapter, tier, NowUtc, runCounter)` (`02` §2). |
 | **Content** | `SlayIdleRepeat.Data`, "embedded in both" (`14` §6) | ⚠️ **An immutable, version-stamped `ContentSnapshot` on the context.** Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what makes a replayed command reproduce its original outcome after a balance patch. |
 | **Entitlement** | Server session payload (`12` §2.1) | ✅ A read-only value. 🔒 **The domain may read `HasPlus` only to resolve ad-reward auto-grant caps — never to alter a stat, a rate or a drop.** An architecture test asserts `Entitlements` is unreachable from the power computation (`29` §3) and from every rule in `Core/Rules/`. |
 | **Feature flags** | `IRemoteConfigPort` | ⚠️ Resolved at the composition root into a plain record. The domain must not call a config service mid-rule. |
@@ -126,11 +145,13 @@ public sealed record GameContext(
 
 | Aggregate | Root | Contains | Concurrency |
 |---|---|---|---|
-| **`Player`** | `PlayerId` | Profile, Legend Level, all 8 currencies, inventory, gear instances, pets, mounts, talents, presets, unlocks, Energy + Reserve (`28` C), **all pity counters** (`24`), Feats and Renown (`28` D), daily/weekly counters, ad caps, entitlement | Single writer. One player, one command at a time. |
-| **`Run`** | `RunId` | Board, position, HP, run Gold, drafted perks, RNG stream positions, per-run ad uses, curses | Single writer, owned by exactly one `Player`. Modelled as a **child of `Player`**, not a peer — every run mutation also touches player state (rewards, XP, pity), and splitting them would create a two-phase commit on the hottest path in the game. |
+| **`Player`** | `PlayerId` | Profile, Legend Level, all 8 currencies, inventory, **unopened containers** (`24` §4.0), gear instances, pets, mounts, talents, presets, unlocks, FTUE progress (`19` Part D7), Energy + Reserve (`28` C), **all pity counters** (`24`), Feats and Renown (`28` D), daily/weekly counters, ad caps, entitlement | Single writer. One player, one command at a time. |
+| **`Run`** | `RunId` | Board, position, HP, run Gold, drafted perks, held consumables and the armed Escape Rope flag (`03` §7.1), pending fork choice (mid-move junction pause, `03` §1.1), RNG stream positions, per-run ad uses, curses | Single writer, owned by exactly one `Player`. Modelled as a **child of `Player`**, not a peer — every run mutation also touches player state (rewards, XP, pity), and splitting them would create a two-phase commit on the hottest path in the game. |
 | **`Guild`** | `GuildId` | Roster, roles, guild level, quest counters, boss HP pool and damage ledger, phrase board, log | ⚠️ **Up to 30 concurrent writers.** The only genuinely contended aggregate in the game. See §5. |
 | **`Ladder`** | season | Ratings, ranks | Global, append-mostly, eventually consistent. Not a real aggregate — a projection. |
 | **`EventInstance`** | `EventId` | The event package, per-player track progress and shop stock | Package is immutable content; per-player progress lives on `Player`. |
+
+🔒 **The persistence counterpart of the single-writer rule** (ruled in `16` A7): one accepted command commits as **one Postgres transaction** — the `Player` (and `Run`) snapshots, the idempotency outcome and the appended domain events together — with Redis as a rebuildable cache. `14` §16.4 is normative. This is what the child-not-peer modelling of `Run` above buys: the "two-phase commit on the hottest path" this table warns about cannot arise, because there is exactly one transactional store and both aggregates commit in it together.
 
 ### 4.1 `WorldSlice`
 

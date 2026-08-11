@@ -9,7 +9,7 @@ Resolves open item P0 #3 — previously the largest authoring gap in the design.
 | Rule | Specification |
 |---|---|
 | **Phases** | Exactly 3, triggered at 100%, 66% and 33% Max HP |
-| **Power** | `EnemyPower(i)` from `02` §4.3, which already includes `StageMult.Boss = 2.20`. Do **not** multiply again. |
+| **Power** | `EnemyPower(i)` from `02` §4.3, which already includes `StageMult.Boss = 2.20`. Do **not** multiply again. The power-to-stats split — per-boss hp/atk/def/aspd coefficient rows — is §1.2. |
 | **Duration** | 35–60 s at par power. Balance guardrail: never below 12 s, never above 70 s (`05` §9) |
 | **Telegraph** | Every damaging mechanic has a visible 1.0–1.5 s wind-up: a coloured floor marker, a charge glow, or an on-screen band. The player cannot act on it — combat is automatic — but they **must be able to read what is happening**, or the fight feels arbitrary. |
 | **Counterplay** | Each boss must be beatable by at least three of the five build archetypes (crit, tank/thorns, DoT, lifesteal, pet-focused). No boss may hard-require one stat. |
@@ -29,6 +29,26 @@ All boss mechanics are expressed in the effect DSL (`18_EFFECT_DSL.md`). No boss
 | `ON_HP_THRESHOLD` | Fires once when boss HP crosses a value |
 | `AURA` | Continuous passive while the phase is active |
 | `ON_HIT_TAKEN` | Reactive, with an internal cooldown |
+
+### 1.2 Boss statblock coefficients 🔒 *(ruled in `16` A7 — single source of truth; `05` §6.3 points here)*
+
+Bosses use the same `EnemyStats(power, archetype)` derivation as everything else (`05` §6), with `power = EnemyPower(bossNode)` (the 2.20 boss multiplier already inside it) and a per-boss coefficient row instead of a shared archetype. `Level = EnemyLevel(chapter, tier)` (`05` §6.0). 📐 All rows; they live in `data/bosses.json`.
+
+| Boss | Ch | hpCoef | atkCoef | defCoef | aspdCoef | Shape rationale |
+|---|---|---|---|---|---|---|
+| `BOSS_THORNMAW` | 1 | 2.40 | 0.80 | 0.80 | 0.70 | Teaching boss: long, slow, forgiving. Its §2 "ASPD 0.7" is this base coefficient, not a phase aura. |
+| `BOSS_GULGROT` | 2 | 2.50 | 0.85 | 0.70 | 0.75 | Poison does the killing; direct hits stay soft. |
+| `BOSS_OSSUARY_KING` | 3 | 2.10 | 0.90 | 1.00 | 0.80 | Rise Again's 25% refill makes effective HP ≈ 2.63 — the visible bar is deliberately shorter. |
+| `BOSS_CINDERMAW` | 4 | 2.40 | 1.05 | 1.10 | 0.75 | The first real DPS check. |
+| `BOSS_RIMEHOLD` | 5 | 2.80 | 0.95 | 1.30 | 0.60 | Slowest, hardest shell; the Core ×1.6 window is the answer. |
+| `BOSS_COGITATOR_PRIME` | 6 | 2.20 | 0.90 | 0.85 | 1.00 | Starts modest — Escalation compounds it. |
+| `BOSS_SPOREQUEEN_VELL` | 7 | 2.50 | 0.90 | 0.75 | 0.90 | The Rot drain and SPORE stacks are the pressure, not ATK. |
+| `BOSS_DICELORD` | 8 | 2.60 | 1.00 | 0.95 | 0.90 | The rounded finale: no soft stat. |
+| `BOSS_FTUE` | — | 2.40 | 0.80 | 0.80 | 0.70 | The FTUE beat-7 mini-boss (phase 1 only). **Fixed authored inputs: `power = 900`, `Level = 1`** 📐 — it does not use `EnemyPower(i)`. Coefficients mirror Thornmaw's row, matching the ⚠️ **O36** default skin (Thornmaw phase 1 — `16` B4). **This row is the single statblock authority**, referenced by `ftue.json` (`19` Part D §D4.1); the binding arbiter for its tuning is `19` D8's T3 band, not the §1 duration rule. |
+
+**Secondary stats:** every boss uses the baseline — CRIT 0.05, CDMG 0.50, DODGE 0, LS 0, BLOCK 0, PEN 0, DMG%/DR%/THORN 0, HEAL% 1.0. Anything else (Gulgrot's 30% lifesteal, Dicelord's every-6th auto-crit) is a **phase mechanic in the fight scripts below**, never a base stat — so the pre-battle power readout stays honest.
+
+**Tuning authority:** the §1 duration rule (35–60 s at par) and `05` §9's A11 band are the arbiters — the harness re-tunes these rows, the doc records intent.
 
 ---
 

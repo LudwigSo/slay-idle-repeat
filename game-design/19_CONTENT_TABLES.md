@@ -63,7 +63,7 @@ Schema is defined in `03_BOARD_AND_TILES.md` §5. `w` = outcome weight. Costs an
 
 # PART B — Daily Quest Pool (20)
 
-3 quests are drawn per day. 1 free reroll. Difficulty is balanced so all 3 are completable in ~40 minutes of normal play.
+3 quests are drawn per day — by the game day's first `BEGIN_SESSION`, using that command's server-issued seed (`14` §2.3, `30` §2.3). 1 free reroll per day, via the `REROLL_QUEST` command; the replacement is drawn from the reroll command's own seed. Difficulty is balanced so all 3 are completable in ~40 minutes of normal play. *(Command wiring ruled in `16` A7.)*
 
 | # | ID | Objective | Tier |
 |---|---|---|---|
@@ -90,7 +90,7 @@ Schema is defined in `03_BOARD_AND_TILES.md` §5. `w` = outcome weight. Costs an
 
 **Draw rule:** always 1 Easy + 1 Medium + 1 Easy-or-Medium. **Hard quests only appear as the reroll result**, and pay ×2. This means a player never opens the app to three chores, but a player who wants a challenge can reroll into one.
 
-**Rewards per quest:** 500 Crowns, +20 Energy, and one of {Enhance Stones ×15, Beast Feed ×30, Soul Shards ×20}. All 3 complete → bonus chest (1 gear item at chapter-appropriate rarity + 100 Soul Shards).
+**Rewards per quest:** 500 Crowns, +20 Energy, and one of {Enhance Stones ×15, Beast Feed ×30, Soul Shards ×20}. All 3 complete → bonus chest (a `CHEST_STANDARD`, granted **unopened** onto the shelf — contents and the exact "chapter-appropriate" definition are `24` §4.0–4.0a) + 100 Soul Shards (a fixed rider of the quest system, not part of the chest).
 
 Quests 11, 19 require PvP and are excluded before Legend Level 10. Quests 9, 10, 20 are excluded before the Forge unlocks at Legend Level 8.
 
@@ -133,25 +133,158 @@ Rewards are paid by **percentile band, not absolute rank**, so the reward experi
 
 **Narrator:** none. There is no tutorial character. Instructions appear as short diegetic captions on the board itself, in the same dry voice as the event cards. This was chosen over the previously-placeholdered "Keeper of the Die" narrator because a talking guide would be the only recurring character in a game with no story, and would set an expectation the rest of the game does not meet.
 
+The "Roll *n*" triggers below are the **forced results of the rigged die sequence in D3** — the tutorial die is not random (ruled in `16` A7), so every landing below is guaranteed, not hoped for.
+
 | Beat | Trigger | On-screen copy | Interaction |
 |---|---|---|---|
 | 0 | First launch | *"Name yourself."* | Name entry, 12 chars, default "Wanderer". Skippable. |
 | 1 | Board loads | *"Roll to move."* — with a pulsing ring on the die | Tap the die. Nothing else is tappable. |
 | 2 | Land on enemy | *"Fights resolve themselves. Watch."* | Battle auto-plays at ×1. Speed controls appear but are not highlighted. |
-| 3 | Battle won | *"Choose one. It lasts until this run ends."* | The three perk cards fan in one at a time. Timer disabled. |
-| 4 | Roll 3 → Treasure | *"Yours. All of it, even if you die."* | Auto-resolves; the reward flies to the HUD. |
-| 5 | Roll 5 → Shop | *"Gold is for now. It does not follow you home."* | Player must buy one thing. Prices are set so anything is affordable. |
-| 6 | Roll 7 → Elite (scripted, drops hero to ~25% HP) | *"That was close. You can ask for a different number."* | The reroll button pulses. Player uses their first Reroll Charge. |
-| 7 | Roll 9–11 → mini-boss | *"Last one."* | Scripted to be winnable. Boss has phase 1 only. |
+| 3 | Battle won | *"Choose one. It lasts until this run ends."* | The three perk cards fan in one at a time (fixed options — D4). Timer disabled. |
+| 4 | Roll 3 → Treasure | *"Yours. All of it, even if you die."* | Auto-resolves; the authored payout (D5) flies to the HUD. |
+| 5 | Roll 5 → Shop | *"Gold is for now. It does not follow you home."* | Player must buy exactly one thing (fixed offers and authored prices — D4.2). Every offer costs less than the Gold held, so anything is affordable. |
+| 6 | Roll 7 → Elite (`FTUE_ELITE`, leaves the hero at ~25% HP — D4) | *"That was close."* | Battle auto-plays. Afterwards: the second perk draft (fixed options — D4). |
+| 6b | Roll 8 shows a `2` — pointing at the Cursed Ground tile ahead | *"You can ask for a different number."* | The reroll button pulses; nothing else is tappable. The player spends their first Reroll Charge; the forced reroll (`1`) lands safely short of the curse. Teaches: rerolls exist, and they dodge trouble. |
+| 7 | Roll 9 → mini-boss (`BOSS_FTUE` — D4) | *"Last one."* | The hero heals to full on landing (tutorial-only 📐). The forced `6` clamps onto the boss node — the boss is always reached exactly (`03` §1.1). Phase 1 only. No draft afterwards (D4). |
 | 8 | Victory | *"Take it back with you."* | Run Results screen, all rewards positive, no ad offer. |
 | 9 | Home screen | *"You kept the gear. Put it on."* | Forced single gear equip on the Hero screen. |
 | 10 | After equip | *"And this is permanent."* | Forced single Talent Point spend. Then FTUE ends. |
 
 **Post-FTUE:** the player is released with Energy full, 2 daily quests pre-assigned, and Chapter 1 available. The ATT prompt (iOS) fires here, not before. The first interstitial is 72 hours away.
 
-⚠️ **NEEDS DETAIL:** beat 6 requires the elite fight to be scripted to leave the player at ~25% HP regardless of their build. In a deterministic simulator this is straightforward (fix the seed and the enemy stats), but it must be explicitly implemented as a **tutorial-only enemy definition**, not as a hack in the combat loop.
+✅ **Resolved (ruled in `16` A7): the FTUE is an authored data package — `data/content/ftue.json`.** Everything above is data in that file, nothing is scripted in code. The elite near-death is a tutorial-only enemy definition plus fixed choice sets (D4), never a hack in the combat loop (O9 closed). Sections D1–D8 below are the package spec.
+
+## D1. Principle
+
+The FTUE run is an ordinary run through the ordinary rules engine — same commands, same combat, same board states — driven by authored content: an authored board (`03` §3 authored-board mode), a forced die stream, and tutorial-only definitions. The only tutorial-only *rules* are the seven flags listed in D4.3, each of which exists to make the script safe, not to change what the game is.
+
+## D2. Board layout — 12 nodes, walk order
+
+No stage gates, no forks, no campfire. Node 11 is the final node and holds the mini-boss.
+
+| Node | Tile | Role |
+|---|---|---|
+| 0 | `TILE_ENEMY` | Beat 1–3: first fight, first draft |
+| 1 | `TILE_EMPTY` | spacing |
+| 2 | `TILE_EMPTY` | spacing |
+| 3 | `TILE_EMPTY` | spacing |
+| 4 | `TILE_TREASURE` | Beat 4: authored payout (D5) |
+| 5 | `TILE_EMPTY` | spacing |
+| 6 | `TILE_SHOP` | Beat 5: tutorial shop (D4.2) |
+| 7 | `TILE_EMPTY` | spacing |
+| 8 | `TILE_ELITE` | Beat 6: `FTUE_ELITE` |
+| 9 | `TILE_EMPTY` | Beat 6b: the reroll lands here |
+| 10 | `TILE_CURSE` (`CUR_SLIPPERY`) | **Designed never to be landed on** — it exists as the reroll lesson's visible threat. Inspectable (tooltip works); the forced sequence guarantees it is passed over, and passing never resolves (`03` §1.1). |
+| 11 | `TILE_MINIBOSS` (`BOSS_FTUE`) | Beat 7–8 |
+
+The board deliberately violates generator constraint C7 (≥2 treasure, ≥1 cache) — authored boards bypass constraints (`03` §3), and the day-1 payout is scripted (D5), so C7's protection is not needed here.
+
+## D3. Forced die sequence
+
+The hero starts at the trailhead before node 0, like every run (`03` §1.1). The FTUE's die stream is **rigged**: results come from this ordered list, not from the RNG, and the Fair-Dice bag is not consulted (tutorial-only flag, D4.3). All results are faces of the starting die `[1][2][3][4][5][6]`.
+
+| Roll | Forced result | Cumulative | Lands on | Beat |
+|---|---|---|---|---|
+| 1 | `1` | 1 | node 0 — ENEMY | 1–3 |
+| 2 | `2` | 3 | node 2 — empty | — |
+| 3 | `2` | 5 | node 4 — TREASURE | 4 |
+| 4 | `1` | 6 | node 5 — empty | — |
+| 5 | `1` | 7 | node 6 — SHOP | 5 |
+| 6 | `1` | 8 | node 7 — empty | — |
+| 7 | `1` | 9 | node 8 — ELITE | 6 |
+| 8 | `2` → forced reroll → `1` | 10 | initial result points at node 10 (CURSE); the reroll lands node 9 (empty) | 6b |
+| 9 | `6` (clamped) | 12 | node 11 — MINIBOSS. The clamp teaches the boss-reached-exactly rule (`03` §1.1). | 7 |
+
+Roll 8 is the only roll where the reroll prompt is interactive; on every other roll the reroll button is hidden (D4.3). The small forced values are deliberate: nine rolls across twelve tiles keeps every beat visible.
+
+## D4. Tutorial-only definitions
+
+### D4.1 Enemies
+
+Three tutorial-only entries. Powers are **final, authored values** — no chapter scaling, no ×2.2 elite multiplier, no `StageMult` — and all three fights run at **Level = 1**. Grunt and elite stats derive from Power through the standard `05` §6 derivation; the mini-boss statblock is authored **once**, in `17` §1.2's `BOSS_FTUE` row (power 900, Thornmaw-shaped coefficients, phase 1 only — ruled in `16` A7).
+
+| ID | Base | Power | Notes |
+|---|---|---|---|
+| `FTUE_GRUNT` | `GRUNT` archetype | **320** 📐 | Beat 1. A watchable, safe first fight. |
+| `FTUE_ELITE` | `BRUTE` archetype | **700** 📐 | Beat 6. Carries **no elite modifier** (tutorial-only exception — the banner reads plain "ELITE" and teaches that the banner exists). Tuned to leave the hero at ~25% HP. |
+| `BOSS_FTUE` | Statblock: `17` §1.2 (single authority). Skin: Thornmaw, **phase 1 only** (`17` §2 — Basking: basic attacks, ASPD 0.7) | **900** 📐 (authored in `17` §1.2) | Beat 7. ⚠️ **The mini-boss identity — Thornmaw phase 1 — is the default; final confirmation is tracked as O36** (`16` B4). Never enters phases 2–3 regardless of HP. |
+
+These numbers are placeholders with teeth: the binding constraints are the acceptance bands in D8, verified over every tutorial choice combination. If a band fails, the Powers move; the bands do not.
+
+### D4.2 Drafts and the shop — fixed choice sets
+
+Perk drafts in the FTUE use **fixed option sets**, not seeded draws, so the beat-6 near-death holds under every combination:
+
+| Draft | After | Options (all Common, disjoint sets) |
+|---|---|---|
+| 1 | Beat 3 (first fight) | `PK_SHARP_EDGE` (+12% ATK) · `PK_TOUGH_HIDE` (+15% Max HP) · `PK_LEECH` (+6% Lifesteal) 📐 |
+| 2 | Beat 6 (elite) | `PK_KEEN_EYE` (+6% Crit) · `PK_IRON_SKIN` (+18% DEF) · `PK_REGEN` (1% Max HP/s) 📐 |
+
+There is **no draft after the mini-boss** (the run ends into beat 8; a draft there would teach nothing and pad the ≤ 5-minute budget). FTUE drafts have **no reroll and no skip** — beat 3's "Choose one" is literal.
+
+The **tutorial shop** (beat 5) has four fixed offers in the standard §7 slot shape: `PK_BRUTALITY` (Common perk) · **Health Draught** (`03` §7.1 — the board-use consumable, introduced here) · Run Buff **+8% ATK** 📐 · Heal 35% Max HP. Prices are the authored **tutorial price row** in `ftue.json` (`16` A7) — the one FTUE exception to the `03` §7 price formula; the canonical Draught row (**100 Gold** 📐) is fixed below, after the XP lock. Constraint the row must satisfy: every offer ≤ **140 Gold** 📐 — the hero holds 150 Gold at beat 5 (D5), and *"anything is affordable"* is a locked beat. The player must buy exactly one thing; the shop then closes (no refresh — refresh is partly an ad affordance and no ads run in the FTUE).
+
+### D4.3 Tutorial-only rule flags (complete list)
+
+1. `riggedDieStream` — die results come from D3's list; the Fair-Dice bag is bypassed.
+2. `noAds` — no ad placements anywhere (existing lock, now a package flag).
+3. `heroLethalClampAt1Hp` — the hero cannot die; lethal damage clamps to 1 HP. The fights are authored so this never fires; if it does, emit `ftue_clamp_fired` telemetry — it means tuning drifted, and it must be investigated, not shipped around.
+4. `fixedDrafts` / `noDraftReroll` / `noBossDraft` — D4.2.
+5. `fullHealAtMiniboss` — heal to 100% Max HP on landing on node 11 📐.
+6. `zeroEnergyCost` — the FTUE run costs 0 Energy 📐 and is not a `(Chapter, Tier)` attempt: no first-clear bonus, no completion multiplier (payout is D5's fixed table).
+7. `noRunTtl` — the FTUE run is exempt from the 48 h run TTL. A player who installs, plays two beats and returns in a week resumes their tutorial, not a cold start.
+
+## D5. The scripted payout — the single day-1 state
+
+Everything the tutorial banks, granted **identically on completion and on skip**. This table is the single source of truth for the post-FTUE account state; nothing else in the tutorial grants meta-currency.
+
+| Grant | Amount | Moment (completers) |
+|---|---|---|
+| Legend XP | **300** — 🔒 fixed (the lock below this section), guarantees the level-up beat 10 needs | run end |
+| Crowns | **60** 📐 | Treasure tile, beat 4 |
+| Enhance Stones | **5** 📐 | Treasure tile, beat 4 |
+| Soul Shards | **30** 📐 | Mini-boss victory |
+| Gear | `GEAR_WEAPON_BLADE`, rarity **B**, `chapterOrigin` 1, `q = 0.70`, affix `AFX_CRIT_CHANCE +3%`, enhance +0 📐 — the beat-9 forced-equip item | Mini-boss victory (shown in the beat-8 tally) |
+
+In-run Gold is scripted too — first kill **150** 📐, elite kill **200** 📐 — and vanishes at run end like all Gold, so shop choices cannot diverge the day-1 state. Kills pay no per-kill Legend XP (the fixed 300 is the whole grant, per the lock below). No ad-double exists (no ads).
+
+**Convergence statement:** after beat 10, a skipper and a completer hold exactly: this payout, the blade equipped, one Talent Point spent (the node is the player's own choice — the one accepted divergence), Energy full, 2 daily quests pre-assigned, `ftueProgress = complete`. Perks, consumables and Gold were run-scoped and are gone either way.
+
+## D6. Skip semantics
+
+Skip is available from the pause menu **after beat 2** (existing lock), sent as the `SKIP_FTUE` meta command (`14` §2.3). On skip: grant the full D5 payout, mark beats up to 8 complete, and jump directly to **beat 9** (Home, forced equip) then **beat 10** (forced Talent Point spend). Skippers and completers converge on the one day-1 state above. Skipping is one confirm ("Skip the tutorial? You keep everything it pays.") — never a nag, never re-offered after completion.
+
+## D7. Persistence and resume
+
+FTUE progress persists **per beat**: the Player aggregate carries `ftueProgress { completedAtUtc | null, beatId }` (`30` §4), where `beatId` ∈ B0…B10 plus B6b, advanced server-side as each beat's interaction completes. Resume rules:
+
+| Killed at | Resumes to |
+|---|---|
+| Beat 0 (name entry) | Re-prompt beat 0. |
+| Beats 1–8 (in-run) | The run resumes through standard run persistence (`02` §1, `14` §3) — exempt from the TTL per D4.3 — and the client re-displays the current beat's caption. A kill mid-battle restarts that battle, per the standard rule (`02` §6). |
+| Beats 9–10 (post-run, forced steps) | The forced step re-presents on next launch. The payout is already banked (idempotent — granted once, keyed on the run). |
+
+The FTUE is complete when beat 10's spend commits; `completedAtUtc` is set and no FTUE surface ever appears again.
+
+## D8. Validation and acceptance tests (binding)
+
+The content schema validator must check `ftue.json` structurally: 12 nodes, mini-boss in final position, D3's sequence walkable (each cumulative total lands the beat it claims, the roll-9 clamp included), draft sets disjoint, shop offers resolvable, payout table complete.
+
+The balance harness (`05` §9) must enumerate **every tutorial choice combination** — 3 draft-1 picks × 4 shop purchases × 3 draft-2 picks × Draught use/not-use where legal — and assert:
+
+| # | Assertion |
+|---|---|
+| T1 | Beat-1 fight: victory, 6–15 s at ×1 speed, hero ≥ 85% HP after 📐 |
+| T2 | Beat-6 elite: victory, hero at **15–35%** Max HP after (target ~25%) 📐 |
+| T3 | Mini-boss: victory, hero ≥ 25% HP at end, fight 15–40 s 📐 |
+| T4 | `heroLethalClampAt1Hp` never fires in any combination |
+| T5 | Total FTUE critical path ≤ 5 minutes at default speeds (locked budget) |
+
+These tests are the real spec for D4.1's Power values. Tune Powers until they pass; never widen the bands to make them pass.
 
 🔒 **The tutorial run guarantees a level-up.** Beat 10 forces a Talent Point spend, and points come only from level-ups (`09` §2) — so the tutorial run pays a **fixed, scripted 300 Legend XP** (Level 2 needs 120, per `07` §1.1), guaranteeing at least one Talent Point exists before beat 10 regardless of play. Not subject to any multiplier.
+
+🔒 **Tutorial shop price row (ruled in `16` A7):** the beat-5 shop's canonical offer is a **Health Draught at 100 Gold** 📐, authored in `ftue.json` — *not* derived from the `03` §7 price formula. The FTUE script banks **150 Gold** before beat 5 (the scripted first-kill Gold, D5) and every offer costs at most 140 Gold 📐 (D4.2), so the beat-5 purchase — and its "anything is affordable" promise — can never fail. The remaining tutorial-shop slots and their prices belong to the `ftue.json` package (`16` A7's FTUE ruling); this row is fixed here because the live-shop pricing in `03` §7 references it as its FTUE exception.
 
 ---
 
@@ -163,7 +296,7 @@ Curses are run-scoped negative effects applied by `TILE_CURSE`, by certain event
 |---|---|
 | Scope | `RUN` — a curse lasts until the run ends |
 | Stacking | Same curse never stacks. Re-application refreshes nothing; it is simply ignored. |
-| Cleansing | `TILE_SHRINE` may offer "Cleanse a curse" as one of its two options. `AD_SKIP_CURSE` prevents one before it lands (1/run). `MNT_IRONSHELL` makes the player immune to `TILE_CURSE` entirely. |
+| Cleansing | 🔒 If ≥1 cleansable curse is active, a shrine's second option is **always** a Cleanse (player picks which curse; paired rewards are kept) — the full rule is `03` §7a.5 (ruled in `16` A7). `AD_SKIP_CURSE` prevents one before it lands (1/run). `MNT_IRONSHELL` makes the player immune to `TILE_CURSE` entirely. |
 | Compensation | Every curse from `TILE_CURSE` comes with a reward attached — curses are a **trade**, never a pure punishment. Event-inflicted curses are the player's own choice. |
 | Visibility | Active curses appear as red icons in the board HUD, tappable for the full description. |
 
@@ -194,12 +327,12 @@ Referenced as `AD_LUCKY_WHEEL` (`12` §4.2), screen S25 (`13` §1) and a Home wi
 
 | Property | Value |
 |---|---|
-| Free spins | 1 per day, at 05:00 UTC |
+| Free spins | 1 per day; the counter resets lazily at the 05:00 UTC boundary (`30` §2.3) |
 | Ad spins | `AD_LUCKY_WHEEL`, +2 per day |
 | Plus subscribers | 3 spins/day, auto-granted (identical to a full ad-watcher) |
 | Segments | 8 |
 | Animation | 2.5 s ratcheting spin with a deceleration curve, skippable after 1 s |
-| Authority | The result is **rolled server-side** and sent to the client, which animates to the predetermined segment. The wheel is presentation, not randomness. |
+| Authority | A spin is the `SPIN_WHEEL` meta command (`14` §2.3); the result is **rolled inside `Apply`** from the command's server-issued seed (`30` §3) and sent to the client, which animates to the predetermined segment. Ad spins are charges granted by `CLAIM_AD_REWARD` and consumed by the same command, oldest first. The wheel is presentation, not randomness. |
 
 ### Segment table
 
@@ -212,7 +345,7 @@ Referenced as `AD_LUCKY_WHEEL` (`12` §4.2), screen S25 (`13` §1) and a Home wi
 | 5 | Merge Dust ×(300 × chapterScalar) | 12 |
 | 6 | Soul Shards ×80 | 9 |
 | 7 | One gear item, A-rarity or better | 5 |
-| 8 | **Jackpot:** one Pet Egg | 2 |
+| 8 | **Jackpot:** one Pet Egg — granted as an **unopened container** on the shelf (`24` §4.0, ruled in `16` A7) | 2 |
 
 `chapterScalar = 1 + 0.35 × highestChapterCleared`, matching the ad bundle scaling in `12` §5.
 
@@ -228,11 +361,11 @@ Referenced in `02` §9 ("28-day cycle, day 7/14/21/28 give pets or S-tier gear c
 
 | Rule | Specification |
 |---|---|
-| Advancement | The calendar advances **on login, not by date**. A missed day pauses the calendar; nothing is skipped or lost. |
+| Advancement | The calendar advances at **`BEGIN_SESSION` — the first server contact of the game day — not by date** (`14` §2.3, `30` §2.3, ruled in `16` A7). It advances at most once per game day, and only when the currently open day has been claimed; a missed day — or an unclaimed one — pauses the calendar. Nothing is skipped or lost. |
 | Cycle | After day 28 it restarts at day 1. Every cycle pays identically — nothing is first-cycle-exclusive (`11` §5.3). |
 | Scaling | Crown and Merge Dust values are Chapter-1 base and scale by `chapterScalar = 1 + 0.35 × highestChapterCleared`, matching Part F and `12` §5. |
-| Claiming | One tap on S25; auto-highlighted when unclaimed. Never a popup. |
-| Luck classes | Pet Eggs are `EGG_PET`; the day-14/28 S-tier chests are **`CHEST_PREMIUM`**; any other gear chest is `CHEST_STANDARD` (`24` §3, amended accordingly). |
+| Claiming | One tap on S25 — the `CLAIM_CALENDAR` command (`14` §2.3); auto-highlighted when unclaimed. Never a popup. |
+| Luck classes | Pet Eggs are `EGG_PET`; the day-14/28 S-tier chests are **`CHEST_PREMIUM`**; any other gear chest is `CHEST_STANDARD` (`24` §3). All are granted as **unopened containers** on the shelf — pity and Focus are read at open, not at grant (`24` §4.0, ruled in `16` A7). |
 
 | Day | Reward | Day | Reward |
 |---|---|---|---|

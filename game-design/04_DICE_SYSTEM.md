@@ -60,7 +60,7 @@ The full die, with all sources applied, is recomputed at run start and displayed
 |---|---|
 | Base charges per stage | 1 📐 TUNABLE |
 | Refresh | On each Stage Gate (charges do not carry over) |
-| Sources of extra charges | Talents (Fortune branch, up to +2), Campfire choice (+2 this stage), perks, Reroll Token consumable |
+| Sources of extra charges | Talents (Fortune branch, up to +2), Campfire choice (+2 this stage), perks, the Reroll Token consumable — **+1 charge granted immediately on purchase**, never held; greyed out at the max-stored cap (`03` §7.1, ruled in `16` A7) |
 | Ad reroll | `AD_REROLL_DICE`, **2 per run**, does not consume a charge |
 | Max stored | 5 |
 
@@ -105,7 +105,7 @@ These live in the main perk pool (`06_PERKS.md`) but are listed here for cohesio
 | `PK_CHAINBREAKER` | Chainbreaker | Rare | `Chain` faces chain up to 5 times |
 | `PK_TWIN_FATES` | Twin Fates | Epic | `Star` faces resolve the landed tile twice |
 | `PK_WEIGHTED_FATE` | Weighted Fate | Epic | Convert your lowest Pip face into a `Surge` |
-| `PK_DICELORD_GIFT` | The Dicelord's Gift | Legendary | Your `6` face becomes a `Star`; all `Star` faces let you also choose the fork branch |
+| `PK_DICELORD_GIFT` | The Dicelord's Gift | Legendary | ⚠️ **Redesign pending (O35, `16` B4).** Its fork-choice clause is superseded — fork choice is always free (`03` §1.1, ruled in `16` A7). Placeholder effect until re-ruled: your `6` face becomes a `Star`. Do not build content or balance against this row. |
 
 🔒 All 12 Dice & Board perks are **ineligible in PvP** (`11` §3). They are pure PvE value.
 

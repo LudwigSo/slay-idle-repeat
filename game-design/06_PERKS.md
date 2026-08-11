@@ -12,7 +12,7 @@ The perk draft is the game's primary decision. Everything else — dice, gear, t
 |---|---|
 | Trigger | After winning any `TILE_ENEMY`, `TILE_ELITE` or `TILE_BOSS` battle |
 | Options shown | 3 |
-| Free rerolls | 1 per stage (accumulates up to 3) |
+| Free rerolls | 1 per stage, plus the Draft Token consumable (+1 immediately on purchase, greyed out at the cap — `03` §7.1, ruled in `16` A7). Accumulates up to 3 |
 | Ad reroll | `AD_REROLL_PERK`, 2 per run |
 | Ad 4th option | `AD_EXTRA_PERK_CHOICE`, 1 per run — shows a 4th option drawn from a rarity-upgraded pool |
 | Skip | Allowed. Skipping grants 60 Gold and +1 free reroll. |
@@ -238,7 +238,7 @@ Additional rules:
 
 The `effects` array is interpreted by a single generic effect resolver. **Do not write per-perk code.** Any perk that cannot be expressed in the effect DSL must extend the DSL, not bypass it. This is what makes 98 perks (and later 300) maintainable.
 
-✅ **The full DSL — 41 operations, 21 triggers, 20 conditions, resolution order and worked examples — is specified in `18_EFFECT_DSL.md`.** That document also resolves the two ambiguous perk designs previously flagged here: `CP_GLASS_HEART` (§9.1) and `PET_DICEBEAST` (§9.2).
+✅ **The full DSL — 43 operations, 23 triggers, 23 conditions (after the `16` A7 batch extension), resolution order and worked examples — is specified in `18_EFFECT_DSL.md`.** That document also resolves the two ambiguous perk designs previously flagged here: `CP_GLASS_HEART` (§9.1) and `PET_DICEBEAST` (§9.2).
 
 ---
 

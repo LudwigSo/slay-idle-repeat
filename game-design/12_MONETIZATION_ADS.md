@@ -213,7 +213,7 @@ Both mean **the ad build cannot be produced by a plain one-click Godot export.**
 |---|---|---|---|---|
 | 14 | `AD_ENERGY` | Home / low-energy prompt | +40 Energy | 4/day |
 | 15 | `AD_DOUBLE_QUEST` | Daily quest claim | ×2 one quest's reward | 3/day |
-| 16 | `AD_FREE_GEAR_CHEST` | Home screen chest widget | One free gear chest (chapter-appropriate rarity) | 2/day |
+| 16 | `AD_FREE_GEAR_CHEST` | Home screen chest widget | One free gear chest (chapter-appropriate rarity, defined in `24` §4.0a) | 2/day |
 | 17 | `AD_FREE_PET_EGG` | Menagerie | One free Pet Egg | 1/day |
 | 18 | `AD_ENHANCE_LUCK` | Forge, before an enhance attempt | +15 percentage points to the success roll | 3/day |
 | 19 | `AD_DOUBLE_HONOR` | After a Ghost Duel | ×2 Honor from that duel | 3/day |
@@ -255,7 +255,16 @@ Currency-bundle ads (`AD_CROWNS`, `AD_MERGE_DUST`, `AD_FEED_BUNDLE`, `AD_ENHANCE
 AdBundleValue(currency) = BaseValue(currency) * (1 + 0.35 * highestChapterCleared)
 ```
 
-📐 TUNABLE.
+**BaseValues 🔒 (ruled in `16` A7):**
+
+| Placement | BaseValue |
+|---|---|
+| `AD_CROWNS` | **600 Crowns** — 🔒 the anchor (`16` A7) |
+| `AD_ENHANCE_STONES` | 24 Enhance Stones 📐 |
+| `AD_MERGE_DUST` | 100 Merge Dust 📐 |
+| `AD_FEED_BUNDLE` | 75 Beast Feed 📐 |
+
+The three material bundles are each worth exactly 600 Crowns at the Materials-tab rates (`10` §5.2: 25 / 6 / 8 Crowns per unit), which are themselves the Honor-shop ratios (`11` §7) re-expressed in Crowns — so every material ad is one `AD_CROWNS` of value, spent in a different currency. 📐 TUNABLE, in `data/ads.json`; if the Materials-tab rates move, these move with them.
 
 ---
 

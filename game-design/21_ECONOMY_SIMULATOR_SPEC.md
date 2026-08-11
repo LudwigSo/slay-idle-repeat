@@ -75,8 +75,10 @@ The user-facing requirement is that the economy be **easy to tweak**. That is a 
 ```
 SlayIdleRepeat.Data/tuning/
 ├── power_model.json            # 29 §2-3 — formula weights, reference opponent
+├── calibration_builds.json     # 29 §2.5 — reference par build, standard dummy, archetype loadouts
 ├── par_power.json              # 29 §4-5 — content par, level-expectation factor curves
 ├── expected_progression.json   # 29 §6 — the product owner's intent, per profile per day
+├── sim_profiles.json           # §5.4 — the 14 behavioural profiles (§5.4.1–5.4.3)
 ├── currencies.json             # income and sink rates per source
 ├── progression.json            # Legend XP curve, energy, catch-up/frontier curve
 ├── drops.json                  # rarity tables per chapter band, affix pools, quality range
@@ -226,6 +228,79 @@ Every run of the tool simulates all of these.
 | `Unlucky_Core` | 3 | 40 | 7 | 1.0 | 0.8 | 0.5 | — | seeded to the **p10** RNG band (E1) |
 
 📐 The whole table lives in `sim_profiles.json` and profiles can be added freely. The 14 above are the minimum set required for the assertions in §11.
+
+### 5.4.1 Lapse parameters 🔒 (ruled in `16` A7) 📐
+
+| Profile | `LapseProbability` (chance/day of skipping) | `MaxLapseDays` |
+|---|---|---|
+| `NoAds_Casual` | 0.15 | 3 |
+| `NoAds_Core` | 0.03 | 2 |
+| `SomeAds_Core` | 0.03 | 2 |
+| `AllAds_Core` | 0.02 | 1 |
+| `Plus_Core` | 0.02 | 1 |
+| `Plus_Lapsed` | 0.05 | 2 |
+| `AllAds_Hardcore` | 0.01 | 1 |
+| `NoAds_Weekend` | 0.10 | 5 |
+| `Lapsed_Returner` | 0.25 | 6 |
+| `Guildless_Core` | 0.03 | 2 |
+| `Guilded_Core` | 0.03 | 2 |
+| `EventSkipper_Core` | 0.03 | 2 |
+| `DungeonOnly` | 0.03 | 2 |
+| `Unlucky_Core` | 0.03 | 2 |
+
+`LapseProbability` stacks on top of `DaysPerWeekActive` (a rest day is not a lapse). `NoAds_Weekend`'s `MaxLapseDays = 5` is the Monday–Friday gap that makes it the second Energy Reserve exerciser after `Lapsed_Returner`.
+
+### 5.4.2 `FeatureEngagement` matrix 🔒 (ruled in `16` A7) 📐
+
+The first four columns allocate session minutes and sum to 1.00 per row (§5.2); the rest are independent participation rates.
+
+| Profile | Runs | Dung. | Events | Pvp | Guild | DailyQ | Wheel | Calendar | Forge | Focus | AutoSalv |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `NoAds_Casual` | 1.00 | 0.00 | 0.00 | 0.00 | 0.0 | 0.6 | 0.5 | 0.8 | 0.4 | 0.2 | 0.3 |
+| `NoAds_Core` | 0.60 | 0.20 | 0.12 | 0.08 | 0.7 | 1.0 | 1.0 | 1.0 | 0.9 | 0.9 | 0.9 |
+| `SomeAds_Core` | 0.60 | 0.20 | 0.12 | 0.08 | 0.4 | 0.9 | 0.8 | 1.0 | 0.8 | 0.7 | 0.8 |
+| `AllAds_Core` | 0.60 | 0.20 | 0.12 | 0.08 | 0.7 | 1.0 | 1.0 | 1.0 | 0.9 | 0.9 | 0.9 |
+| `Plus_Core` | 0.60 | 0.20 | 0.12 | 0.08 | 0.7 | 1.0 | 1.0 | 1.0 | 0.9 | 0.9 | 0.9 |
+| `Plus_Lapsed` | 0.60 | 0.20 | 0.12 | 0.08 | 0.7 | 1.0 | 1.0 | 1.0 | 0.9 | 0.9 | 0.9 |
+| `AllAds_Hardcore` | 0.55 | 0.20 | 0.15 | 0.10 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
+| `NoAds_Weekend` | 0.70 | 0.15 | 0.10 | 0.05 | 0.2 | 0.7 | 0.3 | 0.4 | 0.7 | 0.5 | 0.6 |
+| `Lapsed_Returner` | 0.65 | 0.15 | 0.10 | 0.10 | 0.3 | 0.7 | 0.6 | 0.7 | 0.6 | 0.5 | 0.5 |
+| `Guildless_Core` | 0.60 | 0.20 | 0.12 | 0.08 | **0.0** | 0.9 | 0.8 | 1.0 | 0.8 | 0.7 | 0.8 |
+| `Guilded_Core` | 0.60 | 0.20 | 0.12 | 0.08 | **0.7** 🔒 | 0.9 | 0.8 | 1.0 | 0.8 | 0.7 | 0.8 |
+| `EventSkipper_Core` | 0.68 | 0.22 | **0.00** | 0.10 | 0.4 | 0.9 | 0.8 | 1.0 | 0.8 | 0.7 | 0.8 |
+| `DungeonOnly` | **0.05** 🔒 | 0.75 | 0.10 | 0.10 | 0.4 | 0.9 | 0.8 | 1.0 | 0.8 | 0.7 | 0.8 |
+| `Unlucky_Core` | 0.60 | 0.20 | 0.12 | 0.08 | 0.4 | 0.9 | 0.8 | 1.0 | 0.8 | 0.7 | 0.8 |
+
+`Unlucky_Core` is behaviourally identical to `SomeAds_Core` by construction — only its seeds differ (p10 band), so any curve gap between the two is pure luck, which is exactly what E1/E2 measure. `Plus_Core`/`Plus_Lapsed` mirror `AllAds_Core` so A2 and A15 compare like with like.
+
+### 5.4.3 `AdBehaviour` — per-placement watch rates 🔒 (ruled in `16` A7) 📐
+
+The 29 placements (`12` §4) fall into three watch-propensity groups; `sim_profiles.json` stores the expansion as `PerPlacement` entries:
+
+| Group | Placements |
+|---|---|
+| **HIGH** (6) | `AD_DOUBLE_RUN_REWARDS`, `AD_REVIVE`, `AD_DOUBLE_QUEST`, `AD_FREE_GEAR_CHEST`, `AD_FREE_PET_EGG`, `AD_DOUBLE_LEGEND_XP` |
+| **MEDIUM** (11) | `AD_ENERGY`, `AD_CROWNS`, `AD_ENHANCE_STONES`, `AD_MERGE_DUST`, `AD_FEED_BUNDLE`, `AD_LUCKY_WHEEL`, `AD_DOUBLE_CHEST`, `AD_ELITE_GUARANTEE`, `AD_BOSS_SECOND_WIND`, `AD_DOUBLE_HONOR`, `AD_EXTRA_DUNGEON` |
+| **LOW** (12) | `AD_REROLL_PERK`, `AD_EXTRA_PERK_CHOICE`, `AD_REROLL_DICE`, `AD_SHOP_REFRESH`, `AD_SHOP_FREEBIE`, `AD_SKIP_CURSE`, `AD_RETRY_MINIGAME`, `AD_CAMPFIRE_HEAL`, `AD_EXTRA_DUEL`, `AD_SHOP_REDRAW`, `AD_FREE_RETRY`, `AD_ENHANCE_LUCK` |
+
+| Profile | `DefaultWatchRate` | HIGH | MEDIUM | LOW | `InterstitialTolerance` |
+|---|---|---|---|---|---|
+| `NoAds_Casual` | 0.0 | 0 | 0 | 0 | 0.5 |
+| `NoAds_Core` | 0.0 | 0 | 0 | 0 | 0.7 |
+| `SomeAds_Core` | 0.5 | 0.9 | 0.5 | 0.2 | 0.7 |
+| `AllAds_Core` | 1.0 | 1.0 | 1.0 | 1.0 | 0.8 |
+| `Plus_Core` | n/a — auto-grant (`§5.3`) | — | — | — | 1.0 |
+| `Plus_Lapsed` (after day 60) | 0.3 | 0.7 | 0.3 | 0.1 | 0.6 |
+| `AllAds_Hardcore` | 1.0 | 1.0 | 1.0 | 1.0 | 0.9 |
+| `NoAds_Weekend` | 0.0 | 0 | 0 | 0 | 0.6 |
+| `Lapsed_Returner` | 0.5 | 0.9 | 0.5 | 0.2 | 0.5 |
+| `Guildless_Core` | 0.5 | 0.9 | 0.5 | 0.2 | 0.7 |
+| `Guilded_Core` | 0.5 | 0.9 | 0.5 | 0.2 | 0.7 |
+| `EventSkipper_Core` | 0.5 | 0.9 | 0.5 | 0.2 | 0.7 |
+| `DungeonOnly` | 0.5 | 0.9 | 0.5 | 0.2 | 0.7 |
+| `Unlucky_Core` | 0.5 | 0.9 | 0.5 | 0.2 | 0.7 |
+
+The 0.5-profiles' skew (0.9 / 0.5 / 0.2) encodes §5.3's founding observation: nearly everyone takes the run-doubler, few take the shop refresh. The mean over all 29 placements for those profiles lands near the headline 0.5.
 
 ---
 

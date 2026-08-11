@@ -243,7 +243,7 @@ public interface IPlayerRepository {
     Task SaveAsync(PlayerProfile profile, CancellationToken ct);
     Task<PlayerId> CreateAnonymousAsync(DeviceFingerprint fp, CancellationToken ct);
 }
-public interface IRunStateStore {                     // Redis, write-through to Postgres
+public interface IRunStateStore {                     // cache over the Postgres-authoritative row — 14 §16.4
     Task<RunState?> GetAsync(RunId id, CancellationToken ct);
     Task SaveAsync(RunState state, TimeSpan ttl, CancellationToken ct);
     Task DeleteAsync(RunId id, CancellationToken ct);
@@ -251,6 +251,13 @@ public interface IRunStateStore {                     // Redis, write-through to
 public interface IIdempotencyStore {
     Task<CommandOutcome?> GetRecordedOutcomeAsync(CommandId id, CancellationToken ct);
     Task RecordAsync(CommandId id, CommandOutcome outcome, TimeSpan ttl, CancellationToken ct);
+}
+public interface IMessageRepository {                 // the inbox — 28 Part A (ruled in 16 A7)
+    Task<IReadOnlyList<PlayerMessage>> GetActiveAsync(PlayerId id, CancellationToken ct);
+    Task AppendAsync(PlayerMessage message, CancellationToken ct);
+    Task MarkClaimedAsync(PlayerId id, IReadOnlyList<MessageId> ids, CancellationToken ct);
+    Task<IReadOnlyList<PlayerMessage>> DequeueExpiringAsync(DateTimeOffset asOfUtc, int limit,
+                                                            CancellationToken ct);   // nightly auto-grant job, 28 A6
 }
 public interface IGhostRepository {
     Task UpsertAsync(GhostSnapshot ghost, CancellationToken ct);
@@ -271,7 +278,11 @@ public interface IBattleLogStore {                    // S3-compatible
     Task<ReadOnlyMemory<byte>?> GetAsync(BattleLogId id, CancellationToken ct);
 }
 public interface IUnitOfWork { Task CommitAsync(CancellationToken ct); }
+```
 
+🔒 **The commit rule** (`14` §16.4, ruled in `16` A7): one accepted command = one Postgres transaction containing the aggregate snapshot(s), the idempotency outcome and the appended domain events. `IUnitOfWork` spans exactly that transaction. `IRunStateStore` and the Redis side of `IIdempotencyStore` are rebuildable caches behind it — never a second system of record.
+
+```csharp
 // ---- External services ------------------------------------------------
 public interface IStoreSubscriptionPort {             // Google Play + App Store server APIs
     Task<SubscriptionStatus> VerifyAsync(StoreReceipt receipt, CancellationToken ct);
@@ -314,7 +325,7 @@ public interface IIdGeneratorPort {
 
 ⚠️ **`IClockPort` is never injected into `Core`.** The **composition root** calls it and passes the answer as `GameContext.NowUtc` (`30` §3). A rule that calls a clock is not pure, and a great many rules here are time-dependent — Energy regeneration, 05:00 UTC resets, event windows (`26` §4), guild weeks (`27` §4), PvP seasons, subscription expiry. An architecture test asserts `IClockPort` does not appear in `Core` at all.
 
-Note that game randomness is **not** a port — `DeterministicRng` lives in `Core` and is seeded from server-issued values, because it is part of the rules, not an external dependency.
+Note that game randomness is **not** a port — `DeterministicRng` lives in `Core` and is pure arithmetic: every seed it consumes is either committed run state (`02` §2) or a server-issued `CommandSeed` on meta commands (`30` §3), because it is part of the rules, not an external dependency.
 
 ---
 

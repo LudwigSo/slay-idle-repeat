@@ -66,10 +66,12 @@ Boots, Ring and Amulet are stat-only, no visual.
 
 ### 2.2 Pet progression
 
-**Levelling** — costs **Beast Feed** (from `TILE_CACHE`, daily quests, ad rewards) and Crowns.
+**Levelling** — each level costs **Beast Feed** (from `TILE_CACHE`, daily quests, ad rewards) and **Crowns** (both in `data/tuning/beasts.json`, ruled in `16` A7):
 ```
 BeastFeedCost(level) = 8 * level^1.3
+CrownCost(level)     = 50 * level^1.075     // 📐 50 at level 1→2, ≈4,000 at 59→60 — the `10` §4 endpoints
 ```
+Maxing a pet (level 60) costs ≈ 41,000 Beast Feed and ≈ 114,000 Crowns in total.
 Pet level scales its passive aura linearly: `AuraValue = Base * (1 + 0.035 * (level-1))`.
 
 **Ascension (Stars)** — costs duplicates of the same pet.
@@ -135,10 +137,24 @@ Pity: guaranteed S or better every 30 eggs; guaranteed SS every 150 eggs.
 | Equipped | 1 (slot unlocked at Legend Level 20) |
 | Effect shape | A **stat block** + **one run-level perk** (not a combat ability) |
 | Rarity | A / S / SS |
-| Levels | 1 → 30, via **Beast Feed** |
+| Levels | 1 → 30, via **Beast Feed** — cost formula and level effect in §3.1a |
 | No stars | Mounts do not ascend; duplicates convert to Beast Feed |
 | Crate odds | A 70% · S 26% · SS 4% 📐 |
 | Pity | Guaranteed S+ every **8** crates, SS every **30**, with duplicate protection — `24_LUCK_PROTECTION.md` §4.5 |
+
+#### 3.1a Mount levelling 🔒 (ruled in `16` A7)
+
+Mounts mirror pets. A mount level scales the mount's **stat block**:
+
+```
+StatBlockValue(level) = Base × (1 + 0.035 × (level − 1))     // 🔒 same shape as the pet aura curve
+MountFeedCost(level)  = 24 × level^1.3                       // = the pet Beast Feed formula × 3.0 📐
+                                                             //   (mountFeedScalar, beasts.json)
+```
+
+- The **run perk never scales** with level — it is a fixed effect; only the stat block grows. 📐
+- Mount levelling costs **Beast Feed only** — no Crown component. Pets are the double-currency sink; mounts are the pure Feed sink. 📐
+- Totals: maxing a mount (level 30, ×2.02 stat block) ≈ **24,000 Beast Feed**; maxing a pet (level 60, ×3.07 aura) ≈ 41,000. A mount is the cheaper, shallower investment by design.
 
 ⚠️ Mounts were previously the **only unprotected chase in the game** — 12 mounts, 2,500 Soul Shards per crate, and three SS mounts with run-defining effects. `24` §4.5 closes that.
 

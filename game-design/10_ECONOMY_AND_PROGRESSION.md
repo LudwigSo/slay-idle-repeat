@@ -52,6 +52,8 @@ Soul Shards occupy the slot that would normally be the paid currency. Because th
 | Energy refill (full) | 300, rising +150 per use per day, resets daily |
 | Inventory expansion (+20) | 400 (alternative to Crowns) |
 
+Pet Egg, Mount Crate and S-tier Gear Chest purchases grant **stored containers** onto the unopened shelf (S19 / S16), opened later via `OPEN_EGG` / `OPEN_CRATE` / `OPEN_CHEST` — odds, pity and Focus are read **at open**, not at purchase (`24` §4.0, ruled in `16` A7).
+
 Design target: a daily active player earns **~700–1,100 Soul Shards/day** in mid-game — roughly one Pet Egg a day, or an S-gear chest every other day.
 
 📐 TUNABLE.
@@ -115,9 +117,21 @@ The workhorse soft currency.
 | Merge to B / A / S / SS | 120 / 600 / 3,000 / 15,000 |
 | Pet level-up | 50 → 4,000 escalating |
 | Inventory expansion | 800 → 6,000 escalating |
-| Earned-currency shop rotations | 500–8,000 |
+| Daily-tab offers and staples (§5.1) | 450–2,500 |
 
 Design target: a mid-game player should be **Crown-constrained on merging** but never Crown-starved for pet levelling. Merging is the intended bottleneck because it's the most exciting sink.
+
+**Reconciliation 🔒 (ruled in `16` A7):** the income rows above are the *product* of the authored in-run tables in `03` §7a, not independent numbers. At the mid-game reference point (Chapter 4–5, Heroic, ~2.5 treasure tiles per run) the authored tables produce: run completion ≈ **550–750** Crowns (row band 400–900 ✓) and treasure ≈ **460–620** Crowns (row band 200–600 ✓). Two clarifications to the rows: the `AD_CROWNS` figure of 600 is the **BaseValue anchor** (`12` §5) — the actual grant scales ×(1 + 0.35 × highestChapterCleared); and the two escalating sinks are now authored curves:
+
+```
+Pet level-up Crowns:      CrownCost(level) = 50 × level^1.075        // `07` §2.2 — 50 at level 1→2,
+                                                                     // ≈4,000 at 59→60 (beasts.json)
+Inventory expansion (+20 slots each, k = 1..10):                     // currencies.json 📐
+    800 · 1,000 · 1,250 · 1,560 · 1,950 · 2,440 · 3,050 · 3,810 · 4,770 · 6,000
+    (≈ ×1.25 per step; hard cap 10 purchases = +200 slots)
+```
+
+The flat **400 Soul Shard** alternative (§2) applies at any step — deliberately the better deal from step ~4 on, so the scarcer currency buys convenience, never power.
 
 ---
 
@@ -127,14 +141,52 @@ The shop screen has **four tabs**. Only tab 4 involves real money.
 
 | Tab | Contents | Pays with |
 |---|---|---|
-| **Daily** | 6 rotating offers: gear chests, materials, Beast Feed, one random S-item | Crowns, Soul Shards |
-| **Honor** | PvP-exclusive: Pet Eggs, Mount Crates, gear chests, materials | Honor |
-| **Materials** | Enhance Stones, Merge Dust, Beast Feed at fixed rates | Crowns |
+| **Daily** | **Staples** (always in stock) + **6 rotating offers** (§5.1) | Crowns, Soul Shards |
+| **Honor** | PvP-exclusive: Pet Eggs, Mount Crates, gear chests, materials (`11` §7) | Honor |
+| **Materials** | Enhance Stones, Merge Dust, Beast Feed at fixed rates (§5.2) | Crowns |
 | **Plus** | **Slay Plus** — the only paid product in the game (€4.99/month) | Real money |
 
 The Plus tab contains exactly one item. No bundles, no "best value" badge, no countdown timers, no fake discounts. See `12_MONETIZATION_ADS.md` §2.
 
-A daily ad (`AD_SHOP_REDRAW`) redraws the Daily tab once per day.
+### 5.1 The Daily tab 🔒 (ruled in `16` A7)
+
+**Staples — permanent fixtures, never rotated out** (prices are the §2 sink table's; `21` §7's purchase policy assumes these are always purchasable):
+
+| Staple | Price |
+|---|---|
+| Pet Egg | 900 Soul Shards |
+| Mount Crate | 2,500 Soul Shards |
+| S-tier Gear Chest (`CHEST_PREMIUM`, `24` §4.0a) | 1,800 Soul Shards |
+| Energy refill (full) | 300 Soul Shards, +150 per use per day, resets daily |
+
+**Rotating offers** — 6 per day from the authored pool of 10 below. 📐 All in `data/tuning/currencies.json`. Material amounts scale ×`(1 + 0.35 × highestChapterCleared)` — the ad-bundle scalar from `12` §5. Prices are fixed.
+
+| ID | Offer | Price | Limit |
+|---|---|---|---|
+| `DLY_RANDOM_S` | One random S-rarity gear item (deterministic rarity, random identity; Focus ×2.5 applies; no counter class — `24` §4.0a) | 1,400 Soul Shards | 1/day |
+| `DLY_CHEST_STD` | 1 × gear chest (`CHEST_STANDARD`) | 1,200 Crowns | 1/day |
+| `DLY_CHEST_PREM` | 1 × S-tier Gear Chest (`CHEST_PREMIUM`) | 1,500 Soul Shards | 1/day |
+| `DLY_EGG` | Pet Egg | 750 Soul Shards | 1/day |
+| `DLY_CRATE` | Mount Crate | 2,100 Soul Shards | 1/day |
+| `DLY_STONES` | Enhance Stones ×30 (scaled) | 700 Crowns | 1/day |
+| `DLY_DUST` | Merge Dust ×120 (scaled) | 650 Crowns | 1/day |
+| `DLY_FEED` | Beast Feed ×90 (scaled) | 650 Crowns | 1/day |
+| `DLY_STONE_BULK` | Enhance Stones ×80 (scaled) | 500 Soul Shards | 1/day |
+| `DLY_DUST_BULK` | Merge Dust ×300 (scaled) | 450 Soul Shards | 1/day |
+
+**Draw rule** 📐: `DLY_RANDOM_S` is always among the day's 6; the other 5 are drawn without replacement from the remaining 9, subject to **at most 3 Soul-Shard-priced offers per day** (counting `DLY_RANDOM_S`). The draw is seeded from the day's quest-draw seed (`BEGIN_SESSION`, `14` §2.3). `AD_SHOP_REDRAW` (1/day) redraws the entire 6-offer block, including a fresh `DLY_RANDOM_S` identity. The discounted egg/crate/chest offers exist so a rotation day can feel lucky; the staples above mean nobody ever *waits* to spend.
+
+### 5.2 The Materials tab 🔒 (ruled in `16` A7)
+
+Fixed rates, always available, priced so the tab is the *expensive* certainty against the Daily tab's cheap luck. 📐 The rates are exactly **×10⁄3 of the Honor Shop's per-unit prices** (`11` §7: 7.5 / 1.8 / 2.4 Honor per Stone / Dust / Feed), so the two material shops express one exchange ratio in two currencies:
+
+| Material | Price | Daily cap 📐 |
+|---|---|---|
+| Enhance Stone | 25 Crowns each | 40 |
+| Merge Dust | 6 Crowns each | 250 |
+| Beast Feed | 8 Crowns each | 200 |
+
+The daily caps keep Crowns from becoming a universal material converter — without them, treasury players would liquefy the merge bottleneck (§4) through this tab.
 
 ---
 
@@ -164,10 +216,12 @@ There is **no** level gate on Normal chapters. If a player can beat Chapter 5 at
 
 ## 8. Progression pacing model
 
-The intended power curve, expressed as *time to reach par power for chapter c*:
+🔒 **The canonical pacing curve lives in `29` §6 (`expected_progression.json`), graded by `21` A1: the full ad-watcher clears Chapter 8 Normal on ~day 25–45.** (Ruled in `16` A7.) `01` §7 is the player-facing summary of that same curve. This section describes the *shape* the reward tables produce — where it and `29` §6 disagree, `29` §6 wins.
+
+The raw, pre-catch-up shape, as time for a **free no-ads player** to reach par power for chapter `c`:
 
 ```
-TimeToChapter(c) ≈ 0.55 * 2^(c-1) hours of active play    (free player, no ads)
+TimeToChapter(c) ≈ 0.55 * 2^(c-1) hours of active play    (no catch-up, no ads)
 ```
 
 | Chapter | Cumulative hours | ≈ Days at 1 h/day |
@@ -181,9 +235,9 @@ TimeToChapter(c) ≈ 0.55 * 2^(c-1) hours of active play    (free player, no ads
 | 7 | 35 | 35 |
 | 8 | 70 | 70 |
 
-That final number is too steep for a v1 launch. **Apply a catch-up curve:** rewards from chapters below the player's highest cleared chapter are reduced by 60%, while the *newest* chapter pays a "frontier bonus" of +50%. This compresses the tail to roughly 40–45 days for chapter 8, which matches the target in `01_GAME_OVERVIEW.md` §7.
+Uncorrected, the tail is far too steep: day ~70 for the no-ads player is well outside the canonical bands (ad-watcher 25–45; no-ads 35–55, `01` §7). **A catch-up curve closes the gap:** rewards from chapters below the player's highest cleared chapter are reduced by 60% 📐, while the *newest* chapter pays a "frontier bonus" of +50% 📐. The curve's success criterion is landing both `01` §7 columns — it no longer has an independent day target of its own.
 
-📐 TUNABLE. ⚠️ **NEEDS DETAIL:** the frontier-bonus/catch-up curve is sketched, not specified. It requires the economy simulator (§9) to set correctly.
+📐 TUNABLE. ⚠️ **NEEDS DETAIL:** the frontier-bonus/catch-up curve is sketched, not specified — it cannot be authored by hand, and deriving it is the economy simulator's first job (**O1**, `21` §12).
 
 ---
 

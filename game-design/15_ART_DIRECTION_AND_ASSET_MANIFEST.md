@@ -353,6 +353,8 @@ ID pattern: `chr_enemy_{biome}_{archetype}_{idle|attack}`
 | 15 | `EL_STARSCRIBE` | Astral Spire | *a floating masked scholar surrounded by orbiting glyph tablets* |
 | 16 | `EL_VOIDCALF` | Astral Spire | *a small cosmic beast whose body is a hole full of stars* |
 
+🔒 Combat identity — each elite's base archetype and stat derivation — is authored in `05` §6.2 (ruled in `16` A7). This section owns only the art.
+
 ---
 
 ## E5. Bosses (32)

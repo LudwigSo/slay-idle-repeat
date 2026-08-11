@@ -61,11 +61,13 @@ DropShare(chapter):
 ```
 ItemPower(chapter, rarity) = ChapterPowerTarget(chapter) * 0.10 * RarityMult(rarity)
 
-PrimaryStat  = ItemPower * SlotPrimaryCoef * RandRange(0.90, 1.10)
-SecondaryStat= ItemPower * SlotSecondaryCoef * RandRange(0.85, 1.15)
+q ~ Uniform(0, 1)          // ONE quality scalar per item instance, rolled at generation 📐
+
+PrimaryStat   = ItemPower * SlotPrimaryCoef   * (0.90 + 0.20 * q)
+SecondaryStat = ItemPower * SlotSecondaryCoef * (0.85 + 0.30 * q)
 ```
 
-The `RandRange` roll is the item's **quality roll**, displayed to the player as a 0–100% quality bar. Two S-rarity Blades are not identical, and the player can see why. This is a cheap, high-value source of loot excitement.
+Quality is **one scalar** `q ∈ [0, 1]`, stored on the instance (§7) — there are no independent per-stat rolls (ruled in `16` A7). The UI quality bar displays `q` directly as 0–100%; Reforge (`24` §6.1) re-rolls `q`, keep-best. Two S-rarity Blades are not identical, and the player can see why — a cheap, high-value source of loot excitement, now computable from one number. The ranges are deliberately asymmetric: the primary spans ×0.90–1.10, the secondary ×0.85–1.15, so high-`q` items lean hardest into their secondary stat.
 
 ### 3.0a Slot coefficients 🔒
 
@@ -80,7 +82,7 @@ Previously unspecified. Two kinds of stat: **flat stats** scale with `ItemPower`
 | Ring | Crit Chance (%) | see % table | Armor Pen (%) | see % table |
 | Amulet | Max HP (flat) | 0.45 | Lifesteal (%) | see % table |
 
-Percent-stat values by rarity (quality roll still applies as ±10%):
+Percent-stat values by rarity. Quality still applies, via the §3 multipliers: a percent stat in the **primary** position takes ×(0.90 + 0.20 q), in the **secondary** position ×(0.85 + 0.30 q):
 
 | Percent stat | C | B | A | S | SS |
 |---|---|---|---|---|---|
@@ -140,7 +142,8 @@ Because a set maps to a family axis, a full 6-piece set is also a full commitmen
 3 × [same item, same rarity, same enhancement level]  →  1 × [same item, next rarity]
 ```
 
-- The output inherits the **best quality roll** of the three inputs.
+- The output's quality is the **highest `q` of its inputs** (§3). A Merge-Dust-substituted slot does not count — the max is taken over the real item inputs.
+- The output's `chapterOrigin` is the **max `chapterOrigin` of its inputs** (real inputs only), and the output **keeps the shared enhance level** the input rule above already requires. (Ruled in `16` A7 — without the max rule, `ItemPower`'s per-chapter doubling let identical-looking merges legally differ by up to ×16.)
 - The output re-rolls affixes at the new rarity's affix count.
 - Merging is available from Common → Mythic.
 - **Merge Dust** (from salvage) can substitute for **one** of the three inputs at a cost that scales with rarity.
@@ -221,7 +224,7 @@ StoneRefund = 60% of stones invested
 Design target: a mid-game player should see **20–35 items per hour of play**, of which 2–5 are meaningful upgrades or merge fodder. High volume, aggressive auto-salvage, occasional real excitement.
 
 🔒 **All gear acquisition routes through `LuckService`** and obeys `24_LUCK_PROTECTION.md`:
-- Chests belong to `CHEST_STANDARD` / `CHEST_PREMIUM` / `CHEST_APEX` and carry the ten-chest rarity ladder (§4.1–4.2).
+- Chests are **stored containers**, opened by explicit command with contents, pity and Focus resolved at open (§4.0–4.0a); they belong to `CHEST_STANDARD` / `CHEST_PREMIUM` / `CHEST_APEX` and carry the ten-chest rarity ladder (§4.1–4.2).
 - In-run drops belong to `DROP_RUN` and carry Elite mercy, boss mercy and the session floor (§4.3).
 - The **Focus** system (§5) biases *which item* a grant produces toward one player-chosen `(slot, family)`, at `×2.5` weight, free and unlimited.
 - **Set Tokens** (§5.1) make the 6-piece SS set a deterministic chase: 12 tokens buy any SS item outright.
@@ -251,5 +254,7 @@ Without those, the SS set bonuses in §3.2 are a wall made entirely of luck — 
   "locked": false
 }
 ```
+
+`quality` stores the scalar `q` of §3: the example's `0.87` reads as an 87% quality bar and multipliers ×1.074 primary / ×1.111 secondary. (Ruled in `16` A7 — earlier drafts rolled two independent per-stat ranges that this single stored scalar could not represent.)
 
 Computed stats are **never** stored — they are derived from `defId + rarity + chapterOrigin + quality + enhanceLevel + affixes` at load time. This keeps saves small and lets balance patches re-tune existing items.

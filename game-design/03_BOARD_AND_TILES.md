@@ -20,10 +20,27 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 - Each stage is a linear spine with **1–2 forks**. A fork branch is 2–4 nodes long and rejoins the spine.
 - Forks are the board's main *decision*: each branch is labelled with a preview icon set (e.g. "⚔⚔💰" vs "🎲🛡❓") so the player chooses a risk profile, not a coin flip.
 - Movement is always forward. There is no backtracking.
+- Movement resolution — the virtual start, junction pauses, Chain hops, Portal jumps and the linear node index — is specified in §1.1, which is the single authority; `02` §3 and `04` defer to it.
 - If a die roll would move the player past the last node of a stage, the player stops on the last node and the Stage Gate fires. (No overshoot waste — overshoot punishment feels bad on a die-driven board.)
 - The boss node is always reached exactly; the final roll before it is clamped.
 
 📐 TUNABLE: nodes per stage, fork count, fork length.
+
+### 1.1 Movement resolution 🔒 (ruled in `16` A7)
+
+**Start position.** The hero begins every run at a virtual **trailhead** one step before node 0 (position −1). The trailhead is not a tile: nothing resolves there, and the token is drawn at the head of the track. A first roll of `1` therefore lands on node 0.
+
+**Stepwise traversal.** All forward movement — Pip results, `Star` choices, the fixed moves on `Surge` / `Fortune` / `Chain`, and Portal jumps — traverses the graph **one edge at a time**. Passed-over nodes never resolve; only the landing node resolves.
+
+**Junction pause.** A junction is a node with two outgoing edges (the spine continuation and a branch entry). Whenever movement must **leave** a junction — whether the move started there or reached it mid-move — movement pauses and the run waits for `CHOOSE_FORK` (`14` §2.3), with the branch previews of §3.1 shown. The remaining movement then continues along the chosen edge. Landing exactly on a junction with zero movement left does not prompt; the choice happens when the next movement leaves it. Fork choice is **always free and always explicit** — there is no "landed segment" condition, and no perk, face or item is required to choose a branch.
+
+**Stage-end clamp.** A move that would carry past the last node of a stage stops **on** that node; the tile resolves, then the Stage Gate fires (`02` §1.2). The boss node is always reached **exactly**: any roll taken from stage 3's last node moves exactly one step onto the boss node — this is the "final roll before it is clamped" rule, made precise.
+
+**Chain (`⛓`).** A Chain hop is: move 2 (junction pauses apply), **resolve the landing tile in full** — battle, draft, shop, everything — then the next chained roll fires automatically, up to the chain cap (`04` §1; perks may raise it). The **stage-gate clamp ends the chain**: a hop that lands on a stage's last node resolves that tile, fires the Stage Gate, and the chain stops — no further chained roll. Landing on the boss node likewise ends the chain.
+
+**Portal (`TILE_PORTAL`).** Resolving a Portal draws its jump distance **uniformly from 3–6**, seeded from the run's `board` stream (`14` §8.1) — never chosen by the player, never rolled client-side. The jump is stepwise traversal like any move: junctions inside the jump still pause for `CHOOSE_FORK`, and passed nodes do not resolve. Clamps: the jump obeys the **stage-end clamp** above, and in stage 3 it additionally never carries past the guaranteed pre-boss campfire (§3 step 1) — a draw that would pass it lands **on** the campfire instead. The generous reading is deliberate: a portal that skips the one guaranteed heal before the boss would be a trap wearing a gift's colours. Consequence: a Portal can never reach the boss node — the boss is entered only by a die move, under the reached-exactly rule. 📐 TUNABLE: the 3–6 range.
+
+**Linear node index.** `EnemyPower(i)` (`02` §4.3) takes a per-node index `i`, fixed at generation. Spine nodes are numbered `0..41` in walk order across the three stages (12 + 14 + 16); the boss node is `42`. A **branch node's index equals the index of the spine node at the same forward distance from the junction**: the k-th node of a branch leaving the spine at node `j` has `i = i(j) + k`. Branches rejoin at `j + branchLen` (§3 step 4), so the parallel spine node always exists. Branch and spine therefore pay identical `EnemyPower` at equal forward progress — a fork is a risk-profile choice, never a power discount. The rule is structural and survives any change to board lengths.
 
 ---
 
@@ -34,15 +51,15 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 | `TILE_ENEMY` | Enemy | ⚔ | Very high | Auto-battle vs a standard enemy. Win → Gold, Legend XP, **perk draft**. |
 | `TILE_ELITE` | Elite | ☠ | Low | Auto-battle vs an Elite (2.2× power, unique modifier). Win → Gold, XP, **guaranteed gear drop**, perk draft from an upgraded pool. |
 | `TILE_BOSS` | Boss | ★ | Fixed (1/run) | Chapter boss. Multi-phase. Win → run victory. |
-| `TILE_SHRINE` | Shrine (Buff) | ✨ | Medium | Choose 1 of 2 permanent-for-this-run stat buffs (e.g. +12% ATK, or +18% Max HP and heal that amount). |
+| `TILE_SHRINE` | Shrine (Buff) | ✨ | Medium | Choose 1 of 2 permanent-for-this-run buffs from the authored pool in §7a.5. When the player carries a cleansable curse, a **Cleanse** offer always replaces the second option (§7a.5). |
 | `TILE_CURSE` | Cursed Ground | 💀 | Medium | Forced debuff, but pays. E.g. "−15% DEF for the rest of the run, +300 Gold". Some curses can be cleansed at a Shrine or by an ad (`AD_SKIP_CURSE`). |
-| `TILE_TREASURE` | Treasure | 🎁 | Medium | Instant meta-currency: Crowns, Enhance Stones, Merge Dust. Ad-doubleable (`AD_DOUBLE_CHEST`). |
+| `TILE_TREASURE` | Treasure | 🎁 | Medium | Meta-currency: Crowns, Enhance Stones, Merge Dust — payout table §7a.3. Revealed on landing, banked at run end like all meta rewards (§7a). Ad-doubleable (`AD_DOUBLE_CHEST`). |
 | `TILE_SHOP` | Shop | 🏪 | Guaranteed ≥1 per stage | 4 offers for Gold: a perk, a consumable, a stat buff, a heal. One refresh free, more via ad. |
 | `TILE_CAMPFIRE` | Campfire | 🔥 | Guaranteed 1 before boss | Choose: heal 40% Max HP · upgrade one owned perk to its next tier · gain 2 Reroll Charges. |
 | `TILE_MINIGAME` | Minigame | 🎯 | Medium | One of 4 minigames (§6). Skill/luck for a reward. |
 | `TILE_EVENT` | Event | ❓ | Medium | A text choice card with 2–3 options and uncertain outcomes. |
-| `TILE_PORTAL` | Portal | 🌀 | Low | Jump forward 3–6 nodes, skipping their content. Good when low on HP, bad for greed. |
-| `TILE_CACHE` | Beast Cache | 🐾 | Low | Beast Feed or (rarely) a Pet Egg. |
+| `TILE_PORTAL` | Portal | 🌀 | Low | Jump forward a seeded 3–6 node draw (§1.1), skipping the passed content. Good when low on HP, bad for greed. |
+| `TILE_CACHE` | Beast Cache | 🐾 | Low | Beast Feed, or (6% 📐) a Pet Egg — payout table §7a.4. |
 | `TILE_DICE_FORGE` | Dice Forge | 🎲 | Low | Temporarily upgrade one die face for the rest of the run (e.g. turn a `1` into a `4`, or into a `★`). |
 | `TILE_EMPTY` | Waypoint | ・ | Filler | Nothing. Used as spacing so the board breathes and rolls feel varied. |
 
@@ -63,6 +80,8 @@ Later chapters shift weight from `TILE_EMPTY` toward `TILE_ELITE` and `TILE_CURS
 ---
 
 ## 3. Generation algorithm
+
+🔒 **Authored boards** (ruled in `16` A7): when the active content package supplies a fixed layout (`board.layout` — a node list in walk order, with fork structure if any), `GenerateBoard` is **bypassed** and the layout is used verbatim. The generator's mandatory-tile placement and constraints C1–C7 do **not** apply to an authored layout — the author is responsible for it, and the content schema validator checks it structurally instead (valid tile IDs, exactly one boss/mini-boss node in final position, walkability of any forced roll sequence shipped with it). The FTUE (`ftue.json`, `19` Part D) is the first authored board; Resource Dungeons continue to use `GenerateBoard` with a dungeon profile (`25` §3).
 
 ```
 GenerateBoard(chapter, tier, seed):
@@ -91,7 +110,11 @@ GenerateBoard(chapter, tier, seed):
         //  C3: at least 1 healing opportunity (SHRINE/CAMPFIRE/SHOP) per 8 nodes
         //  C4: TILE_PORTAL never in the last 4 nodes of a stage
         //  C5: TILE_CURSE never immediately before TILE_ELITE or TILE_BOSS
-        //  C6: first node of stage 1 is always TILE_ENEMY (teach combat immediately)
+        //  C6: first node of stage 1 is always TILE_ENEMY. The hero starts at the
+        //      trailhead BEFORE node 0 (§1.1), so the earliest possible landing —
+        //      a first roll of 1 — is always a fight, and the run's opening beat
+        //      is combat whenever the die allows it. The FTUE forces its first
+        //      roll to 1 for exactly this reason (19 Part D3).
         //  C7: every run contains >= 2 TILE_TREASURE and >= 1 TILE_CACHE across all
         //      three stages. If the weighted draw did not produce them, inject them
         //      by replacing TILE_EMPTY tiles (or, failing that, TILE_ENEMY tiles) at
@@ -101,7 +124,9 @@ GenerateBoard(chapter, tier, seed):
         forkCount = rng.Range(1, 2)
         for each fork:
             pick a spine index in [4 .. spineLength-4] not occupied by SHOP/CAMPFIRE
-            branchLen = rng.Range(2, 4)
+            branchLen = rng.Range(2, min(4, spineLength - 1 - spineIndex))
+            // clamped so the rejoin node spineIndex + branchLen always exists
+            // on the spine (≤ spineLength-1) — required by the §1.1 branch-index rule
             generate branch nodes with a *biased* weight table:
                 one branch biased to combat+reward ("Perilous")
                 the other biased to utility+safety ("Sheltered")
@@ -130,7 +155,7 @@ The preview must be honest — it lists real contents. Deception here would pois
 
 ## 4. Chapter definitions (8)
 
-Each chapter is a data file. Fields: `id`, `displayName`, `biomeArtSet`, `powerTarget`, `stageLengths`, `tileWeights[3]`, `eliteCount[3]`, `enemyPool`, `elitePool`, `bossId`, `lootTable`, `musicId`, `paletteId`, `unlockCondition`.
+Each chapter is a data file. Fields: `id`, `displayName`, `biomeArtSet`, `powerTarget`, `stageLengths`, `tileWeights[3]`, `eliteCount[3]`, `enemyPool`, `elitePool`, `bossId`, `lootTable`, `musicId`, `paletteId`, `unlockCondition`. `enemyPool` / `elitePool` composition for all 8 chapters is authored in `05` §6.4 and §6.2 (ruled in `16` A7).
 
 | # | Chapter | Biome | Theme keywords (for art) | Boss | Signature mechanic |
 |---|---|---|---|---|---|
@@ -240,18 +265,150 @@ The shop offers exactly **4 slots**, drawn from separate pools so the offer is a
 | Slot | Pool |
 |---|---|
 | 1 | A **Perk** (rarity-weighted, priced by rarity) |
-| 2 | A **Consumable** (Health Draught, Reroll Token, Draft Token, Escape Rope) |
+| 2 | A **Consumable** (§7.1: Health Draught, Reroll Token, Draft Token, Escape Rope) |
 | 3 | A **Run Buff** (flat +ATK / +HP / +Crit for the rest of the run) |
 | 4 | A **Heal** (restore 35% Max HP), always available, price scales with stage |
 
-Pricing:
+Pricing 🔒 (ruled in `16` A7 — all values 📐, in `data/tuning/currencies.json`):
+
 ```
 Price = BasePrice(itemType, rarity) * (1 + 0.25 * stageIndex) * chapterPriceScalar
+
+stageIndex          = 0 / 1 / 2 for Stage 1 / 2 / 3   (stage 1 pays base price)
+chapterPriceScalar  = 1.55^(c-1)                       // the same growth as Gold income (§7a.1),
+                                                       // so affordability is chapter-invariant
 ```
+
+| Chapter | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| `chapterPriceScalar` 📐 | 1.00 | 1.55 | 2.40 | 3.72 | 5.77 | 8.95 | 13.86 | 21.50 |
+
+**`BasePrice(itemType, rarity)`** 📐 — all four slot types:
+
+| Slot | Item | BasePrice |
+|---|---|---|
+| 1 — Perk | Common / Rare / Epic / Legendary | 180 / 320 / 560 / 950 |
+| 2 — Consumable | Health Draught (heals 30% Max HP, board-use — `16` A7) | 140 |
+| | Reroll Token (+1 Reroll Charge on purchase) | 120 |
+| | Draft Token (+1 free perk-draft reroll on purchase — §7.1) | 160 |
+| | Escape Rope (skips the next tile) | 100 |
+| 3 — Run Buff | see the magnitude table below | 300 / 300 / 280 |
+| 4 — Heal | Restore 35% Max HP (always offered) | 150 |
+
+**Run Buffs** 📐 — flat, permanent for this run, applied as `FlatAdd` in the `05` §1.1 aggregation. Flat amounts double per chapter so they track the ×2 chapter power curve; the Crit buff feeds a capped stat and does not scale:
+
+| Run Buff | Magnitude (chapter c) | BasePrice |
+|---|---|---|
+| Whetstone | +`12 × 2^(c-1)` ATK | 300 |
+| Heartroot Tonic | +`90 × 2^(c-1)` Max HP | 300 |
+| Hawk's Eye | +4% Crit Chance (flat points, chapter-invariant) | 280 |
+
+**Tier rule** 🔒: Gold income (§7a.1) and shop prices are both **tier-invariant** — the `02` §4.2 Reward × multiplier (Heroic ×2.5, Mythic ×6.0) applies to *banked meta rewards* (Crowns, Stones, Dust, Feed, Soul Shards, XP per `02` §5.1a), never to run-local Gold or to prices. A Heroic shop is neither cheaper nor richer, only the run around it pays more.
+
+The FTUE's beat-5 tutorial shop does **not** use this formula — it has one authored price row in `ftue.json` (`19` Part D).
 
 Refresh: **1 free refresh per shop visit**, then `AD_SHOP_REFRESH` (2/run), then unavailable.
 
 Gold is run-local, so the design intent is that a player should end a run with near-zero Gold. If telemetry shows median leftover Gold > 20% of Gold earned, prices are too high.
+
+### 7.1 Consumables 🔒 (ruled in `16` A7)
+
+Consumables are **run-scoped and board-use only**. They are sold at Shop tiles (slot 2) and occasionally granted by events (`19` Part A — `EVT_SPRING`). Nothing survives run end, and nothing is ever usable during combat — D3's "zero inputs during a fight" stands untouched. Use is the `USE_CONSUMABLE` command (payload in `14` §2.3), legal **only in the `AWAIT_ROLL` state** — never while moving, never during a prompt, never in battle.
+
+| ID | Name | On purchase | Effect |
+|---|---|---|---|
+| `CON_HEALTH_DRAUGHT` | Health Draught | Held | Use on the board: heal **30% Max HP** 📐. Disabled at full HP — a draught can never be wasted by a mis-tap. |
+| `CON_REROLL_TOKEN` | Reroll Token | **Instant: +1 Reroll Charge** (`04` §3) | Never held. The shop slot greys out when charges are at the max stored (5) — the grant can never be wasted. |
+| `CON_DRAFT_TOKEN` | Draft Token | **Instant: +1 free perk-draft reroll** (`06` §1) | Never held. Greys out when free draft rerolls are at their cap (3). |
+| `CON_ESCAPE_ROPE` | Escape Rope | Held | Use on the board: **arms** the rope. The next tile the hero lands on is **skipped**: it is marked resolved, its content does not run, it pays nothing, and landing-triggered board hazards (Ch. 4 Burning tiles, §4.1) do not fire. The rope is consumed when it fires. |
+
+Rules:
+
+- **Held cap: 4** 📐, counted across all held consumables (Draughts + Ropes). Only Draughts and Ropes are ever actually held — the two tokens convert to their charge at the till. A purchase or event grant that would exceed the cap is unavailable (the shop slot greys out); an event grant clamps to what fits (`EVT_SPRING`'s ×2 grants one if only one fits).
+- Only **one** rope may be armed at a time. An armed rope persists across rolls until it fires.
+- The rope never skips `TILE_BOSS`: if the next landing is the boss node, the boss resolves normally and the rope simply never fires. The **Stage Gate is positional, not tile content**: landing on a stage's last node with a rope armed skips that tile's content, but the gate (heal, refresh, checkpoint — `02` §1.2) still fires.
+- A `Fortune` face's double-pay does nothing on a skipped tile — a skipped tile pays nothing. A `Chain` hop that lands while a rope is armed skips that hop's tile and the chain continues (§1.1).
+- Prices come from the consumable rows of `BasePrice(itemType, rarity)` in `currencies.json` through the §7 price formula.
+- The HUD home is the S05 consumable pouch (`13` §3). Held consumables and the armed-rope flag are run state (`30` §4).
+
+📐 TUNABLE: the heal percent, the held cap.
+
+---
+
+## 7a. In-run income tables 🔒 (ruled in `16` A7)
+
+The single source of truth for every in-run payout. All values 📐 TUNABLE, in `data/tuning/currencies.json`; `02` §5.1 and `10` §4 point here. Two chapter scalars, both formula-shaped like `BaseXp(c) = 25 × 1.55^(c-1)` (`02` §5.1a):
+
+```
+G(c) = 1.55^(c-1)     // Gold — matches XP and shop-price growth exactly
+M(c) = 1.35^(c-1)     // in-run meta currency (Crowns, Stones, Dust, Feed) — deliberately
+                      // slower than the ×2/chapter power curve, so material income never
+                      // outruns the merge bottleneck (`10` §4)
+```
+
+Rounding: all computed payouts round to the nearest integer. Tier: Gold is tier-invariant (§7 tier rule); meta-currency payouts are banked rewards and take the `02` §4.2 Reward × multiplier and the `02` §5.2 CompletionMultiplier.
+
+### 7a.1 Gold per kill 📐
+
+```
+GoldPerKill(c) = 40 × G(c)        // normal enemy
+Elite   ×3
+Boss    ×10
+```
+
+No Gold is paid for run victory — Gold is wiped at run end (`02` §5.1) and never appears in the run-end payout or the `AD_DOUBLE_RUN_REWARDS` doubling. Supplementary Gold comes from minigames (§6.1, which scale on their own locked curve), events, curse pairings and `MNT_PACKMULE`.
+
+Sanity check (Chapter 1): ~15 normals (600) + 4 elites (480) + boss (400) + ~2 minigames (~500) + curse/event drift (~300) ≈ **2,300 Gold per run**, against ~1,500–2,000 of shop spending at §7 prices — landing the "end a run near zero Gold" target in §7.
+
+### 7a.2 Run-completion Crowns 📐
+
+```
+RunCrowns(c) = 90 × M(c)          // banked at run end like every meta reward; takes
+                                  // CompletionMultiplier (Victory 1.00, Stage-3 death 0.60,
+                                  // per `02` §5.2) and Reward ×
+```
+
+This is the income the `10` §4 row "Run completion" refers to; it had no defined source before this ruling.
+
+### 7a.3 `TILE_TREASURE` payout table 📐
+
+Each treasure tile rolls one payout profile (seeded, stream `"treasure"`):
+
+| Weight | Profile | Crowns | Enhance Stones | Merge Dust |
+|---|---|---|---|---|
+| 55 | Coin hoard | `40 × M(c)` | `2 × M(c)` | — |
+| 30 | Stone cache | `18 × M(c)` | `6 × M(c)` | — |
+| 15 | Dust trove | `15 × M(c)` | — | `10 × M(c)` |
+
+Expected value per tile ≈ `30 × M(c)` Crowns, `3 × M(c)` Stones, `1.5 × M(c)` Dust. Every run contains 2–3 treasure tiles (constraint C7 guarantees ≥ 2). `AD_DOUBLE_CHEST` doubles the rolled profile. Treasure tiles never drop gear in v1 — `24` §3's `DROP_RUN` listing of "`TILE_TREASURE` gear" covers event-granted gear routed through treasure presentation, not this table.
+
+### 7a.4 `TILE_CACHE` payout table 📐
+
+```
+CacheFeed(c)   = 25 × M(c)        // Beast Feed
+EggChance      = 6%               // base Pet Egg rate, flat across chapters
+```
+
+On an egg hit the cache pays **one Pet Egg instead of the Feed** (granted unopened, `24` §4). The 6% base rate is what makes the `EGG_PET` pity arithmetic in `24` §4.4 meaningful: at ~8 runs/day and ≥1 cache per run (C7), caches alone contribute ~0.6 eggs/day — the 30-egg S guarantee is reachable from play, not only from the shop and the daily ad egg.
+
+### 7a.5 Shrine buff pool 📐
+
+A shrine offers **2 distinct options** drawn seeded (stream `"shrine"`, equal weights) from this pool of 10. The same buff may appear again at a later shrine and **stacks additively**. All buffs are permanent for this run and enter the `05` §1.1 aggregation as `PctAdd` (except the pure heal).
+
+| ID | Buff | Magnitude |
+|---|---|---|
+| `SHR_ATK` | Sharpened Resolve | +12% ATK |
+| `SHR_HP` | Oakheart | +18% Max HP, and immediately heal 18% Max HP |
+| `SHR_ASPD` | Quickened Pulse | +10% Attack Speed |
+| `SHR_CRIT` | Hunter's Omen | +8% Crit Chance |
+| `SHR_DEF` | Stoneskin | +20% DEF |
+| `SHR_LS` | Red Thirst | +6% Lifesteal |
+| `SHR_DR` | Warding Light | +6% Damage Reduction |
+| `SHR_THORN` | Bramble Pact | +25% Thorns |
+| `SHR_GOLD` | Gilded Tongue | +15% Gold from all sources this run |
+| `SHR_HEAL` | Spring of Mercy | Heal 40% Max HP now (no permanent buff) |
+
+**Cleanse rule** 🔒 (replaces the unconditioned "may" in `19` Part E): if the player has **at least one active cleansable curse** when the shrine resolves, option slot 2 is **always** a Cleanse — *remove one cleansable curse of the player's choice; any reward it paid is kept*. Slot 1 remains a pool draw, so the player always chooses between relief and greed. With no active cleansable curse a shrine never offers Cleanse. `MNT_TIDECALLER`'s second use redraws both slots (and re-applies this rule).
 
 ---
 

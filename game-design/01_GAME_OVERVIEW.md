@@ -123,20 +123,22 @@ The emotional arc the design chases, in order:
 
 ## 7. Estimated progression pacing
 
-Design target for a **free player who does not watch ads**:
+🔒 **The canonical pacing curve is `29` §6 / simulator assertion `21` A1, and its reference player is the full ad-watcher** (`AllAds_Core` — identical to a Slay Plus subscriber by the fairness contract, `12` §1): **Chapter 8 Normal falls on ~day 25–45.** (Ruled in `16` A7; this section previously anchored on the no-ads player and disagreed with the grading tool — the table below is the player-facing summary of the same curve the simulator enforces.)
 
-| Milestone | Target time-to-reach |
-|---|---|
-| Clear Chapter 1 Normal | 15 minutes (first session) |
-| Unlock PvP (Legend Level 10) | Day 1, ~45 min |
-| Clear Chapter 4 Normal | Day 4–6 |
-| First S-rarity weapon | Day 8–12 |
-| Clear Chapter 8 Normal (content complete) | Day 25–35 |
-| Clear Chapter 8 Mythic (mastery) | Day 90+ |
+| Milestone | Ad-watcher / Plus | Free player, no ads |
+|---|---|---|
+| Clear Chapter 1 Normal | ~15 minutes (first session) | ~15 minutes |
+| Unlock PvP (Legend Level 10) | Day 1, ~45 min | Day 1 |
+| Clear Chapter 4 Normal | Day 5–7 | Day 7–10 |
+| First S-rarity weapon | Day 6–9 | Day 8–12 |
+| Clear Chapter 8 Normal (content complete) | **Day 25–45** 🔒 | Day 35–55 |
+| Clear Chapter 8 Mythic (mastery) | ~Day 150+ | ~Day 180+ |
 
-A player who watches most available ads should reach these ~40–50% faster. A Slay Plus subscriber reaches them at the same rate as a full-ad-watcher, without the ads. **The ad-watcher and the payer must land on the same curve — that is the fairness contract.** See `12_MONETIZATION_ADS.md` §1.
+The no-ads column is derived from the canonical curve through the fairness gap: a no-ads player is never more than 45% behind the ad-watcher in power at day 30 (`12` §1, assertion A3), which works out to roughly 1.3–1.5× the time per milestone. **The ad-watcher and the payer land on the same curve — that is the fairness contract.** See `12_MONETIZATION_ADS.md` §1.
 
-⚠️ **UNVALIDATED:** These pacing targets are estimates derived from genre norms, not from a simulated economy. The simulator that will validate them is fully specified in `21_ECONOMY_SIMULATOR_SPEC.md` and must be built and run before any of these numbers is treated as real. Expect several of them to move.
+The Mythic row is the honest consequence of the canonical checkpoints (`29` §6), not a separate target: it is the end-of-content wall recorded as `16` R8, and the catch-up/frontier curve (**O1**, `10` §8) is the lever expected to pull it in.
+
+⚠️ **UNVALIDATED:** these bands restate `expected_progression.json` (`29` §6), which is authored intent. The economy simulator (`21`) grades the game against them (assertions A1, A14) and must run before any band is treated as real. Expect several to move — and when they do, the change is made in `29` §6 first and summarised here, never the other way around.
 
 ## 8. Success criteria (what "done" means for v1)
 

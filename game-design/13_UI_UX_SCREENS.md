@@ -65,6 +65,9 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 | S03 Home | Energy readout becomes `138/200 (+200)` with a desaturated Reserve segment behind the main bar | `28` Part C |
 | S24 Codex | Gains a **Feats** sibling tab — collection and action, side by side | `28` Part D |
 | S27 Profile | Renown total beside Legend Level; account link status | `28` Part D |
+| S16 Inventory | **Unopened shelf**: gear chests as stored containers — class, live pity counter, OPEN / OPEN ALL | `24` §4.0 |
+| S19 Menagerie | **Unopened shelf**: Pet Eggs and Mount Crates as stored containers — class, live pity counter, OPEN | `24` §4.0 |
+| S05 Board | Consumable pouch in the HUD: held Draughts/Ropes, USE on the board only, armed-rope indicator | `03` §7.1 |
 
 ---
 
@@ -103,7 +106,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 ```
 ┌─────────────────────────────────────┐
 │ ❤ 4,120/5,600 ▓▓▓▓▓▓▓░░  Stage 2/3  │  ← HP bar, stage pips
-│ 💰 1,340   🎲 rerolls ●●○   [≡ perks]│
+│ 💰 1,340  🎲 ●●○  [🧪 2]   [≡ perks] │  ← gold, rerolls, consumable pouch, perks
 ├─────────────────────────────────────┤
 │                                     │
 │         ・  ⚔  ✨                    │  ← upcoming tiles (scroll up to preview)
@@ -128,6 +131,7 @@ Rules:
 - The roll button is the largest interactive element on screen and sits in the bottom-third thumb zone.
 - The perks button `[≡ perks]` opens a scrollable list of everything drafted this run with current tiers. It must be reachable at all times; a player must never lose track of their build.
 - The die panel (S12) is opened by long-pressing the roll button.
+- **The consumable pouch** sits in the top HUD row beside the reroll pips: a compact `[🧪 n]` button showing the held count (cap 4 — `03` §7.1). Tapping it fans out the held items (Health Draughts, Escape Ropes) as mini-cards with a one-line effect and a USE button each. USE is enabled only in `AWAIT_ROLL` and never during battle (D3); the Draught's USE is additionally disabled at full HP. An **armed Escape Rope** shows as a small rope icon hovering over the hero token until it fires. When empty, the pouch renders at 40% opacity but stays visible — the affordance must be learnable before the first purchase. `03` §7.1 owns the designs.
 
 ---
 

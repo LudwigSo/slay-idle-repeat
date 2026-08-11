@@ -88,13 +88,19 @@ On the Chapter Select screen the player picks:
 2. **Difficulty Tier** (Normal always; Heroic unlocked by clearing Normal; Mythic by clearing Heroic **and** reaching Legend Level 60 — see `10` §7)
 3. Confirms their **Loadout**: equipped gear (6 slots), equipped pets (up to 3), equipped mount (1). Loadout is changed on the Hero screen, not here.
 
-The run then generates a **Run Seed**:
+The run then generates a **Run Seed** — computed *inside* `GameRules.Apply` when it handles `START_RUN`, deterministically, from values already on the command, the state and the context (ruled in `16` A7):
 
 ```
 runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)
+
+  utcUnixSeconds = floor(GameContext.NowUtc as Unix seconds)
+  runCounter     = the player's lifetime runs-started counter, incremented by every
+                   START_RUN — so two runs begun in the same second still differ
 ```
 
-The seed is stored in run state. All board generation, drop rolls, draft rolls and battle simulation derive from child streams of this seed (see `14_TECHNICAL_ARCHITECTURE.md` §8.1). This makes runs reproducible for bug reports and makes anti-cheat validation possible.
+`Hash64` is the project's one pinned hash — **xxHash64** over a canonical byte encoding, defined normatively in `14` §8.0. The same function then derives every random draw in the run: draw `i` of stream `s` is `Hash64(runSeed, s, i)`, and the per-stream **draw counters** are persisted as authoritative run state (`14` §8.1). This makes runs reproducible for bug reports and makes anti-cheat validation possible.
+
+🔒 The `runSeed` is server-side state and is **never sent to the client**. A client that held it could read tomorrow's draft options and drops — an information cheat even though outcomes are unspoofable. The client receives outcomes, the stream counters, and per-battle `battleSeed`s (`14` §8.1).
 
 **Anti-reroll rule:** the seed is committed *before* the board is shown. The player cannot abandon and re-enter to fish for a better board without paying the Energy cost again.
 
@@ -109,7 +115,7 @@ One "turn" = one die roll and its full resolution.
 | 1. Roll | 0.8 s | Tap the die (or tap-and-hold to see face preview) |
 | 2. Reroll decision | up to 4 s, skippable | Optional tap. Costs 1 Reroll Charge. Ad-reroll available (2/run). |
 | 3. Movement | 0.25 s × pips | None (auto). Tap to speed up. |
-| 4. Fork choice | up to 6 s | If the landed segment has a fork, choose branch. |
+| 4. Fork choice | up to 6 s per junction | Whenever the move reaches a junction, movement pauses for `CHOOSE_FORK`; remaining pips continue down the chosen branch. May occur mid-move, more than once per move. `03` §1.1 is the authority. |
 | 5. Tile resolution | 2 s – 40 s | Depends on tile type |
 | 6. Perk draft | up to 15 s | Choose 1 of 3. Reroll available. |
 
@@ -150,7 +156,7 @@ ChapterPowerTarget(c) = 1000 * 2.0^(c-1)      // c = 1..8
 
 ### 4.3 In-run ramp
 
-Within a run, enemy power ramps with tile index `i` (0-based, across the whole board):
+Within a run, enemy power ramps with the node's linear index `i` (0-based, across the whole board; a branch node takes the spine-parallel index defined in `03` §1.1, so a fork is never a power discount — ruled in `16` A7):
 
 ```
 EnemyPower(i) = ChapterPowerTarget(c) * TierMult(t) * (1 + 0.035 * i) * StageMult(s)
@@ -194,6 +200,8 @@ Both `EffectiveHP` and `DPS` are evaluated against a **fixed reference opponent*
 | Treasure tile | Crowns, Enhance Stones, Merge Dust |
 | Minigame tile | Variable: Gold, Crowns, Beast Feed, or a perk |
 | Event tile | Variable, sometimes a choice with a cost |
+
+🔒 All in-run payout amounts — Gold per kill, run-completion Crowns, treasure, cache (including the base Pet Egg rate) and shrine buffs — are authored in **`03` §7a** (single source of truth, `data/tuning/currencies.json`; ruled in `16` A7). Legend XP amounts stay in §5.1a below.
 
 **Gold** is run-local and vanishes at run end. It exists only to be spent at Shop tiles. This keeps in-run economy decisions crisp and prevents "hoard gold, never spend" behaviour.
 
@@ -283,20 +291,22 @@ A returning player's ideal first 20 seconds: open app → see Energy full and 2 
 
 ## 8. First-time user experience (FTUE)
 
-The first run is a scripted, seeded tutorial board. It is short (12 tiles, no stage gates) and it teaches exactly four things, one at a time, with no text walls:
+The first run is a scripted tutorial board, shipped as an **authored data package** — `ftue.json`: a fixed 12-tile layout, an ordered forced die sequence, and tutorial-only enemy, shop and draft definitions (`19` Part D, ruled in `16` A7). It is short (12 tiles, no stage gates) and it teaches exactly four things, one at a time, with no text walls:
 
-| Beat | Tile | Teaches |
-|---|---|---|
-| 1 | Roll #1 → Enemy | Roll to move; combat is automatic; you watch |
-| 2 | After battle #1 | The perk draft — the game's core decision |
-| 3 | Roll #3 → Treasure | Loot exists and is yours |
-| 4 | Roll #5 → Shop | Gold is spent inside the run |
-| 5 | Roll #7 → Elite (scripted near-death) | Reroll charges; the tension of the die |
-| 6 | Final tile → mini-boss | The victory payoff and the reward screen |
+| Step | Tile | Teaches | `19` Part D beats |
+|---|---|---|---|
+| 1 | Roll #1 → Enemy | Roll to move; combat is automatic; you watch | 1 |
+| 2 | After battle #1 | The perk draft — the game's core decision | 2–3 |
+| 3 | Roll #3 → Treasure | Loot exists and is yours | 4 |
+| 4 | Roll #5 → Shop | Gold is spent inside the run | 5 |
+| 5 | Roll #7 → Elite (scripted near-death), then the reroll taught on the next roll | Reroll charges; the tension of the die | 6–6b |
+| 6 | Final tile → mini-boss | The victory payoff and the reward screen | 7–8 |
+
+`19` Part D's beat numbering (0–10 plus 6b) is canonical — it is what `beatId` persistence (`19` D7) and the resume rule index. The rows above are a teaching summary, not a second numbering.
 
 After the tutorial run: force one gear equip, one talent point spend, then release the player. **Total FTUE ≤ 5 minutes.** No ads are shown during FTUE, and Slay Plus is never surfaced before Legend Level 8.
 
-✅ **The full FTUE script is written in `19_CONTENT_TABLES.md` Part D.** Note one decision it contains: there is **no tutorial narrator character**. Instructions appear as short diegetic captions on the board itself. A talking guide would have been the only recurring character in a game with no story, setting an expectation nothing else meets.
+✅ **The full FTUE package is specified in `19_CONTENT_TABLES.md` Part D** — the `ftue.json` layout, the forced die sequence, tutorial-only definitions, the scripted payout, skip semantics and per-beat resume. Two rules worth knowing from here: **skip grants the full scripted payout and jumps to beats 9–10**, so skippers and completers converge on one day-1 state; and **FTUE progress persists per beat**, so an app kill resumes at the current beat (`19` Part D7). Note one decision the script contains: there is **no tutorial narrator character**. Instructions appear as short diegetic captions on the board itself. A talking guide would have been the only recurring character in a game with no story, setting an expectation nothing else meets.
 
 ---
 

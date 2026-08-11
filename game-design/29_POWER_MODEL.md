@@ -15,7 +15,7 @@ This document defines that number, what feeds it, what deliberately does not, an
 | Number | What it is | Cost | Used by |
 |---|---|---|---|
 | **`PlayerPower`** | A closed-form scalar computed from the aggregated stat block against a fixed reference opponent | ~microseconds | UI, chapter gating, the "you may be too weak" warning, PvP candidate selection, the simulator's decisions |
-| **`EmpiricalPower`** | The same quantity *measured* by running N real combat simulations against a standard dummy and solving for the power that produces the observed time-to-kill and time-to-die | ~2 ms for N=20 | The simulator's reporting, the balance harness, and the calibration check below |
+| **`EmpiricalPower`** | The same quantity *measured* by running N real combat simulations against the standard dummy (§2.5.2) and solving for the power that produces the observed time-to-kill and time-to-die | ~2 ms for N=20 | The simulator's reporting, the balance harness, and the calibration check below |
 
 🔒 **Calibration assertion (`21` A10):** across every build archetype and every chapter band, `PlayerPower` must track `EmpiricalPower` within **±12%**. If it drifts outside that, `PlayerPower` is lying to the player and to every system that consumes it, and the closed form in §2 must be corrected — not the tolerance.
 
@@ -41,7 +41,7 @@ A fight is won when **time-to-kill the enemy is less than time-to-die**. Power m
 PlayerPower = K_POWER * sqrt(EffectiveHP * DPS)
 ```
 
-📐 `K_POWER` is a pure calibration constant with no design meaning. It is fixed once, by solving for `PlayerPower = 1000` on the reference par build for Chapter 1 Normal (§4), and then left alone.
+📐 `K_POWER` is a pure calibration constant with no design meaning. It is fixed once, by solving for `PlayerPower = 1000` on the **reference par build** — now an explicit authored statblock in §2.5 — and then left alone. Expected magnitude ≈ 5.3; the harness derives the exact value and writes it into `power_model.json`.
 
 🔒 **Both forms ship.** `data/power_model.json` carries a `model` field (`"geometric"` | `"additive_legacy"`) so the change is reversible without a client patch, per `02` §4.4's own requirement that the formula live in data. `"geometric"` is the default and the one every table in this document is authored against.
 
@@ -105,6 +105,114 @@ PetDpsShare = Σ over equipped pets of ( AbilityDamagePerCast / EffectiveCooldow
 📐 Computed from the same pet definitions the game uses. Pets with non-damage actives (shields, heals, `FREEZE`) contribute to `EffectiveHP` through a per-ability weight table in `power_model.json` rather than being ignored — a Aegis Owl build is genuinely tankier and the number must say so.
 
 Mount **stat blocks** are in the aggregate. Mount **run perks** (`07` §3.2) are board-layer effects and are excluded — see §3.
+
+### 2.5 Calibration artefacts 🔒 *(ruled in `16` A7 — single source of truth; `05` §9 points here)*
+
+The three inputs the grading stack could not run without: the reference par build (fixes `K_POWER`), the standard dummy (makes `EmpiricalPower` measurable), and the five build-archetype loadouts `05` §9 sweeps. All live in one file:
+
+```
+SlayIdleRepeat.Data/tuning/calibration_builds.json
+```
+
+📐 Every number below. The harness **loads** these; it never synthesises its own.
+
+#### 2.5.1 The reference par build
+
+A Legend-Level-10 hero in solid blue-quality Chapter-1 gear — deliberately *meta-only*: no run perks, no shrine buffs (`PlayerPower` excludes them, §3). Pet auras are already folded into the stat block; the pet's active enters through `PetDpsShare` (§2.4).
+
+```json
+{
+  "referenceParBuild": {
+    "comment": "Defines K_POWER: PlayerPower(this) := 1000 (Chapter 1 Normal par).",
+    "level": 10,
+    "stats": {
+      "maxHp": 1120, "atk": 145, "def": 74, "aspd": 1.05,
+      "crit": 0.08, "critDamage": 0.55, "lifesteal": 0.02, "dodge": 0.03,
+      "block": 0.0, "pen": 0.02, "dmgPct": 0.05, "drPct": 0.03,
+      "healPct": 1.0, "thorns": 0.0
+    },
+    "pets": ["PET_SPARKLING"],
+    "mount": null
+  }
+}
+```
+
+#### 2.5.2 The standard dummy
+
+The dummy **is** the §2.2 reference opponent, promoted to a live actor — same level, ATK, DEF, ASPD, crit. It deals damage, so time-to-die is measurable; the `INVULNERABLE` flag means its HP pool never empties (damage dealt to it is still accumulated for measurement). It is **not** status-immune: control, DoT and debuff builds must measure as what they are.
+
+```json
+{
+  "standardDummy": {
+    "level": 40, "maxHp": 100000, "atk": 2000, "def": 1500, "aspd": 1.0,
+    "crit": 0.10, "critDamage": 0.50,
+    "lifesteal": 0, "dodge": 0, "block": 0, "pen": 0,
+    "dmgPct": 0, "drPct": 0, "healPct": 1.0, "thorns": 0,
+    "flags": ["INVULNERABLE"]
+  }
+}
+```
+
+**Measurement protocol (`EmpiricalPower`, §1)** — two passes, `N = 20` seeds each (streams `harness:{n}`), median over runs, all 📐:
+
+| Pass | Setup | Window | Measures |
+|---|---|---|---|
+| Offense | Dummy ATK set to 0 | 30 s | `DPS_emp` = damage dealt to the dummy per second (attacks, DoTs, pet abilities — everything) |
+| Defense | Dummy at full ATK | Until hero death, clamped at 300 s | `TTD` = time of death (300 s if outlived — sustain builds legitimately saturate) |
+
+```
+EmpiricalPower = K_POWER * sqrt( (TTD * 2100) * DPS_emp )
+```
+
+`2100` = the dummy's pre-mitigation output per second (`2000 × 1.0 × (1 + 0.10 × 0.50)`), so `TTD × 2100` is raw damage absorbed before death — the measured analogue of §2.3's `EffectiveHP`, exactly as `DPS_emp` is the measured analogue of §2.3's `DPS`. A10 (±12%) compares this against the closed form.
+
+#### 2.5.3 The five build-archetype loadouts
+
+The archetypes named in `17` §1 and `11` §8.1 — crit, tank/thorns, DoT, lifesteal, pet-focused — as concrete, harness-reproducible loadouts. Each is: a **stat block** (the shape, authored at the par-1000 scale like §2.5.1, auras folded in), a **pet trio** (actives at catalogue base values, ★0), a **frozen perk set** (12 perks, fixed tiers — used for single-fight sweeps and `EmpiricalPower` per archetype), and a **draft priority list** (used by full-run simulations: the run agent always drafts the first available perk on the list, at the highest offered tier).
+
+**Scaling rule 🔒:** to place a loadout at power `P`, multiply `maxHp`, `atk`, `def` by a single scalar `s` (ratio stats unchanged), solving `PlayerPower = P` by bisection to within 0.1%; round `s` to 4 dp. When targeting content `(c, t)`, the hero's `Level` := `EnemyLevel(c, t)` (`05` §6.0 — the level a par player typically has there); otherwise 40.
+
+| | `ARCH_CRIT` | `ARCH_TANK_THORNS` | `ARCH_DOT` | `ARCH_LIFESTEAL` | `ARCH_PET` |
+|---|---|---|---|---|---|
+| maxHp | 900 | 1600 | 1050 | 1150 | 1100 |
+| atk | 150 | 95 | 130 | 135 | 125 |
+| def | 60 | 120 | 70 | 70 | 75 |
+| aspd | 1.10 | 0.95 | 1.25 | 1.10 | 1.05 |
+| crit | 0.35 | 0.05 | 0.10 | 0.08 | 0.10 |
+| critDamage | 1.20 | 0.50 | 0.60 | 0.55 | 0.60 |
+| lifesteal | 0 | 0 | 0 | 0.25 | 0.02 |
+| dodge | 0.03 | 0.02 | 0.03 | 0.03 | 0.03 |
+| block | 0 | 0.20 | 0 | 0 | 0 |
+| pen | 0.10 | 0 | 0.15 | 0.05 | 0.05 |
+| dmgPct | 0.05 | 0 | 0.10 | 0.05 | 0.05 |
+| drPct | 0 | 0.15 | 0.03 | 0.05 | 0.05 |
+| healPct | 1.0 | 1.0 | 1.0 | 1.20 | 1.0 |
+| thorns | 0 | 0.30 | 0 | 0 | 0 |
+| pets | NIPPER, VOIDKITTEN, WISP | SNAILGUARD, THORNBUD, AEGISOWL | EMBERCUB, SPOREMOTHER, WISP | LEECHLING, TOADKING, MOSSLING | STORMFANG, VOIDKITTEN, CLOCKHOUND |
+
+*(Pet IDs carry the `PET_` prefix in data.)*
+
+**Frozen perk sets** (12 each; Roman numeral = tier):
+
+| Archetype | Frozen set |
+|---|---|
+| `ARCH_CRIT` | KEEN_EYE III, HEAVY_SWING II, CRIT_CASCADE II, TWIN_STRIKE II, SHARP_EDGE II, QUICK_HANDS II, SANGUINE II, EXECUTIONER II, OPENER I, APEX I, TOUGH_HIDE I, DUELIST I |
+| `ARCH_TANK_THORNS` | THORNS II, MIRROR II, IRON_SKIN II, TOUGH_HIDE II, BULWARK II, STOIC II, SECOND_SKIN II, REACTIVE II, WARDED II, LAST_STAND I, AEGIS I, ANCHOR I |
+| `ARCH_DOT` | RUPTURE II, IGNITE II, SUNDERING II, QUICK_HANDS II, PIERCING II, BRUTALITY II, KEEN_EYE II, SHARP_EDGE II, DEATHMARK I, GIANT_SLAYER I, TOUGH_HIDE I, REGEN I |
+| `ARCH_LIFESTEAL` | LEECH II, BLOODLETTER II, FEAST II, SANGUINE II, HEALERS_TOUCH II, SHARP_EDGE II, QUICK_HANDS II, TOUGH_HIDE II, VITAL_SURGE I, TRANSFUSION I, UNDYING I, ETERNAL I |
+| `ARCH_PET` | PACK_LEADER II, SYMBIOSIS II, SHARP_EDGE II, TOUGH_HIDE II, KEEN_EYE II, QUICK_HANDS II, SECOND_SKIN II, ECHO I, ARSENAL I, REGEN I, STOIC I, HEAVY_SWING I |
+
+**Draft priority lists** (15 each, first-available wins; all IDs carry the `PK_` prefix in data):
+
+| Archetype | Priority order |
+|---|---|
+| `ARCH_CRIT` | KEEN_EYE, HEAVY_SWING, CRIT_CASCADE, TWIN_STRIKE, SANGUINE, SHARP_EDGE, QUICK_HANDS, EXECUTIONER, APEX, OPENER, DUELIST, TOUGH_HIDE, PERFECTIONIST, ANNIHILATE, GIANT_SLAYER |
+| `ARCH_TANK_THORNS` | THORNS, MIRROR, IRON_SKIN, TOUGH_HIDE, WARDED, SECOND_SKIN, STOIC, BULWARK, REACTIVE, AEGIS, LAST_STAND, ANCHOR, FORTRESS, IMMOVABLE, REGEN |
+| `ARCH_DOT` | RUPTURE, IGNITE, SUNDERING, QUICK_HANDS, KEEN_EYE, PIERCING, BRUTALITY, DEATHMARK, SHARP_EDGE, GIANT_SLAYER, TOUGH_HIDE, REGEN, CLEAVE, TWIN_STRIKE, ANNIHILATE |
+| `ARCH_LIFESTEAL` | LEECH, BLOODLETTER, FEAST, SANGUINE, HEALERS_TOUCH, SHARP_EDGE, QUICK_HANDS, TOUGH_HIDE, VITAL_SURGE, TRANSFUSION, UNDYING, ETERNAL, PHOENIX, SECOND_SKIN, KEEN_EYE |
+| `ARCH_PET` | PACK_LEADER, SYMBIOSIS, ECHO, ARSENAL, SHARP_EDGE, KEEN_EYE, TOUGH_HIDE, QUICK_HANDS, SECOND_SKIN, REGEN, STOIC, HEAVY_SWING, APEX, PERFECTIONIST, FLURRY |
+
+The absolute magnitudes of the stat blocks only anchor the *shape* — the scaling rule always solves for the target power, so editing a shape never silently moves a par. The five loadouts intentionally mirror `11` §8.1's PvP bots (same archetype identities, deeper PvE perk sets), so PvE sweeps, PvP bots and `17` §1's counterplay rule all reason about the same five builds.
 
 ---
 
@@ -253,8 +361,39 @@ The product owner authors, for each simulated profile (`21` §5), the `PlayerPow
 | File | `SlayIdleRepeat.Data/tuning/expected_progression.json` — one entry per profile |
 | Checkpoints | 8 per profile: days 1, 3, 7, 14, 30, 60, 90, 180. Add more freely; the simulator interpolates between them for charting. |
 | Tolerance | A fractional band. `0.25` means actual must land within ±25% of expected. Bands widen with time because variance compounds and because late-game behaviour is less predictable. |
-| Derivation | The checkpoints should be **derived from `01` §7's milestone table** — if Chapter 4 Normal is meant to be cleared on day 4–6, then day-7 expected power should be near `ParPower(4, Normal)` — but they are authored independently so that the two can disagree and the disagreement can be seen. |
+| Derivation | **`01` §7's milestone table is the player-facing summary of these checkpoints** (ruled in `16` A7) — if day-7 expected power sits near `ParPower(4, Normal)`, then `01` §7's "Chapter 4 Normal, day 5–7" row follows. Changes are made here first; `01` §7 is rewritten to match, never the reverse. |
 | Authority | 🔒 **This file is the product owner's, not engineering's.** It is the statement of intent that everything else is measured against. Changing it is a design decision and should appear in a commit of its own. |
+
+### 6.0 The authored table — all 14 profiles 🔒 (ruled in `16` A7)
+
+This *is* the content of `expected_progression.json`, in the checkpoint shape above. 🔒 The `AllAds_Core` row is the **canonical curve** (`21` A1: Chapter 8 Normal — par 128,000 — falls to it around day 25–45); every other row is derived from it by this section's method: scale by the profile's minutes, ads, skill and engagement, then anchor against the `01` §7 milestone bands and the fairness assertions (A2, A3, A15, E2, E8, E13, E17). All non-canonical rows 📐 — they are the product owner's intent, expected to be revised on simulator evidence (`16` R12).
+
+`ExpectedPower` by checkpoint day:
+
+| Profile | d1 | d3 | d7 | d14 | d30 | d60 | d90 | d180 |
+|---|---|---|---|---|---|---|---|---|
+| `AllAds_Core` 🔒 | 900 | 3,200 | 11,000 | 38,000 | 140,000 | 460,000 | 950,000 | 2,400,000 |
+| `Plus_Core` (= AllAds, A2) | 900 | 3,200 | 11,000 | 38,000 | 140,000 | 460,000 | 950,000 | 2,400,000 |
+| `Plus_Lapsed` (lapses d60) | 900 | 3,200 | 11,000 | 38,000 | 140,000 | 460,000 | 800,000 | 1,900,000 |
+| `SomeAds_Core` | 800 | 2,700 | 9,000 | 30,000 | 112,000 | 375,000 | 790,000 | 2,050,000 |
+| `NoAds_Core` | 700 | 2,200 | 7,000 | 22,500 | 84,000 | 290,000 | 640,000 | 1,750,000 |
+| `NoAds_Casual` | 400 | 1,100 | 3,200 | 9,000 | 30,000 | 95,000 | 190,000 | 520,000 |
+| `AllAds_Hardcore` | 1,300 | 5,000 | 18,000 | 62,000 | 225,000 | 700,000 | 1,400,000 | 3,300,000 |
+| `NoAds_Weekend` | 500 | 1,300 | 4,200 | 12,500 | 42,000 | 140,000 | 300,000 | 850,000 |
+| `Lapsed_Returner` | 800 | 2,000 | 5,500 | 16,000 | 58,000 | 200,000 | 430,000 | 1,150,000 |
+| `Guildless_Core` | 800 | 2,600 | 8,600 | 28,500 | 105,000 | 350,000 | 730,000 | 1,900,000 |
+| `Guilded_Core` | 800 | 2,700 | 9,200 | 31,000 | 117,000 | 395,000 | 830,000 | 2,150,000 |
+| `EventSkipper_Core` | 800 | 2,600 | 8,500 | 27,500 | 100,000 | 330,000 | 700,000 | 1,800,000 |
+| `DungeonOnly` | 600 | 1,600 | 4,500 | 13,000 | 45,000 | 150,000 | 320,000 | 900,000 |
+| `Unlucky_Core` | 700 | 2,200 | 7,200 | 24,000 | 90,000 | 300,000 | 630,000 | 1,700,000 |
+
+**Tolerance ladders** 📐 (per checkpoint d1 → d180):
+
+- **Standard** — `AllAds_Core`, `Plus_Core`, `SomeAds_Core`, `NoAds_Core`, `AllAds_Hardcore`, `Guildless_Core`, `Guilded_Core`, `EventSkipper_Core`: `0.40 / 0.35 / 0.30 / 0.25 / 0.25 / 0.30 / 0.30 / 0.35`
+- **Wide** (volatile cadence or seeded tails) — `NoAds_Casual`, `NoAds_Weekend`, `Lapsed_Returner`, `DungeonOnly`, `Unlucky_Core`: `0.50 / 0.45 / 0.40 / 0.35 / 0.35 / 0.40 / 0.40 / 0.45`
+- `Plus_Lapsed`: standard through d60, then `0.35 / 0.40` — the lapse makes the tail less predictable.
+
+Built-in consistency checks: `NoAds_Core` : `AllAds_Core` = 60% at day 30 (A3 floor 55% ✓); `Plus_Lapsed` is monotone and flattens to the free slope after d60 (A15 ✓); `Unlucky_Core` : `SomeAds_Core` ≈ 0.80 in power ≈ 1.2× in time (E2 bound 1.35× ✓); `Guildless` and `EventSkipper` sit within their 1.20×/1.25× bounds of the baseline (E17/E13 ✓); `DungeonOnly` reflects E8's deliberately poor dungeon XP.
 
 ### 6.1 The report
 
@@ -266,7 +405,7 @@ AllAds_Core        1        900        1,040     +15.6%   ±40%    ✅
 AllAds_Core        7     11,000        7,900     -28.2%   ±30%    ⚠️  outside band
 AllAds_Core       30    140,000      131,500      -6.1%   ±25%    ✅
 AllAds_Core       90    950,000    1,880,000     +97.9%   ±30%    ❌  outside band
-NoAds_Core        30     85,000       58,000     -31.8%   ±25%    ❌  outside band
+NoAds_Core        30     84,000       58,000     -31.0%   ±25%    ❌  outside band
 ```
 
 🔒 **`21` A14: every profile must land inside its band at every checkpoint.** This is the assertion the whole tuning loop exists to satisfy, and it is the one the product owner should look at before any other.
@@ -288,12 +427,14 @@ NoAds_Core        30     85,000       58,000     -31.8%   ±25%    ❌  outside 
 
 ## 7. Data layout 🔒
 
-Everything in this document is three files, and they are deliberately separated by *who edits them*:
+Everything in this document is four files, and they are deliberately separated by *who edits them*:
 
 ```
 SlayIdleRepeat.Data/tuning/
 ├── power_model.json            # §2, §3 — ENGINEERING. Formula weights, reference opponent,
 │                               #   pet ability weights, Utility Index weights. Changes rarely.
+├── calibration_builds.json     # §2.5 — ENGINEERING+DESIGN. Reference par build, standard
+│                               #   dummy, five build-archetype loadouts. The harness's inputs.
 ├── par_power.json              # §4 — DESIGN. 24 chapter/tier cells + dungeon and guild-boss pars.
 │                               #   A flat table of numbers. Edit any cell freely.
 └── expected_progression.json   # §6 — PRODUCT OWNER. Per-profile day/power/tolerance checkpoints.
@@ -302,7 +443,7 @@ SlayIdleRepeat.Data/tuning/
 
 `expected_power_by_level.json` (§5) is generated from its four factor curves, which live in `par_power.json` alongside the par table since they are the same kind of decision.
 
-All four are validated at build time against schemas (`14` §6) and are hot-reloadable in dev builds. None requires an app store update to change (`14` §6, `01` §8.6).
+All five are validated at build time against schemas (`14` §6) and are hot-reloadable in dev builds. None requires an app store update to change (`14` §6, `01` §8.6).
 
 ---
 
