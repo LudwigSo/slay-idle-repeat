@@ -249,9 +249,18 @@ public sealed class ContentSnapshotTests
         // Add to DocumentPaths has mutated a snapshot somebody else is still reading.
         var mutableCollections = new[] { typeof(List<>), typeof(Dictionary<,>), typeof(HashSet<>) };
 
-        properties.Select(p => p.PropertyType)
+        var genericPropertyTypes = properties.Select(p => p.PropertyType)
             .Where(t => t.IsGenericType)
             .Select(t => t.GetGenericTypeDefinition())
-            .ShouldAllBe(t => !mutableCollections.Contains(t));
+            .ToArray();
+
+        // 🔒 The floor. This rule is only ever as good as its subject set, and that set is
+        // built by reflection: if ContentSnapshot ever stops exposing a generic-typed
+        // property, "none of them is mutable" becomes true of nothing and passes forever.
+        genericPropertyTypes.ShouldNotBeEmpty(
+            "ContentSnapshot exposes no generic-typed property, so the mutable-collection "
+            + "rule below is asserting over an empty set and can no longer fail");
+
+        genericPropertyTypes.ShouldAllBe(t => !mutableCollections.Contains(t));
     }
 }

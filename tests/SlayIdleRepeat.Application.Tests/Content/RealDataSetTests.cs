@@ -248,8 +248,10 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void Every_baseline_entry_carries_a_reason()
     {
-        Entries().ShouldNotBeEmpty();
-        Entries().ShouldAllBe(e => e.Reason.Length > 0,
+        var entries = Entries();
+
+        entries.ShouldNotBeEmpty();
+        entries.ShouldAllBe(e => e.Reason.Length > 0,
             "a baseline without reasons is a place mismatches go to be forgotten");
     }
 
@@ -260,8 +262,10 @@ public sealed partial class RealDataSetTests
     [Fact]
     public void Spec_debt_names_an_owner_and_a_scope_exclusion_does_not()
     {
-        Entries().ShouldNotBeEmpty();
-        Entries().ShouldAllBe(e => e.Kind == TunableBaselineKind.SpecDebt
+        var entries = Entries();
+
+        entries.ShouldNotBeEmpty();
+        entries.ShouldAllBe(e => e.Kind == TunableBaselineKind.SpecDebt
             ? e.ClosedBy.Length > 0
             : e.ClosedBy.Length == 0);
     }
