@@ -115,8 +115,10 @@ public sealed class SchemaValidationTests
     public void Load_rejects_the_same_collection_entry_twice()
     {
         var issues = Issues(ContentTestData.WithTuningEdit(
-            "{ \"id\": \"WID_BELLOWS\", \"rarity\": \"B\", \"icon\": \"icon_bellows\", \"requires\": \"WID_ANVIL\" }",
-            "{ \"id\": \"WID_ANVIL\", \"rarity\": \"C\", \"icon\": \"icon_anvil\", \"requires\": null }"));
+            "{ \"id\": \"WID_BELLOWS\", \"rarity\": \"B\", \"icon\": \"icon_bellows\", " +
+            "\"displayName\": \"loc.widget.bellows.name\", \"requires\": \"WID_ANVIL\" }",
+            "{ \"id\": \"WID_ANVIL\", \"rarity\": \"C\", \"icon\": \"icon_anvil\", " +
+            "\"displayName\": \"loc.widget.anvil.name\", \"requires\": null }"));
 
         issues.Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
     }

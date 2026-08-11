@@ -34,7 +34,7 @@ public sealed class ContentLoaderTests
         var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
 
         snapshot.DocumentPaths.Should().Equal(
-            ContentTestData.EnglishPath, ContentTestData.GermanPath, ContentTestData.TuningPath);
+            ContentTestData.GermanPath, ContentTestData.EnglishPath, ContentTestData.TuningPath);
     }
 
     [Fact]
@@ -96,18 +96,19 @@ public sealed class ContentLoaderTests
     {
         var before = ContentLoader.Load(ContentTestData.Valid()).Require();
 
-        var after = ContentLoader.Load(ContentTestData.With(ContentTestData.EnglishPath, """
-        {
-          "$schema": "../schema/loc.schema.json",
-          "_locale": "en",
-          "strings": {
-            "loc.widget.anvil.title": "Anvil",
-            "loc.widget.bellows.name": "Bellows"
-          }
-        }
-        """)).Require();
+        // One key, renamed everywhere it is written: both locales and the data that names it.
+        // Nothing about the run changes except the key, and the stamp must still move.
+        var after = ContentLoader.Load(
+            ContentTestData.Valid()
+                .Set(ContentTestData.EnglishPath, Rename(ContentTestData.English))
+                .Set(ContentTestData.GermanPath, Rename(ContentTestData.German))
+                .Set(ContentTestData.TuningPath, Rename(ContentTestData.WidgetTuning)))
+            .Require();
 
         after.Version.Should().NotBe(before.Version);
+
+        static string Rename(string json) =>
+            json.Replace("loc.widget.anvil.name", "loc.widget.anvil.title", StringComparison.Ordinal);
     }
 
     [Fact]

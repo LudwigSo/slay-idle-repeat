@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using SlayIdleRepeat.Application.Ports.Shared;
 
 namespace SlayIdleRepeat.Adapters.Cache.LocalFile;
@@ -25,18 +27,66 @@ namespace SlayIdleRepeat.Adapters.Cache.LocalFile;
 /// </remarks>
 public sealed class LocalFileContentSource : IContentSourcePort
 {
+    private const string Pattern = "*.json";
+
     /// <summary>Creates a source over a data directory (the <c>SlayIdleRepeat.Data</c> root).</summary>
-    public LocalFileContentSource(string dataRootPath) => throw new NotImplementedException();
+    public LocalFileContentSource(string dataRootPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataRootPath);
+
+        DataRootPath = Path.GetFullPath(dataRootPath);
+
+        if (!Directory.Exists(DataRootPath))
+        {
+            throw new DirectoryNotFoundException($"No content directory at '{DataRootPath}'.");
+        }
+    }
 
     /// <summary>The data root this source reads.</summary>
-    public string DataRootPath => throw new NotImplementedException();
+    public string DataRootPath { get; }
 
     /// <inheritdoc/>
-    public string Revision => throw new NotImplementedException();
+    public string Revision
+    {
+        get
+        {
+            var builder = new StringBuilder();
+            foreach (var file in Files())
+            {
+                var info = new FileInfo(file);
+                builder.Append(Relative(file)).Append(':')
+                       .Append(info.Length.ToString(CultureInfo.InvariantCulture)).Append(':')
+                       .Append(info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture)).Append(';');
+            }
+
+            return builder.ToString();
+        }
+    }
 
     /// <inheritdoc/>
-    public IReadOnlyList<string> ListDocuments() => throw new NotImplementedException();
+    public IReadOnlyList<string> ListDocuments() => Files().Select(Relative).ToArray();
 
     /// <inheritdoc/>
-    public ReadOnlyMemory<byte> ReadDocument(string documentPath) => throw new NotImplementedException();
+    public ReadOnlyMemory<byte> ReadDocument(string documentPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(documentPath);
+
+        var absolute = Path.GetFullPath(Path.Combine(DataRootPath, documentPath));
+
+        // A document path is a key inside the content set, never a way out of it.
+        if (!absolute.StartsWith(DataRootPath, StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"'{documentPath}' escapes the content root.", nameof(documentPath));
+        }
+
+        return File.ReadAllBytes(absolute);
+    }
+
+    /// <summary>Ordinal-sorted, because the loader's determinism is stated over this order.</summary>
+    private IEnumerable<string> Files() =>
+        Directory.EnumerateFiles(DataRootPath, Pattern, SearchOption.AllDirectories)
+                 .OrderBy(Relative, StringComparer.Ordinal);
+
+    private string Relative(string absolutePath) =>
+        Path.GetRelativePath(DataRootPath, absolutePath).Replace('\\', '/');
 }

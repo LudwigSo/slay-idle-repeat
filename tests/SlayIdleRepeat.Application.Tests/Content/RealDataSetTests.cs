@@ -46,6 +46,30 @@ public sealed class RealDataSetTests
     }
 
     [Fact]
+    public void The_only_schemas_governing_nothing_are_the_two_whose_content_has_an_owner_and_a_milestone()
+    {
+        ContentLoader.SchemasAwaitingContent.Should().Equal(
+        [
+            // 14 §6 (the schema example) / 19 — content/chapters/*.json is authored by M2.
+            "schema/chapter.schema.json",
+
+            // 26 §2 — one live-ops event package. content/liveops_events/*.json is authored by M11.
+            "schema/event.schema.json",
+        ]);
+    }
+
+    [Fact]
+    public void An_exemption_that_outlived_its_milestone_fails_the_build()
+    {
+        var source = RepoData.Source().Set("content/chapter.json", """
+        { "$schema": "../schema/chapter.schema.json" }
+        """);
+
+        ContentLoader.Load(source).Issues.Should().Contain(i =>
+            i.Code == ContentIssueCode.OrphanSchema && i.Location == "schema/chapter.schema.json");
+    }
+
+    [Fact]
     public void The_shipped_data_set_still_carries_its_deliberate_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
@@ -125,7 +149,14 @@ public sealed class RealDataSetTests
     }
 
     private static TunableAuditReport RunAudit() =>
-        TunableMarkerAudit.Run(Markers(), Citations(), Baseline());
+        TunableMarkerAudit.Run(Markers(), Citations(), Baseline(), TuningFileNames());
+
+    private static IReadOnlyCollection<string> TuningFileNames() =>
+        RepoData.Documents.Keys
+                .Where(p => p.StartsWith("tuning/", StringComparison.Ordinal) &&
+                            !p.StartsWith("tuning/experiments/", StringComparison.Ordinal))
+                .Select(p => p["tuning/".Length..])
+                .ToArray();
 
     private static IReadOnlyList<TunableMarker> Markers() =>
         Directory.GetFiles(RepoData.DesignDocsRoot, "*.md")
@@ -139,9 +170,10 @@ public sealed class RealDataSetTests
                 .SelectMany(d =>
                 {
                     JsonContentReader.TryRead(d.Key, Encoding.UTF8.GetBytes(d.Value), out var root, out _);
-                    var stem = Path.GetFileName(d.Key).Replace(".schema.json", string.Empty, StringComparison.Ordinal);
-                    var governsTuning = RepoData.Documents.ContainsKey($"tuning/{stem}.json");
-                    return SchemaCitationScanner.Scan(d.Key, root!, governsTuning);
+                    var stem = Path.GetFileName(d.Key)
+                        .Replace(".schema.json", string.Empty, StringComparison.Ordinal);
+                    return SchemaCitationScanner.Scan(
+                        d.Key, root!, RepoData.Documents.ContainsKey($"tuning/{stem}.json"));
                 })
                 .ToArray();
 

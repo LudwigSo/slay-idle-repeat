@@ -196,7 +196,8 @@ public sealed class TunableMarkerAuditTests
         new(new DocSection(doc, section), 1, "line", files);
 
     private static SchemaCitation CitationAt(string doc, string section, bool tuning = true) =>
-        new("schema/forge.schema.json", "/properties/x", new DocSection(doc, section), tuning);
+        new("schema/forge.schema.json", "/properties/x", new DocSection(doc, section), tuning,
+            GovernsNumericKey: true);
 
     [Fact]
     public void Run_passes_when_every_marker_has_a_schema_key_and_every_key_has_a_marker()
@@ -304,7 +305,7 @@ public sealed class TunableMarkerAuditTests
     }
 
     [Fact]
-    public void The_non_economy_allow_list_is_exactly_these_two_files_and_grows_only_deliberately()
+    public void The_non_economy_allow_list_is_exactly_these_five_files_and_grows_only_deliberately()
     {
         TunableMarkerAudit.NonEconomyDataFiles.Should().Equal(
         [
@@ -315,13 +316,26 @@ public sealed class TunableMarkerAuditTests
             // 05 §6-6.2 — enemy archetype statlines and elite assignments are content identity
             // (content/enemies/), not an economic dial the 21 simulator sweeps. Authored by M2.
             "enemies.json",
+
+            // 28 Part D — feat definitions. Their Crown payouts are economy and stay in
+            // currencies.json; the definitions are content. Authored by M11.
+            "feats.json",
+
+            // 19 §14 — the tutorial script. Sequencing, not economy. Authored by M10.
+            "ftue.json",
+
+            // 17 §1.2 — boss phases and mechanics. Combat balance and content identity; the kill
+            // rewards are economy and stay in currencies.json. Authored by M3.
+            "bosses.json",
         ]);
     }
 
     [Fact]
     public void The_non_economy_allow_list_stays_short_because_an_escape_hatch_that_widens_quietly_defeats_the_rule()
     {
-        TunableMarkerAudit.NonEconomyDataFiles.Should().HaveCountLessThanOrEqualTo(3);
+        TunableMarkerAudit.NonEconomyDataFiles.Should().HaveCountLessThanOrEqualTo(6,
+            "14 §6's rule survives only while the exception list is small enough to read in one " +
+            "glance and argue with line by line");
     }
 
     private static Core.Content.ContentValue ParseSchema(string json)

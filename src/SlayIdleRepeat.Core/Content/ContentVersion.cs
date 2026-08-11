@@ -21,26 +21,52 @@ public sealed class ContentVersion : IEquatable<ContentVersion>
     /// <summary>The number of hex characters in a stamp: SHA-256, lowercase.</summary>
     public const int HexLength = 64;
 
+    private ContentVersion(string value) => Value = value;
+
     /// <summary>The full stamp, 64 lowercase hex characters.</summary>
-    public string Value => throw new NotImplementedException();
+    public string Value { get; }
 
     /// <summary>The first 12 characters of <see cref="Value"/> — enough for a log line.</summary>
-    public string Short => throw new NotImplementedException();
+    public string Short => Value[..12];
 
     /// <summary>Creates a stamp from 64 lowercase hex characters. Anything else throws.</summary>
-    public static ContentVersion FromHex(string hex) => throw new NotImplementedException();
+    public static ContentVersion FromHex(string hex) =>
+        TryFromHex(hex, out var version)
+            ? version!
+            : throw new FormatException(
+                $"'{hex}' is not a content version stamp. A stamp is exactly {HexLength} lowercase " +
+                "hex characters — the SHA-256 of the canonical content, never a hand-written label.");
 
     /// <summary>Creates a stamp from 64 lowercase hex characters, or returns false.</summary>
-    public static bool TryFromHex(string hex, out ContentVersion? version) => throw new NotImplementedException();
+    public static bool TryFromHex(string hex, out ContentVersion? version)
+    {
+        version = null;
+        if (hex is null || hex.Length != HexLength)
+        {
+            return false;
+        }
+
+        foreach (var character in hex)
+        {
+            if (character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))
+            {
+                return false;
+            }
+        }
+
+        version = new ContentVersion(hex);
+        return true;
+    }
 
     /// <inheritdoc/>
-    public bool Equals(ContentVersion? other) => throw new NotImplementedException();
+    public bool Equals(ContentVersion? other) =>
+        other is not null && string.Equals(Value, other.Value, StringComparison.Ordinal);
 
     /// <inheritdoc/>
     public override bool Equals(object? obj) => Equals(obj as ContentVersion);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => throw new NotImplementedException();
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Value);
 
     /// <inheritdoc/>
     public override string ToString() => Value;

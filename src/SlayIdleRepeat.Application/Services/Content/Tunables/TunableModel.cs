@@ -26,9 +26,25 @@ public readonly record struct DocSection(string DocId, string Section)
     /// <remarks>
     /// Deliberately generous in that one axis and strict everywhere else. A schema that cites the
     /// parent section of the marker it implements is right, not wrong; a schema that cites a
-    /// different document is not.
+    /// different document is not. The <c>"."</c> in the prefix test is what stops <c>§4</c>
+    /// swallowing <c>§40</c>.
     /// </remarks>
-    public bool Overlaps(DocSection other) => throw new NotImplementedException();
+    public bool Overlaps(DocSection other)
+    {
+        if (!string.Equals(DocId, other.DocId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (Section.Length == 0 || other.Section.Length == 0 ||
+            string.Equals(Section, other.Section, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return other.Section.StartsWith(Section + ".", StringComparison.Ordinal)
+            || Section.StartsWith(other.Section + ".", StringComparison.Ordinal);
+    }
 }
 
 /// <summary>One 📐 TUNABLE marker found in the documentation set.</summary>
@@ -53,11 +69,18 @@ public sealed record TunableMarker(
 /// True when this schema governs a file in <c>tuning/</c> — only those are economy-affecting and
 /// only those are held to the reverse direction of the check.
 /// </param>
+/// <param name="GovernsNumericKey">
+/// True when the schema object carrying this description declares a numeric type. `14` §6's check
+/// is stated over <em>the schema keys</em> that hold 📐 numbers; a description on a container
+/// object, an id string or a <c>_doc</c> field records provenance, not a tunable, and holding it to
+/// the reverse direction would demand a 📐 marker for every section a schema ever mentions.
+/// </param>
 public sealed record SchemaCitation(
     string SchemaPath,
     string PropertyPointer,
     DocSection Section,
-    bool GovernsTuningFile);
+    bool GovernsTuningFile,
+    bool GovernsNumericKey = false);
 
 /// <summary>One accepted, dated, reasoned mismatch.</summary>
 /// <param name="Section">The doc section that does not match.</param>
@@ -89,7 +112,35 @@ public sealed record TunableBaseline(
     public int Count => UnmatchedMarkers.Count + UnmarkedSchemaCitations.Count;
 
     /// <summary>Reads a baseline from its committed JSON form.</summary>
-    public static TunableBaseline FromContent(ContentValue root) => throw new NotImplementedException();
+    public static TunableBaseline FromContent(ContentValue root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        return new TunableBaseline(
+            Text(root, "recordedOn"),
+            Entries(root, "unmatchedMarkers"),
+            Entries(root, "unmarkedSchemaCitations"));
+    }
+
+    private static string Text(ContentValue value, string member) =>
+        value.TryGetMember(member, out var found) && found!.Kind == ContentValueKind.Text
+            ? found.AsText()
+            : throw new FormatException(
+                $"The 📐 baseline has no '{member}'. A baseline without a date is a baseline nobody " +
+                "can tell is stale.");
+
+    private static IReadOnlyList<TunableBaselineEntry> Entries(ContentValue root, string member)
+    {
+        if (!root.TryGetMember(member, out var list) || list!.Kind != ContentValueKind.Array)
+        {
+            return [];
+        }
+
+        return list.Items.Select(item => new TunableBaselineEntry(
+            new DocSection(Text(item, "doc"), Text(item, "section")),
+            Text(item, "reason"),
+            Text(item, "closedBy"))).ToArray();
+    }
 }
 
 /// <summary>What the 📐 audit found.</summary>

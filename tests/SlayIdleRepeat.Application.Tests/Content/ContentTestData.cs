@@ -60,11 +60,12 @@ internal static class ContentTestData
             "type": "object",
             "additionalProperties": false,
             "$comment": "icon is deliberately NOT required here: 14 §6's missing-icon class is a cross-file invariant, and a schema keyword that also caught it would hide whether that invariant works.",
-              "required": ["id", "rarity", "requires"],
+            "required": ["id", "rarity", "displayName", "requires"],
             "properties": {
               "id": { "type": "string", "pattern": "^WID_[A-Z0-9_]+$" },
               "rarity": { "$ref": "#/$defs/rarity" },
               "icon": { "type": "string" },
+              "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
               "requires": { "type": ["string", "null"], "pattern": "^WID_[A-Z0-9_]+$" }
             }
           }
@@ -86,8 +87,8 @@ internal static class ContentTestData
         "perLevelSuccessRate": null
       },
       "widgets": [
-        { "id": "WID_ANVIL", "rarity": "C", "icon": "icon_anvil", "requires": null },
-        { "id": "WID_BELLOWS", "rarity": "B", "icon": "icon_bellows", "requires": "WID_ANVIL" }
+        { "id": "WID_ANVIL", "rarity": "C", "icon": "icon_anvil", "displayName": "loc.widget.anvil.name", "requires": null },
+        { "id": "WID_BELLOWS", "rarity": "B", "icon": "icon_bellows", "displayName": "loc.widget.bellows.name", "requires": "WID_ANVIL" }
       ]
     }
     """;

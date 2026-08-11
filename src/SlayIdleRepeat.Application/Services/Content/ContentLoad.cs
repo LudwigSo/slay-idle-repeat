@@ -27,20 +27,24 @@ public sealed record ContentLoadOptions
 public sealed class ContentLoadResult
 {
     /// <summary>Creates a result.</summary>
-    public ContentLoadResult(ContentSnapshot? snapshot, IReadOnlyList<ContentIssue> issues) =>
-        throw new NotImplementedException();
+    public ContentLoadResult(ContentSnapshot? snapshot, IReadOnlyList<ContentIssue> issues)
+    {
+        Snapshot = snapshot;
+        Issues = issues;
+    }
 
     /// <summary>True when the content validated cleanly and a snapshot was produced.</summary>
-    public bool Succeeded => throw new NotImplementedException();
+    public bool Succeeded => Issues.Count == 0 && Snapshot is not null;
 
     /// <summary>The snapshot, or null when validation failed.</summary>
-    public ContentSnapshot? Snapshot => throw new NotImplementedException();
+    public ContentSnapshot? Snapshot { get; }
 
     /// <summary>Every finding, ordered by location then code so the report is stable.</summary>
-    public IReadOnlyList<ContentIssue> Issues => throw new NotImplementedException();
+    public IReadOnlyList<ContentIssue> Issues { get; }
 
     /// <summary>The snapshot, or a <see cref="ContentLoadException"/> naming every issue.</summary>
-    public ContentSnapshot Require() => throw new NotImplementedException();
+    public ContentSnapshot Require() =>
+        Succeeded ? Snapshot! : throw new ContentLoadException(Issues);
 }
 
 /// <summary>Raised when content that must be valid is not.</summary>

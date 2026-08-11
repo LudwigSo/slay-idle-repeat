@@ -174,17 +174,24 @@ public sealed class OverridePatchTests
     [Fact]
     public void An_override_replaces_an_array_wholesale_rather_than_merging_it_by_index()
     {
+        // A two-item array replaced by a two-item array in the opposite order. An index-wise merge
+        // would leave WID_ANVIL at index 0; a wholesale replacement does not.
         var source = SourceWithOverride("""
         {
           "widgets.json": {
-            "widgets": [ { "id": "WID_ANVIL", "rarity": "S", "icon": "icon_anvil", "requires": null } ]
+            "widgets": [
+              { "id": "WID_BELLOWS", "rarity": "S", "icon": "icon_bellows",
+                "displayName": "loc.widget.bellows.name", "requires": null },
+              { "id": "WID_ANVIL", "rarity": "C", "icon": "icon_anvil",
+                "displayName": "loc.widget.anvil.name", "requires": null }
+            ]
           }
         }
         """);
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.Read($"{ContentTestData.TuningPath}#/widgets").Items.Should().HaveCount(1);
+        snapshot.ReadText($"{ContentTestData.TuningPath}#/widgets/0/id").Should().Be("WID_BELLOWS");
         snapshot.ReadText($"{ContentTestData.TuningPath}#/widgets/0/rarity").Should().Be("S");
     }
 

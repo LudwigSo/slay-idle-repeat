@@ -41,22 +41,68 @@ public sealed class ContentReloadNotPermittedException : Exception
 /// </remarks>
 public sealed class ContentProvider
 {
+    private readonly IContentSourcePort _source;
+    private readonly ContentLoadOptions _options;
+
+    // Written only by an Interlocked exchange, read without a lock: a reader either sees the whole
+    // previous snapshot or the whole next one, and both are valid for its lifetime.
+    private ContentSnapshot _current;
+    private string _loadedRevision;
+
     /// <summary>Loads the initial snapshot. Throws <see cref="ContentLoadException"/> if invalid.</summary>
-    public ContentProvider(IContentSourcePort source, ContentLoadOptions options, ContentReloadPolicy reloadPolicy) =>
-        throw new NotImplementedException();
+    public ContentProvider(IContentSourcePort source, ContentLoadOptions options, ContentReloadPolicy reloadPolicy)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(options);
+
+        _source = source;
+        _options = options;
+        ReloadPolicy = reloadPolicy;
+
+        _loadedRevision = source.Revision;
+        _current = ContentLoader.Load(source, options).Require();
+    }
 
     /// <summary>The live snapshot. Never null, never mutated.</summary>
-    public ContentSnapshot Current => throw new NotImplementedException();
+    public ContentSnapshot Current => Volatile.Read(ref _current);
 
     /// <summary>Whether this host may reload.</summary>
-    public ContentReloadPolicy ReloadPolicy => throw new NotImplementedException();
+    public ContentReloadPolicy ReloadPolicy { get; }
 
     /// <summary>The source revision <see cref="Current"/> was built from.</summary>
-    public string LoadedRevision => throw new NotImplementedException();
+    public string LoadedRevision => Volatile.Read(ref _loadedRevision);
 
     /// <summary>Rebuilds from the source and swaps in the new snapshot, which it returns.</summary>
-    public ContentSnapshot Reload() => throw new NotImplementedException();
+    /// <remarks>
+    /// 🔒 The rebuild happens first and completely. If the edited content is invalid the exception
+    /// leaves <see cref="Current"/> exactly as it was — a dev who saves a half-typed JSON file gets
+    /// an error, not a game running on nothing.
+    /// </remarks>
+    public ContentSnapshot Reload()
+    {
+        if (ReloadPolicy != ContentReloadPolicy.Enabled)
+        {
+            throw new ContentReloadNotPermittedException();
+        }
+
+        var revision = _source.Revision;
+        var rebuilt = ContentLoader.Load(_source, _options).Require();
+
+        Interlocked.Exchange(ref _current, rebuilt);
+        Interlocked.Exchange(ref _loadedRevision, revision);
+        return rebuilt;
+    }
 
     /// <summary>Reloads only when the source revision moved. False means nothing changed.</summary>
-    public bool TryReloadIfChanged(out ContentSnapshot snapshot) => throw new NotImplementedException();
+    public bool TryReloadIfChanged(out ContentSnapshot snapshot)
+    {
+        if (string.Equals(_source.Revision, LoadedRevision, StringComparison.Ordinal))
+        {
+            snapshot = Current;
+            return false;
+        }
+
+        snapshot = Reload();
+        return true;
+    }
 }

@@ -40,13 +40,88 @@ public static class OverridePatch
         string overrideDocumentPath,
         ContentValue overrideRoot,
         IReadOnlyCollection<string> canonicalDocumentPaths,
-        out IReadOnlyDictionary<string, ContentValue> patchesByDocumentPath) =>
-        throw new NotImplementedException();
+        out IReadOnlyDictionary<string, ContentValue> patchesByDocumentPath)
+    {
+        var issues = new List<ContentIssue>();
+        var patches = new Dictionary<string, ContentValue>(StringComparer.Ordinal);
+
+        if (overrideRoot.Kind != ContentValueKind.Object)
+        {
+            issues.Add(new ContentIssue(
+                ContentIssueCode.OverrideTargetMissing, overrideDocumentPath,
+                "an override file is an object keyed by canonical file name (21 §3.3), " +
+                $"and this one is {overrideRoot.Kind}."));
+            patchesByDocumentPath = patches;
+            return issues;
+        }
+
+        foreach (var fileName in overrideRoot.MemberNames)
+        {
+            var matches = canonicalDocumentPaths
+                .Where(p => p.EndsWith("/" + fileName, StringComparison.Ordinal) ||
+                            string.Equals(p, fileName, StringComparison.Ordinal))
+                .OrderBy(p => p, StringComparer.Ordinal)
+                .ToArray();
+
+            if (matches.Length != 1)
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OverrideTargetMissing, $"{overrideDocumentPath}#/{fileName}",
+                    matches.Length == 0
+                        ? $"names '{fileName}', which is not a canonical content document. An " +
+                          "override that names nothing sweeps nothing, silently."
+                        : $"names '{fileName}', which is ambiguous across {matches.Length} documents."));
+                continue;
+            }
+
+            overrideRoot.TryGetMember(fileName, out var patch);
+            patches[matches[0]] = patch!;
+        }
+
+        patchesByDocumentPath = patches;
+        return issues;
+    }
 
     /// <summary>Applies one patch to one canonical document, returning a new value tree.</summary>
     public static ContentValue Apply(
         ContentValue canonical,
         ContentValue patch,
         string location,
-        ICollection<ContentIssue> issues) => throw new NotImplementedException();
+        ICollection<ContentIssue> issues)
+    {
+        ArgumentNullException.ThrowIfNull(issues);
+
+        if (canonical.Kind != ContentValueKind.Object || patch.Kind != ContentValueKind.Object)
+        {
+            return patch;
+        }
+
+        var merged = new List<KeyValuePair<string, ContentValue>>();
+
+        foreach (var name in canonical.MemberNames)
+        {
+            canonical.TryGetMember(name, out var canonicalMember);
+
+            merged.Add(patch.TryGetMember(name, out var patchMember)
+                ? new KeyValuePair<string, ContentValue>(
+                    name, Apply(canonicalMember!, patchMember!, $"{location}/{name}", issues))
+                : new KeyValuePair<string, ContentValue>(name, canonicalMember!));
+        }
+
+        foreach (var name in patch.MemberNames)
+        {
+            if (canonical.TryGetMember(name, out _))
+            {
+                continue;
+            }
+
+            issues.Add(new ContentIssue(
+                ContentIssueCode.OverrideTargetMissing, $"{location}/{name}",
+                $"the override sets '{name}', which the canonical document does not have. An " +
+                "override may only change what exists — inventing a key is how a misspelt sweep " +
+                "runs for a week against a parameter nothing reads."));
+        }
+
+        return ContentValue.Object(merged);
+    }
 }
