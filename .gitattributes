@@ -1,0 +1,50 @@
+# Line endings.
+#
+# ⚠️ THE RULE THAT MATTERS: anything that is executed or parsed INSIDE a Linux
+# container must be checked out with LF endings, on every platform.
+#
+# This repository is developed on Windows, where `core.autocrlf=true` is the
+# default and Git rewrites LF to CRLF on checkout. That is harmless for C# — and
+# fatal for a shell script bind-mounted into a container: `/bin/sh` reads the
+# carriage return as part of the last word on every line, so `set -eu` becomes
+# `set -eu\r` and the script dies with errors that name characters you cannot
+# see. The stack would boot on the machine that authored it and fail on the next
+# Windows clone, which is the worst possible failure to debug.
+#
+# Added with M0-03 (the local dev stack) for exactly that reason. Extend it
+# whenever a new file starts being read by a container rather than by the .NET
+# build.
+
+# Let Git decide what is text, and normalise it to LF in the repository.
+* text=auto
+
+# ---------------------------------------------------------- container inputs
+# Executed or parsed inside a Linux container: LF, always, everywhere.
+*.sh              text eol=lf
+infra/**          text eol=lf
+docker-compose.yml     text eol=lf
+docker-compose.*.yml   text eol=lf
+.env.example      text eol=lf
+.dockerignore     text eol=lf
+**/Dockerfile     text eol=lf
+Dockerfile        text eol=lf
+
+# CI scripts run on ubuntu runners under pwsh, which copes with either, but LF
+# keeps the diffs clean.
+build/ci/*.ps1    text eol=lf
+
+# ------------------------------------------------------------------- binary
+*.png             binary
+*.jpg             binary
+*.jpeg            binary
+*.webp            binary
+*.ico             binary
+*.ogg             binary
+*.wav             binary
+*.mp3             binary
+*.ttf             binary
+*.otf             binary
+*.zip             binary
+*.pck             binary
+*.aab             binary
+*.apk             binary

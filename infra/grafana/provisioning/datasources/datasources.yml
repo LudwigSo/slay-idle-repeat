@@ -1,0 +1,65 @@
+# Slay Idle Repeat — Grafana datasources, provisioned from this file at boot.
+#
+# 🔒 NOTHING HERE IS CLICKED IN. Grafana reads this on every start and reconciles
+# the datasources to match it. A datasource added through the UI lives in one
+# person's container volume, disappears on `down -v`, and is invisible to code
+# review — which makes "we have Grafana" untrue for everyone else.
+#
+# The same applies to dashboards: see ../dashboards/dashboards.yml.
+#
+# Credentials: none. Both backends are unauthenticated containers on a private
+# compose network (14 §1.1 — the whole stack must run with no accounts).
+
+apiVersion: 1
+
+# `deleteDatasources` runs before the provision step, so a renamed datasource
+# does not leave its predecessor behind for the next developer to wonder about.
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+  - name: Jaeger
+    orgId: 1
+
+datasources:
+
+  # -------------------------------------------------------------------------
+  # 14 §10: "OpenTelemetry → Prometheus + Grafana".
+  # -------------------------------------------------------------------------
+  - name: Prometheus
+    # A stable uid, referenced by the committed dashboards. Letting Grafana
+    # generate one would make the dashboards' datasource references depend on
+    # boot order.
+    uid: slayidlerepeat-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false        # edit the file, not the running instance
+    jsonData:
+      httpMethod: POST
+      # Must match `global.scrape_interval` in infra/prometheus/prometheus.yml,
+      # or Grafana picks step sizes that alias the data.
+      timeInterval: 15s
+      manageAlerts: false
+      prometheusType: Prometheus
+      prometheusVersion: 3.5.0
+      exemplarTraceIdDestinations:
+        # When M5-11 turns on exemplars, a spike in a Prometheus panel becomes a
+        # click through to the exact trace in Jaeger. Configured now because it
+        # costs nothing and is the single highest-value thing this pairing does.
+        - name: trace_id
+          datasourceUid: slayidlerepeat-jaeger
+
+  # -------------------------------------------------------------------------
+  # Trace backend. Reached through Grafana as well as its own UI on :16686 —
+  # having both means the metrics-to-traces jump above stays inside one tab.
+  # -------------------------------------------------------------------------
+  - name: Jaeger
+    uid: slayidlerepeat-jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false
+    jsonData:
+      tracesToMetrics:
+        datasourceUid: slayidlerepeat-prometheus
