@@ -3,7 +3,7 @@
 
 **Title:** **Slay. Idle. Repeat.** 🔒
 **Genre:** Board-movement dice roguelike RPG with auto-battle combat and deep linear meta-progression
-**Platform:** Android + iOS (portrait, one-handed). **Always online.**
+**Platform:** **Android at v1** (portrait, one-handed). **Always online.** ⚠️ **iOS is descoped to post-launch** — ruled at the M0 review (2026-08-11); see `16` D34 and O23. The architecture stays iOS-ready (StoreKit adapter, Apple sign-in, `net8.0`), so this is a *shipping* decision, not an architectural one.
 **Client:** Godot 4.3+ with C# (.NET 8)
 **Server:** Containerised ASP.NET Core, portable across hyperscalers and self-hosting
 **Business model:** Rewarded ads + **Slay Plus**, a €4.99/month subscription that removes ads and auto-grants every ad reward. **No pay-to-win. No purchasable power. No cosmetics.**

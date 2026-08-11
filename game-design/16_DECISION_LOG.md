@@ -152,6 +152,18 @@ A full-design gap review — eleven parallel reviewers over all 31 documents, ev
 
 ---
 
+## A8. Rulings from the M0 milestone review (2026-08-11)
+
+Made after M0's implementation landed and its two schedule-risk spikes reported.
+
+| ID | Decision | Rationale | Consequences |
+|---|---|---|---|
+| **D34** | 🔒 **iOS is descoped from v1. Android ships alone; iOS becomes a post-launch platform.** | The O23 spike could not be completed — no Mac, no Apple Developer account — and reading the Godot 4.7.1 source turned the unknown into a *measured* set of risks rather than a vague one: **iOS C# is NativeAOT + trimming**, a different runtime from every other target the project ships, with an open scene-instantiation bug ([#96072](https://github.com/godotengine/godot/issues/96072)) and a .NET-only launch crash filed against **`4.7.1.stable.mono` exactly** ([#121736](https://github.com/godotengine/godot/issues/121736)) that was **closed as not planned rather than disproved**. Carrying an unverified second runtime through eighteen milestones, on the assumption D1 rests on, is a larger risk than shipping one platform well. | **O23 is closed by descoping, not by evidence** — see the reopen condition below. Halves the addressable market at launch. Amends `00` §0 (platform line), `14` §0 / §8.2 / §14, `12` §3.2. The architecture is **unchanged**: `Adapters.Billing.StoreKit`, Apple sign-in (`28` B) and the `net8.0` pin all stay, so this is a *shipping* decision, not an architectural one. The `ios-export` and `ios-arm64` determinism CI jobs stay **authored and gated off** rather than deleted. |
+
+🔓 **Reopen condition for D34 (binding).** iOS returns to scope only after all four hold, and the M0-05b checklist is the script for it: (1) a Mac and an Apple Developer account exist; (2) a trivial Godot 4.x C#/.NET app exports to a device through the full custom-template path and **runs**, not merely builds — the silent-failure analogue in `docs/spikes/O23-godot-ios-export.md` is the assertion to use; (3) [#121736](https://github.com/godotengine/godot/issues/121736) is reproduced-and-fixed or shown not to apply to a 2D `net8.0` project; (4) the ad path has a maintained iOS-capable plugin (today it does not — see O14 and the scheduled ad-platform review). Until then, **do not** re-add iOS to a milestone's scope.
+
+---
+
 # PART B — Remaining Open Items (32)
 
 Everything still genuinely unresolved, prioritised. Nothing here blocks starting implementation.
@@ -189,7 +201,7 @@ Everything still genuinely unresolved, prioritised. Nothing here blocks starting
 | **O9** | ✅ **Closed by the A7 FTUE package.** `FTUE_ELITE` is a tutorial-only enemy definition (authored Power, no elite modifier) with binding acceptance bands — never a hack in the combat loop. | `19` D4.1, D8 | Done. |
 | **O14** | **Does the MAX Godot plugin expose server-side rewarded callbacks / `setUserId`?** Not mentioned in its public docs. Our whole ad-reward model grants server-side, because the client is not trusted with progression. | `12` §3.3 | **Verify on a spike build before writing the shim.** If absent: patch or fork the MIT-licensed plugin (the native layer is available), or fall back to client-asserted completion with a signed nonce plus server-side caps. The fallback is acceptable here only because every ad reward is hard-capped and nothing is purchasable. |
 | **O13** | **Curse chapter gating.** The 12-curse catalogue is authored, but which curses appear in which chapters is only suggested. | `19` Part E | Suggested: 4 basic curses from Ch. 1, the rest from Ch. 3, `CUR_HUNTED` from Ch. 5. |
-| **O23** | **Godot 4.x C# (.NET) mobile export maturity — especially iOS.** The whole project rests on D1, and this was never flagged as a risk. | `14` §1 | **Verify on a week-1 spike, alongside O14:** export a trivial C# app to Android and iOS through the full custom export-template CI path (Gradle + Java 17; CocoaPods + Xcode). If it fails, the fallback discussion (engine version pin, GDScript UI shell, waiting for a point release) happens in week 1, not month 4. |
+| **O23** | ✅ **CLOSED at the M0 review (2026-08-11), in two halves.** **Android: closed by evidence** — M0-05a exported a real signed, .NET-bearing APK through the full custom-template path; engine pinned at **Godot 4.7.1-stable (mono)**, JDK 17, build-tools 36.1.0, no NDK (`docs/spikes/O23-godot-android-export.md`). **iOS: closed by descoping**, not by evidence — see **D34** and its binding reopen condition. | `14` §1 | The risk this item named is retired for the platform that ships and *removed from scope* for the one that does not. It is **not** proven safe for iOS — reopening iOS reopens this. |
 
 ## B3. Scheduled reviews (3)
 
