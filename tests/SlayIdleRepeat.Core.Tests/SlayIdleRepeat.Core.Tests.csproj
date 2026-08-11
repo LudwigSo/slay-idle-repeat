@@ -32,4 +32,14 @@
     <EmbeddedResource Include="Rng\Hash64ReferenceVectors.json" />
   </ItemGroup>
 
+  <!--
+    The CanonicalStateWriter determinism pin (14 §16.6) and the field-order pin it is
+    keyed to, embedded for the same reason as the file above: M5-12 re-asserts both on
+    Android/iOS ARM64, where the working directory is not ours to predict.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Model\Snapshots\CanonicalStateWriterReferenceVectors.json" />
+    <EmbeddedResource Include="Model\Snapshots\SnapshotFieldOrder.json" />
+  </ItemGroup>
+
 </Project>
