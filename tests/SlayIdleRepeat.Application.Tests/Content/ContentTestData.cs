@@ -3,9 +3,9 @@ using SlayIdleRepeat.Adapters.InMemory;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// A miniature but structurally faithful stand-in for <c>SlayIdleRepeat.Data</c>: one tuning file,
+/// A miniature but structurally faithful stand-in for <c>game-data</c>: one tuning file,
 /// its schema, and a locale pair, following exactly the conventions
-/// <c>SlayIdleRepeat.Data/README.md</c> states (<c>$schema</c>/<c>_doc</c>/<c>_status</c> meta keys,
+/// <c>game-data/README.md</c> states (<c>$schema</c>/<c>_doc</c>/<c>_status</c> meta keys,
 /// <c>additionalProperties: false</c>, a <c>null</c> that means "unauthorised").
 /// </summary>
 /// <remarks>

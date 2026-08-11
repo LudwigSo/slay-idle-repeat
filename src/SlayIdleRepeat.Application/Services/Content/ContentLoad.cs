@@ -29,7 +29,7 @@ public sealed record ContentLoadOptions
     /// 🔒 True when this content is going in front of players, which turns on the ship gates.
     /// </summary>
     /// <remarks>
-    /// Today that means one rule: <c>SlayIdleRepeat.Data/README.md</c> and
+    /// Today that means one rule: <c>game-data/README.md</c> and
     /// <c>schema/loc.schema.json</c> both state that <em>"a build that ships to players must fail
     /// while any sentinel remains"</em>, and `16` D20/X-04 forbid machine translation reaching a
     /// player at all. All 82 DE values are <c>##TODO_DE##</c> sentinels right now, so the gate

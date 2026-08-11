@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The IContentSourcePort adapter: SlayIdleRepeat.Data read off the local filesystem.
+    The IContentSourcePort adapter: game-data read off the local filesystem.
     BCL System.IO only — no vendor package.
 
     shared/, not client/ (23 §4). 14 §6 makes the SERVER the source of truth for content

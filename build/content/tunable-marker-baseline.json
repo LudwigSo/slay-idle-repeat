@@ -31,7 +31,7 @@
     "                          synonym for 'unowned'. There are SEVEN of them and each one should be",
     "                          argued with.",
     "",
-    "⚠️ The audit reads game-design/*.md and SlayIdleRepeat.Data/schema/*.json. It never reads",
+    "⚠️ The audit reads game-design/*.md and game-data/schema/*.json. It never reads",
     "content/. An entry whose number lives in content/ therefore closes when that content type's",
     "SCHEMA is authored and its description cites the section — not when the data files land. The",
     "closedBy names the task that does both, and the reason says so.",

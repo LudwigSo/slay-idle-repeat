@@ -25,7 +25,7 @@ This document specifies the **framework** first and the **content** second, deli
 
 ## 2. The event package
 
-An event is one JSON document validated against `SlayIdleRepeat.Data/schema/event.schema.json` and served from the content endpoint (`14` §6).
+An event is one JSON document validated against `game-data/schema/event.schema.json` and served from the content endpoint (`14` §6).
 
 ```json
 {

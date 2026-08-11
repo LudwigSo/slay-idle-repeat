@@ -295,7 +295,7 @@ public static class TunableMarkerAudit
     /// <remarks>
     /// <para>
     /// `14` §6's locked scope is <em>"every <b>economy-affecting</b> tunable lives specifically in
-    /// <c>SlayIdleRepeat.Data/tuning/</c>"</em>. Balance and content-identity numbers are neither
+    /// <c>game-data/tuning/</c>"</em>. Balance and content-identity numbers are neither
     /// economy nor sweepable by `21`, and the `21` §3.1 catalogue — the authority on what
     /// <c>tuning/</c> contains — does not list them. Each entry below is a file the design docs
     /// name explicitly, with the milestone that authors it.
@@ -304,7 +304,7 @@ public static class TunableMarkerAudit
     /// This list is <b>code, and pinned by a test</b> (<c>TunableMarkerAuditTests</c>) that asserts
     /// its exact contents and its length. Growing it means editing production code <em>and</em>
     /// changing an assertion that spells out why — which is the point. An escape hatch that widens
-    /// quietly defeats the entire rule; `SlayIdleRepeat.Data/README.md`: <em>"Eighteen months of
+    /// quietly defeats the entire rule; `game-data/README.md`: <em>"Eighteen months of
     /// small, reasonable exceptions is how a tuning surface stops existing."</em>
     /// </para>
     /// </remarks>
@@ -338,7 +338,7 @@ public static class TunableMarkerAudit
 
     /// <summary>
     /// Normalises a data-file path as the design docs write it (<c>data/tuning/x.json</c>,
-    /// <c>res://data/x.json</c>) to a <c>SlayIdleRepeat.Data</c>-relative path.
+    /// <c>res://data/x.json</c>) to a <c>game-data</c>-relative path.
     /// </summary>
     /// <remarks>
     /// The docs predate the directory's rename and write the same file three ways. Normalising is
@@ -350,7 +350,7 @@ public static class TunableMarkerAudit
 
         var path = asWrittenInDocs.Replace('\\', '/').Trim();
 
-        foreach (var prefix in (string[])["res://", "SlayIdleRepeat.Data/", "data/"])
+        foreach (var prefix in (string[])["res://", "game-data/", "SlayIdleRepeat.Data/", "data/"])
         {
             if (path.StartsWith(prefix, StringComparison.Ordinal))
             {
@@ -450,7 +450,7 @@ public static class TunableMarkerAudit
                 issues.Add(new ContentIssue(
                     ContentIssueCode.TunableOutsideTuningDirectory,
                     $"{marker.Section} (line {marker.Line})",
-                    $"a 📐 number names '{file}', which is outside SlayIdleRepeat.Data/tuning/. " +
+                    $"a 📐 number names '{file}', which is outside game-data/tuning/. " +
                     "14 §6: every economy-affecting tunable lives specifically in tuning/. If this " +
                     "number is balance or content identity rather than economy, add the file to " +
                     "TunableMarkerAudit.NonEconomyDataFiles with the reason and the milestone that " +

@@ -1,4 +1,4 @@
-# SlayIdleRepeat.Data is diffed constantly and read by two runtimes and one
+# game-data is diffed constantly and read by two runtimes and one
 # simulator. Line endings are pinned to LF so `git diff` never shows a whole
 # file as changed because someone's editor or core.autocrlf disagreed.
 * text=auto eol=lf

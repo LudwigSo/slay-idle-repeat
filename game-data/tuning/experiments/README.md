@@ -16,13 +16,13 @@ at the point of temptation so that nobody has to have read doc 21 to know it.
 >
 > An override file is a **sparse JSON patch** applied on top of the canonical data at load time.
 > Sweeps, experiments and what-ifs all run as overrides, so the canonical data is only ever edited
-> when a change is *adopted*. This keeps `git diff` on `SlayIdleRepeat.Data` a record of decisions
+> when a change is *adopted*. This keeps `git diff` on `game-data` a record of decisions
 > rather than a record of attempts.
 
 And `14_TECHNICAL_ARCHITECTURE.md` §6, verbatim:
 
 > Experiments and what-ifs run as **sparse override patches** layered on top of the canonical files
-> (`21` §3.3), never as edits to them. This keeps `git diff` on `SlayIdleRepeat.Data` a record of
+> (`21` §3.3), never as edits to them. This keeps `git diff` on `game-data` a record of
 > decisions rather than a record of attempts.
 
 ---

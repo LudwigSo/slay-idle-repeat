@@ -8,7 +8,7 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// The validator against the real <c>SlayIdleRepeat.Data</c>: 16 tuning files, 19 schemas, two
+/// The validator against the real <c>game-data</c>: 16 tuning files, 19 schemas, two
 /// locales and 96 deliberate <c>null</c>s.
 /// </summary>
 /// <remarks>
@@ -62,7 +62,7 @@ public sealed partial class RealDataSetTests
 
     /// <summary>
     /// 🔒 The self-expiry, stated over the path <c>chapter.schema.json</c>'s own <c>title</c> claims
-    /// (<c>content/chapters/*.json</c>) and <c>SlayIdleRepeat.Data/README.md</c> declares — not over
+    /// (<c>content/chapters/*.json</c>) and <c>game-data/README.md</c> declares — not over
     /// a singular <c>content/chapter.json</c> that contradicts both and exists only because it was
     /// the one shape a stem-based pairing could reach.
     /// </summary>
@@ -136,7 +136,7 @@ public sealed partial class RealDataSetTests
     // -------------------------------------------------------------- 16 D20 · the ship gate
 
     /// <summary>
-    /// 🔒 The gate <c>SlayIdleRepeat.Data/README.md</c> and <c>schema/loc.schema.json</c> both
+    /// 🔒 The gate <c>game-data/README.md</c> and <c>schema/loc.schema.json</c> both
     /// declare 🔒 and neither implemented: <em>"A build that ships to players must fail while any
     /// sentinel remains."</em> All 82 DE values are sentinels, so this is what stops `16` D20's
     /// "nothing machine-translated reaches a player" from being a sentence nobody enforces.

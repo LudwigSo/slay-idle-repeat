@@ -53,7 +53,7 @@ public readonly record struct DocSection(string DocId, string Section)
 /// <param name="Text">The line it was found on, trimmed.</param>
 /// <param name="NamedDataFiles">
 /// Data files the marker names (<c>data/tuning/currencies.json</c>, <c>res://data/combat_caps.json</c>),
-/// normalised to a <c>SlayIdleRepeat.Data</c>-relative path.
+/// normalised to a <c>game-data</c>-relative path.
 /// </param>
 public sealed record TunableMarker(
     DocSection Section,

@@ -32,7 +32,7 @@ public sealed record PatternBinding(string Pattern, string MemberName, string Va
 /// instance-driven check would only ever meet the keywords today's 37 documents walk into: adding
 /// <c>allOf</c> to an unexercised <c>properties</c> entry, an empty array's <c>items</c>, or an
 /// unmatched <c>oneOf</c> branch would pass silently — which is exactly
-/// `SlayIdleRepeat.Data/README.md`'s <em>"a permissive schema is worse than no schema, because it
+/// `game-data/README.md`'s <em>"a permissive schema is worse than no schema, because it
 /// manufactures confidence."</em>
 /// </para>
 /// <para>

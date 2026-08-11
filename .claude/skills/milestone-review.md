@@ -30,9 +30,9 @@ Sources of truth: [IMPLEMENTATION_TRACKER.md](../../IMPLEMENTATION_TRACKER.md) f
 
 Run the review skills over the **whole milestone diff** in this order, one delegated subagent per dimension, each returning a compact findings-and-fixes report you fold into the run record:
 
-1. `review-test-quality` — all tests the milestone added/changed. Extra weight on: coverage of the milestone's exit criteria (not just per-task acceptance), seams *between* tasks that no single task's tests cover, determinism discipline (fixed seeds, 4-dp rounding), and anything that drifted outside the three unit-tier projects.
+1. `review-test-quality` — all tests the milestone added/changed. Extra weight on: coverage of the milestone's exit criteria (not just per-task acceptance), seams *between* tasks that no single task's tests cover, determinism discipline (fixed seeds, 4-dp rounding), and anything that drifted outside the three unit-tier projects. 🔒 **Check explicitly that no integration/E2E tier was reintroduced** — no new test project, no suite that needs Docker/a live database/a real host/the Godot runtime, no "integration" trait bucket inside a unit suite. That tier was deleted on purpose; a milestone that brings it back is a Critical finding whose fix is deletion, not relocation.
 2. `review-code-quality` — all production code in the range.
-3. `review-architecture-quality` — the structural pass, plus the milestone-level questions: every new port has an `InMemory` fake and contract-test wiring, every mutation goes through `GameRules.Apply`, every grant routes through `LuckService`, tunables live in `SlayIdleRepeat.Data/tuning/`, no vendor type outside its adapter, no `if (isSubscriber)` outside composition roots.
+3. `review-architecture-quality` — the structural pass, plus the milestone-level questions: every new port has an `InMemory` fake and contract-test wiring, every mutation goes through `GameRules.Apply`, every grant routes through `LuckService`, tunables live in `game-data/tuning/`, no vendor type outside its adapter, no `if (isSubscriber)` outside composition roots.
 4. `review-ui-quality` — if applicable (Phase 0.5).
 5. `review-ux-quality` — if applicable.
 

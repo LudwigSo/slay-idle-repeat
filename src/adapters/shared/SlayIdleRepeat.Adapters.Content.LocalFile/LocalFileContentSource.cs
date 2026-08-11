@@ -6,7 +6,7 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Adapters.Content.LocalFile;
 
 /// <summary>
-/// Reads <c>SlayIdleRepeat.Data</c> off the local filesystem — the real
+/// Reads <c>game-data</c> off the local filesystem — the real
 /// <see cref="IContentSourcePort"/>.
 /// </summary>
 /// <remarks>
@@ -30,7 +30,7 @@ public sealed class LocalFileContentSource : IContentSourcePort
 {
     private const string Pattern = "*.json";
 
-    /// <summary>Creates a source over a data directory (the <c>SlayIdleRepeat.Data</c> root).</summary>
+    /// <summary>Creates a source over a data directory (the <c>game-data</c> root).</summary>
     public LocalFileContentSource(string dataRootPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRootPath);

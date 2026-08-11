@@ -42,7 +42,7 @@ public enum ContentIssueCode
 
     /// <summary>
     /// 🔒 A schema keyword this validator does not implement. Hard failure, never a silent pass:
-    /// `SlayIdleRepeat.Data/README.md` — <em>"a permissive schema is worse than no schema,
+    /// `game-data/README.md` — <em>"a permissive schema is worse than no schema,
     /// because it manufactures confidence."</em>
     /// </summary>
     UnsupportedSchemaKeyword = 11,

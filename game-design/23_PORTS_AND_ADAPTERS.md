@@ -143,7 +143,7 @@ SlayIdleRepeat.sln
 │       ├── Composition/                     #   platform-conditional adapter wiring
 │       └── addons/                          #   vendor GDScript plugins live here, wrapped
 │
-├── SlayIdleRepeat.Data/                          # shared JSON content, embedded in client and server
+├── game-data/                          # shared JSON content, embedded in client and server
 │
 ├── tools/
 │   ├── BalanceHarness/                      # mass battle simulation over Core
@@ -154,9 +154,14 @@ SlayIdleRepeat.sln
     ├── SlayIdleRepeat.Core.Tests/
     ├── SlayIdleRepeat.Application.Tests/         # uses InMemory adapters exclusively
     ├── SlayIdleRepeat.Architecture.Tests/        # enforces §6. Fails the build on violation.
-    ├── SlayIdleRepeat.Contract.Tests/            # one suite per port, run against EVERY adapter
-    └── SlayIdleRepeat.Integration.Tests/
+    └── SlayIdleRepeat.Contract.Tests/            # one suite per port, run against EVERY adapter
 ```
+
+🔒 **There is no integration or end-to-end test tier, and none is to be added.** Every suite
+above is fast and dependency-free: no container, no live database, no real ASP.NET host, no
+Godot runtime. A behaviour that seems to need one is tested at the unit tier — the use case
+against the in-memory fake for whatever port it needs. If that genuinely cannot express it,
+the gap is named and left open; it is never closed by standing up infrastructure.
 
 ---
 

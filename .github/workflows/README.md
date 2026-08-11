@@ -26,10 +26,10 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `build` | 🟢 live | `dotnet restore` + `dotnet build SlayIdleRepeat.sln -c Release`. Warnings are errors via `Directory.Build.props`, so a new warning fails here. NuGet cached on the project files. | `14` §14 |
 | `test` | 🟢 live | The unit and contract suites, discovered by glob. Fails on a suite that contains **zero** tests without a declared exemption — see [The empty-suite rule](#the-empty-suite-rule). | `14` §13 |
 | `architecture-tests` | 🟢 live | `SlayIdleRepeat.Architecture.Tests` alone, in its own job. `23` §6 says these fail the build, so they are not lumped in with `test` where an unrelated flake could mask them. | `23` §6, `30` §9 |
-| `content-validation` | 🟢 live | Every JSON under `SlayIdleRepeat.Data/` is validated against its schema and against the cross-file invariants: `14` §6's five failure classes (unknown IDs, missing icons, out-of-range values, orphaned references, duplicate IDs), plus malformed JSON, duplicate property names, unpaired schemas, and any JSON Schema keyword the validator does not implement. Then the 📐 audit, in three directions, against the dated baseline in `build/content/`. Runs the same code the game loads content with (M0-09). | `14` §6 🔒, `14` §13 |
+| `content-validation` | 🟢 live | Every JSON under `game-data/` is validated against its schema and against the cross-file invariants: `14` §6's five failure classes (unknown IDs, missing icons, out-of-range values, orphaned references, duplicate IDs), plus malformed JSON, duplicate property names, unpaired schemas, and any JSON Schema keyword the validator does not implement. Then the 📐 audit, in three directions, against the dated baseline in `build/content/`. Runs the same code the game loads content with (M0-09). | `14` §6 🔒, `14` §13 |
 | `vendor-package-uniqueness` | 🟢 live | Fails if a vendor `PackageReference` appears in more than one `.csproj` (**A9-UNIQUE**), or in a project that is not an adapter (**A9-LOCATION**). | `14` §1.1 🔒 |
 | `server-image` | 🟢 live | Builds `src/SlayIdleRepeat.Server/Dockerfile`, starts the container, asserts it is **not running as root**, and waits for `GET /health` → 200 `{"status":"ok"}`. Build and smoke only — **no registry login, no push**. | `14` §14 |
-| `compose-boot` | 🟢 live *(since M0-03)* | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → wait for `/health` → integration suite → `down`. The stack it boots is `docker-compose.yml` + `infra/` — see [`infra/README.md`](../../infra/README.md). | `14` §14, `14` §13, `14` §1.1 🔒 |
+| `compose-boot` | 🟢 live *(since M0-03)* | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → probe `/health`, the MinIO liveness endpoint and the Prometheus scrape targets → `down`. Those probes are **CI steps, not a test suite** — there is no integration tier. The stack it boots is `docker-compose.yml` + `infra/` — see [`infra/README.md`](../../infra/README.md). | `14` §14, `14` §1.1 🔒 |
 | `determinism` | ⛔ gated off | Matrix shape from `14` §8.2: **Linux x64 / Android ARM64 / iOS ARM64**, 10,000 fixed `(seed, build, enemy)` triples, compare `LogHash`, fail on divergence. | `14` §8.2 🔒 |
 | `android-export` | ⛔ gated off | Android debug APK **through the custom export template with the MAX plugin included** — a plain export does not produce a working ad build. | `14` §14, `12` §3.2 |
 | `ios-export` | ⛔ gated off | iOS Xcode project export on a **`macos-15`** runner, asserting the build actually contains .NET (`<Assembly>_aot.xcframework` + `godot-publish-dotnet/`). macOS is not a preference: Godot 4.7.1's exporter hard-refuses .NET iOS builds off macOS. | `14` §14, `12` §3.2 |
@@ -73,7 +73,7 @@ Two notes for whoever turns the macOS jobs on:
 
 **None.** Both entries this section carried during M0 have since gone green, and neither was made to pass by weakening it:
 
-- **`content-validation`** was red while `SlayIdleRepeat.Data/` held only `.gitkeep` files — a validator with nothing to validate reported failure rather than a green tick over an empty directory. **M0-10** landed `schema/`, `tuning/` (the 16 files of `21` §3.1), `loc/` and `content/`; **M0-09** then replaced the script's body with a call into `tools/ContentValidator`, so CI now runs the same code the game loads content with.
+- **`content-validation`** was red while `game-data/` held only `.gitkeep` files — a validator with nothing to validate reported failure rather than a green tick over an empty directory. **M0-10** landed `schema/`, `tuning/` (the 16 files of `21` §3.1), `loc/` and `content/`; **M0-09** then replaced the script's body with a call into `tools/ContentValidator`, so CI now runs the same code the game loads content with.
 - **`compose-boot`** was red while `docker-compose.yml` did not exist; the job checked for it explicitly so the failure read as "M0-03 has not landed" rather than Docker's bare `no configuration file provided`. **M0-03** landed the stack, and the sequence was walked locally against Docker 28.4.0 — `config` → `up -d --wait` (all 8 services healthy, 2 init containers completed) → `/health` → 200 `{"status":"ok"}` → integration suite 3/3 → `down -v`.
 
 Keep this section honest: a job that is red for a *planned* reason belongs here with the task that clears it. A job that is red for any other reason is a defect, not a row.
@@ -136,13 +136,13 @@ stale-exemption rule is what forced the removal rather than anyone remembering:
   `build/ci/test-suites.json` for what these six rules deliberately do NOT catch.
 - `SlayIdleRepeat.Architecture.Tests` — M0-08 merged mid-task with live rules;
   **38** as of the M0 review.
-- `SlayIdleRepeat.Integration.Tests` — its exemption said "needs the compose
-  stack, which does not exist until M0-03". M0-03 landed the stack, so the reason
-  expired. Rather than re-point the marker at M5 and leave `compose-boot`'s
-  "run integration suite against the live stack" step executing zero assertions
-  for five milestones, M0-03 filled the suite with its own acceptance criteria
-  (`ComposeStackSmokeTests`). **3 tests.** `14` §13's full end-to-end run still
-  arrives with the adapters in M5-05 and after.
+- `SlayIdleRepeat.Integration.Tests` — **deleted.** Its exemption said "needs the
+  compose stack, which does not exist until M0-03"; M0-03 landed the stack and
+  filled the suite with three smoke assertions. The project has since been removed
+  along with the entire integration/E2E tier, and the `integration` group with it.
+  Its three assertions live on as direct probes inside `compose-boot`. See
+  `$noIntegrationTier` in `build/ci/test-suites.json` — **this tier is not to be
+  recreated, under any name.**
 
 ---
 

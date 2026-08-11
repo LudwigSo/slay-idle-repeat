@@ -73,7 +73,7 @@ The user-facing requirement is that the economy be **easy to tweak**. That is a 
 ### 3.1 Rule 1 — every tunable number lives in one directory
 
 ```
-SlayIdleRepeat.Data/tuning/
+game-data/tuning/
 ├── power_model.json            # 29 §2-3 — formula weights, reference opponent
 ├── calibration_builds.json     # 29 §2.5 — reference par build, standard dummy, archetype loadouts
 ├── par_power.json              # 29 §4-5 — content par, level-expectation factor curves
@@ -104,7 +104,7 @@ Already required by `14` §6. Restated because the simulator makes it enforceabl
 --overrides tuning/experiments/cheaper_merges.json
 ```
 
-An override file is a **sparse JSON patch** applied on top of the canonical data at load time. Sweeps, experiments and what-ifs all run as overrides, so the canonical data is only ever edited when a change is *adopted*. This keeps `git diff` on `SlayIdleRepeat.Data` a record of decisions rather than a record of attempts.
+An override file is a **sparse JSON patch** applied on top of the canonical data at load time. Sweeps, experiments and what-ifs all run as overrides, so the canonical data is only ever edited when a change is *adopted*. This keeps `git diff` on `game-data` a record of decisions rather than a record of attempts.
 
 ```json
 {
@@ -493,7 +493,7 @@ Options:
 
 ## 11. CI assertions 🔒
 
-The tool exits non-zero — **failing the build** — if any of these fail. It runs on every change to `SlayIdleRepeat.Data`.
+The tool exits non-zero — **failing the build** — if any of these fail. It runs on every change to `game-data`.
 
 ### 11.1 Core economy (A1–A9)
 

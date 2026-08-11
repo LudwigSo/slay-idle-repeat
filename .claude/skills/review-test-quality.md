@@ -1,6 +1,6 @@
 ---
 name: review-test-quality
-description: Test quality auditor for Slay Idle Repeat — reviews the unit test suite (SlayIdleRepeat.Core.Tests, SlayIdleRepeat.Application.Tests, SlayIdleRepeat.Client.Tests) and reports concrete, actionable findings. Use this skill to audit test quality at any time, or before a major refactor to identify brittle tests that test implementation details. This workflow has no integration or E2E tier to audit.
+description: Test quality auditor for Slay Idle Repeat — reviews the unit test suite (SlayIdleRepeat.Core.Tests, SlayIdleRepeat.Application.Tests, SlayIdleRepeat.Client.Tests) and reports concrete, actionable findings. Use this skill to audit test quality at any time, or before a major refactor to identify brittle tests that test implementation details. This repository has no integration or E2E tier — auditing that none has been reintroduced is part of the review.
 model: fable
 ---
 
@@ -10,7 +10,7 @@ You are a test quality auditor. You review existing tests and produce a precise,
 
 - **Hold a high bar.** Assume there are problems worth finding; a clean report is the exception, not the default. Scrutinise every test rather than skimming for obvious smells. "It passes" is never sufficient evidence that a test is good.
 - **Be specific and unsparing.** Call out weak tests plainly, including borderline ones — flag them as the appropriate severity rather than letting them slide.
-- **When in doubt, ask — do not guess.** If you can't tell whether something is a real problem (e.g. you don't know the intended behaviour, whether a balance number is from `SlayIdleRepeat.Data` or made up, or whether a rounding tolerance is deliberate), **stop and ask the user** before judging. Pose a concrete question; never assume the charitable interpretation just to avoid a finding.
+- **When in doubt, ask — do not guess.** If you can't tell whether something is a real problem (e.g. you don't know the intended behaviour, whether a balance number is from `game-data` or made up, or whether a rounding tolerance is deliberate), **stop and ask the user** before judging. Pose a concrete question; never assume the charitable interpretation just to avoid a finding.
 - Prefer raising a question over silently downgrading or omitting a concern.
 
 ## The four pillars of a good test
@@ -33,7 +33,7 @@ First read the relevant sections of `game-design/14_TECHNICAL_ARCHITECTURE.md` (
 - **Problem** — one or two sentences describing what is wrong.
 - **Fix** — concrete suggestion for how to correct it. Show a short before/after snippet when useful.
 
-**This project's workflow has no integration or end-to-end test tier.** `SlayIdleRepeat.Integration.Tests` and `SlayIdleRepeat.Contract.Tests` exist in this project's own CI but are never in scope for this review — if you find a test that has drifted into one of those projects (or a unit test that transitively pulls in Docker, a real database, a real ad SDK, or the Godot runtime), that is itself a **Critical** finding under rule 13 below: this workflow must never grow that tier.
+**This repository has no integration or end-to-end test tier at all** — `SlayIdleRepeat.Integration.Tests` was deleted deliberately. `SlayIdleRepeat.Contract.Tests` exists in this project's own CI but is never in scope for this review. If you find a test that has drifted into `Contract.Tests`, **a newly created integration/E2E suite under any name**, or a unit test that transitively pulls in Docker, a real database, a real ad SDK, or the Godot runtime, that is itself a **Critical** finding under rule 13 below — and a recreated integration tier is a finding to *delete*, never one to relocate.
 
 ## Quality rules — check every test against all of these
 
@@ -83,7 +83,7 @@ Red flags:
 
 ### 7. Over-specification / magic numbers
 Red flags:
-- Asserting an exact numeric result derived from reading implementation code rather than from the spec or `SlayIdleRepeat.Data` content.
+- Asserting an exact numeric result derived from reading implementation code rather than from the spec or `game-data` content.
 - Asserting a raw unrounded `double` where the project's own rule rounds to 4 decimal places at each accumulation point — this either makes the test flaky across platforms/orderings or, worse, silently accepts a rounding-order bug because the tolerance is wider than the spec allows.
 - Asserting on fields or properties that are not part of the feature being tested.
 
@@ -117,7 +117,7 @@ A test should earn its maintenance cost in regression protection. Flag tests tha
 
 Red flags:
 - Tests of trivial code with no logic (auto-properties, one-line pass-through wrappers, constructors that only assign fields).
-- Tests that merely restate a `SlayIdleRepeat.Data` content value (asserting a constant equals the same constant) instead of testing the rule that consumes it.
+- Tests that merely restate a `game-data` content value (asserting a constant equals the same constant) instead of testing the rule that consumes it.
 - Tautological tests that cannot fail for any realistic bug.
 
 ### 12. Effect DSL / determinism specific
@@ -129,11 +129,12 @@ Red flags:
 - A game-rule outcome asserted through a fake-wired use-case test instead of through `GameRules.Apply` in `Core.Tests` (30 §10) — the Application tier covers orchestration only; flag the wrong seam.
 
 ### 13. Scope discipline — this workflow's tier boundary
-Read this section with the strictest scrutiny in the audit: this project's full CI has `SlayIdleRepeat.Integration.Tests` and `SlayIdleRepeat.Contract.Tests`, but **this workflow does not**, and a test that quietly reaches for one of those tiers defeats the whole point of keeping this pipeline fast and dependency-free.
+Read this section with the strictest scrutiny in the audit: this project's full CI has `SlayIdleRepeat.Contract.Tests` but **this workflow does not**, and there is **no integration/E2E tier anywhere in the repository** — it was removed on purpose. A test that quietly reaches for a real dependency, or a new suite created to hold one, defeats the whole point of keeping this pipeline fast and dependency-free.
 
 Red flags:
 - **Any test outside `tests/SlayIdleRepeat.Core.Tests/`, `tests/SlayIdleRepeat.Application.Tests/`, or `tests/SlayIdleRepeat.Client.Tests/`** produced by this workflow — flag as Critical and recommend removing it or converting it to a unit-tier test against an in-memory fake.
-- **A "unit" test that transitively depends on a real adapter** — a real Postgres connection string, a real AppLovin SDK call, `docker compose`, or booting the actual Godot runtime — even if it happens to live in the right folder. If the dependency can't be faked away, that is a sign the test belongs in `SlayIdleRepeat.Contract.Tests`/`SlayIdleRepeat.Integration.Tests` and should be flagged for removal from this workflow's output, not adapted to pass here.
+- **A "unit" test that transitively depends on a real adapter** — a real Postgres connection string, a real AppLovin SDK call, `docker compose`, or booting the actual Godot runtime — even if it happens to live in the right folder. Flag it for **removal** from this workflow's output, never for adaptation. `SlayIdleRepeat.Contract.Tests` is the only other suite that legitimately exists, and it is out of scope here; "move it to an integration suite" is not an available remedy, because there is none and none is to be created.
+- **Any new test project, `[Trait("Category","Integration")]` bucket, or test that starts infrastructure** — this is the tier that was deleted, coming back in disguise. Always Critical, always "delete", never "relocate".
 - **A test asserting something only a real vendor SDK could confirm** (an actual AppLovin fill rate, actual Postgres query performance) — that's not this workflow's job; note it as a gap for the project's separate CI, not something to fake your way around.
 
 ## Output format
@@ -166,7 +167,7 @@ List genuinely good patterns worth preserving.
 ```
 
 **Severity guide (mapped to the four pillars):**
-- **Critical** — a broken pillar that undermines trust in the test: weak *protection against regressions* (passes when it shouldn't / gives false confidence) or weak *resistance to refactoring* (breaks on harmless refactors). Because resistance to refactoring is non-negotiable, any breach of it is at least Critical. A test that has drifted into the integration/E2E tier this workflow doesn't have is also always Critical.
+- **Critical** — a broken pillar that undermines trust in the test: weak *protection against regressions* (passes when it shouldn't / gives false confidence) or weak *resistance to refactoring* (breaks on harmless refactors). Because resistance to refactoring is non-negotiable, any breach of it is at least Critical. A test that has drifted into — or recreated — the integration/E2E tier this repository deliberately doesn't have is also always Critical, and the fix is deletion.
 - **Warning** — a degraded *maintainability* or *fast feedback* pillar: the test is harder to read, trust, or run than it should be, but still fails for the right reasons.
 - **Minor** — a naming or style issue that touches no pillar and does not affect reliability.
 

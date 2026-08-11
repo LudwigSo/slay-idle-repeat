@@ -1,6 +1,6 @@
 {
   "$schema": "../schema/sim_thresholds.schema.json",
-  "_doc": "21 §11 — the CI assertion thresholds themselves. The simulator exits non-zero and fails the build if any of these fail; it runs on every change to SlayIdleRepeat.Data.",
+  "_doc": "21 §11 — the CI assertion thresholds themselves. The simulator exits non-zero and fails the build if any of these fail; it runs on every change to game-data.",
   "_status": "transcribed",
   "run": {
     "days": 180,

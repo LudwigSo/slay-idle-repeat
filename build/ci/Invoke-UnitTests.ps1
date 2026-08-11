@@ -18,7 +18,9 @@
 .PARAMETER Group
     unit          - domain/application/contract suites (the `test` job)
     architecture  - the 23 §6 rules (the `architecture-tests` job)
-    integration   - end-to-end against compose (the `compose-boot` job)
+
+    There is deliberately no `integration` group: this repository has no
+    integration or end-to-end tier. See $noIntegrationTier in test-suites.json.
 
 .EXAMPLE
     pwsh build/ci/Invoke-UnitTests.ps1 -Group unit
@@ -26,7 +28,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('unit', 'architecture', 'integration')]
+    [ValidateSet('unit', 'architecture')]
     [string]$Group = 'unit',
 
     [string]$Configuration = 'Release',

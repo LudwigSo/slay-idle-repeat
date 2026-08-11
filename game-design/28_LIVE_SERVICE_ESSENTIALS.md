@@ -233,7 +233,7 @@ That matters more now than it did, because **D28 accepts the content cliff**. A 
 | **The Dungeons** | 10 | Dungeon clears, tier-8 clears, Guardian kills (`25`) |
 | **Fellowship** | 16 | Guild quest contributions, Guild Boss damage, streak weeks (`27`) |
 
-📐 All 140 are authored as data in `SlayIdleRepeat.Data/feats.json`. Adding more post-launch is a content drop, not a patch.
+📐 All 140 are authored as data in `game-data/feats.json`. Adding more post-launch is a content drop, not a patch.
 
 ### D2.2 The 140-feat catalogue 🔒
 

@@ -243,7 +243,7 @@ Uncorrected, the tail is far too steep: day ~70 for the no-ads player is well ou
 
 ## 9. Required: the economy simulator
 
-✅ **Fully specified in `21_ECONOMY_SIMULATOR_SPEC.md`.** It is a C# tool in `tools/EconomySim` that is a thin wrapper over `InMemoryGame` — it references **`SlayIdleRepeat.Core` only** (`30` §6) with the real `SlayIdleRepeat.Data`, over 14 behavioural profiles and 180 simulated days, with 16 named CI assertions plus 23 inherited requirements that fail the build on a broken economy.
+✅ **Fully specified in `21_ECONOMY_SIMULATOR_SPEC.md`.** It is a C# tool in `tools/EconomySim` that is a thin wrapper over `InMemoryGame` — it references **`SlayIdleRepeat.Core` only** (`30` §6) with the real `game-data`, over 14 behavioural profiles and 180 simulated days, with 16 named CI assertions plus 23 inherited requirements that fail the build on a broken economy.
 
 This is the tool that turns every 📐 TUNABLE in this documentation set into a real number. Until it has been run, **all economy numbers in this document are informed guesses** — including the ones that look precise.
 

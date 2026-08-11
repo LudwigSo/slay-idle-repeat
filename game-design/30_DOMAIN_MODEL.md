@@ -131,7 +131,7 @@ public sealed record GameContext(
 |---|---|---|
 | **Time** | `IClockPort` in `Application` (`23` §4.3) | ⚠️ **A value on `GameContext`.** Energy regeneration, daily resets at 05:00 UTC, event windows (`26` §4), guild weeks (`27` §4), PvP seasons (`11` §5.3) and subscription expiry (`12` §2.2) are *all* time-dependent rules. A rule that calls a clock is not pure. `IClockPort` remains — the **composition root** calls it and puts the answer in the context. |
 | **Randomness** | `DeterministicRng` in `Core`, seeded externally (`23` §4.3) | ⚠️ **Two regimes** (ruled in `16` A7). **In-run draws never touch the context:** they come from the `Run` aggregate's committed `runSeed` and its persisted per-stream draw counters (`02` §2, `14` §8) — state, not ambience. `CommandSeed` is **reserved for meta commands** — wheel spins, container opens, the `BEGIN_SESSION` quest draw — whose draws are `Hash64(CommandSeed, stream, i)` from `i = 0` (`14` §8.1). *(The earlier wording cited `14` §8.1 in support of a per-command-seed model; that was a mis-citation — §8.1 specifies the run-stream model.)* The invariant that survives, restated accurately: **the domain never invents entropy.** Every draw is a pure function of committed state or a server-supplied context value — `runSeed` itself is derived deterministically inside `Apply` on `START_RUN` from `(playerId, chapter, tier, NowUtc, runCounter)` (`02` §2). |
-| **Content** | `SlayIdleRepeat.Data`, "embedded in both" (`14` §6) | ⚠️ **An immutable, version-stamped `ContentSnapshot` on the context.** Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what makes a replayed command reproduce its original outcome after a balance patch. |
+| **Content** | `game-data`, "embedded in both" (`14` §6) | ⚠️ **An immutable, version-stamped `ContentSnapshot` on the context.** Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what makes a replayed command reproduce its original outcome after a balance patch. |
 | **Entitlement** | Server session payload (`12` §2.1) | ✅ A read-only value. 🔒 **The domain may read `HasPlus` only to resolve ad-reward auto-grant caps — never to alter a stat, a rate or a drop.** An architecture test asserts `Entitlements` is unreachable from the power computation (`29` §3) and from every rule in `Core/Rules/`. |
 | **Feature flags** | `IRemoteConfigPort` | ⚠️ Resolved at the composition root into a plain record. The domain must not call a config service mid-rule. |
 
@@ -194,7 +194,7 @@ The concrete artefact that makes the claim testable. It is the *only* thing test
 
 ```csharp
 var game = new InMemoryGame(
-    content: ContentSnapshot.LoadFromDisk("SlayIdleRepeat.Data"),
+    content: ContentSnapshot.LoadFromDisk("game-data"),
     seed:    12345,
     clock:   new VirtualClock(start: "2026-08-11T05:00:00Z"));
 

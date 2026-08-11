@@ -32,7 +32,7 @@ namespace SlayIdleRepeat.ContentValidator;
 public static class TunableAuditComposition
 {
     /// <summary>Runs the audit over a checkout.</summary>
-    /// <param name="dataRoot">The <c>SlayIdleRepeat.Data</c> directory.</param>
+    /// <param name="dataRoot">The <c>game-data</c> directory.</param>
     /// <param name="designDocsRoot">The <c>game-design</c> directory.</param>
     /// <param name="baselinePath">The committed 📐 baseline.</param>
     public static TunableAuditReport Run(string dataRoot, string designDocsRoot, string baselinePath) =>

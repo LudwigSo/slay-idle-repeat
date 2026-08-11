@@ -191,7 +191,7 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Validate SlayIdleRepeat.Data
+      - name: Validate game-data
         shell: pwsh
         run: ./build/ci/Invoke-ContentValidation.ps1
 
@@ -264,8 +264,12 @@ jobs:
 
   # ===========================================================================
   # compose-boot — 14 §14 "boot the Docker Compose stack",
-  #                14 §13 Portability + Integration,
+  #                14 §13 Portability,
   #                14 §1.1 🔒 "up on a laptop with no cloud account"
+  #
+  # 🔒 This is the ONLY place in the repository that starts Docker, and it is CI
+  # infrastructure, not a test tier. Nothing here is a suite; no test project may
+  # depend on this stack. Agents implementing features never bring it up.
   #
   # ✅ M0-03 has landed. docker-compose.yml at the repository root brings up the
   # API, Postgres, Redis, MinIO, the OTel Collector, Jaeger, Prometheus and
@@ -289,9 +293,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
+      # No setup-dotnet: this job compiles nothing and runs no test suite. Every
+      # step below is pwsh or docker.
 
       - name: Assert CI holds no cloud credentials
         shell: pwsh
@@ -314,25 +317,48 @@ jobs:
         shell: pwsh
         run: ./build/ci/Wait-ForHttpOk.ps1 -Url http://127.0.0.1:8080/health -ExpectedBodyPattern '"status"\s*:\s*"ok"' -TimeoutSeconds 180
 
-      - name: Run integration suite against the live stack
-        # 14 §13: "Full run played end-to-end against a Docker Compose stack in CI."
-        #
-        # No longer a green tick over nothing: M0-03 removed this suite's
-        # knownEmpty exemption in build/ci/test-suites.json and filled it with its
-        # own acceptance criteria (API /health, object store reachable, every
-        # telemetry scrape target up). The full end-to-end run arrives with the
-        # adapters from M5-05 and is added alongside those, not instead of them.
-        shell: pwsh
-        run: ./build/ci/Invoke-UnitTests.ps1 -Group integration -Configuration Release
+      # 🔒 There is no integration test suite here, and none is to be added. This
+      # job used to end by running SlayIdleRepeat.Integration.Tests against the
+      # live stack; that project was deleted along with the whole integration/E2E
+      # tier (see $noIntegrationTier in build/ci/test-suites.json). Its three
+      # assertions survive as the direct probes below — same checks, no test tier
+      # for anyone to grow. If a future check needs the stack, it belongs here as
+      # a step, never as a test project.
 
-      # Everything below runs on failure too, and the ORDER matters: the two
-      # capture steps must both come before `down --volumes`. A red integration
-      # suite against a live stack is the one failure in this workflow whose
-      # post-mortem data cannot be reproduced from the repository — it depends on
-      # the state of eight containers at that moment — and `down --volumes`
-      # deletes it. The `test` and `architecture-tests` jobs have uploaded their
-      # TRX since M0-05; this job was collecting the same TRX and then throwing
-      # it away.
+      - name: Assert the object store is live
+        # 14 §7.1 — MinIO carries battle logs and ghost snapshots. Deliberately the
+        # unauthenticated liveness probe: an S3 call needs an S3 client, and
+        # 14 §1.1 🔒 keeps the S3 client inside Adapters.ObjectStore.S3.
+        shell: pwsh
+        run: ./build/ci/Wait-ForHttpOk.ps1 -Url http://127.0.0.1:9000/minio/health/live -TimeoutSeconds 120
+
+      - name: Assert every telemetry scrape target is up
+        # 14 §10 — asserts the telemetry ROAD, not the traffic. The server emits
+        # nothing of its own until M5-11, but a broken collector or a mistyped
+        # scrape config would make M5-11 look broken instead, and this catches it
+        # here. `otel-collector-app` must exist even while it is empty.
+        shell: pwsh
+        run: |
+          $response = Invoke-RestMethod -Uri 'http://127.0.0.1:9090/api/v1/query?query=up' -TimeoutSec 30
+          $jobs = @($response.data.result | ForEach-Object { $_.metric.job })
+          $down = @($response.data.result | Where-Object { $_.value[1] -ne '1' } |
+                    ForEach-Object { "$($_.metric.job)=$($_.value[1])" })
+          Write-Host "Scraped jobs: $($jobs -join ', ')"
+          if ('otel-collector-app' -notin $jobs) {
+            Write-Host "::error::the otel-collector-app scrape job must be configured in infra/prometheus/prometheus.yml"
+            exit 1
+          }
+          if ($down.Count -gt 0) {
+            Write-Host "::error::Prometheus targets not up: $($down -join ', ')"
+            exit 1
+          }
+          Write-Host "All $($jobs.Count) scrape target(s) up."
+
+      # Everything below runs on failure too, and the ORDER matters: the capture
+      # step must come before `down --volumes`. A red probe against a live stack is
+      # the one failure in this workflow whose post-mortem data cannot be
+      # reproduced from the repository — it depends on the state of eight
+      # containers at that moment — and `down --volumes` deletes it.
       - name: Stack logs
         if: always()
         # tee, not `>`: the log stays readable inline in the job output (which is
@@ -340,13 +366,12 @@ jobs:
         # for the artifact below (which is how you triage one a week later).
         run: docker compose logs --no-color 2>&1 | tee compose-logs.txt || true
 
-      - name: Upload integration results and stack logs
+      - name: Upload stack logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-integration
+          name: compose-stack-logs
           path: |
-            artifacts/testresults/*.trx
             compose-logs.txt
           if-no-files-found: warn
 

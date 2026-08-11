@@ -51,7 +51,7 @@ If you notice an architectural problem, note it in a single line under "Out of s
 - Expression-bodied members only where they improve readability.
 - Consistent `var` usage matching the surrounding file.
 - String interpolation over concatenation; no string building in loops.
-- Replace magic numbers/strings with named constants **only when they are code-level constants, not game balance** — a genuine balance/tunable number belongs in `SlayIdleRepeat.Data/*.json` (that's an architecture-review concern to flag if misplaced; here, just flag an unexplained literal that should at minimum be a named constant if it isn't already data-driven).
+- Replace magic numbers/strings with named constants **only when they are code-level constants, not game balance** — a genuine balance/tunable number belongs in `game-data/*.json` (that's an architecture-review concern to flag if misplaced; here, just flag an unexplained literal that should at minimum be a named constant if it isn't already data-driven).
 - Remove dead code, unused locals, and unused `using`s.
 
 ### Types & data

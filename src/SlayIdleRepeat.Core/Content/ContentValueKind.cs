@@ -4,7 +4,7 @@ namespace SlayIdleRepeat.Core.Content;
 /// The kinds a <see cref="ContentValue"/> can take.
 /// </summary>
 /// <remarks>
-/// 🔒 There is deliberately no <c>Null</c>. `SlayIdleRepeat.Data/README.md`:
+/// 🔒 There is deliberately no <c>Null</c>. `game-data/README.md`:
 /// <em>"<c>null</c> means 'the design docs do not authorise a value here.' It is never a
 /// legitimate runtime value."</em> A JSON <c>null</c> therefore loads as
 /// <see cref="Unauthorised"/> — a kind whose whole purpose is that no reader can mistake it
@@ -13,7 +13,7 @@ namespace SlayIdleRepeat.Core.Content;
 /// </remarks>
 public enum ContentValueKind
 {
-    /// <summary>The design docs do not authorise a value here (`SlayIdleRepeat.Data/README.md`).</summary>
+    /// <summary>The design docs do not authorise a value here (`game-data/README.md`).</summary>
     Unauthorised = 0,
 
     /// <summary>A JSON object. Members are held ordinal-sorted by name.</summary>

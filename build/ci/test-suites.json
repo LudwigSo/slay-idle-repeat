@@ -38,23 +38,37 @@
   "groups": {
     "unit": {
       "job": "test",
-      "description": "Domain, application and contract suites. Everything that needs no container.",
+      "description": "Domain, application and contract suites. Everything that needs no container — which, since the integration tier was removed, is every suite except architecture.",
       "exclude": [
-        "SlayIdleRepeat.Architecture.Tests",
-        "SlayIdleRepeat.Integration.Tests"
+        "SlayIdleRepeat.Architecture.Tests"
       ]
     },
     "architecture": {
       "job": "architecture-tests",
       "description": "23 §6 / 30 §9 dependency, port-purity and adapter-isolation rules. Its own job so a flake elsewhere can never mask it — 23 §6 says it fails the build.",
       "include": [ "SlayIdleRepeat.Architecture.Tests" ]
-    },
-    "integration": {
-      "job": "compose-boot",
-      "description": "14 §13: a full run played end-to-end against the docker compose stack. Runs only once the stack is up.",
-      "include": [ "SlayIdleRepeat.Integration.Tests" ]
     }
   },
+
+  "$noIntegrationTier": [
+    "🔒 THIS REPOSITORY HAS NO INTEGRATION OR END-TO-END TEST TIER, BY DECISION.",
+    "",
+    "SlayIdleRepeat.Integration.Tests was deleted and its `integration` group",
+    "removed from this file. Do not re-add either. A test that needs docker",
+    "compose, a live Postgres/Redis/MinIO, a real ASP.NET host or the Godot",
+    "runtime does not belong in this repository at all — it is not to be",
+    "relocated to a new suite, and no group here is to be pointed at one.",
+    "",
+    "What replaced its three assertions: the compose-boot job in",
+    ".github/workflows/ci.yml now probes /health, the MinIO liveness endpoint and",
+    "the Prometheus scrape targets directly with build/ci/ scripts. That job boots",
+    "the stack to prove 14 §1.1's portability claim; it is CI infrastructure, not a",
+    "test tier, and nothing in it is a suite anyone writes tests into.",
+    "",
+    "Every tier that remains is fast and dependency-free: Core.Tests,",
+    "Application.Tests (against Adapters.InMemory), Contract.Tests,",
+    "Client.Tests, Architecture.Tests."
+  ],
 
   "knownEmpty": [],
 
@@ -83,7 +97,15 @@
       "project": "SlayIdleRepeat.Integration.Tests",
       "wasTurnsOn": "M0-03",
       "filledBy": "M0-03",
+      "deletedBy": "the no-integration-tier decision — see $noIntegrationTier above",
       "note": [
+        "⚠️ THE PROJECT THIS ENTRY DESCRIBES NO LONGER EXISTS. Kept as the record of",
+        "why the compose-boot job's assertions are now pwsh probes rather than a test",
+        "suite. Its three cases (API /health, object store liveness, telemetry",
+        "targets up) were carried over into ci.yml verbatim in intent, so the",
+        "vacuous-pass problem described below did not come back with the deletion.",
+        "The rest of this note is history, from when the suite was still here.",
+        "",
         "This exemption was removed rather than re-pointed at a later milestone.",
         "",
         "Its stated reason was 'needs the compose stack, which does not exist until",

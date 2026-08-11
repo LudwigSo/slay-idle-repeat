@@ -6,7 +6,7 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// <summary>
 /// Turns the bytes behind an <see cref="IContentSourcePort"/> into an immutable, version-stamped
 /// <c>ContentSnapshot</c>: parse → layer overrides → validate against
-/// <c>SlayIdleRepeat.Data/schema/</c> → check cross-file invariants → stamp.
+/// <c>game-data/schema/</c> → check cross-file invariants → stamp.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,7 +18,7 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// <c>CanonicalStateWriter</c>, and the two never share bytes.
 /// </para>
 /// <para>
-/// The directory convention it reads, from `SlayIdleRepeat.Data/README.md`:
+/// The directory convention it reads, from `game-data/README.md`:
 /// <list type="bullet">
 /// <item><c>schema/*.json</c> — JSON Schema, never content.</item>
 /// <item><c>loc/*.json</c> — governed by <c>schema/loc.schema.json</c>.</item>

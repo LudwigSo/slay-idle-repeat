@@ -79,7 +79,7 @@ public static partial class ContentInvariants
 
     /// <summary>The sentinel a German value carries until a human has translated it.</summary>
     /// <remarks>
-    /// `SlayIdleRepeat.Data/README.md` and <c>schema/loc.schema.json</c> both state the same
+    /// `game-data/README.md` and <c>schema/loc.schema.json</c> both state the same
     /// sentence: <em>"A build that ships to players must fail while any sentinel remains."</em>
     /// It was declared 🔒 in two places and implemented in neither — the string appeared nowhere in
     /// production code or CI, only in test fixtures.
@@ -352,7 +352,7 @@ public static partial class ContentInvariants
         icon.AsText().Length > 0;
 
     /// <summary>
-    /// `SlayIdleRepeat.Data/README.md`: <em>"<c>en.json</c> and <c>de.json</c> must carry an
+    /// `game-data/README.md`: <em>"<c>en.json</c> and <c>de.json</c> must carry an
     /// identical key set — a key in one and not the other is a string that will render as its own
     /// key in front of a player."</em>
     /// </summary>

@@ -4,7 +4,7 @@ using SlayIdleRepeat.Adapters.InMemory;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// Loads the real <c>SlayIdleRepeat.Data</c> tree off disk and hands it to the in-memory fake.
+/// Loads the real <c>game-data</c> tree off disk and hands it to the in-memory fake.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,8 +34,8 @@ internal static class RepoData
     /// <summary>The directory holding <c>SlayIdleRepeat.sln</c>.</summary>
     internal static string RepositoryRoot => LazyRepositoryRoot.Value;
 
-    /// <summary>The <c>SlayIdleRepeat.Data</c> root.</summary>
-    internal static string DataRoot => Path.Combine(RepositoryRoot, "SlayIdleRepeat.Data");
+    /// <summary>The <c>game-data</c> root.</summary>
+    internal static string DataRoot => Path.Combine(RepositoryRoot, "game-data");
 
     /// <summary>The <c>game-design</c> documentation root.</summary>
     internal static string DesignDocsRoot => Path.Combine(RepositoryRoot, "game-design");
@@ -47,7 +47,7 @@ internal static class RepoData
     internal static InMemoryContentSource Source()
     {
         Directory.Exists(DataRoot).Should().BeTrue(
-            $"these cases read the real SlayIdleRepeat.Data; searched upward from {AppContext.BaseDirectory}");
+            $"these cases read the real game-data; searched upward from {AppContext.BaseDirectory}");
 
         var source = new InMemoryContentSource();
         foreach (var (path, text) in Documents)

@@ -9,7 +9,7 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// <para>
 /// `21` §3.3 / `14` §6: <em>"Experiments and what-ifs run as sparse override patches layered on
 /// top of the canonical files, never as edits to them. This keeps <c>git diff</c> on
-/// <c>SlayIdleRepeat.Data</c> a record of decisions rather than a record of attempts."</em>
+/// <c>game-data</c> a record of decisions rather than a record of attempts."</em>
 /// </para>
 /// <para>
 /// 🔒 Nothing here writes. The patch produces a new <see cref="ContentValue"/> tree; the canonical

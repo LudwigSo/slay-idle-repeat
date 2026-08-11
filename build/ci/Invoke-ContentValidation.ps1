@@ -1,12 +1,12 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Validates every JSON file under SlayIdleRepeat.Data, and audits the 📐 TUNABLE
+    Validates every JSON file under game-data, and audits the 📐 TUNABLE
     markers in game-design/ against the schema keys.
 
 .DESCRIPTION
     14 §6 🔒: "JSON is validated at build time against schemas in
-    SlayIdleRepeat.Data/schema/. The build fails on unknown IDs, missing icons,
+    game-data/schema/. The build fails on unknown IDs, missing icons,
     out-of-range values, orphaned references or duplicate IDs."
 
     14 §6 🔒: "a build-time check enumerates every 📐 marker in the documentation
@@ -48,7 +48,7 @@
     Defaults to the repository containing this script.
 
 .PARAMETER DataRoot
-    Defaults to <repo>/SlayIdleRepeat.Data.
+    Defaults to <repo>/game-data.
 
 .PARAMETER Configuration
     Build configuration for the validator tool. Defaults to Release.
@@ -80,7 +80,7 @@ $PSNativeCommandUseErrorActionPreference = $false
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RepositoryRoot -Override $RepositoryRoot
-if (-not $DataRoot) { $DataRoot = Join-Path $root 'SlayIdleRepeat.Data' }
+if (-not $DataRoot) { $DataRoot = Join-Path $root 'game-data' }
 
 $designDocs = Join-Path $root 'game-design'
 $baseline = Join-Path $root 'build/content/tunable-marker-baseline.json'

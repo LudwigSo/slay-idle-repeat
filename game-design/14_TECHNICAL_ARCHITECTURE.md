@@ -288,7 +288,7 @@ SlayIdleRepeat.sln
 │   │   └── fakes/               #   InMemory — a fake for EVERY port
 │   ├── SlayIdleRepeat.Server/        # COMPOSITION ROOT: ASP.NET Core host, endpoints, DI wiring
 │   └── SlayIdleRepeat.Client/        # COMPOSITION ROOT: the Godot project (see §5)
-├── SlayIdleRepeat.Data/              # shared JSON content, embedded in both
+├── game-data/              # shared JSON content, embedded in both
 ├── tests/                       # Core · Application · Architecture · Contract · Integration
 └── tools/
     ├── BalanceHarness/          # mass battle simulation
@@ -336,7 +336,7 @@ res://
 │   ├── net/                    # StateMirror, CommandQueue, ReconnectManager —
 │   │                           #   built on IGameApiPort / IRealtimeChannelPort
 │   └── vfx/
-├── data/                       # mirror of SlayIdleRepeat.Data, for prediction + display
+├── data/                       # mirror of game-data, for prediction + display
 ├── art/                        # see doc 15
 ├── audio/                      # see doc 20
 └── tests/
@@ -354,16 +354,16 @@ res://
 
 ## 6. Data-driven content 🔒
 
-Every number marked 📐 TUNABLE lives in `SlayIdleRepeat.Data/*.json`, never in code.
+Every number marked 📐 TUNABLE lives in `game-data/*.json`, never in code.
 
-🔒 **Every economy-affecting tunable lives specifically in `SlayIdleRepeat.Data/tuning/`** — a flat directory of 14 files, catalogued in `21` §3.1. A 📐 number outside that directory is a bug, and a build-time check enumerates every 📐 marker in the documentation set against the schema keys and **fails on a mismatch**. That check is what stops the tuning surface eroding over eighteen months, and it is what makes the economy simulator (`21`) and its parameter sweeps possible at all — a number in code can never be swept, and will therefore never be tuned.
+🔒 **Every economy-affecting tunable lives specifically in `game-data/tuning/`** — a flat directory of 14 files, catalogued in `21` §3.1. A 📐 number outside that directory is a bug, and a build-time check enumerates every 📐 marker in the documentation set against the schema keys and **fails on a mismatch**. That check is what stops the tuning surface eroding over eighteen months, and it is what makes the economy simulator (`21`) and its parameter sweeps possible at all — a number in code can never be swept, and will therefore never be tuned.
 
-Experiments and what-ifs run as **sparse override patches** layered on top of the canonical files (`21` §3.3), never as edits to them. This keeps `git diff` on `SlayIdleRepeat.Data` a record of decisions rather than a record of attempts.
+Experiments and what-ifs run as **sparse override patches** layered on top of the canonical files (`21` §3.3), never as edits to them. This keeps `git diff` on `game-data` a record of decisions rather than a record of attempts.
 
 🔒 Content is loaded once into an **immutable, version-stamped `ContentSnapshot`** and passed to the domain on `GameContext` (`30` §3). Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what lets a replayed command reproduce its original outcome after a balance patch — without it, replay and the reconnect chaos test silently diverge whenever content changes.
 
 - The **server** is the source of truth for content. The client ships a copy for prediction and display, and validates its content hash against the server at session start. A mismatch triggers a content download before play — this allows balance changes without an app store update.
-- JSON is validated at build time against schemas in `SlayIdleRepeat.Data/schema/`. The build fails on unknown IDs, missing icons, out-of-range values, orphaned references or duplicate IDs.
+- JSON is validated at build time against schemas in `game-data/schema/`. The build fails on unknown IDs, missing icons, out-of-range values, orphaned references or duplicate IDs.
 - In editor/dev builds, content hot-reloads without restarting.
 
 Example — chapter definition:
@@ -718,7 +718,7 @@ Throughput sanity: ~30 commands/run × ~8 runs/DAU × 10k DAU ≈ 2.4M transacti
 | Sign-in providers | Google / Apple assertions link an identity to the account (`28` B); session issuance is identical afterwards. Tokens remain our own JWTs (§12) — the providers are only used for the initial assertion. |
 | Transport | The access JWT rides `Authorization: Bearer` on every HTTP request. WebSocket connections authenticate **once, at upgrade**, via the same header; when the server requires fresh auth it closes with code `4401` and the client silently reconnects — reconnection is already free (§3). |
 | Silent renewal 🔒 | The client renews in the background at ~80% 📐 of the access-token lifetime. On a 401: one refresh, then retry the **same** `commandId`. If the refresh fails: re-auth with the device secret. Only if that also fails does the player see anything — the reconnecting pill, then the account-recovery path (`28` B). **A mid-run token expiry must never be player-visible and can never lose progress:** the run has a 48 h TTL and every command is idempotent (§16.3). |
-| Config home | Token lifetimes are server-operations numbers: environment configuration (§1.1), with the defaults above. They are deliberately **not** in `Data/tuning/` — they are not economy tunables and must never ride a content push. |
+| Config home | Token lifetimes are server-operations numbers: environment configuration (§1.1), with the defaults above. They are deliberately **not** in `game-data/tuning/` — they are not economy tunables and must never ride a content push. |
 
 ### 16.6 The `stateHash` serialisation contract 🔒
 

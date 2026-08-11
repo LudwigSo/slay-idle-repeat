@@ -289,10 +289,15 @@ up as they are.
    stack. Then add the real game dashboards (`14` §10.1's event set — perk pick
    rate, run abandonment by tile index, disconnect rate, season rating drift) as
    new files in `infra/grafana/dashboards/`.
-3. **Both** — replace the smoke assertions in
-   `tests/SlayIdleRepeat.Integration.Tests/ComposeStackSmokeTests.cs` with the
-   real thing: `14` §13's *"Full run played end-to-end against a Docker Compose
-   stack in CI."*
+3. **Both** — tighten the stack assertions in the `compose-boot` job
+   (`.github/workflows/ci.yml`) to cover the new signals: real server spans and
+   metrics rather than only "every scrape target is up".
+
+   🔒 Those assertions are **CI steps, not a test suite**. This repository has no
+   integration or end-to-end tier — `SlayIdleRepeat.Integration.Tests` was deleted
+   and is not to be recreated under any name. `14` §13's *"full run played
+   end-to-end against a Docker Compose stack"* is explicitly **not** adopted here.
+   No test project may depend on this stack.
 
 ### Rules for changing this stack
 

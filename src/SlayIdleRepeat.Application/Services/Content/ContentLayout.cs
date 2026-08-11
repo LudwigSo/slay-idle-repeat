@@ -1,10 +1,10 @@
 namespace SlayIdleRepeat.Application.Services.Content;
 
 /// <summary>
-/// The <c>SlayIdleRepeat.Data</c> directory convention, in one place.
+/// The <c>game-data</c> directory convention, in one place.
 /// </summary>
 /// <remarks>
-/// From <c>SlayIdleRepeat.Data/README.md</c>: <c>schema/</c> holds JSON Schema and never content;
+/// From <c>game-data/README.md</c>: <c>schema/</c> holds JSON Schema and never content;
 /// <c>loc/*.json</c> is governed by <c>schema/loc.schema.json</c>; <c>tuning/experiments/*.json</c>
 /// are override patches and 🔒 never part of a snapshot; each <c>content/&lt;type&gt;/</c> directory
 /// is governed by the one schema for that content <em>type</em>; everything else is governed by
@@ -43,7 +43,7 @@ public static class ContentLayout
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>SlayIdleRepeat.Data/README.md</c> declares 15 content directories, each holding many files
+    /// <c>game-data/README.md</c> declares 15 content directories, each holding many files
     /// of one type: <c>content/chapters/CH_01_EMBERFALL.json</c>, <c>CH_02_….json</c>, … all
     /// governed by the single <c>schema/chapter.schema.json</c> whose own <c>title</c> is
     /// <c>content/chapters/*.json</c>. The <see cref="SchemaFor"/> stem rule would look for

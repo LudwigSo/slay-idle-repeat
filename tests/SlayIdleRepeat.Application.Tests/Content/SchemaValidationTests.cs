@@ -6,7 +6,7 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
 /// `14` §6 🔒 — <em>"JSON is validated at build time against schemas in
-/// <c>SlayIdleRepeat.Data/schema/</c>. The build fails on unknown IDs, missing icons,
+/// <c>game-data/schema/</c>. The build fails on unknown IDs, missing icons,
 /// out-of-range values, orphaned references or duplicate IDs."</em>
 /// </summary>
 /// <remarks>

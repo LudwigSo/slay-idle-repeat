@@ -111,7 +111,7 @@ Mount **stat blocks** are in the aggregate. Mount **run perks** (`07` §3.2) are
 The three inputs the grading stack could not run without: the reference par build (fixes `K_POWER`), the standard dummy (makes `EmpiricalPower` measurable), and the five build-archetype loadouts `05` §9 sweeps. All live in one file:
 
 ```
-SlayIdleRepeat.Data/tuning/calibration_builds.json
+game-data/tuning/calibration_builds.json
 ```
 
 📐 Every number below. The harness **loads** these; it never synthesises its own.
@@ -358,7 +358,7 @@ The product owner authors, for each simulated profile (`21` §5), the `PlayerPow
 
 | Rule | Specification |
 |---|---|
-| File | `SlayIdleRepeat.Data/tuning/expected_progression.json` — one entry per profile |
+| File | `game-data/tuning/expected_progression.json` — one entry per profile |
 | Checkpoints | 8 per profile: days 1, 3, 7, 14, 30, 60, 90, 180. Add more freely; the simulator interpolates between them for charting. |
 | Tolerance | A fractional band. `0.25` means actual must land within ±25% of expected. Bands widen with time because variance compounds and because late-game behaviour is less predictable. |
 | Derivation | **`01` §7's milestone table is the player-facing summary of these checkpoints** (ruled in `16` A7) — if day-7 expected power sits near `ParPower(4, Normal)`, then `01` §7's "Chapter 4 Normal, day 5–7" row follows. Changes are made here first; `01` §7 is rewritten to match, never the reverse. |
@@ -430,7 +430,7 @@ NoAds_Core        30     84,000       58,000     -31.0%   ±25%    ❌  outside 
 Everything in this document is four files, and they are deliberately separated by *who edits them*:
 
 ```
-SlayIdleRepeat.Data/tuning/
+game-data/tuning/
 ├── power_model.json            # §2, §3 — ENGINEERING. Formula weights, reference opponent,
 │                               #   pet ability weights, Utility Index weights. Changes rarely.
 ├── calibration_builds.json     # §2.5 — ENGINEERING+DESIGN. Reference par build, standard

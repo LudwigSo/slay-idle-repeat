@@ -1,4 +1,4 @@
-# `SlayIdleRepeat.Data`
+# `game-data`
 
 The game's data layer: every tunable number, every content definition, every schema, every
 user-facing string. Shared verbatim by the server (the source of truth), the client (a copy, for
@@ -13,9 +13,9 @@ rules. They are below.
 
 `14_TECHNICAL_ARCHITECTURE.md` §6, verbatim:
 
-> Every number marked 📐 TUNABLE lives in `SlayIdleRepeat.Data/*.json`, never in code.
+> Every number marked 📐 TUNABLE lives in `game-data/*.json`, never in code.
 >
-> 🔒 **Every economy-affecting tunable lives specifically in `SlayIdleRepeat.Data/tuning/`** — a flat
+> 🔒 **Every economy-affecting tunable lives specifically in `game-data/tuning/`** — a flat
 > directory of 14 files, catalogued in `21` §3.1. A 📐 number outside that directory is a bug, and a
 > build-time check enumerates every 📐 marker in the documentation set against the schema keys and
 > **fails on a mismatch**.
@@ -34,7 +34,7 @@ reasonable exceptions is how a tuning surface stops existing.
 ## Layout
 
 ```
-SlayIdleRepeat.Data/
+game-data/
 ├── tuning/            # the 16 canonical tunable files (21 §3.1). Economy lives here.
 │   └── experiments/   # sparse override patches. Never edit tuning/ to run an experiment.
 ├── content/           # what the game is made of: chapters, enemies, perks, gear, …
@@ -110,7 +110,7 @@ leaking *out* of `tuning/`, never numbers being over-collected into it.
 
 ### `schema/` — what makes the build fail
 
-`14` §6: *"JSON is validated at build time against schemas in `SlayIdleRepeat.Data/schema/`. The
+`14` §6: *"JSON is validated at build time against schemas in `game-data/schema/`. The
 build fails on unknown IDs, missing icons, out-of-range values, orphaned references or duplicate
 IDs."*
 

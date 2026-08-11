@@ -2,5 +2,5 @@
 # Linux x64, Android ARM64 and iOS ARM64 by the cross-platform job (M5-12). Its line
 # endings are pinned to LF so the file is byte-identical on every one of them, and so a
 # one-row addition never diffs as a whole-file rewrite because someone's core.autocrlf
-# disagreed. It follows the same rule as SlayIdleRepeat.Data/.
+# disagreed. It follows the same rule as game-data/.
 *.json text eol=lf

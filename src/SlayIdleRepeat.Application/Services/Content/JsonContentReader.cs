@@ -95,7 +95,7 @@ public static class JsonContentReader
             JsonTokenType.True => ContentValue.True,
             JsonTokenType.False => ContentValue.False,
 
-            // 🔒 The whole point. `SlayIdleRepeat.Data/README.md`: null means "the design docs do
+            // 🔒 The whole point. `game-data/README.md`: null means "the design docs do
             // not authorise a value here". It is never zero and never a default.
             JsonTokenType.Null => ContentValue.Unauthorised,
 

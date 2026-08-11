@@ -35,7 +35,7 @@ public sealed class MissingContentException : ContentException
 
 /// <summary>
 /// 🔒 Raised when a rule reads a leaf that is <see cref="ContentValueKind.Unauthorised"/> —
-/// a <c>null</c> in the data files, which `SlayIdleRepeat.Data/README.md` defines as
+/// a <c>null</c> in the data files, which `game-data/README.md` defines as
 /// <em>"the design docs do not authorise a value here"</em>.
 /// </summary>
 /// <remarks>
@@ -48,7 +48,7 @@ public sealed class UnauthorisedTunableException : ContentException
     /// <summary>Creates the exception for the given reference.</summary>
     public UnauthorisedTunableException(string reference)
         : base($"Content reference '{reference}' is null, which means the design docs do not " +
-               "authorise a value here (SlayIdleRepeat.Data/README.md). It is not zero and it is " +
+               "authorise a value here (game-data/README.md). It is not zero and it is " +
                "not a default. Author the value, or do not read it.")
     {
         Reference = reference;

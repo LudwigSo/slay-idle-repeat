@@ -7,7 +7,7 @@ namespace SlayIdleRepeat.ContentValidator;
 
 /// <summary>
 /// The build-time content check `14` §6 requires: schema validation over every JSON file under
-/// <c>SlayIdleRepeat.Data</c>, plus the 📐-marker-versus-schema-key audit over the documentation
+/// <c>game-data</c>, plus the 📐-marker-versus-schema-key audit over the documentation
 /// set.
 /// </summary>
 /// <remarks>
@@ -36,7 +36,7 @@ internal static class Program
     private static int Run(string[] args)
     {
         var repositoryRoot = Argument(args, "--repository-root") ?? FindRepositoryRoot();
-        var dataRoot = Argument(args, "--data-root") ?? Path.Combine(repositoryRoot, "SlayIdleRepeat.Data");
+        var dataRoot = Argument(args, "--data-root") ?? Path.Combine(repositoryRoot, "game-data");
         var designDocs = Argument(args, "--design-docs") ?? Path.Combine(repositoryRoot, "game-design");
         var baselinePath = Argument(args, "--baseline") ?? Path.Combine(repositoryRoot, BaselineRelativePath);
         var writeBaseline = args.Contains("--write-baseline", StringComparer.Ordinal);

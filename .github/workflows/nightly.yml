@@ -19,11 +19,11 @@
 #          the 6 guardrail tests (05 §9). The run stops being a smoke test and
 #          starts failing on a guardrail breach.
 #   M6-09  Economy simulator assertions A1–A16 plus inherited E1–E23, wired as
-#          the CI gate on SlayIdleRepeat.Data changes, with a perf budget of
+#          the CI gate on game-data changes, with a perf budget of
 #          180 d × 14 profiles × 200 seeds in under 4 minutes (21 §9).
 #
 # When M6-09 lands, the economy simulator also becomes a PR-triggered gate on
-# SlayIdleRepeat.Data — that trigger belongs in ci.yml with a paths filter, not
+# game-data — that trigger belongs in ci.yml with a paths filter, not
 # here; nightly keeps the full-length sweep.
 #
 # ⚠️ Two things about `schedule:` on a repository that does not exist yet

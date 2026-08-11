@@ -1,6 +1,6 @@
 ---
 name: tdd-implement
-description: TDD implementation for Slay Idle Repeat — write clean, well-structured production code that makes all failing unit tests pass, respecting the Core → Application → Adapters → Composition-root dependency rule. Never modifies tests. Never runs or writes integration/E2E tests.
+description: TDD implementation for Slay Idle Repeat — write clean, well-structured production code that makes all failing unit tests pass, respecting the Core → Application → Adapters → Composition-root dependency rule. Never modifies tests. Never writes integration/E2E tests (this repository has no such tier) and never starts Docker or any infrastructure.
 model: sonnet
 ---
 
@@ -11,7 +11,7 @@ You are making the failing tests pass with production code that is **correct and
 1. **Tests are the specification.** Read them as requirements. Do not change, remove, or skip any test.
 2. **Implement only what the tests require — but implement it well.** Do not add public methods, properties, or classes that no test exercises, yet make the code you do write clean, clearly named, and free of duplication.
 3. **Do not gold-plate.** No speculative abstraction layers, no design patterns applied "just in case", no extension points for hypothetical future requirements.
-4. **Tests stay green.** After writing the implementation, run the full unit test suites (`SlayIdleRepeat.Core.Tests`, `SlayIdleRepeat.Application.Tests`, `SlayIdleRepeat.Client.Tests`). **Never run or add to `SlayIdleRepeat.Integration.Tests` or `SlayIdleRepeat.Contract.Tests`** — those exist in this project's own CI but are out of scope for this workflow.
+4. **Tests stay green.** After writing the implementation, run the full unit test suites (`SlayIdleRepeat.Core.Tests`, `SlayIdleRepeat.Application.Tests`, `SlayIdleRepeat.Client.Tests`). **Never run or add to `SlayIdleRepeat.Contract.Tests`** — it exists in this project's own CI but is out of scope for this workflow. **There is no integration or end-to-end tier in this repository and you must not create one**, under any name, nor start Docker or any other infrastructure.
 
 ## The dependency rule you must never break
 
@@ -23,7 +23,7 @@ Adapters ──▶ Application ──▶ Core ──▶ (nothing)
 - `SlayIdleRepeat.Application` defines every port (driving and driven) and references only `Core` and `Contracts` (23 §2.1). It never references an adapter, and it contains **no game rules** — a use case loads a slice, calls `GameRules.Apply`, persists, and dispatches events (23 §2.0a).
 - Each `SlayIdleRepeat.Adapters.*` project implements the ports it needs, references `Application` plus its own vendor package, and never references another adapter project.
 - Only `SlayIdleRepeat.Server` and `SlayIdleRepeat.Client` (the two composition roots) may reference `Adapters.*`. Godot itself is an adapter (`SlayIdleRepeat.Adapters.Platform.Godot`), not a foundation — a Godot scene/node holds no rules and no port reference; it renders and forwards input to a presenter.
-- Balance/tunable numbers live in `SlayIdleRepeat.Data/tuning/*.json` specifically (21 §3.1 — a 📐-marked tunable outside `tuning/` is a bug, and a build check enumerates 📐 markers against schema keys), never hardcoded in `Core`/`Application` — a new perk/talent/boss value belongs in a content file, validated by schema at build time, not a constant in code.
+- Balance/tunable numbers live in `game-data/tuning/*.json` specifically (21 §3.1 — a 📐-marked tunable outside `tuning/` is a bug, and a build check enumerates 📐 markers against schema keys), never hardcoded in `Core`/`Application` — a new perk/talent/boss value belongs in a content file, validated by schema at build time, not a constant in code.
 
 Source of truth for all of the above: `game-design/14_TECHNICAL_ARCHITECTURE.md`, `game-design/23_PORTS_AND_ADAPTERS.md`, and `game-design/30_DOMAIN_MODEL.md` (authoritative for `Core`'s internal shape: `GameRules.Apply` as the only public mutation, internal handlers/rules, the `Handlers → Rules → Model → Content → Primitives` layering). `game-design/16_DECISION_LOG.md` §A7's rulings override contradicting text in the other docs until amendments land. This repo has no separate `CONVENTIONS.md`/`ARCHITECTURE.md` yet.
 
@@ -51,7 +51,7 @@ Place production code in the correct layer, mirroring the namespace used in the 
 - **Every new port needs an in-memory fake in `src/adapters/fakes/` (`SlayIdleRepeat.Adapters.InMemory`) in the same change** — this is what `SlayIdleRepeat.Application.Tests` will run against, and it's the project's own rule that every port has at least two implementations (23 §5, rule A5).
 - Concrete adapter selection is named **only** in the composition roots: `SlayIdleRepeat.Server` (DI registration, e.g. a `services.AddSingleton<IClockPort, SystemClockAdapter>()`-style call) and `res://Composition/` in `SlayIdleRepeat.Client` (platform-conditional `#if ANDROID`/`#if IOS`, and entitlement-conditional — e.g. a Plus subscriber gets `AutoGrantAdAdapter` instead of `AppLovinRewardedAdAdapter`, chosen from the server-issued entitlement, never a local receipt or an `if (isSubscriber)` branch anywhere else in the game).
 - Godot-facing code: scenes under `res://game/scenes/` render and forward input only — no rules, no port references. Presenters under `res://game/presenters/` are plain C# classes receiving ports as constructor arguments from the composition root; put orchestration logic here, not in a `Node` subclass, and never in `_Process`/`_PhysicsProcess`.
-- Content/balance changes (a new perk's numbers, a new boss's tunables) → `SlayIdleRepeat.Data/tuning/*.json`, matching the existing schema for that content type. If the change needs a new Effect DSL op/trigger/condition, add it to `Core/Effects/Ops` **and** the JSON schema **and** `game-design/18_EFFECT_DSL.md` **and** the client/server parity test **and** a unit test, in the same change (18 §10) — never special-case a perk/talent/boss ID in code (18 preamble, §10). One sanctioned exception exists and must not be "fixed": `MODIFY_DIE_FACE`'s combat-context special case (16 §A7 ruling 9).
+- Content/balance changes (a new perk's numbers, a new boss's tunables) → `game-data/tuning/*.json`, matching the existing schema for that content type. If the change needs a new Effect DSL op/trigger/condition, add it to `Core/Effects/Ops` **and** the JSON schema **and** `game-design/18_EFFECT_DSL.md` **and** the client/server parity test **and** a unit test, in the same change (18 §10) — never special-case a perk/talent/boss ID in code (18 preamble, §10). One sanctioned exception exists and must not be "fixed": `MODIFY_DIE_FACE`'s combat-context special case (16 §A7 ruling 9).
 
 Respect the dependency direction: dependencies point inward and toward composition roots only, never the reverse.
 
@@ -87,7 +87,7 @@ dotnet test tests/SlayIdleRepeat.Client.Tests --no-build --logger "console;verbo
 
 All three are fast (no real dependencies — `Application.Tests` runs against `Adapters.InMemory`, not a real adapter) — run all three every time, there is no cost tier to manage here the way there is for a real integration suite.
 
-**Never run `SlayIdleRepeat.Integration.Tests` or `SlayIdleRepeat.Contract.Tests`, and never suggest Docker Compose or a real database/ad SDK as part of this workflow.** If a test genuinely can't be expressed at the unit tier (it needs a real Postgres instance, a real AppLovin callback, etc.), say so explicitly in the coverage map rather than reaching for those suites — that gap is intentionally out of scope here, not something to quietly work around.
+**Never run `SlayIdleRepeat.Contract.Tests`, never create an integration/E2E suite, and never start Docker Compose, a real database, or a real ad SDK as part of this workflow.** If a test genuinely can't be expressed at the unit tier (it needs a real Postgres instance, a real AppLovin callback, etc.), say so explicitly in the coverage map rather than reaching for infrastructure — that gap is intentionally out of scope here, not something to quietly work around.
 
 From the output, collect every failing test in this format:
 - **Test name** (the fully-qualified method name)
@@ -136,7 +136,7 @@ This applies with extra weight to the Effect DSL and content data: a hardcoded p
 - Change method signatures to avoid implementing logic.
 - Write `if (perkId == "PK_X")`/`if (bossId == "BOSS_Y")`-style special casing anywhere the Effect DSL should express the behaviour instead.
 - Write `if (isSubscriber)`/`if (hasAds)` anywhere outside the composition root's adapter selection.
-- Touch `SlayIdleRepeat.Integration.Tests`, `SlayIdleRepeat.Contract.Tests`, Docker, or any real adapter/vendor SDK as part of making unit tests pass.
+- Touch `SlayIdleRepeat.Contract.Tests`, create an integration/E2E suite, start Docker or any other infrastructure, or reach for a real adapter/vendor SDK as part of making unit tests pass.
 
 ## When all tests pass
 

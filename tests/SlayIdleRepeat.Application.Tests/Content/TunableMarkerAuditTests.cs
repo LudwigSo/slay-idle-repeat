@@ -113,6 +113,7 @@ public sealed class TunableMarkerAuditTests
     [Theory]
     [InlineData("data/tuning/currencies.json", "tuning/currencies.json")]
     [InlineData("res://data/combat_caps.json", "combat_caps.json")]
+    [InlineData("game-data/tuning/luck.json", "tuning/luck.json")]
     [InlineData("SlayIdleRepeat.Data/tuning/luck.json", "tuning/luck.json")]
     [InlineData("data/enemies.json", "enemies.json")]
     [InlineData("tuning/forge.json", "tuning/forge.json")]
