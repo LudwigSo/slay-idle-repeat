@@ -56,7 +56,7 @@ internal static class ContentTestData
             "tag": { "type": "string", "minLength": 1, "maxLength": 8 },
             "ratio": { "type": "number", "exclusiveMaximum": 1 },
             "payout": { "oneOf": [{ "type": "integer" }, { "const": "FULL" }] },
-            "stoneCosts": { "type": "array", "maxItems": 3, "items": { "type": "integer" } },
+            "stoneCosts": { "type": "array", "maxItems": 3, "uniqueItems": true, "items": { "type": "integer" } },
             "openedAt": { "type": "string", "format": "date-time" },
             "limits": { "type": "object", "maxProperties": 2, "additionalProperties": { "type": "integer" } }
           }

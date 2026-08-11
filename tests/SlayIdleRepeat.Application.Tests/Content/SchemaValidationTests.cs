@@ -263,8 +263,8 @@ public sealed class SchemaValidationTests
     // required — a bare string iterates nothing.
     [InlineData("\"required\": [\"id\", \"rarity\", \"displayName\", \"requires\"]", "\"required\": \"id\"")]
     // items — draft-07's tuple form, skipped entirely by the walk.
-    [InlineData("\"maxItems\": 3, \"items\": { \"type\": \"integer\" }",
-                "\"maxItems\": 3, \"items\": [{ \"type\": \"integer\" }]")]
+    [InlineData("\"uniqueItems\": true, \"items\": { \"type\": \"integer\" }",
+                "\"uniqueItems\": true, \"items\": [{ \"type\": \"integer\" }]")]
     // oneOf — an empty branch list can never match exactly one.
     [InlineData("\"oneOf\": [{ \"type\": \"integer\" }, { \"const\": \"FULL\" }]", "\"oneOf\": []")]
     // enum — a bare string enumerates nothing.
@@ -333,6 +333,13 @@ public sealed class SchemaValidationTests
         Issues(ContentTestData.WithTuningEdit(find, replaceWith)).Should().Contain(i => i.Code == expected);
     }
 
+    /// <summary>
+    /// 🔒 Pins the <b>schema-layer</b> identity, not just the code. On an id-bearing collection
+    /// <c>CheckIdSpaces</c> emits <c>DuplicateId</c> for the same edit, so deleting the
+    /// <c>CheckUniqueItems</c> call — leaving the keyword in <c>SupportedKeywords</c>, so no
+    /// <c>UnsupportedSchemaKeyword</c> fires either — left this green while <c>uniqueItems</c>
+    /// silently stopped biting on every array in all 19 schemas.
+    /// </summary>
     [Fact]
     public void Load_enforces_uniqueItems_so_a_repeated_collection_entry_cannot_pass()
     {
@@ -341,9 +348,75 @@ public sealed class SchemaValidationTests
             "\"displayName\": \"loc.widget.bellows.name\", \"requires\": \"WID_ANVIL\" }",
             "{ \"id\": \"WID_ANVIL\", \"rarity\": \"C\", \"icon\": \"icon_anvil\", " +
             "\"displayName\": \"loc.widget.anvil.name\", \"requires\": null }"))
-            .Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
+            .Should().Contain(i =>
+                i.Code == ContentIssueCode.DuplicateId &&
+                i.Location == "tuning/widgets.json#/widgets/1" &&
+                i.Message.Contains("is identical to item 0", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// 🔒 The companion case, on an array with <b>no <c>id</c> members</b>. Several shipped arrays
+    /// are like this — <c>neverPays</c>, <c>shrineForbiddenNodes</c>, <c>dungeons</c> — so
+    /// <c>uniqueItems</c> is the only thing standing between them and a silently repeated entry.
+    /// There is no invariant backstop to make this pass for the wrong reason.
+    /// </summary>
+    [Fact]
+    public void Load_enforces_uniqueItems_on_an_array_that_has_no_invariant_backstop()
+    {
+        Issues(ContentTestData.WithTuningEdit("\"stoneCosts\": [2, 3]", "\"stoneCosts\": [2, 2]"))
+            .Should().Contain(i =>
+                i.Code == ContentIssueCode.DuplicateId &&
+                i.Location == "tuning/widgets.json#/merge/stoneCosts/1" &&
+                i.Message.Contains("is identical to item 0", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 🔒 <c>minProperties</c> was claimed by <c>SupportedKeywords</c> and enforced by nothing that
+    /// any test could see. Delete the block from the validator and a locale file shipping
+    /// <c>"strings": {}</c> validates clean — every UI string then renders as its own key, and the
+    /// locale-parity rules are vacuous because both sides are empty.
+    /// </summary>
+    [Fact]
+    public void Load_rejects_a_locale_file_whose_string_table_is_empty()
+    {
+        var issues = Issues(ContentTestData.With(ContentTestData.EnglishPath, """
+        {
+          "$schema": "../schema/loc.schema.json",
+          "_locale": "en",
+          "strings": {}
+        }
+        """));
+
+        issues.Should().Contain(i =>
+            i.Code == ContentIssueCode.OutOfRange && i.Location == "loc/en.json#/strings");
+    }
+
+    /// <summary>
+    /// The claimed set. It can only ever see what the validator <em>claims</em>; every claim that
+    /// is an assertion needs a case that proves it is <em>enforced</em>.
+    /// </summary>
+    /// <remarks>
+    /// The audit of claimed-versus-enforced, as it stands:
+    /// <list type="bullet">
+    /// <item>Annotations, asserted by nothing on purpose: <c>$schema</c>, <c>$id</c>,
+    /// <c>$comment</c>, <c>title</c>, <c>description</c>, <c>default</c>, <c>examples</c>,
+    /// <c>deprecated</c>. Their <em>shape</em> is unconstrained; a value may legitimately be
+    /// anything.</item>
+    /// <item>Assertions covered by <c>Load_enforces_every_keyword_it_claims_to_support</c>:
+    /// <c>minimum</c>, <c>maximum</c>, <c>exclusiveMinimum</c>, <c>exclusiveMaximum</c>,
+    /// <c>multipleOf</c>, <c>minLength</c>, <c>maxLength</c>, <c>maxItems</c>,
+    /// <c>maxProperties</c>, <c>const</c>, <c>enum</c>, <c>pattern</c>, <c>oneOf</c>,
+    /// <c>format</c>, <c>type</c>.</item>
+    /// <item>Assertions covered by a named case of their own: <c>required</c>, <c>minItems</c>,
+    /// <c>additionalProperties</c>, <c>propertyNames</c>, <c>uniqueItems</c> (twice — once with an
+    /// invariant backstop and once without), <c>minProperties</c>, <c>properties</c>,
+    /// <c>patternProperties</c>, <c>items</c>, <c>$ref</c>, <c>$defs</c>.</item>
+    /// <item>Every keyword's <em>value shape</em> is covered by
+    /// <c>Load_rejects_a_known_keyword_whose_value_is_the_wrong_shape</c>.</item>
+    /// </list>
+    /// <c>minProperties</c> was the one claim nothing enforced. Adding a keyword here means adding
+    /// a case to one of those lists in the same commit.
+    /// </remarks>
     [Fact]
     public void SupportedKeywords_is_the_exact_set_this_validator_claims()
     {
