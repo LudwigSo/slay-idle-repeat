@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IAdRewardVerifierPort for the AppLovin MAX S2S rewarded callback (12 §3.3).
+    Plain signed HTTP — no vendor SDK exists or is needed.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

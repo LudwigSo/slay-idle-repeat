@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ICrashReportingPort over Sentry (client).
+    Sentry is referenced by this project and no other (23 §5 A9).
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Sentry" Version="6.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

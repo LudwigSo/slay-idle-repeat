@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IAnalyticsPort over PostHog.
+    No package reference in M0: the .NET client choice is not pinned yet; the
+    adapter may end up posting to the capture endpoint over plain HTTP.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>
