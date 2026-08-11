@@ -81,6 +81,32 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// there is no code path in this file that can write a map in insertion order.
 /// </para>
 /// <para>
+/// 🔒 <b>There is a second encoder in this codebase, and that is deliberate.</b> <c>Rng/Hash64</c>
+/// implements `14` §8.0 — the canonical <i>argument</i> encoding behind every seed derivation and
+/// every draw. Both files open by claiming singularity, in nearly the same words, and both are
+/// right: §16.6's "there is exactly one" means one <b>state</b> serialiser, §8.0's "two
+/// implementations would eventually be two hashes" means one <b>draw</b> hash. They are <b>not</b>
+/// to be deduplicated: `23`'s <c>Core_internal_layering_holds</c> puts <c>Rng</c> and <c>Model</c>
+/// in sibling layers with no shared home to move a shared encoder into, and merging the two tables
+/// would move bytes on one side or the other — a determinism break in a refactoring commit.
+/// </para>
+/// <para>
+/// What they <b>do</b> share, verified field by field: signed integer widening (sign-extended to
+/// 8 bytes little-endian), unsigned integer widening (zero-extended, same), enums through their
+/// underlying integral type, string length-prefixing (a 4-byte little-endian UTF-8 <b>byte</b>
+/// count, then the bytes), and the <c>new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)</c>
+/// object itself. ⚠️ Those five rows must move <b>together or not at all</b>: a change to one
+/// side's integer widening or string prefix without the other silently forks the two encodings,
+/// and no test on either side would notice.
+/// </para>
+/// <para>
+/// Everything else differs by design: FNV-1a 64 here against xxHash64 there; ten rows here against
+/// two there; the <c>"fnv1a:"</c>-prefixed wire form here against a raw <c>ulong</c> there. ⚠️ In
+/// particular §8.0 has <b>no boolean row</b> — the one-byte <c>0x00</c>/<c>0x01</c> rule above is
+/// this file's alone. A caller hand-encoding a bool into a seed would invent a widened 8-byte
+/// <c>1</c>/<c>0</c>, which is a third encoding rather than either of these two.
+/// </para>
+/// <para>
 /// FNV-1a is written out here rather than taken from a package because
 /// <c>SlayIdleRepeat.Core</c> references nothing at all (`23` §2.1). The compensating control is
 /// the committed reference-vector table in <c>SlayIdleRepeat.Core.Tests</c>, whose FNV-1a rows

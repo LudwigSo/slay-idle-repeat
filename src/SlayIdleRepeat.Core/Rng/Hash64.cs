@@ -28,6 +28,33 @@ namespace SlayIdleRepeat.Core.Rng;
 ///   </item>
 /// </list>
 /// <para>
+/// 🔒 <b>There is a second encoder in this codebase, and that is deliberate.</b>
+/// <c>Model/Snapshots/CanonicalStateWriter</c> implements `14` §16.6 — the canonical <i>state</i>
+/// encoding behind every <c>stateHash</c>. The paragraph above says "two implementations would
+/// eventually be two hashes"; it means two implementations <b>of this</b>, §8.0, the draw and seed
+/// hash. §16.6 is a different specification with a different job, and the two are <b>not</b> to be
+/// deduplicated: `23`'s <c>Core_internal_layering_holds</c> puts <c>Rng</c> and <c>Model</c> in
+/// sibling layers with no shared home to move a shared encoder into, and merging the two tables
+/// would move bytes on one side or the other — a determinism break in a refactoring commit.
+/// </para>
+/// <para>
+/// What they <b>do</b> share, verified field by field: signed integer widening (sign-extended to
+/// 8 bytes little-endian), unsigned integer widening (zero-extended, same), enums through their
+/// underlying integral type, string length-prefixing (a 4-byte little-endian UTF-8 <b>byte</b>
+/// count, then the bytes), and the <c>new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)</c>
+/// object itself. ⚠️ Those five rows must move <b>together or not at all</b>: a change to one
+/// side's integer widening or string prefix without the other silently forks the two encodings,
+/// and no test on either side would notice.
+/// </para>
+/// <para>
+/// Everything else differs by design: xxHash64 here against FNV-1a 64 there; a two-row table here
+/// against a ten-row one there; a raw <see cref="ulong"/> here against the <c>"fnv1a:"</c>-prefixed
+/// wire form there. ⚠️ In particular <b>§8.0 has no boolean row</b>. A future caller hand-encoding
+/// a bool into a seed would invent <c>1</c>/<c>0</c> as a widened 8-byte integer, which is
+/// <i>not</i> §16.6's one-byte rule — so it would be a third encoding, not either of these two.
+/// Add a row to §8.0 and to <see cref="Hash64Argument"/> rather than encoding it at the call site.
+/// </para>
+/// <para>
 /// XXH64 is written out here rather than taken from <c>System.IO.Hashing</c> because
 /// <c>SlayIdleRepeat.Core</c> references nothing at all (`23` §2.1) — the whole game must be
 /// playable from this assembly alone. The compensating control is the committed reference-vector
