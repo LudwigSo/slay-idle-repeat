@@ -39,11 +39,19 @@ internal static class SnapshotFieldOrderPin
         "existing version.";
 
     /// <summary>Every public snapshot record in <c>Core/Model/Snapshots/</c>. Empty until M1.</summary>
+    /// <remarks>
+    /// 🔒 Matched by namespace <b>prefix</b>, the same way every architecture rule that governs
+    /// this directory matches it (<c>Core_internal_layering_holds</c>,
+    /// <c>Apply_is_the_only_public_mutation</c>). An exact match would leave a snapshot declared
+    /// one folder deeper — <c>Model/Snapshots/Player/</c>, say — outside this pin's subject set,
+    /// so the rule would stay vacuous forever rather than only until M1: a pin that never bites
+    /// and never says why, which is the one failure a pin cannot announce itself.
+    /// </remarks>
     internal static IReadOnlyList<Type> SnapshotRecords { get; } =
         typeof(SnapshotSchema).Assembly
             .GetTypes()
             .Where(t => t.IsPublic && !t.IsNested)
-            .Where(t => string.Equals(t.Namespace, "SlayIdleRepeat.Core.Model.Snapshots", StringComparison.Ordinal))
+            .Where(t => IsUnderSnapshots(t.Namespace))
             .Where(CanonicalStateWriter.IsCanonicalRecord)
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToArray();
@@ -115,6 +123,22 @@ internal static class SnapshotFieldOrderPin
     }
 
     private static string Describe(string? field) => field is null ? "<no field>" : $"'{field}'";
+
+    /// <summary>
+    /// Whether a namespace is <c>Core/Model/Snapshots/</c> or a folder beneath it.
+    /// </summary>
+    /// <remarks>
+    /// The namespace is read off <see cref="SnapshotSchema"/> rather than written out, so it
+    /// cannot drift from the directory it names.
+    /// </remarks>
+    private static bool IsUnderSnapshots(string? candidate)
+    {
+        var snapshots = typeof(SnapshotSchema).Namespace!;
+
+        return candidate is not null &&
+               (candidate.Equals(snapshots, StringComparison.Ordinal) ||
+                candidate.StartsWith(snapshots + ".", StringComparison.Ordinal));
+    }
 
     private static JsonDocument Load()
     {

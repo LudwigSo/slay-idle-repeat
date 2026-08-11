@@ -201,9 +201,19 @@ public static class CanonicalStateWriter
 
     /// <summary>FNV-1a 64 over raw bytes, exactly as the algorithm defines it.</summary>
     /// <remarks>
+    /// <para>
     /// 🔒 <b>a</b>, not FNV-1: the byte is XORed into the hash <i>before</i> the multiply. The two
     /// orderings produce completely different values, and only the published known-answer vectors
     /// can tell you which one you implemented.
+    /// </para>
+    /// <para>
+    /// 🔒 <c>internal</c>, and it is <b>not</b> a general "hash these bytes" door — it exists so
+    /// the domain suite can drive Landon Curt Noll's published vectors against the primitive
+    /// itself. A new thing to hash (M2's battle <c>LogHash</c>, §8.2/§9) becomes a <b>third named
+    /// mode</b> beside <see cref="HashMetaCommandState"/> and <see cref="HashRunCommandState"/>,
+    /// never a caller assembling its own bytes and calling this — that caller would be the second
+    /// serialiser §16.6 forbids, one <c>internal</c> away from the class built to prevent it.
+    /// </para>
     /// </remarks>
     internal static ulong Fnv1a64(ReadOnlySpan<byte> data)
     {
