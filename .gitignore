@@ -2,5 +2,8 @@
 .claude/.feature-runs/
 .claude/.milestone-runs/
 
+# Agent worktrees — nested git worktrees, never part of the tree they sit in
+.claude/worktrees/
+
 # Godot import cache — never committed
 .godot/
