@@ -58,8 +58,20 @@ project.fragment.lock.json
 # instead — see docs/spikes/O23-godot-android-export.md.
 spikes/**/android/
 
+# --- M0-05b / O23 iOS export spike (spikes/godot-ios-export) ---
+# The iOS export destination is chosen in export_presets.cfg and deliberately
+# points OUTSIDE the Godot project, at artifacts/ios/ — which is already covered
+# by the artifacts/ rule above. That is the mitigation for the iOS twin of the
+# Android leg's failure 6, so please do not "simplify" it by exporting into the
+# project directory. See docs/spikes/O23-godot-ios-export.md.
+# The patterns below only exist so a stray hand-run export cannot be committed.
+
 # Exported binaries and .NET build output inside spikes.
 spikes/**/bin/
 spikes/**/obj/
 *.apk
 *.aab
+*.ipa
+*.xcarchive/
+*.xcodeproj/
+*.xcworkspace/

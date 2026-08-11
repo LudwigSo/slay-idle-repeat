@@ -5,6 +5,7 @@
 - **Scope:** iOS leg only. The Android leg is **M0-05a**, executed for real, written up in [`O23-godot-android-export.md`](O23-godot-android-export.md). Read that one first; this document is deliberately its mirror image.
 - **Method:** **Source-and-docs recipe.** No Mac, no Apple Developer account (M0 kickoff decision 3). **Nothing here was executed.**
 - **Date of investigation:** 2026-08-11
+- **Spike project:** `spikes/godot-ios-export/` — committed, ready to run, **never imported, exported or built** (§4.0a)
 
 ---
 
@@ -309,6 +310,27 @@ the same way the Android leg keeps the keystore out of the preset.
 Copy-pasteable, and **untested**. Treat every command as a hypothesis. Run it in
 the order given; the assertions in §5 are not optional.
 
+### 4.0a The spike project — committed, never run
+
+`spikes/godot-ios-export/` is the deliberate twin of `spikes/godot-android-export/`:
+identical `Main.cs` / `SpikeMath.cs` / `Main.tscn` / `icon.svg`, the same
+`[O23] RESULT:` marker line, the same `global.json` pin. It exists so the first
+person with a Mac starts at §9 step 1 rather than at step 0.
+
+**It has never been imported, exported or built.** What it does carry, and why:
+
+| File | The part that matters |
+|---|---|
+| `GodotIosSpike.sln` | Declares `Debug`, **`ExportDebug`** and **`ExportRelease`**. `dotnet new sln` emits only `Debug\|Release` and that is **not sufficient** — Android failure 5, and §5 shows the same `.sln` check gates the iOS path. |
+| `GodotIosSpike.csproj` | `net8.0` (correct for iOS — `net9.0` is Android-only at 4.7.1), `EnableDynamicLoading`. No generated-tree `<Compile Remove>` is needed because the export goes outside the project. |
+| `project.godot` | `import_etc2_astc=true` (required on iOS too), `mobile` renderer — and a comment recording that the renderer choice is what forces the A12 device floor. |
+| `export_presets.cfg` | The iOS preset, with `export_project_only=true`, `min_ios_version=15.0`, the real bundle id, **a placeholder Team ID that is not a real one**, and `export_path` pointing at `artifacts/ios/`, outside the Godot project. All signing fields deliberately empty so signing stays *Automatic* (§3.1 landmine 3). |
+| `global.json` | Pins .NET 8, so a preview SDK cannot win (Android failure 4). |
+
+Every option in the preset was read out of the 4.7.1-stable exporter source
+rather than produced by the editor, so the first `--import` may well rewrite or
+add to it. That is expected; the point is that nothing has to be re-derived.
+
 ### 4.0 One-time toolchain setup (macOS)
 
 ```bash
@@ -353,7 +375,7 @@ a project export, so naming the file `.xcodeproj` while leaving
 
 ```bash
 PROJ=spikes/godot-ios-export        # a Godot C# project; see §5 for what it must contain
-OUT=$PWD/build/ios
+OUT=$PWD/artifacts/ios
 
 # a. Import assets. #76749's reporter needed this (as --export-pack) to make a
 #    headless export work at all; do it unconditionally.
@@ -361,13 +383,13 @@ OUT=$PWD/build/ios
 
 # b. Export ONLY the Xcode project. No xcodebuild, no signing, no account.
 mkdir -p "$OUT"                      # dest_dir MUST already exist -- Godot will not create it
-"$GODOT" --headless --path "$PROJ" --export-debug "iOS" "$OUT/SlayIdleRepeatSpike.xcodeproj"
+"$GODOT" --headless --path "$PROJ" --export-debug "iOS" "$OUT/SlayIdleRepeatIosSpike.xcodeproj"
 ```
 
 The path argument is split as `dest_dir = <base dir>` and
 `binary_name = <filename without extension>`. **[S]** So the above writes
-`build/ios/SlayIdleRepeatSpike.xcodeproj/` **and** a sibling
-`build/ios/SlayIdleRepeatSpike/`. The exporter's own leftover-detection lists what
+`artifacts/ios/SlayIdleRepeatIosSpike.xcodeproj/` **and** a sibling
+`artifacts/ios/SlayIdleRepeatIosSpike/`. The exporter's own leftover-detection lists what
 it expects to find in that sibling directory, which is the best available
 description of the output: `<name>-Info.plist`, `<name>.entitlements`,
 `Launch Screen.storyboard`, `export_options.plist`, `dummy.*`, `*.gdip`,
@@ -388,8 +410,8 @@ Then compile it without signing anything:
 # c. Build unsigned. This proves the engine + NativeAOT + linker path works and
 #    needs no certificate, no profile and no paid account.
 xcodebuild \
-  -project "$OUT/SlayIdleRepeatSpike.xcodeproj" \
-  -scheme SlayIdleRepeatSpike \
+  -project "$OUT/SlayIdleRepeatIosSpike.xcodeproj" \
+  -scheme SlayIdleRepeatIosSpike \
   -configuration Debug \
   -sdk iphoneos \
   -derivedDataPath "$OUT/dd" \
@@ -414,7 +436,7 @@ export GODOT_APPLE_PLATFORM_PROFILE_SPECIFIER_RELEASE="$PROFILE_NAME"   # releas
 
 # Import the signing certificate into a throwaway keychain first (not shown).
 
-"$GODOT" --headless --path "$PROJ" --export-debug "iOS" "$OUT/SlayIdleRepeatSpike.ipa"
+"$GODOT" --headless --path "$PROJ" --export-debug "iOS" "$OUT/SlayIdleRepeatIosSpike.ipa"
 # With export_project_only=false Godot itself now runs, in order:
 #   xcodebuild -project ... -scheme ... -sdk iphoneos -configuration Debug \
 #              -destination generic/platform=ios archive -allowProvisioningUpdates \
@@ -445,10 +467,10 @@ Only reachable once §7 is resolved. Shape, for completeness:
 #    in the preset (plugins/<Name>=true), and export with export_project_only=true.
 # 2. Copy the COMMITTED Podfile template next to the generated .xcodeproj.
 #    NEVER hand-edit it in place: the export regenerates/deletes that directory.
-cp build/ios/Podfile.template "$OUT/Podfile"
+cp spikes/godot-ios-export/Podfile.template "$OUT/Podfile"
 ( cd "$OUT" && pod install --repo-update )
 # 3. Build the WORKSPACE that CocoaPods created, not the project.
-xcodebuild -workspace "$OUT/SlayIdleRepeatSpike.xcworkspace" -scheme SlayIdleRepeatSpike ...
+xcodebuild -workspace "$OUT/SlayIdleRepeatIosSpike.xcworkspace" -scheme SlayIdleRepeatIosSpike ...
 ```
 
 ⚠️ Note the step-3 change: after `pod install` the buildable unit is the
@@ -544,8 +566,8 @@ Mirroring the Android leg's managed-assembly check. **Assert on artefacts and on
 stdout, never on the exit code.**
 
 ```bash
-BIN="$OUT/SlayIdleRepeatSpike"     # the sibling directory of the .xcodeproj
-ASM=SlayIdleRepeatSpike            # [dotnet] project/assembly_name
+BIN="$OUT/SlayIdleRepeatIosSpike"     # the sibling directory of the .xcodeproj
+ASM=GodotIosSpike                  # [dotnet] project/assembly_name
 
 # 0. The editor must be the .NET flavour at all (§4.0 step 4).
 "$GODOT" --version | grep -q '\.mono' || { echo "::error::not a .NET Godot build"; exit 1; }
@@ -592,11 +614,13 @@ their inputs are all sourced; 4 and 5 need their globs confirmed on the Mac.
   needed `<Compile Remove="android/**" />` because `--install-android-build-template`
   writes *inside* the Godot project. On iOS the export destination is **ours to
   choose** (`export_path`), so the mitigation is stronger: **point it outside the
-  Godot project**, e.g. `build/ios/` at the repository root. Add
-  `<Compile Remove="build/**" />` anyway, and **never** use the docs'
-  "Active development considerations" workflow of dragging the Godot project into
-  Xcode — engine issue [#86019](https://github.com/godotengine/godot/issues/86019)
-  says it breaks .NET builds.
+  Godot project**. The committed preset does exactly that — `artifacts/ios/` at
+  the repository root, which is already gitignored — so no `<Compile Remove>` for
+  a generated tree is needed at all. Do not "simplify" it by exporting into the
+  project directory, and **never** use the docs' "Active development
+  considerations" workflow of dragging the Godot project into Xcode — engine
+  issue [#86019](https://github.com/godotengine/godot/issues/86019) says it
+  breaks .NET builds.
 - **`--build-solutions` still hangs headless.** Godot-wide behaviour, not an
   Android one. **CI must never call it on any platform.** **[S]** by the Android
   leg's execution.

@@ -1,0 +1,47 @@
+; Engine configuration file for the O23 iOS export spike (task M0-05b).
+;
+; ⚠️ THIS PROJECT HAS NEVER BEEN IMPORTED, EXPORTED OR BUILT. M0-05b had no Mac
+; and no Apple Developer account, so the iOS leg of O23 is a written recipe, not
+; an executed export, and O23 REMAINS OPEN. This directory exists so that the
+; first person with a Mac can start at step 1 of
+; docs/spikes/O23-godot-ios-export.md §9 instead of at step 0.
+;
+; It is the deliberate twin of spikes/godot-android-export/: same C# sources,
+; same assembly-name/solution shape, same engine pin. The only differences are
+; the export preset (iOS instead of Android) and the absence of the Gradle
+; `android/` tree. Keeping them identical is the point — if the iOS export
+; behaves differently, the difference is the platform, not the project.
+;
+; It is deliberately not part of SlayIdleRepeat.sln.
+
+config_version=5
+
+[application]
+
+config/name="Slay. Idle. Repeat. (O23 iOS Spike)"
+config/description="Throwaway spike for the Godot 4 C# iOS export path. Never executed."
+run/main_scene="res://Main.tscn"
+config/icon="res://icon.svg"
+config/version="0.1.0"
+config/features=PackedStringArray("4.7", "C#", "Mobile")
+
+[dotnet]
+
+project/assembly_name="GodotIosSpike"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+; Mandatory for the iOS export exactly as it is for Android: the Apple-embedded
+; exporter's has_valid_project_configuration() calls
+; ResourceImporterTextureSettings::should_import_etc2_astc() and marks the
+; project invalid when it is off. Verified by reading the 4.7.1-stable source;
+; see docs/spikes/O23-godot-ios-export.md §5.
+;
+; ⚠️ Note the cost of the "mobile" renderer above: the exporter force-adds the
+; `iphone-ipad-minimum-performance-a12` required-device-capability whenever
+; rendering_method.mobile is "mobile" or "forward_plus", which sets the device
+; floor at Apple A12 (iPhone XS/XR and later). That is the iOS twin of the
+; Android leg's silent minSdk 29 and is a PRODUCT decision, not a spike detail.
+textures/vram_compression/import_etc2_astc=true
