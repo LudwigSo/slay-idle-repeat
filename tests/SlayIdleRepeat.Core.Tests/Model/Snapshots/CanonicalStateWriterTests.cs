@@ -39,12 +39,20 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>🔒 The hex is lowercase. A mixed-case wire form is two wire forms.</summary>
+    /// <remarks>
+    /// Asserted against a value whose hash actually <b>has</b> letters in it, and checked for at
+    /// least one. The obvious form — <c>hash.Should().Be(hash.ToLowerInvariant())</c> — is vacuous
+    /// for any hash made only of digits, and is subsumed by the wire-form regex besides: both would
+    /// pass an uppercase formatter roughly whenever the digits happened to fall that way.
+    /// </remarks>
     [Fact]
     public void HashMetaCommandState_produces_lowercase_hexadecimal()
     {
         var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Scalars);
+        var digits = hash[CanonicalStateWriter.AlgorithmPrefix.Length..];
 
-        hash.Should().Be(hash.ToLowerInvariant());
+        digits.Should().ContainAny("a", "b", "c", "d", "e", "f");
+        digits.Should().NotContainAny("A", "B", "C", "D", "E", "F");
     }
 
     /// <summary>

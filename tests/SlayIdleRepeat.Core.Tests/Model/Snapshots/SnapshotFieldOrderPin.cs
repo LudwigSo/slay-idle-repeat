@@ -38,22 +38,38 @@ internal static class SnapshotFieldOrderPin
         "versioned migration — never silently, and never by editing the pinned list for an " +
         "existing version.";
 
-    /// <summary>Every public snapshot record in <c>Core/Model/Snapshots/</c>. Empty until M1.</summary>
+    /// <summary>
+    /// The visibility-and-namespace half of the subject query, on its own: every public,
+    /// non-nested type declared in <c>Core/Model/Snapshots/</c> or a folder beneath it.
+    /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 Matched by namespace <b>prefix</b>, the same way every architecture rule that governs
     /// this directory matches it (<c>Core_internal_layering_holds</c>,
     /// <c>Apply_is_the_only_public_mutation</c>). An exact match would leave a snapshot declared
     /// one folder deeper — <c>Model/Snapshots/Player/</c>, say — outside this pin's subject set,
     /// so the rule would stay vacuous forever rather than only until M1: a pin that never bites
     /// and never says why, which is the one failure a pin cannot announce itself.
+    /// </para>
+    /// <para>
+    /// Exposed separately from <see cref="SnapshotRecords"/> so the self-tests can prove this half
+    /// is not the vacuity source either. It must be <b>non-empty today</b>: if this filter reaches
+    /// nothing, all four pin rules hold over nothing forever, including on the day M1 lands
+    /// <c>PlayerSnapshot</c>.
+    /// </para>
     /// </remarks>
-    internal static IReadOnlyList<Type> SnapshotRecords { get; } =
+    internal static IReadOnlyList<Type> PublicTypesUnderSnapshots { get; } =
         typeof(SnapshotSchema).Assembly
             .GetTypes()
             .Where(t => t.IsPublic && !t.IsNested)
             .Where(t => IsUnderSnapshots(t.Namespace))
-            .Where(CanonicalStateWriter.IsCanonicalRecord)
             .OrderBy(t => t.Name, StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>Every public snapshot record in <c>Core/Model/Snapshots/</c>. Empty until M1.</summary>
+    internal static IReadOnlyList<Type> SnapshotRecords { get; } =
+        PublicTypesUnderSnapshots
+            .Where(CanonicalStateWriter.IsCanonicalRecord)
             .ToArray();
 
     /// <summary>Every schema version the pin file carries a section for.</summary>

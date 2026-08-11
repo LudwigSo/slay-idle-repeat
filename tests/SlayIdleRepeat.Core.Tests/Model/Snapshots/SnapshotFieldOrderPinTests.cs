@@ -276,6 +276,77 @@ public sealed class SnapshotFieldOrderPinTests
         required.Should().Equal("Value:System.Int32");
     }
 
+    /// <summary>
+    /// 🔒 `14` §16.6 — the <b>other</b> half of the subject query is not the vacuity source either.
+    /// <see cref="IsCanonicalRecord_accepts_a_positional_record"/> proves the record predicate
+    /// works; nothing proved that <c>IsPublic &amp;&amp; !IsNested &amp;&amp; IsUnderSnapshots</c>
+    /// reaches the namespace at all. If it did not — or if M1 declared <c>PlayerSnapshot</c> as
+    /// <c>internal</c>, which `30` §11 makes plausible since aggregates get internal constructors
+    /// and <c>Core.Tests</c> holds <c>InternalsVisibleTo</c>, or nested it inside another type —
+    /// all four pin rules would stay green over nothing, forever.
+    /// </summary>
+    [Fact]
+    public void The_visibility_and_namespace_filter_reaches_the_snapshots_namespace_today()
+    {
+        SnapshotFieldOrderPin.PublicTypesUnderSnapshots.Select(type => type.Name)
+            .Should().Contain(nameof(SnapshotSchema))
+            .And.Contain(nameof(CanonicalStateWriter));
+    }
+
+    /// <summary>
+    /// 🔒 The tripwire. The subject set is empty today, and the four rules above therefore hold
+    /// vacuously; this is the one assertion that <b>announces</b> the day that stops being true,
+    /// instead of letting a silently-still-empty selector look like a passing pin.
+    /// </summary>
+    /// <remarks>
+    /// <b>When this fails, the pin has woken up.</b> M1 declared the first snapshot record: pin its
+    /// field list in <c>SnapshotFieldOrder.json</c> and delete this test. Never weaken the selector
+    /// to make it green again — an empty subject set is the failure this whole file exists to
+    /// prevent, not the state it wants to preserve.
+    /// </remarks>
+    [Fact]
+    public void The_pins_subject_set_is_still_empty_and_says_so_when_it_stops_being()
+    {
+        SnapshotFieldOrderPin.SnapshotRecords.Should().BeEmpty(
+            "when this fails the pin has woken up — M1 declared the first snapshot record. Pin its " +
+            "field list in SnapshotFieldOrder.json and delete this tripwire; do not weaken the selector.");
+    }
+
+    /// <summary>
+    /// 🔒 `14` §16.6 / `30` §11.3 — every snapshot record carries <c>SchemaVersion</c> as its
+    /// <b>first</b> field. <c>SnapshotSchema</c>'s own doc asserts it and nothing enforced it:
+    /// neither <c>CanonicalFieldOrder</c> nor the pin looked at index 0, so an M1-04 that omitted
+    /// it would fail nothing until <c>stateHash</c> values existed in the wild.
+    /// </summary>
+    /// <remarks>
+    /// Vacuous today, like the four rules above, and free to add while it still is.
+    /// <see cref="The_first_field_rule_recognises_a_record_that_does_and_one_that_does_not"/> is
+    /// the half that proves it can tell the two apart.
+    /// </remarks>
+    [Fact]
+    public void Every_snapshot_record_carries_SchemaVersion_as_its_first_field()
+    {
+        var offenders = SnapshotFieldOrderPin.SnapshotRecords
+            .Where(record => CanonicalStateWriter.CanonicalFieldOrder(record).FirstOrDefault() != SchemaVersionField)
+            .Select(record =>
+                $"{record.FullName} does not carry '{SchemaVersionField}' as its first field. Every " +
+                "*Snapshot record does (14 §16.6, 30 §11.3) — Rehydrate validates it, and a record " +
+                "whose version is not the first thing written cannot be read back before it is known.");
+
+        offenders.Should().BeEmpty();
+    }
+
+    /// <summary>The teeth of the rule above: it accepts the shape that complies and rejects one that does not.</summary>
+    [Fact]
+    public void The_first_field_rule_recognises_a_record_that_does_and_one_that_does_not()
+    {
+        CanonicalStateWriter.CanonicalFieldOrder(typeof(PlayerLikeSnapshot))[0].Should().Be(SchemaVersionField);
+        CanonicalStateWriter.CanonicalFieldOrder(typeof(InnerSnapshot))[0].Should().NotBe(SchemaVersionField);
+    }
+
+    /// <summary>The pinned-field-list entry a <c>SchemaVersion</c> at index 0 produces.</summary>
+    private const string SchemaVersionField = "SchemaVersion:System.Int32";
+
     /// <summary>The shapes with no reflection-guaranteed declaration order, one fixture per shape.</summary>
     public static TheoryData<Type> ShapesWithNoPinnableFieldOrder() => new()
     {
