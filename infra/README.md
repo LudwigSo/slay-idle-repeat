@@ -41,6 +41,15 @@ This is the requirement, `14` §1.1 🔒, verbatim:
 Every host port can be moved without editing `docker-compose.yml` — see
 [`.env.example`](../.env.example). Container-side ports never change.
 
+**Every port above is published on `127.0.0.1` only, except `api`.** Redis has no
+`requirepass`, Postgres' password is committed, and Grafana is anonymous-Admin —
+on a café or hotel network a `0.0.0.0` bind would hand that to the whole subnet,
+and Docker's published ports land in the `DOCKER` iptables chain where a host
+firewall rule does not reach them. Nothing needs them off-box: `api` talks to
+them over the compose network, and you are on this machine. `api` is the one
+exception, deliberately, so a Godot build on a physical handset can reach
+`http://<laptop-ip>:8080`.
+
 Quick links once the stack is up:
 
 - API health — <http://127.0.0.1:8080/health>

@@ -28,6 +28,29 @@
 #   3. EVERY SERVICE HAS A HEALTHCHECK, so `up --wait` blocks until the stack is
 #      genuinely usable rather than merely started. The compose-boot CI job
 #      depends on this: it runs `up --wait` and then immediately polls /health.
+#   4. EVERY DATASTORE AND DASHBOARD IS PUBLISHED ON 127.0.0.1 ONLY. See the
+#      next block.
+#
+# ============================================================================
+# PORT PUBLISHING POLICY — why almost everything is `127.0.0.1:`
+#
+# A bare `'5432:5432'` binds 0.0.0.0. Constraint 1 above means the datastores in
+# this file hold no secrets worth stealing, but they are also unauthenticated or
+# trivially-authenticated by design: Redis has no `requirepass`, Postgres'
+# password is spelled out twenty lines below, Grafana is anonymous-Admin. On a
+# café, hotel or coworking network, `docker compose up` would hand the entire
+# subnet a writable Redis and a credentialed Postgres — and Docker inserts
+# published ports into the `DOCKER` iptables chain, *below* the host firewall's
+# INPUT rules, so a laptop firewall does not stop it.
+#
+# Nothing needs them off-box. `api` reaches every one of them over the compose
+# network by service name, and a developer reaching for psql/redis-cli/the MinIO
+# console is on this machine. So they are all bound to the loopback interface.
+#
+# The ONE exception is `api`, which stays on 0.0.0.0 on purpose: pointing a
+# Godot build on a physical phone at http://<laptop-ip>:8080 is a real and
+# frequent M6/M7 workflow, and it cannot work through loopback. That is a single
+# ASP.NET service whose only endpoint today is /health, not a datastore.
 #
 # ============================================================================
 # WHAT IS DELIBERATELY *NOT* HERE
@@ -95,6 +118,9 @@ services:
     <<: *no-restart
     logging: *json-logging
     ports:
+      # The deliberate exception to the loopback rule in the header: bound to
+      # 0.0.0.0 so a Godot build on a real handset can hit http://<laptop-ip>:8080.
+      # Everything else in this file is 127.0.0.1-only.
       - '${SIR_API_PORT:-8080}:8080'
     environment:
       # ---- ASP.NET host ------------------------------------------------
@@ -198,7 +224,8 @@ services:
     <<: *no-restart
     logging: *json-logging
     ports:
-      - '${SIR_POSTGRES_PORT:-5432}:5432'
+      # Loopback only — see "PORT PUBLISHING POLICY" in the header.
+      - '127.0.0.1:${SIR_POSTGRES_PORT:-5432}:5432'
     environment:
       # Local dev values. Not secrets — the password is spelled out on purpose so
       # nobody mistakes it for one, and so it can never be quietly promoted to a
@@ -256,7 +283,10 @@ services:
     <<: *no-restart
     logging: *json-logging
     ports:
-      - '${SIR_REDIS_PORT:-6379}:6379'
+      # Loopback only — see "PORT PUBLISHING POLICY" in the header. This one is
+      # load-bearing: there is no `requirepass` below, so a 0.0.0.0 bind is an
+      # anonymous writable Redis on whatever network the laptop is joined to.
+      - '127.0.0.1:${SIR_REDIS_PORT:-6379}:6379'
     command:
       - redis-server
       - '--save'
@@ -290,8 +320,9 @@ services:
     <<: *no-restart
     logging: *json-logging
     ports:
-      - '${SIR_MINIO_API_PORT:-9000}:9000'      # S3 API
-      - '${SIR_MINIO_CONSOLE_PORT:-9001}:9001'  # web console
+      # Loopback only — see "PORT PUBLISHING POLICY" in the header.
+      - '127.0.0.1:${SIR_MINIO_API_PORT:-9000}:9000'      # S3 API
+      - '127.0.0.1:${SIR_MINIO_CONSOLE_PORT:-9001}:9001'  # web console
     environment:
       # Root credentials for a container on a laptop. MinIO refuses passwords
       # under 8 characters, hence the length; there is nothing else to read into
@@ -367,9 +398,10 @@ services:
     command: ['--config=/etc/otelcol/config.yaml']
     ports:
       # Published so a server run from `dotnet run` on the host — which is how
-      # M5 will actually develop — can export to the same collector.
-      - '${SIR_OTLP_GRPC_PORT:-4317}:4317'
-      - '${SIR_OTLP_HTTP_PORT:-4318}:4318'
+      # M5 will actually develop — can export to the same collector. That host is
+      # this machine, so loopback only; see "PORT PUBLISHING POLICY" in the header.
+      - '127.0.0.1:${SIR_OTLP_GRPC_PORT:-4317}:4317'
+      - '127.0.0.1:${SIR_OTLP_HTTP_PORT:-4318}:4318'
     volumes:
       - ./infra/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
       - otel-probe:/probe:ro
@@ -416,7 +448,8 @@ services:
     <<: *no-restart
     logging: *json-logging
     ports:
-      - '${SIR_JAEGER_UI_PORT:-16686}:16686'   # UI
+      # Loopback only — see "PORT PUBLISHING POLICY" in the header.
+      - '127.0.0.1:${SIR_JAEGER_UI_PORT:-16686}:16686'   # UI
       # 4317/4318 are NOT published: the collector is the only thing that should
       # be writing traces, and it reaches Jaeger over the compose network.
     environment:
@@ -443,7 +476,8 @@ services:
     <<: *no-restart
     logging: *json-logging
     ports:
-      - '${SIR_PROMETHEUS_PORT:-9090}:9090'
+      # Loopback only — see "PORT PUBLISHING POLICY" in the header.
+      - '127.0.0.1:${SIR_PROMETHEUS_PORT:-9090}:9090'
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -476,7 +510,10 @@ services:
     <<: *no-restart
     logging: *json-logging
     ports:
-      - '${SIR_GRAFANA_PORT:-3000}:3000'
+      # Loopback only — see "PORT PUBLISHING POLICY" in the header. Grafana is
+      # configured for anonymous Admin immediately below; a 0.0.0.0 bind would
+      # publish that to the subnet.
+      - '127.0.0.1:${SIR_GRAFANA_PORT:-3000}:3000'
     environment:
       # Anonymous admin: this is a container on a laptop with no data worth
       # protecting, and a login wall in front of a dev dashboard is a login wall
