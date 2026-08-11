@@ -1,0 +1,97 @@
+{
+  "$schema": "../schema/expected_progression.schema.json",
+  "_doc": "29 §6, §6.0 — the product owner's statement of intent: PlayerPower per profile per checkpoint day, with a fractional tolerance band. This file is the product owner's, not engineering's (29 §6); change it in a commit of its own.",
+  "_status": "transcribed",
+  "checkpointDays": [1, 3, 7, 14, 30, 60, 90, 180],
+  "toleranceLadders": {
+    "standard": [0.4, 0.35, 0.3, 0.25, 0.25, 0.3, 0.3, 0.35],
+    "wide": [0.5, 0.45, 0.4, 0.35, 0.35, 0.4, 0.4, 0.45],
+    "plusLapsed": [0.4, 0.35, 0.3, 0.25, 0.25, 0.3, 0.35, 0.4]
+  },
+  "profiles": [
+    {
+      "profile": "AllAds_Core",
+      "canonical": true,
+      "toleranceLadder": "standard",
+      "expectedPower": [900, 3200, 11000, 38000, 140000, 460000, 950000, 2400000]
+    },
+    {
+      "profile": "Plus_Core",
+      "canonical": false,
+      "toleranceLadder": "standard",
+      "expectedPower": [900, 3200, 11000, 38000, 140000, 460000, 950000, 2400000]
+    },
+    {
+      "profile": "Plus_Lapsed",
+      "canonical": false,
+      "toleranceLadder": "plusLapsed",
+      "expectedPower": [900, 3200, 11000, 38000, 140000, 460000, 800000, 1900000]
+    },
+    {
+      "profile": "SomeAds_Core",
+      "canonical": false,
+      "toleranceLadder": "standard",
+      "expectedPower": [800, 2700, 9000, 30000, 112000, 375000, 790000, 2050000]
+    },
+    {
+      "profile": "NoAds_Core",
+      "canonical": false,
+      "toleranceLadder": "standard",
+      "expectedPower": [700, 2200, 7000, 22500, 84000, 290000, 640000, 1750000]
+    },
+    {
+      "profile": "NoAds_Casual",
+      "canonical": false,
+      "toleranceLadder": "wide",
+      "expectedPower": [400, 1100, 3200, 9000, 30000, 95000, 190000, 520000]
+    },
+    {
+      "profile": "AllAds_Hardcore",
+      "canonical": false,
+      "toleranceLadder": "standard",
+      "expectedPower": [1300, 5000, 18000, 62000, 225000, 700000, 1400000, 3300000]
+    },
+    {
+      "profile": "NoAds_Weekend",
+      "canonical": false,
+      "toleranceLadder": "wide",
+      "expectedPower": [500, 1300, 4200, 12500, 42000, 140000, 300000, 850000]
+    },
+    {
+      "profile": "Lapsed_Returner",
+      "canonical": false,
+      "toleranceLadder": "wide",
+      "expectedPower": [800, 2000, 5500, 16000, 58000, 200000, 430000, 1150000]
+    },
+    {
+      "profile": "Guildless_Core",
+      "canonical": false,
+      "toleranceLadder": "standard",
+      "expectedPower": [800, 2600, 8600, 28500, 105000, 350000, 730000, 1900000]
+    },
+    {
+      "profile": "Guilded_Core",
+      "canonical": false,
+      "toleranceLadder": "standard",
+      "expectedPower": [800, 2700, 9200, 31000, 117000, 395000, 830000, 2150000]
+    },
+    {
+      "profile": "EventSkipper_Core",
+      "canonical": false,
+      "toleranceLadder": "standard",
+      "expectedPower": [800, 2600, 8500, 27500, 100000, 330000, 700000, 1800000]
+    },
+    {
+      "profile": "DungeonOnly",
+      "canonical": false,
+      "toleranceLadder": "wide",
+      "expectedPower": [600, 1600, 4500, 13000, 45000, 150000, 320000, 900000]
+    },
+    {
+      "profile": "Unlucky_Core",
+      "canonical": false,
+      "toleranceLadder": "wide",
+      "expectedPower": [700, 2200, 7200, 24000, 90000, 300000, 630000, 1700000]
+    }
+  ]
+}

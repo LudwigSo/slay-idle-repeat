@@ -1,0 +1,61 @@
+{
+  "$schema": "../schema/sim_thresholds.schema.json",
+  "_doc": "21 §11 — the CI assertion thresholds themselves. The simulator exits non-zero and fails the build if any of these fail; it runs on every change to SlayIdleRepeat.Data.",
+  "_status": "transcribed",
+  "run": {
+    "days": 180,
+    "seeds": 200,
+    "fastSeeds": 20,
+    "fastDays": 90,
+    "runtimeBudgetMinutes": 5,
+    "singlePlayerBudgetMs": 200,
+    "reportedPercentiles": [10, 50, 90]
+  },
+  "coreEconomy": {
+    "A1": { "_doc": "21 §11.1 — AllAds_Core clears Chapter 8 Normal", "profile": "AllAds_Core", "chapter": 8, "tier": "NORMAL", "minDay": 25, "maxDay": 45 },
+    "A2": { "_doc": "21 §11.1 — Plus_Core vs AllAds_Core PlayerPower, every day. The fairness contract.", "maxAbsDeviation": 0.05 },
+    "A3": { "_doc": "21 §11.1 — NoAds_Core vs AllAds_Core at day 30", "day": 30, "minRatio": 0.55 },
+    "A4": { "_doc": "21 §11.1 — no currency grows unbounded", "day": 180, "maxWeeklyIncomeMultiple": 50 },
+    "A5": { "_doc": "21 §11.1 — no currency starved", "afterDay": 14, "maxZeroDayShare": 0.4 },
+    "A6": { "_doc": "21 §11.1 — progress never stalls", "throughDay": 120, "minWeeklyPowerGrowth": 0.03 },
+    "A7": { "_doc": "21 §11.1 — Energy is a soft gate", "profile": "NoAds_Core", "maxEnergyBlockedDayShare": 0.25 },
+    "A8": { "_doc": "21 §11.1 — talents stay meaningful", "profile": "NoAds_Core", "day": 180, "treePoints": 633, "maxSpendShare": 0.6 },
+    "A9": { "_doc": "21 §11.1 — chapter pacing monotonic", "monotonic": true, "maxChapterRatio": 2.5 }
+  },
+  "powerModel": {
+    "A10": { "_doc": "21 §11.2 / 29 §1 — PlayerPower tracks EmpiricalPower", "maxAbsDeviation": 0.12 },
+    "A11": { "_doc": "21 §11.2 / 29 §4.3 — ParPower is honest", "minClearRate": 0.62, "maxClearRate": 0.78 },
+    "A12": { "_doc": "21 §11.2 / 29 §5.1 P1 — level expectation aligns with content", "minRatio": 1.0, "maxRatio": 1.3 },
+    "A13": { "_doc": "21 §11.2 / 29 §5.1 P2 — no single power source dominates", "maxFactorShare": 0.6 },
+    "A14": { "_doc": "21 §11.2 — actual matches intent. The assertion this whole tool exists to evaluate.", "allProfilesInBandAtEveryCheckpoint": true }
+  },
+  "behaviourAndFairness": {
+    "A15": { "_doc": "21 §11.3 / 12 §2.2 — a lapsed subscriber never regresses", "profile": "Plus_Lapsed", "monotonicNonDecreasing": true },
+    "A16": { "_doc": "21 §11.3 / 21 §7 — economy not over-sensitive to literacy", "policies": ["GreedyPowerPolicy", "BalancedPolicy", "HoarderPolicy"], "maxTimeToChapterSpread": 0.25 }
+  },
+  "inherited": {
+    "E1": { "_doc": "24 §10 — report the 10th percentile alongside the median", "reportP10": true },
+    "E2": { "_doc": "24 §10 — p10 player reaches every 01 §7 milestone within this multiple of p50", "maxP10ToP50TimeRatio": 1.35 },
+    "E3": { "_doc": "24 §10 — no pity guarantee fires for more than this share of grants in its class at p50", "maxGuaranteeFireShare": 0.3 },
+    "E4": { "_doc": "24 §10 — report p50 and p90 time to a 6-piece SS set", "reportSetCompletionPercentiles": [50, 90] },
+    "E5": { "_doc": "24 §10 — re-run all prior assertions against the new sinks (Reforge, Retune, Focus, Set Tokens)", "rerunAllWithNewSinks": true },
+    "E6": { "_doc": "25 §7 — model all 14 player profiles", "profileCount": 14 },
+    "E7": { "_doc": "25 §7 — dungeons supply this share of a mid-game player's Enhance Stone and Beast Feed income", "minShare": 0.4, "maxShare": 0.65 },
+    "E8": { "_doc": "25 §7 — a dungeon-only player reaches Legend Level milestones at most this fast, at equal Energy spend", "maxRelativeSpeed": 0.6 },
+    "E9": { "_doc": "25 §7 — re-derive the +11 to +15 enhance costs; do not pre-emptively tune by hand", "rederive": true },
+    "E10": { "_doc": "25 §7 — re-check the Crown bottleneck target in 10 §4", "recheck": true },
+    "E11": { "_doc": "26 §7 — model a rolling event calendar over the full simulated horizon", "days": 180 },
+    "E12": { "_doc": "26 §7 — event income supplies this share of a mid-game player's total material income", "minShare": 0.15, "maxShare": 0.3 },
+    "E13": { "_doc": "26 §7 — an event-skipper reaches all 01 §7 milestones within this multiple of a full-event player's time", "maxTimeRatio": 1.25 },
+    "E14": { "_doc": "26 §7 — validate every launch-event track threshold against the day-1 cohort specifically", "validateAgainstDay1Cohort": true },
+    "E15": { "_doc": "26 §7 — model conversionAtEnd leakage", "modelConversionLeakage": true },
+    "E16": { "_doc": "27 §9 — model guildless and average-activity-guild profiles", "averageGuildLevel": 10, "averageQuestDaysPerWeek": 5, "averageBossBracket": "median" },
+    "E17": { "_doc": "27 §9 — a guildless player reaches every 01 §7 milestone within this multiple of an average guild member's time", "maxTimeRatio": 1.2 },
+    "E18": { "_doc": "27 §9 — guild income supplies no more than this share of any single material's total income at p50", "maxShare": 0.2 },
+    "E19": { "_doc": "27 §9 / 21 §9.5 — the compounding of dungeons, events and guilds. The highest-risk item in this spec; run all three enabled before tuning any individually.", "requireAllThreeEnabled": true },
+    "E20": { "_doc": "28 §E2 — Energy Reserve for the returner", "modelEnergyReserve": true },
+    "E21": { "_doc": "28 §E2 — Feats as a retroactive lump", "modelFeatsRetroactive": true },
+    "E22": { "_doc": "28 §E2 / 29 §8 — re-derive the talent guardrail for 324 points", "talentPoints": 324 },
+    "E23": { "_doc": "28 §E2 — exclude inbox grants from fairness assertions", "excludeInboxFromFairness": true }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "../schema/par_power.schema.json",
+  "_doc": "29 §4-5 — content par (24 chapter/tier cells), dungeon and guild-boss pars, and the ExpectedPower(L) factor curves. DESIGN-owned (29 §7); every cell is independently editable and the formula below is the default fill, not a constraint.",
+  "_status": "transcribed",
+  "defaultFill": {
+    "chapterPowerTargetBase": 1000,
+    "chapterPowerTargetGrowth": 2.0,
+    "tierMultiplier": {
+      "NORMAL": 1.0,
+      "HEROIC": 4.0,
+      "MYTHIC": 16.0
+    }
+  },
+  "parPower": [
+    { "chapter": 1, "NORMAL": 1000, "HEROIC": 4000, "MYTHIC": 16000 },
+    { "chapter": 2, "NORMAL": 2000, "HEROIC": 8000, "MYTHIC": 32000 },
+    { "chapter": 3, "NORMAL": 4000, "HEROIC": 16000, "MYTHIC": 64000 },
+    { "chapter": 4, "NORMAL": 8000, "HEROIC": 32000, "MYTHIC": 128000 },
+    { "chapter": 5, "NORMAL": 16000, "HEROIC": 64000, "MYTHIC": 256000 },
+    { "chapter": 6, "NORMAL": 32000, "HEROIC": 128000, "MYTHIC": 512000 },
+    { "chapter": 7, "NORMAL": 64000, "HEROIC": 256000, "MYTHIC": 1024000 },
+    { "chapter": 8, "NORMAL": 128000, "HEROIC": 512000, "MYTHIC": 2048000 }
+  ],
+  "dungeonParScalar": 1.15,
+  "guildBossParScalar": 1.3,
+  "clearRateAtPar": {
+    "target": 0.7,
+    "assertionMin": 0.62,
+    "assertionMax": 0.78
+  },
+  "tooWeakWarningRatio": 0.7,
+  "expectedPowerByLevel": [
+    { "level": 1, "base": 210, "gearFactor": 1.0, "talentFactor": 1.0, "beastFactor": 1.0, "expected": 210 },
+    { "level": 10, "base": 640, "gearFactor": 1.6, "talentFactor": 1.15, "beastFactor": 1.05, "expected": 1236 },
+    { "level": 20, "base": 1180, "gearFactor": 2.4, "talentFactor": 1.35, "beastFactor": 1.15, "expected": 4395 },
+    { "level": 40, "base": 2400, "gearFactor": 4.2, "talentFactor": 1.8, "beastFactor": 1.35, "expected": 24494 },
+    { "level": 60, "base": 3700, "gearFactor": 6.5, "talentFactor": 2.3, "beastFactor": 1.55, "expected": 85746 },
+    { "level": 100, "base": 6500, "gearFactor": 11.0, "talentFactor": 3.2, "beastFactor": 1.9, "expected": 434720 },
+    { "level": 150, "base": 10200, "gearFactor": 16.0, "talentFactor": 4.3, "beastFactor": 2.2, "expected": 1544000 },
+    { "level": 200, "base": 14000, "gearFactor": 20.0, "talentFactor": 5.5, "beastFactor": 2.5, "expected": 3850000 }
+  ],
+  "expectedPowerProperties": {
+    "p1MinRatioToParNormal": 1.0,
+    "p1MaxRatioToParNormal": 1.3,
+    "p2MaxSingleFactorShare": 0.6
+  }
+}

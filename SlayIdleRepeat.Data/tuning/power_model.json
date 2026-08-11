@@ -1,0 +1,48 @@
+{
+  "$schema": "../schema/power_model.schema.json",
+  "_doc": "29 §2-3 — PlayerPower formula weights, reference opponent, pet ability weights, Utility Index weights. ENGINEERING-owned (29 §7); changes rarely.",
+  "_status": "transcribed",
+  "model": "geometric",
+  "kPower": null,
+  "kPowerExpectedMagnitude": 5.3,
+  "referenceOpponent": {
+    "level": 40,
+    "atk": 2000,
+    "def": 1500,
+    "aspd": 1.0,
+    "crit": 0.1,
+    "critDamage": 0.5,
+    "pen": 0.0
+  },
+  "effectiveHp": {
+    "blockWeight": 0.5,
+    "lifestealWeight": 2.0,
+    "regenWeight": 8.0
+  },
+  "mitigation": {
+    "flatConstant": 120,
+    "perLevelConstant": 20
+  },
+  "petAbilityWeights": {},
+  "utilityIndex": {
+    "scale": 100,
+    "dieFaceWeights": {
+      "STAR": 1.0,
+      "SURGE": null,
+      "FORTUNE": null,
+      "CHAIN": null,
+      "VOID": null,
+      "PIP_1": 0.05,
+      "PIP_2": null,
+      "PIP_3": null,
+      "PIP_4": null,
+      "PIP_5": null,
+      "PIP_6": null
+    },
+    "componentWeights": {
+      "incomeMultiplier": null,
+      "boardControl": null,
+      "throughput": null
+    }
+  }
+}

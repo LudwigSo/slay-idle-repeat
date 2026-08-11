@@ -1,0 +1,80 @@
+{
+  "$schema": "../schema/dungeons.schema.json",
+  "_doc": "25 — tier yields, entry caps, energy cost. 25 §4.1: every figure below is a placeholder shaped to the x2 chapter curve and must go through the economy simulator (21) before it is treated as real.",
+  "_status": "transcribed",
+  "structure": {
+    "nodesBeforeGuardian": 8,
+    "guardianNodes": 1,
+    "stages": 1,
+    "forks": 0,
+    "tileComposition": { "TILE_ENEMY": 5, "TILE_CACHE_DUNGEON": 2, "TILE_SHRINE": 1 },
+    "shrineForbiddenNodes": [1, 8],
+    "guardianPowerMultiplier": 2.6,
+    "guardianEliteModifiers": 1,
+    "perkDrafts": true,
+    "rerollCharges": 1,
+    "rerollRefresh": false,
+    "energyCost": 10,
+    "reviveOffered": false,
+    "abandonRefund": 0
+  },
+  "tiers": {
+    "count": 8,
+    "unlockRule": "tier t requires chapter t cleared on Normal",
+    "powerScalar": 1.15,
+    "yieldGrowthPerTier": 2.0,
+    "defaultEntryIsHighestUnlocked": true
+  },
+  "payoutDistribution": {
+    "_doc": "25 §4.2 — shares of DungeonYield(t); must sum to 1.0",
+    "perEnemyKill": 0.06,
+    "enemyKills": 5,
+    "perCache": 0.12,
+    "caches": 2,
+    "guardianKill": 0.46
+  },
+  "partialClears": {
+    "_doc": "25 §4.3 — payout is the sum of yield already collected. No completion multiplier and no penalty.",
+    "completionMultiplier": 1.0,
+    "deathPenalty": 0.0
+  },
+  "legendXpScalar": 0.2,
+  "neverPays": [
+    "GEAR", "SOUL_SHARDS", "HONOR", "PET_EGGS", "MOUNT_CRATES",
+    "MERGE_DUST", "TALENT_POINTS", "SET_TOKENS", "BEAST_MARKS"
+  ],
+  "advancesLuckCounters": false,
+  "entries": {
+    "perDungeonPerDay": 3,
+    "totalPerDay": 9,
+    "refreshUtc": "05:00",
+    "carryOver": false,
+    "adPlacementId": "AD_EXTRA_DUNGEON",
+    "adEntriesPerDay": 3,
+    "plusTotalPerDay": 12,
+    "unlockLegendLevel": 8
+  },
+  "dungeons": [
+    {
+      "id": "DGN_STONEVAULT",
+      "displayName": "loc.dungeon.stonevault.name",
+      "currency": "ENHANCE_STONES",
+      "paletteId": "pal_clockwork",
+      "tierYield": [30, 60, 120, 240, 480, 960, 1920, 3840]
+    },
+    {
+      "id": "DGN_FEEDPITS",
+      "displayName": "loc.dungeon.feedpits.name",
+      "currency": "BEAST_FEED",
+      "paletteId": "pal_bloom",
+      "tierYield": [60, 120, 240, 480, 960, 1920, 3840, 7680]
+    },
+    {
+      "id": "DGN_MINT",
+      "displayName": "loc.dungeon.mint.name",
+      "currency": "CROWNS",
+      "paletteId": "pal_astral",
+      "tierYield": [900, 1800, 3600, 7200, 14400, 28800, 57600, 115200]
+    }
+  ]
+}

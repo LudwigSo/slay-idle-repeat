@@ -1,0 +1,100 @@
+{
+  "$schema": "../schema/ads.schema.json",
+  "_doc": "12 §4-6 — placement caps and bundle scaling. 12 §1: no ad reward may exist that a free player cannot obtain by watching, and no ad reward may be uncapped. Every placement below carries a cap; a null cap is not legal.",
+  "_status": "transcribed",
+  "fairnessContract": {
+    "maxFreeVsPlusPowerGap": 0.45,
+    "measuredAtDay": 30
+  },
+  "plus": {
+    "productId": "slayidlerepeat.plus.monthly",
+    "freeTrialDays": 7,
+    "freePresets": 3,
+    "offerHiddenBeforeLegendLevel": 8,
+    "gracePeriodDaysGoogle": 30,
+    "gracePeriodDaysApple": 60
+  },
+  "inRunPlacements": [
+    { "id": "AD_REVIVE", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_DOUBLE_RUN_REWARDS", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_REROLL_PERK", "cap": 2, "capWindow": "RUN" },
+    { "id": "AD_EXTRA_PERK_CHOICE", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_REROLL_DICE", "cap": 2, "capWindow": "RUN" },
+    { "id": "AD_SHOP_REFRESH", "cap": 2, "capWindow": "RUN" },
+    { "id": "AD_SHOP_FREEBIE", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_SKIP_CURSE", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_DOUBLE_CHEST", "cap": 2, "capWindow": "RUN" },
+    { "id": "AD_RETRY_MINIGAME", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_CAMPFIRE_HEAL", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_ELITE_GUARANTEE", "cap": 1, "capWindow": "RUN" },
+    { "id": "AD_BOSS_SECOND_WIND", "cap": 1, "capWindow": "RUN" }
+  ],
+  "metaPlacements": [
+    { "id": "AD_ENERGY", "cap": 4, "capWindow": "DAY" },
+    { "id": "AD_DOUBLE_QUEST", "cap": 3, "capWindow": "DAY" },
+    { "id": "AD_FREE_GEAR_CHEST", "cap": 2, "capWindow": "DAY" },
+    { "id": "AD_FREE_PET_EGG", "cap": 1, "capWindow": "DAY" },
+    { "id": "AD_ENHANCE_LUCK", "cap": 3, "capWindow": "DAY" },
+    { "id": "AD_DOUBLE_HONOR", "cap": 3, "capWindow": "DAY" },
+    { "id": "AD_EXTRA_DUEL", "cap": 2, "capWindow": "DAY" },
+    { "id": "AD_MERGE_DUST", "cap": 2, "capWindow": "DAY" },
+    { "id": "AD_CROWNS", "cap": 3, "capWindow": "DAY" },
+    { "id": "AD_FEED_BUNDLE", "cap": 2, "capWindow": "DAY" },
+    { "id": "AD_LUCKY_WHEEL", "cap": 2, "capWindow": "DAY" },
+    { "id": "AD_SHOP_REDRAW", "cap": 1, "capWindow": "DAY" },
+    { "id": "AD_FREE_RETRY", "cap": 2, "capWindow": "DAY" },
+    { "id": "AD_DOUBLE_LEGEND_XP", "cap": 1, "capWindow": "DAY" },
+    { "id": "AD_ENHANCE_STONES", "cap": 2, "capWindow": "DAY" },
+    { "id": "AD_EXTRA_DUNGEON", "cap": 3, "capWindow": "DAY" }
+  ],
+  "placementRewardValues": {
+    "_doc": "12 §4.1-4.2 — the numeric magnitudes embedded in the placement tables.",
+    "AD_REVIVE": { "healPctMaxHp": 0.5, "invulnerabilitySeconds": 2 },
+    "AD_CAMPFIRE_HEAL": { "healPctMaxHp": 0.3 },
+    "AD_BOSS_SECOND_WIND": { "triggerBelowHpPct": 0.3, "healPctMaxHp": 0.4 },
+    "AD_ELITE_GUARANTEE": { "guaranteeRarityAtLeast": "A" },
+    "AD_ENERGY": { "energy": 40 },
+    "AD_ENHANCE_LUCK": { "successPercentagePoints": 15 },
+    "AD_SHOP_REDRAW": { "offersRedrawn": 6 },
+    "AD_REROLL_PERK": { "optionsRerolled": 3 },
+    "AD_SHOP_REFRESH": { "offersRefreshed": 4 }
+  },
+  "globalCaps": {
+    "totalRewardedPerDaySoftCap": 44,
+    "maxInRunImpressionsPerRun": 17,
+    "maxMetaImpressionsPerDay": 36,
+    "minSecondsBetweenRewarded": 20,
+    "grantRewardOnLoadFailure": true,
+    "consumeCapSlotOnLoadFailure": true
+  },
+  "rewardScaling": {
+    "_doc": "12 §5 — AdBundleValue(currency) = BaseValue(currency) * (1 + 0.35 * highestChapterCleared). AD_CROWNS base 600 is the locked anchor; the three material bundles are each worth exactly 600 Crowns at the 10 §5.2 Materials-tab rates.",
+    "chapterScalar": 0.35,
+    "baseValue": {
+      "AD_CROWNS": 600,
+      "AD_ENHANCE_STONES": 24,
+      "AD_MERGE_DUST": 100,
+      "AD_FEED_BUNDLE": 75
+    },
+    "crownEquivalenceInvariant": 600
+  },
+  "interstitials": {
+    "shippedInV1": true,
+    "everyNthStageGate": 3,
+    "stageGateCountedAcrossRuns": true,
+    "maxPerRun": 1,
+    "everyNthHomeReturn": 4,
+    "perSessionCap": 4,
+    "perDayCap": 12,
+    "minSecondsBetween": 120,
+    "graceHoursAfterInstall": 72
+  },
+  "banners": {
+    "shippedInV1": false
+  },
+  "preload": {
+    "rewarded": 2,
+    "interstitial": 1,
+    "reloadImmediatelyOnShow": true
+  }
+}
