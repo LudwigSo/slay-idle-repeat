@@ -69,6 +69,14 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Pinned rather than inherited, for the same reason as Invoke-UnitTests.ps1: the
+# `& dotnet` below must return its exit code, not throw. $false is the pwsh 7.6.3
+# default and is what the runner has today, but the default has moved before, and
+# a runner-image change must not be able to alter this script's control flow
+# without anything going red.
+$PSNativeCommandUseErrorActionPreference = $false
+
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RepositoryRoot -Override $RepositoryRoot
@@ -117,12 +125,16 @@ Write-Section 'Running the validator'
 $exitCode = $LASTEXITCODE
 
 if ($exitCode -ne 0) {
-    # The tool has already printed every finding with its location and what to do
-    # about it; repeating them here would only make the log harder to read.
-    Write-CiError ("Content validation failed (exit $exitCode). Every finding is listed above, " +
+    # One line, not a re-listing: the tool has already printed every finding with
+    # its location and what to do about it, and repeating them here would only
+    # make the log harder to read.
+    $failures.Add("Content validation failed (exit $exitCode). Every finding is listed above, " +
         "each naming the document, the JSON pointer and the design-doc rule it breaks.")
-    exit 1
 }
 
-Write-CiSuccess 'Content validation passed.'
-exit 0
+# Exit-WithFailures rather than a hand-rolled exit 0/1. It is the single exit path
+# every other check in build/ci uses, and going through it is what puts the same
+# '=== <check> result ===' banner and OK/ERROR line in this job's log as in the
+# other three. A reader scanning four CI logs for the one that failed should not
+# have to know that this one reports itself differently.
+Exit-WithFailures -Failures $failures.ToArray() -CheckName 'Content validation'

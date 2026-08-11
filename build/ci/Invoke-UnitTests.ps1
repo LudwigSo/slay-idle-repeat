@@ -46,6 +46,18 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Pinned, not inherited. This script deliberately runs `& dotnet` for EVERY suite
+# and collects the failures, so one red suite still tells you about the next one
+# instead of costing a CI round trip per problem (same reasoning as
+# Exit-WithFailures in _common.ps1). That only works while a non-zero native exit
+# code does not throw. `$PSNativeCommandUseErrorActionPreference` is $false by
+# default on pwsh 7.6.3, which is what the runner has today — but it is an
+# experimental-feature-turned-preference whose default has moved before, and if a
+# runner image flips it, every script here silently degrades to first-failure-only
+# without anything going red to say so. State it.
+$PSNativeCommandUseErrorActionPreference = $false
+
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RepositoryRoot -Override $RepositoryRoot
@@ -81,6 +93,57 @@ $groupKeys = @($groupSpec.PSObject.Properties.Name)
 $hasInclude = 'include' -in $groupKeys
 $hasExclude = 'exclude' -in $groupKeys
 
+$discoveredNames = @($discovered | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.Name) })
+
+# Every name the manifest mentions must actually be out there. Neither `include`
+# nor `exclude` errors on a name that matches nothing: a typo'd or renamed entry
+# in `include` quietly shrinks the group (in the worst case to nothing an
+# unaffected group would notice), and a typo'd entry in `exclude` quietly stops
+# excluding. Both leave the job green while running a different set of tests than
+# the manifest says it runs.
+$manifestFailures = [System.Collections.Generic.List[string]]::new()
+foreach ($key in @('include', 'exclude')) {
+    if ($key -notin $groupKeys) { continue }
+    foreach ($name in $groupSpec.$key) {
+        if ($discoveredNames -notcontains $name) {
+            $manifestFailures.Add(
+                "Group '$Group' $key names '$name', which matched none of the $($discovered.Count) suite(s) " +
+                "discovered by '$($manifest.discoveryGlob)'. A name that matches nothing changes which tests " +
+                "run without changing anything that goes red. Fix the name in $manifestPath, or delete it. " +
+                "Discovered: $($discoveredNames -join ', ')")
+        }
+    }
+}
+
+# Same rule for knownEmpty: an exemption for a project that does not exist is
+# dead text that nobody will ever be forced to revisit, and it silently pre-arms
+# the exemption for whatever future suite lands on that name.
+foreach ($entry in $manifest.knownEmpty) {
+    $entryKeys = @($entry.PSObject.Properties.Name)
+    if ('project' -notin $entryKeys -or -not $entry.project) {
+        $manifestFailures.Add("A knownEmpty entry in $manifestPath has no 'project'.")
+        continue
+    }
+    if ($discoveredNames -notcontains $entry.project) {
+        $manifestFailures.Add(
+            "knownEmpty names '$($entry.project)', which is not one of the discovered suites. " +
+            "Either the project was renamed or removed - in both cases the exemption must go with it.")
+    }
+    if ('turnsOn' -notin $entryKeys -or $entry.turnsOn -notmatch '^M\d+-\d+') {
+        $manifestFailures.Add(
+            "knownEmpty entry for '$($entry.project)' has no well-formed 'turnsOn' milestone (got " +
+            "'$(if ('turnsOn' -in $entryKeys) { $entry.turnsOn })'). An exemption with no milestone attached " +
+            "is an exemption with no expiry.")
+    }
+    if ('reason' -notin $entryKeys -or -not $entry.reason) {
+        $manifestFailures.Add("knownEmpty entry for '$($entry.project)' has no 'reason'.")
+    }
+}
+
+if ($manifestFailures.Count -gt 0) {
+    Exit-WithFailures -Failures $manifestFailures.ToArray() -CheckName "Test manifest ($manifestPath)"
+}
+
 $selected = @($discovered | Where-Object {
     $name = [IO.Path]::GetFileNameWithoutExtension($_.Name)
     if ($hasInclude) { return $groupSpec.include -contains $name }
@@ -103,6 +166,8 @@ $null = New-Item -ItemType Directory -Path $ResultsDirectory -Force
 # ------------------------------------------------------------------- execute
 $failures = [System.Collections.Generic.List[string]]::new()
 $summary = [System.Collections.Generic.List[object]]::new()
+$groupHadUnmeasuredSuite = $false
+$exemptSuitesInGroup = 0
 
 foreach ($project in $selected) {
     $name = [IO.Path]::GetFileNameWithoutExtension($project.Name)
@@ -125,6 +190,7 @@ foreach ($project in $selected) {
 
     # ---- read the real counts, not the exit code
     $total = 0; $passed = 0; $failed = 0
+    $countsAreReal = $true
     if (Test-Path -LiteralPath $trxPath) {
         $xml = [xml](Get-Content -Raw -LiteralPath $trxPath)
         $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
@@ -136,6 +202,12 @@ foreach ($project in $selected) {
             $failed = [int]$counters.failed + [int]$counters.error + [int]$counters.aborted + [int]$counters.timeout
         }
     } else {
+        # $total stays 0, but that 0 means "not measured", not "measured zero".
+        # Without this flag the run below reports the same suite twice — once for
+        # the missing TRX and once for a ZERO-test count it never actually read —
+        # and the second message sends the reader off to add a knownEmpty
+        # exemption for a suite whose real problem is that it did not run.
+        $countsAreReal = $false
         $failures.Add("$name : dotnet test produced no TRX at $trxPath. The run did not complete.")
     }
 
@@ -145,7 +217,7 @@ foreach ($project in $selected) {
         $failures.Add("$name : dotnet test exited $testExitCode ($failed failing of $total).")
     }
 
-    if ($total -eq 0 -and -not $exempt) {
+    if ($countsAreReal -and $total -eq 0 -and -not $exempt) {
         $failures.Add(
             "$name : ran successfully but contains ZERO tests. dotnet test exits 0 on an empty " +
             "assembly, so this would otherwise be a green tick over nothing. Either add tests, or - " +
@@ -167,11 +239,15 @@ foreach ($project in $selected) {
         Passed   = $passed
         Failed   = $failed
         ExitCode = $testExitCode
-        Status   = if ($total -eq 0 -and $exempt) { "empty (allowed until $($knownEmpty[$name].turnsOn))" }
+        Status   = if (-not $countsAreReal) { 'DID NOT RUN - no TRX' }
+                   elseif ($total -eq 0 -and $exempt) { "empty (allowed until $($knownEmpty[$name].turnsOn))" }
                    elseif ($total -eq 0) { 'EMPTY - not declared' }
                    elseif ($failed -gt 0 -or $testExitCode -ne 0) { 'FAILED' }
                    else { 'passed' }
     })
+
+    if (-not $countsAreReal) { $groupHadUnmeasuredSuite = $true }
+    if ($exempt) { $exemptSuitesInGroup++ }
 }
 
 Write-Section 'Suite summary'
@@ -179,8 +255,25 @@ $summary | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 
 $executed = ($summary | Measure-Object -Property Total -Sum).Sum
 Write-Host "Tests executed across group '$Group': $executed"
+
 if ($executed -eq 0) {
-    Write-CiWarning "Group '$Group' executed 0 tests. This run proves only that the suites compile and the test runner is wired - it asserts nothing about behaviour. See knownEmpty in build/ci/test-suites.json for which milestone fills each suite."
+    # A whole CI job that asserted nothing is exactly the vacuous pass this script
+    # exists to prevent, so it is only ever a WARNING when every suite in the
+    # group is a declared, milestone-tagged knownEmpty — i.e. when somebody has
+    # already written down why, and signed up to a milestone that deletes the
+    # note. Any other route to zero is a failure, not a yellow line in a log that
+    # nobody reads on a green run.
+    $everySuiteExempt = ($exemptSuitesInGroup -eq $selected.Count) -and -not $groupHadUnmeasuredSuite
+
+    if ($everySuiteExempt) {
+        Write-CiWarning "Group '$Group' executed 0 tests. Every suite in it is a declared knownEmpty in $manifestPath, so this is allowed - but the job asserts nothing about behaviour until those milestones land."
+    } else {
+        $failures.Add(
+            "Group '$Group' executed 0 tests across $($selected.Count) suite(s), and they are NOT all declared " +
+            "knownEmpty in $manifestPath. The job would otherwise be a green tick over nothing, which is the " +
+            "one outcome this script exists to prevent. See the per-suite rows above for which suite is empty " +
+            "or did not run.")
+    }
 }
 
 Exit-WithFailures -Failures $failures.ToArray() -CheckName "Test group '$Group'"

@@ -69,8 +69,25 @@ function Test-IsAllowed {
 }
 
 # ------------------------------------------------------------------ gather
+# Directories that hold .csproj files which are not part of this product's build.
+#
+#   bin/, obj/     build output; a copy of a project already scanned.
+#   artifacts/     this repo's own output root (see Directory.Build.props).
+#   .nuget/        .github/workflows/ci.yml sets NUGET_PACKAGES inside the
+#                  workspace, so the restored package cache — which is full of
+#                  third-party .csproj files — lands under the repository root.
+#                  Scanning it would report every NuGet package on earth as a
+#                  vendor SDK in a non-adapter location.
+#   spikes/        throwaway export probes (docs/spikes/*). They are not in
+#                  SlayIdleRepeat.sln, they are not shipped, and 14 §1.1's
+#                  "no vendor SDK outside an adapter" is a rule about the
+#                  product's dependency graph, not about a scratch project whose
+#                  entire purpose is to try a vendor toolchain.
+$excludedDirectorySegments = @('bin', 'obj', '.nuget', 'artifacts', 'spikes')
+$excludePattern = '[\\/](' + ($excludedDirectorySegments -join '|') + ')[\\/]'
+
 $projects = @(Get-ChildItem -Path $root -Filter '*.csproj' -Recurse -File |
-    Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
+    Where-Object { $_.FullName -notmatch $excludePattern } |
     Sort-Object FullName)
 
 if ($projects.Count -eq 0) {
@@ -78,24 +95,57 @@ if ($projects.Count -eq 0) {
     exit 1
 }
 
-Write-Host "Projects scanned: $($projects.Count)"
+Write-Host "Projects scanned: $($projects.Count)  (excluding $($excludedDirectorySegments -join ', '))"
 
 # package id -> list of relative project paths
 $usage = [ordered]@{}
+
+# How many projects yielded at least one PackageReference. See the vacuity guard
+# below for why this is counted rather than assumed.
+$projectsWithAnyPackageReference = 0
 
 foreach ($project in $projects) {
     $relative = Get-RelativePath -Root $root -Path $project.FullName
     $xml = [xml](Get-Content -Raw -LiteralPath $project.FullName)
 
-    # SDK-style projects carry no default namespace, so a plain XPath is enough.
+    # local-name() rather than a plain '//PackageReference'. No .csproj in this
+    # repo declares a default xmlns today, and SDK-style projects normally do
+    # not — but a hand-edited or tool-migrated project can carry the legacy
+    # http://schemas.microsoft.com/developer/msbuild/2003 namespace, and a
+    # namespace-sensitive XPath returns ZERO nodes for it. That would leave
+    # $usage empty and this script would report "0 vendor SDKs, passed" over a
+    # project it never actually read — a vacuous pass on the one check whose
+    # entire job is catching a vendor SDK outside an adapter. A gate is allowed
+    # to fail falsely; it is never allowed to pass emptily.
+    #
     # Update= (rather than Include=) retunes an existing reference and does not
     # introduce a dependency, so it is not counted.
-    foreach ($node in $xml.SelectNodes('//PackageReference[@Include]')) {
+    $nodes = @($xml.SelectNodes("//*[local-name()='PackageReference'][@Include]"))
+    if ($nodes.Count -gt 0) { $projectsWithAnyPackageReference++ }
+
+    foreach ($node in $nodes) {
         $id = $node.GetAttribute('Include')
         if (-not $usage.Contains($id)) { $usage[$id] = [System.Collections.Generic.List[string]]::new() }
         $usage[$id].Add($relative)
     }
 }
+
+# Vacuity guard. Even with local-name(), a future change to how references are
+# declared (Central Package Management moving them wholesale into
+# Directory.Packages.props, an XML reader change, a broken glob) could empty
+# $usage without emptying $projects. A .NET repository of this size in which not
+# one project references one package is not a clean repository; it is a broken
+# scan. Fail rather than tick.
+if ($projectsWithAnyPackageReference -eq 0) {
+    Write-CiError (
+        "Scanned $($projects.Count) project(s) and found not a single <PackageReference Include=... />. " +
+        "That is not a plausible state for this repository, so it is far more likely the scan is broken " +
+        "than that the dependency graph is empty - and a broken scan here reports 'no vendor SDKs, passed'. " +
+        "Check the XPath in this script and whether references have moved (e.g. to Central Package Management).")
+    exit 1
+}
+
+Write-Host "Projects with >=1 PackageReference: $projectsWithAnyPackageReference"
 
 # ------------------------------------------------------------------- assert
 $failures = [System.Collections.Generic.List[string]]::new()
