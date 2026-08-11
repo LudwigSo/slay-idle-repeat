@@ -90,7 +90,7 @@ public static class Hash64
         ArgumentNullException.ThrowIfNull(streamName);
 
         var nameBytes = Utf8.GetByteCount(streamName);
-        var total = IntegerBytes + LengthPrefixBytes + nameBytes + IntegerBytes;
+        var total = CheckedTotal((long)IntegerBytes + LengthPrefixBytes + nameBytes + IntegerBytes);
 
         // Sized to `total`, not to StackBufferBytes: a stackalloc is zeroed before it is handed
         // over, and this method runs once per draw. Zeroing the whole 256-byte ceiling to fill
@@ -109,9 +109,18 @@ public static class Hash64
     /// The length of the canonical buffer these arguments encode to: 8 bytes per integral
     /// argument, 4 + the UTF-8 byte count per string.
     /// </summary>
+    /// <remarks>
+    /// Accumulated in <see cref="long"/>: an <see cref="int"/> total can overflow to a negative
+    /// number across enough or long enough string arguments, and a negative total reaches
+    /// <c>stackalloc byte[total]</c> in both <see cref="Of(Hash64Argument[])"/> and the draw
+    /// overload. Unreachable in practice, and refused explicitly anyway — the equivalent case in
+    /// <c>CanonicalStateWriter.CanonicalBuffer.EnsureCapacity</c> is guarded the same way, and an
+    /// asymmetry between the two encoders is the kind of thing that becomes a real difference.
+    /// </remarks>
+    /// <exception cref="NotSupportedException">The arguments encode to more than <see cref="Array.MaxLength"/> bytes.</exception>
     internal static int CanonicalByteCount(ReadOnlySpan<Hash64Argument> arguments)
     {
-        var total = 0;
+        long total = 0;
         foreach (var argument in arguments)
         {
             total += argument.IsText
@@ -119,7 +128,21 @@ public static class Hash64
                 : IntegerBytes;
         }
 
-        return total;
+        return CheckedTotal(total);
+    }
+
+    /// <summary>A canonical buffer length, or the refusal for one that cannot be allocated.</summary>
+    private static int CheckedTotal(long total)
+    {
+        if (total > Array.MaxLength)
+        {
+            throw new NotSupportedException(
+                $"These arguments encode to {total} bytes, beyond the {Array.MaxLength} bytes one " +
+                "canonical buffer can occupy (`14` §8.0). An argument list that large is a caller " +
+                "bug — an unbounded string, most likely — not a draw to take.");
+        }
+
+        return (int)total;
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Reflection;
 using FluentAssertions;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
@@ -329,14 +330,28 @@ public sealed class DeterministicRngTests
     /// <c>SaveState</c>/<c>RestoreState</c> with the xoshiro generator. The counter is the whole
     /// persistable state, so nothing may set it but the constructor.
     /// </summary>
+    /// <remarks>
+    /// A <b>closed set</b>, not a denylist of four names. Two reasons the denylist form could not
+    /// keep the promise this test's name makes. It named four methods, so a re-introduced
+    /// <c>Fork()</c>, <c>Advance(n)</c> or <c>SetPosition</c> — each of which makes the persisted
+    /// counter no longer the whole state — would sail past it. And <c>GetMethods()</c> with no
+    /// <see cref="BindingFlags"/> returns public members only, while <c>Core.Tests</c> holds
+    /// <c>InternalsVisibleTo</c>: an <c>internal Rewind(ulong)</c> was invisible to it. The
+    /// <c>DeclaredOnly</c> flag keeps <c>object</c>'s members out; <c>!IsPrivate</c> keeps the
+    /// implementation's own helpers out while still seeing anything <c>internal</c> or above.
+    /// </remarks>
     [Fact]
     public void The_type_exposes_no_state_beyond_a_read_only_position()
     {
         var type = typeof(DeterministicRng);
 
         type.GetProperty(nameof(DeterministicRng.Position))!.CanWrite.Should().BeFalse();
-        type.GetMethods().Select(method => method.Name)
-            .Should().NotContain(new[] { "SaveState", "RestoreState", "Reset", "Seek" });
+
+        type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsPrivate)
+            .Select(method => method.Name)
+            .Should().BeEquivalentTo(
+                "get_Position", "NextUInt", "NextDouble", "Range", "WeightedPick");
     }
 
     /// <summary>

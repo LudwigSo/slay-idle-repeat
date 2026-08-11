@@ -34,13 +34,21 @@ public sealed class SeedDerivationTests
     /// that changing the helper without changing the specification fails here rather than in
     /// M2's combat suite.
     /// </summary>
+    /// <remarks>
+    /// The stream name is the <b>literal</b> <c>"combat"</c>, not <c>RngStreams.Combat</c>. Writing
+    /// the constant here restates the implementation through the same symbol it uses, so a change
+    /// to the constant's value would move the derivation and this assertion together, in silence.
+    /// The literal also catches that. <c>RngStreams.Combat</c> is pinned to the same literal
+    /// separately, so the indirection loses nothing.
+    /// </remarks>
     [Fact]
     public void BattleSeed_is_Hash64_over_the_run_seed_the_combat_stream_and_the_battle_index()
     {
         var runSeed = 0xDEADBEEFCAFEF00DUL;
 
+        RngStreams.Combat.Should().Be("combat");
         SeedDerivation.BattleSeed(runSeed, 5)
-            .Should().Be(Hash64.Of(runSeed, RngStreams.Combat, 5UL));
+            .Should().Be(Hash64.Of(runSeed, "combat", 5UL));
     }
 
     /// <summary>Each battle of a run gets its own seed.</summary>

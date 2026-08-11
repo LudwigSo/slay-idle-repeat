@@ -105,6 +105,10 @@ public sealed class Hash64EncodingTests
 
         bytes.Should().HaveCount(4 + 7);
         bytes.Take(4).Should().Equal(0x07, 0x00, 0x00, 0x00);
+
+        // g r ö(c3 b6) ß(c3 9f) e — the payload, not merely its count, so an encoder that got the
+        // number right and the bytes wrong is caught here too. Its astral sibling below does the same.
+        bytes.Skip(4).Should().Equal(0x67, 0x72, 0xC3, 0xB6, 0xC3, 0x9F, 0x65);
     }
 
     /// <summary>
@@ -229,6 +233,82 @@ public sealed class Hash64EncodingTests
         var length = Hash64.CanonicalByteCount(new Hash64Argument[] { 0UL, "dice", 0UL });
 
         length.Should().Be(8 + 4 + 4 + 8);
+    }
+
+    /// <summary>
+    /// 🔒 The buffer boundary. Both <c>Of</c> overloads build the canonical buffer on the stack up
+    /// to 256 bytes and on the <b>heap</b> beyond it, and until this theory existed the heap branch
+    /// was dead in the whole suite: the largest canonical buffer any test built was 65 bytes, and
+    /// the 222-byte xxHash sanity vectors hand a pre-built array straight to <c>XxHash64</c>,
+    /// bypassing buffer construction entirely.
+    /// </summary>
+    /// <remarks>
+    /// A single ASCII string of length <c>n</c> encodes to <c>4 + n</c> bytes, so 252 is the last
+    /// length on the stack and 253 the first on the heap. A wrong slice offset or a stale
+    /// <c>total</c> in the heap path would hash long arguments differently while all 75 committed
+    /// rows still passed. The expectation is an explicitly built buffer rather than a second call
+    /// to <c>Of</c>, so the two cannot agree by both being wrong.
+    /// </remarks>
+    [Theory]
+    [InlineData(251)]
+    [InlineData(252)]
+    [InlineData(253)]
+    [InlineData(65536)]
+    public void The_encoding_agrees_with_an_explicit_buffer_on_both_sides_of_the_stack_heap_boundary(int length)
+    {
+        var text = new string('x', length);
+        var arguments = new Hash64Argument[] { text };
+
+        Hash64.CanonicalByteCount(arguments).Should().Be(4 + length);
+
+        var expected = new byte[4 + length];
+        Hash64.WriteCanonical(arguments, expected);
+
+        Hash64.Of(text).Should().Be(Hash64.XxHash64(expected));
+    }
+
+    /// <summary>
+    /// The same boundary for a mixed argument list, so the heap path is exercised where the string
+    /// is not the only argument and an offset can be stale rather than merely wrong.
+    /// </summary>
+    [Theory]
+    [InlineData(235)]
+    [InlineData(236)]
+    [InlineData(237)]
+    [InlineData(65536)]
+    public void A_mixed_argument_list_agrees_with_an_explicit_buffer_across_the_boundary(int length)
+    {
+        var text = new string('y', length);
+        var arguments = new Hash64Argument[] { 0x0123456789ABCDEFUL, text, 12UL };
+
+        Hash64.CanonicalByteCount(arguments).Should().Be(8 + 4 + length + 8);
+
+        var expected = new byte[8 + 4 + length + 8];
+        Hash64.WriteCanonical(arguments, expected);
+
+        Hash64.Of(arguments).Should().Be(Hash64.XxHash64(expected));
+    }
+
+    /// <summary>
+    /// 🔒 And the <b>draw</b> overload has its own stack/heap branch, reached at a stream name of
+    /// 237 bytes: <c>8 + (4 + n) + 8</c> passes 256 there. It is reachable — the overload does
+    /// <b>not</b> validate its stream name against <c>RngStreams</c>, so any caller can pass a name
+    /// of any length — and a heap path that disagreed with the general overload would fork the
+    /// stream for exactly those callers.
+    /// </summary>
+    [Theory]
+    [InlineData(235)]
+    [InlineData(236)]
+    [InlineData(237)]
+    [InlineData(4096)]
+    public void The_draw_overload_agrees_with_the_general_overload_across_the_boundary(int nameLength)
+    {
+        var streamName = new string('s', nameLength);
+
+        var viaDrawOverload = Hash64.Of(0x0123456789ABCDEFUL, streamName, 12UL);
+        var viaGeneralOverload = Hash64.Of(new Hash64Argument[] { 0x0123456789ABCDEFUL, streamName, 12UL });
+
+        viaDrawOverload.Should().Be(viaGeneralOverload);
     }
 
     private static byte[] Encode(Hash64Argument argument)
