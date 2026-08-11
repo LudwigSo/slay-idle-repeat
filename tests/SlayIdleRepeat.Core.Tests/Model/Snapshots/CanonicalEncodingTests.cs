@@ -349,17 +349,58 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 <c>-0.0</c> and <c>+0.0</c> compare equal and have different bit patterns. The writer
-    /// encodes the pattern, so they must differ — normalising them would be a silent edit to state.
+    /// 🔒 §16.6 — <c>-0.0</c> is <b>refused</b>. It is the one value where record equality and
+    /// <c>stateHash</c> disagree: <c>-0.0 == 0.0</c> is <c>true</c> in C#, so two snapshots the
+    /// language calls identical would carry different hashes. Encoding it and normalising it are
+    /// both wrong — the first is a false divergence in §2.4's mirror check and §13's chaos tests,
+    /// the second is the writer silently editing state on its way out — so it is neither.
+    /// </summary>
+    /// <remarks>
+    /// It is reachable from `14` §8.2's own rounding rule rather than only from a hand-written
+    /// literal: <c>Math.Round(-0.00004, 4)</c> yields <c>-0.0</c>, and .NET preserves the sign of
+    /// zero. The value is built through <see cref="BitConverter"/> because the C# compiler folds a
+    /// <c>-0.0</c> literal to <c>+0.0</c> in some positions.
+    /// </remarks>
+    [Fact]
+    public void CanonicalBytes_refuses_negative_zero()
+    {
+        var negativeZero = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000UL));
+        negativeZero.Should().Be(0.0);
+        double.IsNegative(negativeZero).Should().BeTrue();
+
+        var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(negativeZero));
+
+        act.Should().Throw<NotSupportedException>()
+            .WithMessage("*-0.0*")
+            .WithMessage("*record equality*");
+    }
+
+    /// <summary>
+    /// The way <c>-0.0</c> actually arrives: `14` §8.2 rounds at every accumulation point, and
+    /// <c>Math.Round(-0.00004, 4)</c> is a negative zero. A stat that drifts a hair below zero on
+    /// one host and not the other must fail loudly here, not diverge quietly downstream.
     /// </summary>
     [Fact]
-    public void CanonicalBytes_keeps_negative_zero_and_positive_zero_apart()
+    public void CanonicalBytes_refuses_the_negative_zero_that_the_rounding_rule_itself_produces()
     {
-        var negative = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(-0.0));
-        var positive = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(0.0));
+        var rounded = Math.Round(-0.00004, 4);
+        double.IsNegative(rounded).Should().BeTrue();
 
-        Hex(negative).Should().Be("0000000000000080");
-        Hex(positive).Should().Be("0000000000000000");
+        var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(rounded));
+
+        act.Should().Throw<NotSupportedException>().WithMessage("*-0.0*");
+    }
+
+    /// <summary>
+    /// 🔒 And <c>+0.0</c> is unaffected — eight zero bytes, as before. The refusal above is about
+    /// the sign bit alone, not about zero.
+    /// </summary>
+    [Fact]
+    public void CanonicalBytes_writes_positive_zero_as_eight_zero_bytes()
+    {
+        var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(0.0));
+
+        Hex(bytes).Should().Be("0000000000000000");
     }
 
     /// <summary>
@@ -379,11 +420,9 @@ public sealed class CanonicalEncodingTests
     /// A value that is exactly representable at 4 dp passes the guard untouched.
     /// </summary>
     /// <remarks>
-    /// <c>-0.0</c> is deliberately absent: the C# compiler folds it to the same constant as
-    /// <c>0.0</c>, so an <c>InlineData</c> row for it is a duplicate the xUnit analyser rejects
-    /// (xUnit1025). Its acceptance is pinned instead by
-    /// <see cref="CanonicalBytes_keeps_negative_zero_and_positive_zero_apart"/>, which encodes it
-    /// and would fail outright if the guard refused it.
+    /// <c>-0.0</c> is deliberately absent, and no longer merely because the C# compiler folds it
+    /// to the same constant as <c>0.0</c>: it is refused outright, by
+    /// <see cref="CanonicalBytes_refuses_negative_zero"/>.
     /// </remarks>
     [Theory]
     [InlineData(0.0)]

@@ -101,7 +101,7 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     [InlineData("string-multibyte")]
     [InlineData("string-null")]
     [InlineData("double-rounded")]
-    [InlineData("double-negative-zero")]
+    [InlineData("double-positive-zero")]
     [InlineData("timestamp-2024")]
     [InlineData("timestamp-pre-epoch")]
     [InlineData("optional-present")]
@@ -145,7 +145,6 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     [InlineData("nested-lists-ambiguity-a", "nested-lists-ambiguity-b")]
     [InlineData("string-empty", "string-null")]
     [InlineData("optional-present-zero", "optional-absent")]
-    [InlineData("double-negative-zero", "double-positive-zero")]
     [InlineData("run-command-player-then-run", "run-command-swapped")]
     [InlineData("meta-command-player-only", "run-command-player-then-run")]
     public void Rows_the_encoding_must_keep_apart_have_different_committed_hashes(string firstId, string secondId)

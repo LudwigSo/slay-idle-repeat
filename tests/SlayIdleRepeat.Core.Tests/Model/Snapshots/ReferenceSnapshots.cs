@@ -40,7 +40,6 @@ internal static class ReferenceSnapshots
         "string-empty" => new OneStringSnapshot(""),
         "string-null" => new OneStringSnapshot(null),
         "double-rounded" => new OneDoubleSnapshot(1234.5678),
-        "double-negative-zero" => new OneDoubleSnapshot(-0.0),
         "double-positive-zero" => new OneDoubleSnapshot(0.0),
         "timestamp-epoch" => new OneTimestampSnapshot(DateTimeOffset.FromUnixTimeMilliseconds(0)),
         "timestamp-2024" => new OneTimestampSnapshot(DateTimeOffset.FromUnixTimeMilliseconds(StampMilliseconds)),

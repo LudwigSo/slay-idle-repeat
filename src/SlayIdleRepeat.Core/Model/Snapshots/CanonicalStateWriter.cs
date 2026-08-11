@@ -592,10 +592,19 @@ public static class CanonicalStateWriter
     /// A double: the IEEE-754 bit pattern of the <b>stored</b> value, 8 bytes little-endian.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The writer never rounds and never normalises. `14` §8.2 rounds at every accumulation point;
     /// this method's only business with a double is to check that already happened — a writer that
-    /// quietly rounded would hide the drift the determinism CI exists to catch, and one that
-    /// normalised <c>-0.0</c> would silently edit state on its way out.
+    /// quietly rounded would hide the drift the determinism CI exists to catch.
+    /// </para>
+    /// <para>
+    /// 🔒 Three values are <b>refused</b> rather than encoded: NaN, the infinities, and
+    /// <c>-0.0</c>. The first two have no place in persisted state at all. <c>-0.0</c> is refused
+    /// for a different reason — it is the one value where record equality and <c>stateHash</c>
+    /// disagree, so normalising it here would silently edit state on its way out while accepting
+    /// it would hand two states C# calls identical two different hashes. Neither is a choice this
+    /// writer may make on the author's behalf; the accumulation point must.
+    /// </para>
     /// </remarks>
     private static void WriteDouble(CanonicalBuffer buffer, double value)
     {
@@ -613,6 +622,22 @@ public static class CanonicalStateWriter
                 $"Infinities are forbidden in persisted state ({Specification}). An infinite stat " +
                 "is an overflow upstream, not a value to serialise — fix the calculation that " +
                 "produced it.");
+        }
+
+        // 🔒 The one value where record equality and stateHash would disagree. It passes the
+        // rounding guard below untouched — Math.Round(-0.0, 4) is -0.0 — so it has to be named here.
+        if (double.IsNegative(value) && value == 0.0)
+        {
+            throw new NotSupportedException(
+                $"-0.0 is forbidden in persisted state ({Specification}). It is the one value " +
+                "where record equality and stateHash disagree: -0.0 == 0.0 is true in C#, so two " +
+                "snapshots the language calls IDENTICAL would carry different hashes — the writer " +
+                "encodes the bit pattern, and that is 0x8000000000000000 against " +
+                "0x0000000000000000. It is reachable from `14` §8.2's own rule: Math.Round(-0.00004, 4) " +
+                "yields -0.0 and .NET preserves the sign of zero, so a stat accumulating to a tiny " +
+                "negative on one host and not the other is a false divergence in the §2.4 mirror " +
+                "check and in the §13 chaos tests. Normalise at the accumulation point — `x + 0.0` " +
+                "is +0.0 — rather than letting the writer edit state on its way out.");
         }
 
         // 🔒 §16.6 words this as a debug-build assert. It is always on here on purpose: this

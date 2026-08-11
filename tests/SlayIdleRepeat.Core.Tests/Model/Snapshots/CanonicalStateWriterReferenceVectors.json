@@ -173,7 +173,7 @@
       "  wire                the wire form: 'fnv1a:' + 16 lowercase hex characters",
       "  mode                'meta' = PlayerSnapshot alone; 'run' = player THEN run",
       "",
-      "Two decisions of this encoding are NOT spelled out in the 16.6 table and are",
+      "Three decisions of this encoding are NOT spelled out in the 16.6 table and are",
       "pinned here deliberately:",
       "",
       "  1. A 4-byte little-endian ELEMENT COUNT precedes a list's elements and a",
@@ -181,7 +181,26 @@
       "     rows nested-lists-ambiguity-a/-b are that fact, committed.",
       "  2. Every nullable-capable slot (any reference type, any Nullable<T>) carries",
       "     the 0x00/0x01 presence byte; the ROOT snapshot does not, being required.",
-      "     Row optional-present-zero pins that a present zero outranks an absence."
+      "     Row optional-present-zero pins that a present zero outranks an absence.",
+      "  3. A snapshot must be a POSITIONAL RECORD: exactly one public constructor,",
+      "     and its parameters are exactly the public instance properties. That is",
+      "     what makes 'declaration order' mechanical -- GetParameters() is",
+      "     guaranteed to be declaration order, property order is not guaranteed at",
+      "     all -- and it is why a property declared outside the primary constructor",
+      "     is refused rather than hashed as zero bytes.",
+      "",
+      "REMOVED ROW -- double-negative-zero (M0 review, finding F2). It pinned -0.0 as",
+      "the bit pattern 0000000000000080, hash 0xa8c7783228196045. -0.0 is now REFUSED",
+      "by the writer, so the row describes a value that can no longer be encoded and",
+      "had to go. This was a deliberate, announced determinism edit, not a test fix:",
+      "-0.0 == 0.0 is true in C#, so accepting it handed two snapshots that record",
+      "equality calls IDENTICAL two different stateHashes -- a false divergence in the",
+      "14 section 2.4 mirror check and the section 13 chaos tests, reachable from 14",
+      "section 8.2's own rounding rule because Math.Round(-0.00004, 4) is -0.0. No",
+      "stateHash had been issued to any client at the time of the change (M0 predates",
+      "both PlayerSnapshot and RunSnapshot), so no persisted hash moved and no",
+      "SchemaVersion bump was owed. The refusal is pinned instead by",
+      "CanonicalEncodingTests.CanonicalBytes_refuses_negative_zero."
     ],
     "rows": [
       {
@@ -266,17 +285,8 @@
         "wire": "fnv1a:776c67f72f4c8c91"
       },
       {
-        "id": "double-negative-zero",
-        "why": "-0.0 and +0.0 are different bit patterns and must stay different rows",
-        "mode": "meta",
-        "encodedByteLength": 8,
-        "encodedHex": "0000000000000080",
-        "hash": "0xa8c7783228196045",
-        "wire": "fnv1a:a8c7783228196045"
-      },
-      {
         "id": "double-positive-zero",
-        "why": "+0.0, the partner of the row above",
+        "why": "+0.0 is eight zero bytes — the only zero the encoding admits (see REMOVED ROW in the header)",
         "mode": "meta",
         "encodedByteLength": 8,
         "encodedHex": "0000000000000000",
