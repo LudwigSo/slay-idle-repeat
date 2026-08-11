@@ -25,6 +25,7 @@
     { "id": "xunit.runner.visualstudio", "reason": "Test adapter; without it the suite reports zero tests." },
     { "id": "FluentAssertions", "reason": "Assertion library." },
     { "id": "NetArchTest.Rules", "reason": "The engine the 23 §6 architecture rules are written against." },
+    { "id": "Mono.Cecil", "reason": "IL reader used by SlayIdleRepeat.Architecture.Tests (M0-08, Infrastructure/Il.cs) to inspect method bodies for the banned-API rules. It reads assemblies; it is not a service behind a port and cannot lock anything in." },
     { "id": "coverlet.collector", "reason": "Coverage collector. Test-time only." },
     { "id": "Microsoft.SourceLink.*", "reason": "Debug symbol metadata. Build-time only, no runtime surface." }
   ]

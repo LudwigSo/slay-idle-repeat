@@ -59,11 +59,6 @@
       "reason": "Seeded empty by M0-01. 14 §13 wants one shared suite per port run against every implementation including the in-memory fake; there are no ports with two implementations yet."
     },
     {
-      "project": "SlayIdleRepeat.Architecture.Tests",
-      "turnsOn": "M0-08",
-      "reason": "In flight on feature-M0-08-architecture-tests in this same wave. This entry is expected to be deleted when that branch merges — the stale-exemption rule will insist on it."
-    },
-    {
       "project": "SlayIdleRepeat.Integration.Tests",
       "turnsOn": "M0-03",
       "reason": "Needs the compose stack, which does not exist until M0-03. Runs in the compose-boot job, not in `test`."

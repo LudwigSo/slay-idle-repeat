@@ -90,8 +90,12 @@ Current exemptions, all seeded empty by M0-01:
 | `SlayIdleRepeat.Core.Tests` | M0-06 |
 | `SlayIdleRepeat.Application.Tests` | M1-09 |
 | `SlayIdleRepeat.Contract.Tests` | M1-09 |
-| `SlayIdleRepeat.Architecture.Tests` | M0-08 — in flight in this same wave; expect to delete this row on merge |
 | `SlayIdleRepeat.Integration.Tests` | M0-03 |
+
+`SlayIdleRepeat.Architecture.Tests` **had** a row here and no longer does: M0-08
+merged mid-task with 33 live rules, and the stale-exemption rule is what caught
+it. That is the mechanism working — the entry was removed because CI insisted,
+not because anyone remembered.
 
 ---
 
@@ -133,11 +137,23 @@ rather than loosening the orphan check.
 
 ### Deliberate overlap with the architecture tests
 
-`vendor-package-uniqueness` and M0-08's `SlayIdleRepeat.Architecture.Tests` may
-both assert the `14` §1.1 no-vendor-outside-an-adapter rule. **Both are wanted.**
-The architecture test sees what an assembly actually binds; the script sees what
-the build was told to fetch, and it still runs when the solution does not
-compile. Do not delete one because the other exists.
+M0-08's `ProjectFileTests.Vendor_package_is_referenced_by_exactly_one_project`
+asserts the same `14` §1.1 / A9 uniqueness rule. **Both are wanted, and they are
+not duplicates:**
+
+| | Architecture test (M0-08) | `Test-VendorPackageUniqueness.ps1` |
+|---|---|---|
+| Scope | `src/` only — test projects legitimately share xUnit | Whole repository, with an explicit allow-list |
+| Location rule | Covered indirectly (`Core` references nothing, `Application` references only Core + Contracts) | **A9-LOCATION**, directly: a vendor package anywhere outside `src/adapters/**` fails, including `Server`, `Contracts`, `tools/` and `tests/` |
+| Runs when the solution does not compile | No | Yes |
+| New package appears | Passes if it is unique | Fails until it is either in an adapter or justified in `non-vendor-packages.json` |
+
+The allow-list is the point of the second one: it makes "this is test
+infrastructure, not a vendor SDK" an argument someone writes down. It already
+earned its keep — M0-08's `Mono.Cecil` was caught by A9-LOCATION and is now
+allow-listed with a reason.
+
+Do not delete one because the other exists.
 
 ---
 
@@ -194,7 +210,7 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 | Verified by execution | Unverifiable without a runner |
 |---|---|
 | `dotnet restore` + `dotnet build -c Release` — 33 projects, 0 warnings, 0 errors | Every `actions/*` step (`checkout`, `setup-dotnet`, `cache`, `upload-artifact`) |
-| All three test groups via `Invoke-UnitTests.ps1`, plus both failure modes of the empty-suite rule, proven against a throwaway suite | `global-json-file: global.json` actually selecting the 8.0 SDK on a runner |
+| All three test groups via `Invoke-UnitTests.ps1`, plus **both** failure modes of the empty-suite rule (undeclared-empty, and stale-exemption) proven against a throwaway suite | `global-json-file: global.json` actually selecting the 8.0 SDK on a runner |
 | `Test-VendorPackageUniqueness.ps1` — passes on the real tree; A9-UNIQUE and A9-LOCATION both proven to fire | NuGet cache hit/miss behaviour |
 | `Invoke-ContentValidation.ps1` — correct failure on today's empty tree; pass, bad-parse, duplicate-key, both orphan directions and the `schema-map.json` override all proven on fixtures | Runner-label availability (`ubuntu-24.04`, `macos-14`) |
 | `Test-NoCloudCredentials.ps1` — passes on the real workflows; all seven bans proven to fire on a fixture | `schedule:` firing, and GitHub's 60-day disable of scheduled workflows on an inactive repo |
@@ -202,6 +218,7 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 | The whole `compose-boot` command sequence (`config` → `up --wait` → health poll → `down`) against a throwaway stack in a scratch directory | |
 | Both `nightly.yml` commands (`dotnet run` on each tool, exit 0) | |
 | YAML parse + `yamllint` clean on both workflows | `actionlint` (not installed; not fetched — no unvetted binaries) |
+| **Integration rehearsal**: every live check re-run against a scratch export of `milestone/M0` **with M0-08 merged** — build clean, architecture suite **33/33**, all checks green except the two documented reds | |
 
 ### Follow-ups for when the repository exists
 
