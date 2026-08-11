@@ -4,8 +4,7 @@
     SlayIdleRepeat.Server — COMPOSITION ROOT (23 §7.1).
 
     The only place on the server where concrete adapter types are named.
-    Deliberately does NOT reference SlayIdleRepeat.Adapters.InMemory — the fakes
-    ship in tests only.
+    Deliberately does NOT reference the in-memory fakes — they ship in tests only.
 
     M0 scope: the host boots and serves GET /health so M0-03's compose stack has
     something to wait on. No game endpoints yet.

@@ -13,8 +13,7 @@
     carrying the app name and the bundle id only — do not open the Godot editor
     against it during M0.
 
-    Deliberately does NOT reference SlayIdleRepeat.Adapters.InMemory — the fakes
-    ship in tests only.
+    Deliberately does NOT reference the in-memory fakes — they ship in tests only.
   -->
 
   <ItemGroup>
