@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SlayIdleRepeat.Client — COMPOSITION ROOT for the Godot client (23 §7.2).
+
+    M0 PLACEHOLDER: this is a plain net8.0 class library so that
+    `dotnet build SlayIdleRepeat.sln` works on a machine without Godot installed —
+    Godot must not be a build prerequisite for the solution.
+
+    M7 converts this project to the Godot SDK (Sdk="Godot.NET.Sdk/4.x") alongside
+    the real project.godot, at which point SlayIdleRepeat.Adapters.Platform.Godot
+    picks up its GodotSharp reference. project.godot next to this file is a stub
+    carrying the app name and the bundle id only — do not open the Godot editor
+    against it during M0.
+
+    Deliberately does NOT reference the in-memory fakes — they ship in tests only.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Ads.AppLovin\SlayIdleRepeat.Adapters.Ads.AppLovin.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Ads.AutoGrant\SlayIdleRepeat.Adapters.Ads.AutoGrant.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Billing.GooglePlay\SlayIdleRepeat.Adapters.Billing.GooglePlay.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Billing.StoreKit\SlayIdleRepeat.Adapters.Billing.StoreKit.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Api.Http\SlayIdleRepeat.Adapters.Api.Http.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Cache.LocalFile\SlayIdleRepeat.Adapters.Cache.LocalFile.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Push.Firebase\SlayIdleRepeat.Adapters.Push.Firebase.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Consent.AppLovinCmp\SlayIdleRepeat.Adapters.Consent.AppLovinCmp.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Platform.Godot\SlayIdleRepeat.Adapters.Platform.Godot.csproj" />
+  </ItemGroup>
+
+</Project>

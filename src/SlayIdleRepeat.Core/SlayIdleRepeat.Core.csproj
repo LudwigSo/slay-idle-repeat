@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SlayIdleRepeat.Core — THE WHOLE GAME. Zero dependencies (23 §6, 30 §11).
+
+    This project references NOTHING: no ProjectReference, no PackageReference,
+    not even a logging abstraction. The whole game must be playable from this
+    assembly alone (30 §6 InMemoryGame), and its assembly closure must stay
+    exactly { SlayIdleRepeat.Core, System.* }.
+
+    InternalsVisibleTo is permitted for SlayIdleRepeat.Core.Tests ONLY (30 §11.3).
+  -->
+
+</Project>

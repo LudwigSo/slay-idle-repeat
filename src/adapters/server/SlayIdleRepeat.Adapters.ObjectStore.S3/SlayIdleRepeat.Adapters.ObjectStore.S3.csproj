@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IBattleLogStore over S3-compatible object storage (MinIO locally, D12).
+    AWSSDK.S3 is referenced by this project and no other (23 §5 A9).
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.102" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

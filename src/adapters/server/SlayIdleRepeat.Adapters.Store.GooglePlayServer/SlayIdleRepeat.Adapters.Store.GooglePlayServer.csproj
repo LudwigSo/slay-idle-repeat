@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IStoreReceiptVerifierPort over the Google Play Developer API.
+    Google.Apis.AndroidPublisher.v3 is referenced by this project and no other.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Google.Apis.AndroidPublisher.v3" Version="1.75.0.4221" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IGameApiPort over HTTPS + WebSocket (14 §16).
+    Uses the BCL HttpClient/ClientWebSocket — no vendor package.
+    References Contracts directly because it serialises the wire envelope.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Contracts\SlayIdleRepeat.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

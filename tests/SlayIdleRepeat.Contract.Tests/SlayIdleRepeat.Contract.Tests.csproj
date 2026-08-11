@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    One shared suite per port, run against EVERY implementation of that port —
+    the real adapters and the in-memory fake (23 §5 A8).
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="FluentAssertions" Version="7.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Ads.AppLovin\SlayIdleRepeat.Adapters.Ads.AppLovin.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Ads.AutoGrant\SlayIdleRepeat.Adapters.Ads.AutoGrant.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Billing.GooglePlay\SlayIdleRepeat.Adapters.Billing.GooglePlay.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Billing.StoreKit\SlayIdleRepeat.Adapters.Billing.StoreKit.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Api.Http\SlayIdleRepeat.Adapters.Api.Http.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Cache.LocalFile\SlayIdleRepeat.Adapters.Cache.LocalFile.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Push.Firebase\SlayIdleRepeat.Adapters.Push.Firebase.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Consent.AppLovinCmp\SlayIdleRepeat.Adapters.Consent.AppLovinCmp.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Platform.Godot\SlayIdleRepeat.Adapters.Platform.Godot.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Persistence.Postgres\SlayIdleRepeat.Adapters.Persistence.Postgres.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Cache.Redis\SlayIdleRepeat.Adapters.Cache.Redis.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.ObjectStore.S3\SlayIdleRepeat.Adapters.ObjectStore.S3.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Store.GooglePlayServer\SlayIdleRepeat.Adapters.Store.GooglePlayServer.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Store.AppStoreServer\SlayIdleRepeat.Adapters.Store.AppStoreServer.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.AdVerify.AppLovinS2S\SlayIdleRepeat.Adapters.AdVerify.AppLovinS2S.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Push.FcmApns\SlayIdleRepeat.Adapters.Push.FcmApns.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Analytics.PostHog\SlayIdleRepeat.Adapters.Analytics.PostHog.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Config.HttpJson\SlayIdleRepeat.Adapters.Config.HttpJson.csproj" />
+    <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
+  </ItemGroup>
+
+</Project>

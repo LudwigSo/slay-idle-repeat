@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IRunStateStore / IIdempotencyStore / ILeaderboardStore over Redis.
+    StackExchange.Redis is referenced by this project and no other (23 §5 A9).
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="3.1.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

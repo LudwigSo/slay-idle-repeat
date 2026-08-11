@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SlayIdleRepeat.Application — I/O choreography + ALL port interfaces (23 §2/§3).
+
+    Use cases orchestrate ONLY: load slice -> GameRules.Apply() -> persist ->
+    dispatch events. No game rules live here (30 §11.1).
+
+    Dependency rule: Adapters -> Application -> Core -> nothing.
+    This project must never reference SlayIdleRepeat.Adapters.* (23 §6).
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\SlayIdleRepeat.Core\SlayIdleRepeat.Core.csproj" />
+    <ProjectReference Include="..\SlayIdleRepeat.Contracts\SlayIdleRepeat.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

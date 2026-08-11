@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The domain test suite. References SlayIdleRepeat.Core and nothing else — it is
+    the assembly Core grants InternalsVisibleTo (30 §11.3).
+
+    M0 seeds the project only; the tests arrive with their milestones.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="FluentAssertions" Version="7.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Core\SlayIdleRepeat.Core.csproj" />
+  </ItemGroup>
+
+</Project>

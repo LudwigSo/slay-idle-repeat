@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    SlayIdleRepeat.Server — COMPOSITION ROOT (23 §7.1).
+
+    The only place on the server where concrete adapter types are named.
+    Deliberately does NOT reference the in-memory fakes — they ship in tests only.
+
+    M0 scope: the host boots and serves GET /health so M0-03's compose stack has
+    something to wait on. No game endpoints yet.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Persistence.Postgres\SlayIdleRepeat.Adapters.Persistence.Postgres.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Cache.Redis\SlayIdleRepeat.Adapters.Cache.Redis.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.ObjectStore.S3\SlayIdleRepeat.Adapters.ObjectStore.S3.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Store.GooglePlayServer\SlayIdleRepeat.Adapters.Store.GooglePlayServer.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Store.AppStoreServer\SlayIdleRepeat.Adapters.Store.AppStoreServer.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.AdVerify.AppLovinS2S\SlayIdleRepeat.Adapters.AdVerify.AppLovinS2S.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Push.FcmApns\SlayIdleRepeat.Adapters.Push.FcmApns.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Analytics.PostHog\SlayIdleRepeat.Adapters.Analytics.PostHog.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.csproj" />
+    <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Config.HttpJson\SlayIdleRepeat.Adapters.Config.HttpJson.csproj" />
+  </ItemGroup>
+
+</Project>

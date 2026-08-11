@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Mass battle simulation over SlayIdleRepeat.Core (05 §9).
+
+    🔒 References SlayIdleRepeat.Core ONLY. No Application, no adapters, no I/O
+    ports — the whole game is playable from Core alone (30 §6).
+
+    M0: empty shell.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Core\SlayIdleRepeat.Core.csproj" />
+  </ItemGroup>
+
+</Project>

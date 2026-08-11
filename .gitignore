@@ -7,3 +7,38 @@
 
 # Godot import cache — never committed
 .godot/
+mono_crash.*.json
+
+# ----------------------------------------------------------------- .NET build
+[Bb]in/
+[Oo]bj/
+artifacts/
+*.binlog
+
+# ------------------------------------------------------------------- test run
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# --------------------------------------------------------------------- NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+*.nuget.props
+*.nuget.targets
+
+# ------------------------------------------------------------- IDE / tooling
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.userprefs
+.DS_Store

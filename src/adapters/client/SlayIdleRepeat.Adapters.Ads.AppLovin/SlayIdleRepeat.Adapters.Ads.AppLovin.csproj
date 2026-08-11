@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IRewardedAdPort over the AppLovin MAX Godot plugin (12 §3.3).
+    No NuGet package: MAX ships as a GDScript/Godot plugin, wrapped here.
+    The plugin and its shim land in M0-04 / M7.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>
