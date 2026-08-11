@@ -28,6 +28,17 @@ public static partial class ContentInvariants
     private const string LocaleDirectory = "loc/";
     private const string StringsMemberName = "strings";
 
+    /// <summary>
+    /// 🔒 Every <c>path#/pointer</c> the declared cross-file rules have looked up so far.
+    /// </summary>
+    /// <remarks>
+    /// A rule whose reference no longer resolves is a rule that has silently stopped holding — and
+    /// the shipped data validates <em>most</em> cleanly when every rule is dead. Exposed so a test
+    /// can assert that every reference resolves against the real data set, and that there are still
+    /// as many of them as there are rules. Populated by running <see cref="Check"/>.
+    /// </remarks>
+    public static IReadOnlyList<string> DeclaredRuleReferences => DeclaredRules.References;
+
     /// <summary>Every cross-file rule, over the merged, schema-valid document set.</summary>
     /// <param name="documents">Data documents by snapshot-relative path. Schemas excluded.</param>
     /// <param name="patternBindings">
@@ -95,10 +106,17 @@ public static partial class ContentInvariants
             {
                 foreach (var field in IdentityMemberNames.Where(f => entries.All(e => e.TryGetMember(f, out _))))
                 {
+                    // 🔒 Grouped by VALUE, not by ToString(). `IdentityMemberNames` includes
+                    // `chapter`, `day` and `slot`, which are numbers, and ContentValue.ToString()
+                    // for a number is scale-PRESERVING while ContentValue.Equals is deliberately
+                    // scale-INDEPENDENT: {"chapter": 3} beside {"chapter": 3.0} declared the same
+                    // chapter twice and walked straight through this gate. It failed the other way
+                    // too — ToString() for an object emits member NAMES only, so two structurally
+                    // different objects in an identity slot reported as duplicates of each other.
                     var duplicates = entries
                         .Select(e => { e.TryGetMember(field, out var id); return id!; })
                         .Where(id => !id.IsUnauthorised)
-                        .GroupBy(id => id.ToString(), StringComparer.Ordinal)
+                        .GroupBy(id => id)
                         .Where(g => g.Count() > 1);
 
                     foreach (var duplicate in duplicates)

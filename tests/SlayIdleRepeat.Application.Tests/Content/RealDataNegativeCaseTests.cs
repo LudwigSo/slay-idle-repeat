@@ -5,8 +5,8 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// Thirty single-edit mutations of the <b>real</b> <c>SlayIdleRepeat.Data</c>, each of which the
-/// validator must reject.
+/// Forty-three single-edit mutations of the <b>real</b> <c>SlayIdleRepeat.Data</c>, each of which
+/// the validator must reject — at a named code <b>and a named pointer</b>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -294,6 +294,130 @@ public sealed class RealDataNegativeCaseTests
     {
         Rejects("tuning/ads.json", "\"cap\": 4,", "\"cap\": null,",
             ContentIssueCode.SchemaViolation, "tuning/ads.json#/metaPlacements/0/cap");
+    }
+
+    // ═══════════════════ DeclaredRules shapes that no committed case reached before (31-43)
+
+    /// <summary>
+    /// 🔒 <b>R16, the priority.</b> It is the rule that keeps the null-means-unauthorised
+    /// convention honest for <c>drops.json</c>: <c>08</c> §3.0a says a <em>null</em> slot
+    /// coefficient means "read <c>percentStatsByRarity</c> instead", so the null is the mechanism,
+    /// and the two tables are alternatives. Authorising a coefficient without removing its
+    /// percent-stat row leaves a stat with two contradicting sources and no way to tell which the
+    /// generator used. Nothing committed exercised it.
+    /// </summary>
+    [Fact]
+    public void A_slot_coefficient_that_is_authorised_while_its_percent_stat_row_stays_is_rejected()
+    {
+        Rejects("tuning/drops.json",
+            "\"primaryStat\": \"ASPD\", \"primaryCoef\": null",
+            "\"primaryStat\": \"ASPD\", \"primaryCoef\": 0.5",
+            ContentIssueCode.UnknownId, "tuning/drops.json#/percentStatsByRarity/ASPD");
+    }
+
+    /// <summary>R17 — <c>08</c> §6: the drop bands tile every chapter exactly once.</summary>
+    [Fact]
+    public void A_drop_band_that_overlaps_the_next_one_is_rejected()
+    {
+        Rejects("tuning/drops.json",
+            "{ \"chapterFrom\": 3, \"chapterTo\": 4,", "{ \"chapterFrom\": 3, \"chapterTo\": 5,",
+            ContentIssueCode.DuplicateId, "tuning/drops.json#/dropShareByChapterBand");
+    }
+
+    /// <summary>R24 — <c>08</c> §4.2: the enhance ladder's total is its per-level bonus times its length.</summary>
+    [Fact]
+    public void An_enhance_total_that_stops_agreeing_with_its_per_level_bonus_is_rejected()
+    {
+        Rejects("tuning/forge.json", "\"totalMultiplierAtMax\": 2.05", "\"totalMultiplierAtMax\": 2.06",
+            ContentIssueCode.OutOfRange, "tuning/forge.json#/enhance/totalMultiplierAtMax");
+    }
+
+    /// <summary>R7 — <c>21</c> §5.4: the three ad-behaviour groups partition the catalogue exactly.</summary>
+    [Fact]
+    public void An_ad_placement_that_falls_out_of_every_behaviour_group_is_rejected()
+    {
+        Rejects("tuning/sim_profiles.json", "\"AD_DOUBLE_QUEST\",", "\"AD_DOUBLE_QUESTS\",",
+            ContentIssueCode.OrphanedReference, "tuning/sim_profiles.json#/adPlacementGroups");
+    }
+
+    /// <summary>R13 — <c>29</c> §4: the par table is its own default fill.</summary>
+    [Fact]
+    public void A_par_power_cell_that_stops_matching_the_default_fill_is_rejected()
+    {
+        Rejects("tuning/par_power.json",
+            "{ \"chapter\": 1, \"NORMAL\": 1000,", "{ \"chapter\": 1, \"NORMAL\": 1100,",
+            ContentIssueCode.OutOfRange, "tuning/par_power.json#/parPower/0/NORMAL");
+    }
+
+    /// <summary>R28 — <c>10</c> §4.2: the daily shop draw has to be satisfiable.</summary>
+    [Fact]
+    public void A_daily_shop_draw_larger_than_its_pool_is_rejected()
+    {
+        Rejects("tuning/currencies.json", "\"rotatingOffersPerDay\": 6", "\"rotatingOffersPerDay\": 60",
+            ContentIssueCode.OutOfRange, "tuning/currencies.json#/shop/dailyTab/rotatingOffersPerDay");
+    }
+
+    /// <summary>R29 — <c>27</c> §3.1: the guild quest pool has to be drawable.</summary>
+    [Fact]
+    public void A_guild_quest_draw_larger_than_its_pool_is_rejected()
+    {
+        Rejects("tuning/guilds.json", "\"perDay\": 3,", "\"perDay\": 30,",
+            ContentIssueCode.OutOfRange, "tuning/guilds.json#/quests/perDay");
+    }
+
+    /// <summary><c>Derives</c> — <c>10</c> §4: the ladder and the capacity it reaches are one fact.</summary>
+    [Fact]
+    public void An_inventory_capacity_that_its_own_ladder_cannot_reach_is_rejected()
+    {
+        Rejects("tuning/forge.json",
+            "\"maxCapacityReachableFromLadder\": 320", "\"maxCapacityReachableFromLadder\": 321",
+            ContentIssueCode.OrphanedReference, "tuning/forge.json#/inventory/maxCapacityReachableFromLadder");
+    }
+
+    /// <summary><c>CountEquals</c> — <c>10</c> §4: one ladder price per purchase step.</summary>
+    [Fact]
+    public void A_ladder_with_more_prices_than_purchase_steps_is_rejected()
+    {
+        Rejects("tuning/currencies.json",
+            "\"inventoryExpansionMaxPurchases\": 10", "\"inventoryExpansionMaxPurchases\": 9",
+            ContentIssueCode.OutOfRange, "tuning/currencies.json#/crowns/inventoryExpansionLadder");
+    }
+
+    /// <summary><c>SharesSumTo</c> — <c>26</c> §3: the calendar's two archetype shares are a partition.</summary>
+    [Fact]
+    public void An_event_calendar_whose_two_shares_stop_summing_to_one_is_rejected()
+    {
+        Rejects("tuning/events.json", "\"chapterEventShare\": 0.75", "\"chapterEventShare\": 0.7",
+            ContentIssueCode.OutOfRange, "tuning/events.json#/calendar/chapterEventShare");
+    }
+
+    /// <summary><c>KeysResolveIn</c> — <c>12</c> §4: the ad-placement catalogue is closed.</summary>
+    [Fact]
+    public void A_reward_value_keyed_by_a_placement_that_does_not_exist_is_rejected()
+    {
+        Rejects("tuning/ads.json",
+            "\"AD_CAMPFIRE_HEAL\": { \"healPctMaxHp\": 0.3 }",
+            "\"AD_CAMPFIRE_HEALL\": { \"healPctMaxHp\": 0.3 }",
+            ContentIssueCode.OrphanedReference, "tuning/ads.json#/placementRewardValues/AD_CAMPFIRE_HEALL");
+    }
+
+    /// <summary><c>ItemsResolveIn</c> — <c>24</c> §5: Focus applies only to classified gear sources.</summary>
+    [Fact]
+    public void A_focus_class_that_luck_json_does_not_classify_is_rejected()
+    {
+        Rejects("tuning/luck.json", "\"CHEST_APEX\", \"DROP_RUN\"]", "\"CHEST_APEX\", \"DROP_RUNS\"]",
+            ContentIssueCode.OrphanedReference, "tuning/luck.json#/focus/appliesToClasses");
+    }
+
+    /// <summary>
+    /// <c>MirrorsFieldsOf</c> — <c>29</c> §2.2: the standard dummy is the reference opponent
+    /// promoted to a live actor, so every field the model reads has to agree.
+    /// </summary>
+    [Fact]
+    public void A_standard_dummy_that_stops_agreeing_with_the_reference_opponent_is_rejected()
+    {
+        Rejects("tuning/calibration_builds.json", "\"def\": 1500,", "\"def\": 1501,",
+            ContentIssueCode.OrphanedReference, "tuning/power_model.json#/referenceOpponent/def");
     }
 
     // ═══════════════════════════ 🔒 positive controls — these nulls MUST still be accepted

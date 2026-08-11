@@ -879,9 +879,36 @@ internal static class DeclaredRules
 
     // ------------------------------------------------------------------------------ helpers
 
+    /// <summary>
+    /// 🔒 Every <c>path#/pointer</c> these rules have ever looked up, in ordinal order.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="Find"/> returns <c>null</c> for two very different facts: "the document is absent"
+    /// — correct, and the reason a rule waiting on M2's content is vacuous rather than switched off
+    /// — and "the pointer is a typo in a document that is present", which disables the rule in
+    /// silence. Nothing could tell them apart, and
+    /// <c>The_shipped_data_set_validates_with_no_issues</c> passes <em>hardest</em> when every rule
+    /// is dead.
+    /// </para>
+    /// <para>
+    /// Recorded at lookup rather than restated in a list, so a reference composed at run time
+    /// (<c>tuning/luck.json#/{block}/softPity</c>, <c>…/tierMultiplier/{tier}</c>) is covered too —
+    /// a hand-maintained list would miss exactly those. The set only ever grows to the literals in
+    /// this file, and a test asserts every one of them resolves against the shipped data.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<string> References =>
+        Referenced.Keys.OrderBy(r => r, StringComparer.Ordinal).ToArray();
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> Referenced =
+        new(StringComparer.Ordinal);
+
     /// <summary>Resolves a <c>path#/pointer</c> reference, or null when anything on the way is absent.</summary>
     internal static ContentValue? Find(IReadOnlyDictionary<string, ContentValue> documents, string reference)
     {
+        Referenced.TryAdd(reference, 0);
+
         if (!ContentReference.TryParse(reference, out var parsed) ||
             !documents.TryGetValue(parsed!.DocumentPath, out var current))
         {

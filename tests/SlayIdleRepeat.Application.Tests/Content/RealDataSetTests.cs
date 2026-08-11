@@ -132,6 +132,35 @@ public sealed partial class RealDataSetTests
         ContentLoader.Load(source).Issues.Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
+    // ------------------------------------------------- the declared rules are still alive
+
+    /// <summary>
+    /// 🔒 <c>DeclaredRules.Find</c> returns <c>null</c> for two different facts: "the document is
+    /// absent", which is correct and is why a rule waiting on M2's content is vacuous rather than
+    /// switched off, and "the pointer is a typo in a document that is present", which disables the
+    /// rule in silence. <c>The_shipped_data_set_validates_with_no_issues</c> passes <em>hardest</em>
+    /// when every rule is dead, so nothing above catches the second.
+    /// </summary>
+    [Fact]
+    public void Every_pointer_the_declared_rules_look_up_resolves_against_the_shipped_data()
+    {
+        var snapshot = ContentLoader.Load(RepoData.Source()).Require();
+
+        var references = ContentInvariants.DeclaredRuleReferences;
+
+        references.Should().HaveCountGreaterThan(120,
+            "the declared rules resolve well over a hundred pointers today; a collapse means the " +
+            "rules stopped running, not that the design docs stopped stating them");
+
+        foreach (var reference in references)
+        {
+            snapshot.TryRead(reference, out _).Should().BeTrue(
+                $"the rule that names '{reference}' resolves it today. A pointer that stops " +
+                "resolving does not fail — it makes its rule vacuous, and the data set then " +
+                "validates more cleanly than before.");
+        }
+    }
+
     // ------------------------------------------------------------------- the 📐 check
 
     [Fact]

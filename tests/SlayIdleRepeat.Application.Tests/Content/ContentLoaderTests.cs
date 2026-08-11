@@ -141,6 +141,77 @@ public sealed class ContentLoaderTests
             i.Code == ContentIssueCode.MissingSchema && i.Location == "content/runes/RUNE_EMBER.json");
     }
 
+    // ------------------------------------- 14 §6 duplicate ids, over a NUMERIC identity field
+
+    /// <summary>
+    /// 🔒 <c>ContentInvariants.IdentityMemberNames</c> includes <c>chapter</c>, <c>day</c> and
+    /// <c>slot</c>, which are numbers. Keying the duplicate check on <c>ToString()</c> compared
+    /// numbers by <em>representation</em>: <c>ContentValue.ToString()</c> is scale-preserving while
+    /// <c>ContentValue.Equals</c> is deliberately scale-independent, so <c>3</c> beside <c>3.0</c>
+    /// declared the same slot twice and walked through the gate.
+    /// </summary>
+    [Fact]
+    public void Load_sees_a_duplicate_numeric_id_written_at_a_different_scale()
+    {
+        var issues = ContentLoader.Load(Slots(
+            """{ "slot": 3 }""", """{ "slot": 3.0 }""")).Issues;
+
+        issues.Should().Contain(i =>
+            i.Code == ContentIssueCode.DuplicateId && i.Location == "tuning/gizmos.json#/gizmos");
+    }
+
+    /// <summary>
+    /// 🔒 And the other direction. <c>ToString()</c> for an object emits its member <em>names</em>
+    /// only, so two structurally different objects sitting in an identity slot reported as
+    /// duplicates of each other — a false build failure on data that is correct.
+    /// </summary>
+    [Fact]
+    public void Load_does_not_call_two_different_objects_in_an_identity_slot_duplicates()
+    {
+        var issues = ContentLoader.Load(Slots(
+            """{ "slot": { "a": 1 } }""", """{ "slot": { "a": 2 } }""")).Issues;
+
+        issues.Should().NotContain(i => i.Code == ContentIssueCode.DuplicateId);
+    }
+
+    /// <summary>A two-document source whose entries carry the numeric identity member `slot`.</summary>
+    private static Adapters.InMemory.InMemoryContentSource Slots(string first, string second) =>
+        new Adapters.InMemory.InMemoryContentSource()
+            .Set("schema/gizmos.schema.json", """
+            {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["$schema", "gizmos"],
+              "properties": {
+                "$schema": { "type": "string" },
+                "gizmos": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["slot"],
+                    "properties": {
+                      "slot": {
+                        "oneOf": [
+                          { "type": "number" },
+                          { "type": "object", "additionalProperties": { "type": "integer" } }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """)
+            .Set("tuning/gizmos.json", $$"""
+            {
+              "$schema": "../schema/gizmos.schema.json",
+              "gizmos": [{{first}}, {{second}}]
+            }
+            """);
+
     [Fact]
     public void Load_reports_a_schema_that_governs_no_data_document()
     {
