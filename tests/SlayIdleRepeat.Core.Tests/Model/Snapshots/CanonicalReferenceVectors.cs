@@ -42,10 +42,20 @@ internal static class CanonicalReferenceVectors
         Canonical.Single(row => row.Id.Equals(id, StringComparison.Ordinal));
 
     /// <summary>Every canonical row id, as xUnit theory data.</summary>
-    internal static TheoryData<string> CanonicalIds()
+    internal static TheoryData<string> CanonicalIds() => IdsOf(Canonical);
+
+    /// <summary>
+    /// The canonical row ids of one hashing mode, as xUnit theory data — so a theory can drive a
+    /// single public entry point instead of branching on the row's mode in its own body.
+    /// </summary>
+    /// <param name="mode"><c>"meta"</c> or <c>"run"</c>.</param>
+    internal static TheoryData<string> CanonicalIds(string mode) =>
+        IdsOf(Canonical.Where(row => row.Mode.Equals(mode, StringComparison.Ordinal)));
+
+    private static TheoryData<string> IdsOf(IEnumerable<CanonicalRow> rows)
     {
         var data = new TheoryData<string>();
-        foreach (var row in Canonical)
+        foreach (var row in rows)
         {
             data.Add(row.Id);
         }

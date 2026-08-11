@@ -62,19 +62,29 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     }
 
     /// <summary>
-    /// Every committed row, through the public door the game actually calls. The three assertions
-    /// above pin the internals; this one pins that the published API still agrees with them.
+    /// Every committed <c>meta</c> row, through the public door the game actually calls. The three
+    /// assertions above pin the internals; this one pins that the published API still agrees.
     /// </summary>
     [Theory]
-    [MemberData(nameof(CanonicalIds))]
-    public void The_public_hashing_modes_match_every_committed_reference_vector(string rowId)
+    [MemberData(nameof(MetaRowIds))]
+    public void HashMetaCommandState_matches_every_committed_meta_reference_vector(string rowId)
     {
         var row = CanonicalReferenceVectors.Row(rowId);
 
-        var wire = row.Mode == "run"
-            ? CanonicalStateWriter.HashRunCommandState(
-                ReferenceSnapshots.Instance(row.Id), ReferenceSnapshots.SecondInstance(row.Id))
-            : CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Instance(row.Id));
+        var wire = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Instance(row.Id));
+
+        wire.Should().Be(row.Wire, "'{0}' pins {1}", row.Id, row.Why);
+    }
+
+    /// <summary>Every committed <c>run</c> row, through the two-snapshot public entry point.</summary>
+    [Theory]
+    [MemberData(nameof(RunRowIds))]
+    public void HashRunCommandState_matches_every_committed_run_reference_vector(string rowId)
+    {
+        var row = CanonicalReferenceVectors.Row(rowId);
+
+        var wire = CanonicalStateWriter.HashRunCommandState(
+            ReferenceSnapshots.Instance(row.Id), ReferenceSnapshots.SecondInstance(row.Id));
 
         wire.Should().Be(row.Wire, "'{0}' pins {1}", row.Id, row.Why);
     }
@@ -106,9 +116,8 @@ public sealed class CanonicalStateWriterReferenceVectorTests
     [InlineData("wire-leading-zero-nibbles")]
     public void The_reference_table_still_covers_every_load_bearing_rule(string rowId)
     {
-        var act = () => CanonicalReferenceVectors.Row(rowId);
-
-        act.Should().NotThrow();
+        CanonicalReferenceVectors.Canonical
+            .Should().ContainSingle(row => row.Id == rowId);
     }
 
     /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
@@ -178,4 +187,8 @@ public sealed class CanonicalStateWriterReferenceVectorTests
             : CanonicalStateWriter.CanonicalBytes(ReferenceSnapshots.Instance(row.Id));
 
     public static TheoryData<string> CanonicalIds() => CanonicalReferenceVectors.CanonicalIds();
+
+    public static TheoryData<string> MetaRowIds() => CanonicalReferenceVectors.CanonicalIds("meta");
+
+    public static TheoryData<string> RunRowIds() => CanonicalReferenceVectors.CanonicalIds("run");
 }

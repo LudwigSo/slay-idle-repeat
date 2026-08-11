@@ -124,19 +124,23 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// The ordinal order and the current culture's order genuinely differ for these keys, so the
-    /// test above is a real distinction rather than a coincidence of the invariant culture.
+    /// The fixture keys genuinely separate ordinal ordering from a non-ordinal one, so the test
+    /// above is a real distinction rather than a coincidence of whichever comparer happens to be
+    /// in play. Compared against <see cref="StringComparer.OrdinalIgnoreCase"/> rather than a
+    /// culture-aware comparer on purpose: a culture comparer answers differently under
+    /// globalization-invariant mode, which would make this guard fail on exactly the ARM64 hosts
+    /// the cross-platform determinism job (M5-12) runs on.
     /// </summary>
     [Fact]
-    public void The_ordinal_and_culture_orders_of_the_fixture_keys_genuinely_differ()
+    public void The_fixture_keys_order_differently_under_ordinal_and_case_folding_comparers()
     {
         var keys = new[] { "a", "B", "b", "A" };
 
         var ordinal = keys.OrderBy(k => k, StringComparer.Ordinal).ToArray();
-        var culture = keys.OrderBy(k => k, StringComparer.CurrentCulture).ToArray();
+        var caseFolding = keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToArray();
 
         ordinal.Should().Equal("A", "B", "a", "b");
-        ordinal.Should().NotEqual(culture);
+        ordinal.Should().NotEqual(caseFolding);
     }
 
     /// <summary>
@@ -204,23 +208,27 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// A <see cref="SortedDictionary{TKey, TValue}"/> built with a culture-aware comparer still
-    /// encodes ordinally: the writer imposes the order, it never inherits the container's.
+    /// 🔒 A <see cref="SortedDictionary{TKey, TValue}"/> built with a <b>non-ordinal</b> comparer
+    /// still encodes ordinally: the writer imposes the order, it never inherits the container's.
+    /// <c>OrdinalIgnoreCase</c> iterates these keys as <c>a</c>, <c>B</c> — the exact reverse of
+    /// the ordinal order the bytes must carry — and, unlike a culture-aware comparer, it says so
+    /// identically on every host and under globalization-invariant mode.
     /// </summary>
     [Fact]
     public void CanonicalBytes_ignores_the_comparer_a_sorted_dictionary_was_built_with()
     {
-        var cultureSorted = new SortedDictionary<string, int>(StringComparer.CurrentCulture)
+        var caseFoldSorted = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
             ["a"] = 1,
             ["B"] = 2,
         };
-        var ordinal = new Dictionary<string, int> { ["a"] = 1, ["B"] = 2 };
 
-        var fromCultureSorted = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(cultureSorted));
-        var fromOrdinal = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(ordinal));
+        var bytes = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(caseFoldSorted));
 
-        Hex(fromCultureSorted).Should().Be(Hex(fromOrdinal));
+        Hex(bytes).Should().Be(
+            "01" + "02000000" +
+            "01" + "01000000" + "42" + "0200000000000000" +   // "B" (0x42) first, ordinally
+            "01" + "01000000" + "61" + "0100000000000000");   // "a" (0x61) second
     }
 
     /// <summary>An empty map is a present slot with a zero entry count.</summary>

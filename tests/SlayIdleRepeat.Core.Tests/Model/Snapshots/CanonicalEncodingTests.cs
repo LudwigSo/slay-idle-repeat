@@ -173,18 +173,23 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// A string carrying a UTF-8 byte-order mark keeps it: the BOM is a character of the value,
-    /// and the writer never strips, adds or normalises one.
+    /// A string carrying a byte-order mark keeps it and nothing else: <c>U+FEFF</c> is a character
+    /// of the value, so it encodes as its three UTF-8 bytes and counts towards the byte prefix —
+    /// while the writer adds no BOM of its own. An encoder built on a default
+    /// <c>UTF8Encoding</c> emits a leading <c>efbbbf</c> here and reports 7 bytes, not 4.
     /// </summary>
     [Fact]
-    public void CanonicalBytes_writes_no_byte_order_mark_of_its_own()
+    public void CanonicalBytes_keeps_a_byte_order_mark_in_the_value_and_adds_none_of_its_own()
     {
-        var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string>("a"));
+        var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string>("\uFEFFa"));
 
-        Hex(bytes).Should().Be("01" + "01000000" + "61");
+        Hex(bytes).Should().Be("01" + "04000000" + "efbbbf" + "61");
     }
 
-    /// <summary>🔒 A timestamp is Unix <b>milliseconds</b> UTC, 8 bytes.</summary>
+    /// <summary>
+    /// 🔒 A timestamp is Unix <b>milliseconds</b> UTC, 8 bytes little-endian. 2024-06-01T12:04:56.789Z
+    /// is 1717243496789 ms, whose little-endian pattern is the literal below.
+    /// </summary>
     [Fact]
     public void CanonicalBytes_writes_a_timestamp_as_unix_milliseconds()
     {
@@ -192,7 +197,7 @@ public sealed class CanonicalEncodingTests
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<DateTimeOffset>(stamp));
 
-        Hex(bytes).Should().Be(Hex(BitConverter.GetBytes(ReferenceSnapshots.StampMilliseconds)));
+        Hex(bytes).Should().Be("5549b0d38f010000");
     }
 
     /// <summary>The epoch itself is eight zero bytes — the row a seconds-based encoder also passes.</summary>
@@ -244,16 +249,18 @@ public sealed class CanonicalEncodingTests
         Hex(shiftedBytes).Should().Be(Hex(utcBytes));
     }
 
-    /// <summary>A <see cref="DateTimeKind.Utc"/> <see cref="DateTime"/> is the other admissible shape.</summary>
+    /// <summary>
+    /// A <see cref="DateTimeKind.Utc"/> <see cref="DateTime"/> is the other admissible shape, and
+    /// encodes to the same milliseconds. 2024-06-01T12:00:00Z is 1717243200000 ms.
+    /// </summary>
     [Fact]
     public void CanonicalBytes_writes_a_utc_DateTime_as_unix_milliseconds()
     {
         var value = new DateTime(2024, 6, 1, 12, 0, 0, DateTimeKind.Utc);
-        var expected = new DateTimeOffset(value).ToUnixTimeMilliseconds();
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneUtcDateTimeSnapshot(value));
 
-        Hex(bytes).Should().Be(Hex(BitConverter.GetBytes(expected)));
+        Hex(bytes).Should().Be("00c2abd38f010000");
     }
 
     /// <summary>
@@ -314,28 +321,31 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).Should().Be("000000");
     }
 
-    /// <summary>🔒 A double is the IEEE-754 bit pattern of the stored value, 8 bytes little-endian.</summary>
+    /// <summary>
+    /// 🔒 A double is the IEEE-754 bit pattern of the stored value, 8 bytes little-endian. The
+    /// expectation is the literal pattern, not <c>BitConverter</c> re-run over the same input —
+    /// restating the encoding with the primitive the writer itself uses proves nothing.
+    /// </summary>
     [Fact]
     public void CanonicalBytes_writes_a_double_as_its_IEEE754_bit_pattern()
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(1234.5678));
 
-        Hex(bytes).Should().Be(Hex(BitConverter.GetBytes(BitConverter.DoubleToInt64Bits(1234.5678))));
+        Hex(bytes).Should().Be("adfa5c6d454a9340");
     }
 
     /// <summary>
-    /// 🔒 The writer <b>never rounds</b>. §8.2 rounds at the accumulation point; the writer's only
-    /// business with a double is to assert that already happened. A writer that quietly rounded
-    /// would hide the very drift the determinism CI exists to catch.
+    /// 🔒 The writer <b>never rounds</b>, and never re-derives a double from its decimal text.
+    /// <c>0.1</c> is already at 4 dp yet has no exact binary representation, so its stored pattern
+    /// ends <c>…999a</c>; a writer that round-tripped through a decimal form, or rounded again,
+    /// would emit a neighbouring pattern and hide the very drift the determinism CI exists to catch.
     /// </summary>
     [Fact]
-    public void CanonicalBytes_writes_the_stored_double_rather_than_a_rounded_one()
+    public void CanonicalBytes_writes_the_exact_stored_pattern_of_a_double_binary_cannot_represent()
     {
-        var value = Math.Round(0.1 + 0.2, 4);
+        var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(0.1));
 
-        var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(value));
-
-        Hex(bytes).Should().Be(Hex(BitConverter.GetBytes(BitConverter.DoubleToInt64Bits(value))));
+        Hex(bytes).Should().Be("9a9999999999b93f");
     }
 
     /// <summary>
@@ -365,10 +375,19 @@ public sealed class CanonicalEncodingTests
         act.Should().Throw<NotSupportedException>().WithMessage("*4*");
     }
 
-    /// <summary>A value that is exactly representable at 4 dp passes the guard untouched.</summary>
+    /// <summary>
+    /// A value that is exactly representable at 4 dp passes the guard untouched.
+    /// </summary>
+    /// <remarks>
+    /// <c>-0.0</c> is deliberately absent: the C# compiler folds it to the same constant as
+    /// <c>0.0</c>, so an <c>InlineData</c> row for it is a duplicate the xUnit analyser rejects
+    /// (xUnit1025). Its acceptance is pinned instead by
+    /// <see cref="CanonicalBytes_keeps_negative_zero_and_positive_zero_apart"/>, which encodes it
+    /// and would fail outright if the guard refused it.
+    /// </remarks>
     [Theory]
     [InlineData(0.0)]
-    [InlineData(-0.0)]
+    [InlineData(0.0001)]
     [InlineData(1.0)]
     [InlineData(-12.3456)]
     [InlineData(1e15)]

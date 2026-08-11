@@ -152,17 +152,20 @@ public sealed class CanonicalStateWriterTests
         hash.Should().NotBe("fnv1a:" + (playerHash ^ runHash).ToString("x16", CultureInfo.InvariantCulture));
     }
 
-    /// <summary>Both snapshots are required — a run command with no run has no canonical state.</summary>
-    [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void HashRunCommandState_refuses_a_missing_snapshot(bool playerMissing, bool runMissing)
+    /// <summary>A run command with no player snapshot has no canonical state to hash.</summary>
+    [Fact]
+    public void HashRunCommandState_refuses_a_missing_player_snapshot()
     {
-        var player = playerMissing ? null : (object)ReferenceSnapshots.Player;
-        var run = runMissing ? null : (object)ReferenceSnapshots.Run;
+        var act = () => CanonicalStateWriter.HashRunCommandState(null!, ReferenceSnapshots.Run);
 
-        var act = () => CanonicalStateWriter.HashRunCommandState(player!, run!);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    /// <summary>And a run command with no run snapshot is not a meta command in disguise.</summary>
+    [Fact]
+    public void HashRunCommandState_refuses_a_missing_run_snapshot()
+    {
+        var act = () => CanonicalStateWriter.HashRunCommandState(ReferenceSnapshots.Player, null!);
 
         act.Should().Throw<ArgumentNullException>();
     }
@@ -230,23 +233,31 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// A value larger than any stack buffer encodes correctly. The size where an implementation
-    /// switches from a stack buffer to the heap is exactly where an off-by-one hides.
+    /// A value larger than any stack buffer still encodes to exactly its presence byte, its
+    /// 4-byte count and its bytes. The size where an implementation switches from a stack buffer
+    /// to the heap is exactly where an off-by-one hides.
     /// </summary>
     [Theory]
-    [InlineData(1)]
-    [InlineData(255)]
-    [InlineData(256)]
-    [InlineData(257)]
-    [InlineData(65536)]
-    public void HashMetaCommandState_handles_a_payload_of_any_size(int length)
+    [MemberData(nameof(BufferBoundaryLengths))]
+    public void CanonicalBytes_encodes_a_payload_of_any_size(int length)
+    {
+        var snapshot = new OneValueSnapshot<string>(new string('x', length));
+
+        var bytes = CanonicalStateWriter.CanonicalBytes(snapshot);
+
+        bytes.Should().HaveCount(1 + 4 + length);
+    }
+
+    /// <summary>The wire form is well formed at those same buffer boundaries.</summary>
+    [Theory]
+    [MemberData(nameof(BufferBoundaryLengths))]
+    public void HashMetaCommandState_produces_a_well_formed_wire_form_for_a_payload_of_any_size(int length)
     {
         var snapshot = new OneValueSnapshot<string>(new string('x', length));
 
         var hash = CanonicalStateWriter.HashMetaCommandState(snapshot);
 
         hash.Should().MatchRegex(WireForm);
-        CanonicalStateWriter.CanonicalBytes(snapshot).Should().HaveCount(1 + 4 + length);
     }
 
     /// <summary>
@@ -294,11 +305,17 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// A self-referencing record terminates with a diagnosable failure rather than a stack
-    /// overflow. Snapshots are trees; a cycle is a bug in the snapshot, and it must be sayable.
+    /// A snapshot nested deeper than the writer's descent limit terminates with a diagnosable
+    /// failure rather than a stack overflow. Snapshots are shallow trees by construction; runaway
+    /// depth is a bug in the snapshot, and it must be sayable rather than fatal to the process.
     /// </summary>
+    /// <remarks>
+    /// A true reference cycle is not constructible from immutable positional records, so the
+    /// shape that stands in for one is a 200-level self-referencing chain — the same unbounded
+    /// descent, reached the only way a snapshot can actually reach it.
+    /// </remarks>
     [Fact]
-    public void CanonicalBytes_refuses_a_cyclic_snapshot_rather_than_overflowing_the_stack()
+    public void CanonicalBytes_refuses_a_snapshot_nested_deeper_than_the_descent_limit()
     {
         var deep = Enumerable.Range(0, 200).Aggregate(
             (UnsupportedSnapshots.SelfReferencing?)null,
@@ -316,4 +333,7 @@ public sealed class CanonicalStateWriterTests
         new UnsupportedSnapshots.AmbiguousConstructors(1),
         new UnsupportedSnapshots.Empty(),
     };
+
+    /// <summary>Payload sizes straddling the buffer boundaries an encoder is likely to pick.</summary>
+    public static TheoryData<int> BufferBoundaryLengths() => new() { 1, 255, 256, 257, 65536 };
 }

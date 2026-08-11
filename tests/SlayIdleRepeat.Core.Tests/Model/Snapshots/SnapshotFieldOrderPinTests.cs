@@ -207,6 +207,31 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
+    /// 🔒 `14` §16.6 — the predicate that selects this pin's subject set actually recognises a
+    /// snapshot record. It is the one thing the three rules above cannot prove about themselves
+    /// while the subject set is empty: an <c>IsCanonicalRecord</c> that answered <c>false</c> for
+    /// everything would leave them vacuous forever, including on the day M1 lands
+    /// <c>PlayerSnapshot</c> — a pin that never bites and never says why.
+    /// </summary>
+    [Fact]
+    public void IsCanonicalRecord_accepts_a_positional_record()
+    {
+        CanonicalStateWriter.IsCanonicalRecord(typeof(PlayerLikeSnapshot)).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 🔒 `14` §16.6 — and it rejects every shape whose declaration order reflection cannot pin,
+    /// so the pin's idea of a snapshot is the same closed set <c>CanonicalBytes</c> will encode.
+    /// A predicate that accepted a plain class would pin a field order reflection never promised.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ShapesWithNoPinnableFieldOrder))]
+    public void IsCanonicalRecord_rejects_a_shape_with_no_pinnable_declaration_order(Type shape)
+    {
+        CanonicalStateWriter.IsCanonicalRecord(shape).Should().BeFalse();
+    }
+
+    /// <summary>
     /// `14` §16.6 — the pinned list is the writer's own depth-first traversal, so a nested record's
     /// fields appear inside their parent's, in declaration order, with a dotted path.
     /// </summary>
@@ -250,4 +275,12 @@ public sealed class SnapshotFieldOrderPinTests
         optional.Should().Equal("Value:System.Nullable<System.Int32>");
         required.Should().Equal("Value:System.Int32");
     }
+
+    /// <summary>The shapes with no reflection-guaranteed declaration order, one fixture per shape.</summary>
+    public static TheoryData<Type> ShapesWithNoPinnableFieldOrder() => new()
+    {
+        typeof(UnsupportedSnapshots.NotARecord),
+        typeof(UnsupportedSnapshots.AmbiguousConstructors),
+        typeof(UnsupportedSnapshots.Empty),
+    };
 }
