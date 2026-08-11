@@ -5,7 +5,7 @@
 - **Scope:** iOS leg only. The Android leg is **M0-05a**, executed for real, written up in [`O23-godot-android-export.md`](O23-godot-android-export.md). Read that one first; this document is deliberately its mirror image.
 - **Method:** **Source-and-docs recipe.** No Mac, no Apple Developer account (M0 kickoff decision 3). **Nothing here was executed.**
 - **Date of investigation:** 2026-08-11
-- **Spike project:** `spikes/godot-ios-export/` — committed, ready to run, **never imported, exported or built** (§4.0a)
+- **Spike project:** `spikes/godot-ios-export/` — committed, ready to run, **never imported, exported or built** (§4.0)
 
 ---
 
@@ -51,7 +51,7 @@ In rough order of value:
 6. What is the real wall-clock time of a cold export + `xcodebuild archive`, i.e.
    what does the `ios-export` CI job cost at the 10× macOS minute multiplier? (§8 R9)
 
-Items 1–4 need **no Apple Developer account** — see §4.1. Items 1 and 2 do not
+Items 1–4 need **no Apple Developer account** — see §4.2. Items 1 and 2 do not
 even need a device. That is the cheapest, highest-value half-day available to
 this project, and it should be bought the day a Mac exists.
 
@@ -310,7 +310,7 @@ the same way the Android leg keeps the keystore out of the preset.
 Copy-pasteable, and **untested**. Treat every command as a hypothesis. Run it in
 the order given; the assertions in §5 are not optional.
 
-### 4.0a The spike project — committed, never run
+### 4.0 The spike project — committed, never run
 
 `spikes/godot-ios-export/` is the deliberate twin of `spikes/godot-android-export/`:
 identical `Main.cs` / `SpikeMath.cs` / `Main.tscn` / `icon.svg`, the same
@@ -331,7 +331,7 @@ Every option in the preset was read out of the 4.7.1-stable exporter source
 rather than produced by the editor, so the first `--import` may well rewrite or
 add to it. That is expected; the point is that nothing has to be re-derived.
 
-### 4.0 One-time toolchain setup (macOS)
+### 4.1 One-time toolchain setup (macOS)
 
 ```bash
 # 1. Xcode. On a GitHub macos-15 runner it is preinstalled -- select it EXPLICITLY.
@@ -359,7 +359,7 @@ GODOT=/Applications/Godot_mono.app/Contents/MacOS/Godot
 pod --version    # 1.17.0 on macos-15
 ```
 
-### 4.1 Stage 1 — the export that needs **no Apple Developer account**
+### 4.2 Stage 1 — the export that needs **no Apple Developer account**
 
 This is the part to run first, and it answers O23's engine question on its own.
 
@@ -423,7 +423,7 @@ xcodebuild \
 Godot-generated project tolerates them, because the generated scheme may carry
 signing settings the flags do not fully override.
 
-### 4.2 Stage 2 — the signed export (needs an Apple Developer account)
+### 4.3 Stage 2 — the signed export (needs an Apple Developer account)
 
 ```bash
 # Preset carries: app_store_team_id, bundle_identifier, code_sign_identity_*,
@@ -458,7 +458,7 @@ for one developer poking at a device; useless for a build server. Stage 2 means
 the **paid Apple Developer Program**, with a real annual cost this project has
 not incurred.
 
-### 4.3 Stage 3 — the ad build (`12` §3.2's CocoaPods path)
+### 4.4 Stage 3 — the ad build (`12` §3.2's CocoaPods path)
 
 Only reachable once §7 is resolved. Shape, for completeness:
 
@@ -531,7 +531,7 @@ as `CSharpScript` resources.
 **And there is a second silent path with no guard at all:** running a **non-.NET**
 Godot editor binary. `MODULE_MONO_ENABLED` off means the mono export plugin does
 not exist, nothing warns, and the iOS export simply succeeds without .NET. Hence
-the `--version` check in §4.0 step 4.
+the `--version` check in §4.1 step 4.
 
 ### What a real .NET iOS export contains
 
@@ -569,7 +569,7 @@ stdout, never on the exit code.**
 BIN="$OUT/SlayIdleRepeatIosSpike"     # the sibling directory of the .xcodeproj
 ASM=GodotIosSpike                  # [dotnet] project/assembly_name
 
-# 0. The editor must be the .NET flavour at all (§4.0 step 4).
+# 0. The editor must be the .NET flavour at all (§4.1 step 4).
 "$GODOT" --version | grep -q '\.mono' || { echo "::error::not a .NET Godot build"; exit 1; }
 
 # 1. The export must have engaged the mono module. Its ABSENCE is the tell:
@@ -794,7 +794,7 @@ wait for a point release).
 | **R4** | **Provisioning-profile secrets are not in the repo, and one env override is broken.** UUIDs live in the gitignored `.godot/export_credentials.cfg` (§3), and `GODOT_APPLE_PLATFORM_PROVISIONING_PROFILE_UUID_RELEASE` is **declared but never read** (§3.1) — release builds silently pick up the *debug* UUID if that variable is set. Automatic-vs-manual signing is *inferred* from which fields are non-empty ([#110052](https://github.com/godotengine/godot/issues/110052)). | A release `.ipa` signed with the wrong profile, or a build that flips to Manual signing and fails for want of fields nobody set. | Use `GODOT_APPLE_PLATFORM_PROFILE_SPECIFIER_RELEASE` (correctly wired) for release, or materialise `.godot/export_credentials.cfg` in CI. Set identity + profile as a deliberate set. File the RELEASE env-var bug upstream — it is a two-character fix. | 🟢 None — process, plus a small upstream contribution. |
 | **R5** | **The 4.7.1 iOS export template may ship a broken simulator slice.** [#118161](https://github.com/godotengine/godot/issues/118161) is **open**, filed 2026-04-03 against 4.6.2 as a regression from 4.6.1: the xcframework advertises arm64-simulator but contains only x86_64, so Xcode on Apple Silicon fails to link. Whether 4.7.1 carries the fix is **[U]**. Compounded by the docs saying the engine simulator template is x64-only while the .NET half builds arm64 *and* x64 simulator slices. | `xcodebuild` on an Apple-Silicon Mac or an arm64 `macos-15` runner failing with undefined `_err_print_error` / `Dictionary::Dictionary()`. Device builds are unaffected. | `lipo -info` the template's simulator slice **before** trusting a green build. If 4.7.1 is affected: build device-only, take `macos-15-intel` for the simulator leg, or move the pin to a 4.7.x that carries the fix. | 🟡 Could force a **point-release wait** — `16` O23's third option — but only for simulator builds. |
 | **R6** | **The paid Apple Developer Program is an unbudgeted, unavoidable prerequisite.** Free-provisioning Personal Team profiles expire in **7 days**, cap at 3 devices and 10 App IDs. No signed build, no TestFlight, no App Store, no usable CI signing without the paid account. | The first attempt to produce anything installable. | Split the work as §4 does: stage 1 (unsigned, engine question) needs no account and answers O23. Buy the account only when a real device build is needed. | 🟢 None on the engine — a budget and calendar item. |
-| **R7** | **`12` §3.2's iOS recipe is wrong in two places** and someone will follow it. Godot generates no Podfile and does not use CocoaPods (§1); `export_options.plist` is generated from the preset, not hand-authored (§3). The 4.7 docs *also* publish two environment-variable names that do not exist in the engine (§3.1) and an "Active development considerations" workflow that breaks .NET builds (#86019). | Somebody budgets time for a step that does not exist, or hand-edits a generated file that the next export deletes. | Amend `12` §3.2 at the M15 kickoff, pointing here. Keep the Podfile as a **committed template copied in by a script** (§4.3). | 🟢 None — documentation. |
+| **R7** | **`12` §3.2's iOS recipe is wrong in two places** and someone will follow it. Godot generates no Podfile and does not use CocoaPods (§1); `export_options.plist` is generated from the preset, not hand-authored (§3). The 4.7 docs *also* publish two environment-variable names that do not exist in the engine (§3.1) and an "Active development considerations" workflow that breaks .NET builds (#86019). | Somebody budgets time for a step that does not exist, or hand-edits a generated file that the next export deletes. | Amend `12` §3.2 at the M15 kickoff, pointing here. Keep the Podfile as a **committed template copied in by a script** (§4.4). | 🟢 None — documentation. |
 | **R8** | **`mobile` renderer silently imposes an A12 device floor** (iPhone XS / XR and later) via the forced `iphone-ipad-minimum-performance-a12` capability. Exactly the Android leg's silent `minSdk 29`, in a different coat. | Nobody notices until the App Store listing shows a device list narrower than intended. | Decide the device-coverage target explicitly and record it, together with `application/min_ios_version` (default **15.0**, raised from 14.0 in 4.7) and the Android `minSdk 29`, as one product decision rather than three toolchain defaults. | 🟢 None — product. |
 | **R9** | **CI cost.** macOS runners bill at a **10× minute multiplier** on private repositories. A cold export plus `xcodebuild archive` is minutes, not seconds, and the mono export templates alone are ~1.1 GB to fetch. | The first month's Actions bill. | Do not run `ios-export` on every push. Gate it on `main`/`milestone/**` and manual dispatch, cache the export templates and NuGet, and keep the routine PR signal on the Linux jobs. Decide when M7-10 turns the job on. | 🟢 None — cost. |
 | **R10** | **The silent-no-.NET export** (§5). Same missing-`.sln` root cause as Android failure 5, plus a second path with no guard at all (a non-mono editor binary). | Only by asserting on artefacts and on stdout. Exit code 0 and a working app prove nothing. | §5's assertions, in the CI job, non-optional. Keep the committed `.sln` with `ExportDebug`/`ExportRelease` configurations — `dotnet new sln` is **not** sufficient (Android failure 5). | 🟢 None, if the assertion exists. Severe if it does not. |
@@ -821,8 +821,8 @@ Apple Developer account.** Budget: one sitting.
    valid ten-character placeholder in `application/app_store_team_id` and run the
    export. If the project generates, the whole engine question is answerable with
    **no Apple relationship at all** — record it, because it decides what CI can
-   do before anyone buys an account (§4.1 **[U]**).
-4. **Stage-1 export** with `application/export_project_only=true` (§4.1). Capture
+   do before anyone buys an account (§4.2 **[U]**).
+4. **Stage-1 export** with `application/export_project_only=true` (§4.2). Capture
    the **complete** console output to a file. Expect the harmless
    `ERROR:`-shaped lines the Android leg documented — **do not scrape logs for
    `ERROR`** — and confirm the *"…C#/.NET is experimental"* warning **is**
@@ -832,7 +832,7 @@ Apple Developer account.** Budget: one sitting.
    produced no .NET and everything after this is meaningless.** Record the exact
    paths — §5's `[U]` globs need fixing here.
 6. **Unsigned `xcodebuild`.** Does the generated project build with
-   `CODE_SIGNING_ALLOWED=NO` (§4.1c)? Record whether Godot's generated scheme
+   `CODE_SIGNING_ALLOWED=NO` (§4.2c)? Record whether Godot's generated scheme
    fights the flags. This is what makes a *non-vacuous* CI job possible without
    an account.
 7. **Where the MSBuild log went.** The Android leg found C# build failures are
@@ -846,7 +846,7 @@ Apple Developer account.** Budget: one sitting.
 9. 🔴 **Repeat items 4–6 on a GitHub Actions `macos-15` runner, not just
    locally.** #76749 and #104118 both describe failures that appear **only** on
    hosted runners. A green local Mac does not prove the CI job (**R3**).
-10. *(needs an account)* **Signed stage-2 export** (§4.2): keychain import,
+10. *(needs an account)* **Signed stage-2 export** (§4.3): keychain import,
     provisioning profile, `export_project_only=false`, and confirm Godot really
     drives `xcodebuild archive` → `-exportArchive` → `.ipa`. While there, verify
     §3.1 landmine 2 empirically — set only
