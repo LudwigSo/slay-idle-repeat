@@ -26,7 +26,7 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `build` | 🟢 live | `dotnet restore` + `dotnet build SlayIdleRepeat.sln -c Release`. Warnings are errors via `Directory.Build.props`, so a new warning fails here. NuGet cached on the project files. | `14` §14 |
 | `test` | 🟢 live | The unit and contract suites, discovered by glob. Fails on a suite that contains **zero** tests without a declared exemption — see [The empty-suite rule](#the-empty-suite-rule). | `14` §13 |
 | `architecture-tests` | 🟢 live | `SlayIdleRepeat.Architecture.Tests` alone, in its own job. `23` §6 says these fail the build, so they are not lumped in with `test` where an unrelated flake could mask them. | `23` §6, `30` §9 |
-| `content-validation` | 🔴 red until **M0-10** | Every JSON under `SlayIdleRepeat.Data/` parses strictly, has no duplicate property names, and pairs with a schema — no orphan data, no orphan schema. | `14` §6, `14` §13 |
+| `content-validation` | 🟢 live | Every JSON under `SlayIdleRepeat.Data/` is validated against its schema and against the cross-file invariants: `14` §6's five failure classes (unknown IDs, missing icons, out-of-range values, orphaned references, duplicate IDs), plus malformed JSON, duplicate property names, unpaired schemas, and any JSON Schema keyword the validator does not implement. Then the 📐 audit, in three directions, against the dated baseline in `build/content/`. Runs the same code the game loads content with (M0-09). | `14` §6 🔒, `14` §13 |
 | `vendor-package-uniqueness` | 🟢 live | Fails if a vendor `PackageReference` appears in more than one `.csproj` (**A9-UNIQUE**), or in a project that is not an adapter (**A9-LOCATION**). | `14` §1.1 🔒 |
 | `server-image` | 🟢 live | Builds `src/SlayIdleRepeat.Server/Dockerfile`, starts the container, asserts it is **not running as root**, and waits for `GET /health` → 200 `{"status":"ok"}`. Build and smoke only — **no registry login, no push**. | `14` §14 |
 | `compose-boot` | 🔴 red until **M0-03** | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → wait for `/health` → integration suite → `down`. | `14` §14, `14` §13, `14` §1.1 🔒 |
@@ -55,7 +55,6 @@ Both report **skipped**, not success. Neither runs `exit 0` over an empty step.
 
 | Job | Red because | Green when |
 |---|---|---|
-| `content-validation` | `SlayIdleRepeat.Data/` holds only `.gitkeep` files. A validator with nothing to validate reports failure rather than a green tick over an empty directory. | **M0-10** lands `schema/`, `tuning/` (the 16 files of `21` §3.1), `loc/`, `content/`. |
 | `compose-boot` | `docker-compose.yml` does not exist. The job checks for it explicitly so the failure reads as "M0-03 has not landed" rather than Docker's bare `no configuration file provided`. | **M0-03** lands the local dev stack. |
 
 This is planned sequencing, not defects. Neither was made to pass by weakening it.
@@ -120,20 +119,34 @@ PowerShell, because it is the one shell that runs identically on the Windows
 development machine and on the `ubuntu-24.04` runners, where `pwsh` is
 preinstalled.
 
-### Handover: `content-validation` → M0-09
+### Handover: `content-validation` → M0-09 · **done**
 
-`Invoke-ContentValidation.ps1` is **the floor, not the ceiling**. Today it does
-structural work only: strict RFC 8259 parse, duplicate-property detection, and
-schema↔data orphan checks. The real harness — JSON Schema enforcement,
-cross-file reference resolution, the 📐-marker-vs-schema-key check of `14` §6 — is
-**M0-09**.
+M0-02 authored `Invoke-ContentValidation.ps1` as a structural floor and asked
+M0-09 to **replace the body, not the interface**. That is what happened: same
+script path, same parameters, same exit codes.
 
-M0-09 should **replace the body, not the interface**: same script path, same
-parameters, same exit codes, and `ci.yml` needs no edit. If the pairing
-convention (`schema/<stem>.schema.json` ↔ `tuning|content/<stem>.json`,
-`schema/loc.schema.json` ↔ `loc/*.json`) does not match what M0-10 actually
-lands, declare the real mapping in `SlayIdleRepeat.Data/schema/schema-map.json`
-rather than loosening the orphan check.
+The body is now a call into `tools/ContentValidator`, which runs the **same code
+the game loads content with** — the loader, the JSON Schema validator, the
+cross-file invariants and the 📐 audit all live in
+`SlayIdleRepeat.Application/Services/Content/` and are unit-tested in
+`SlayIdleRepeat.Application.Tests` against the in-memory fake. A CI-only
+validator written a second time in PowerShell would drift from the runtime one,
+and the day it did, CI would be green about content the game cannot load.
+
+The pairing convention M0-02 guessed turned out to be right, so no
+`schema-map.json` was needed. Two schemas govern nothing yet (`chapter`,
+`event`); rather than loosening the orphan check they are named in
+`ContentLoader.SchemasAwaitingContent` with the milestone that authors their
+content, and the check **fails if one of them ever does govern a file** — the
+exemption cannot outlive its milestone.
+
+The one edit `ci.yml` did need: an `actions/setup-dotnet` step on the job, since
+the check is .NET now rather than pure PowerShell.
+
+📐 mismatches that exist today are recorded in
+`build/content/tunable-marker-baseline.json` — dated, with a reason and a closing
+milestone each. The check fails on anything that file does not record, and
+equally on an entry it records that is no longer real.
 
 ### Deliberate overlap with the architecture tests
 
@@ -192,7 +205,6 @@ relaxed to let CI itself log in.
 | Thing | Owner |
 |---|---|
 | `docker-compose.yml` itself | M0-03 |
-| The real content-validation harness | M0-09 |
 | The `SchemaVersion` snapshot field-list pin (`14` §16.6) | M0-07 — it lands as a test and the `test` job picks it up automatically via glob discovery |
 | The determinism + parity harness | M5-12 |
 | The real Android/iOS client CI | M7-10; the iOS recipe is M0-05b |
@@ -227,5 +239,5 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 2. **Run `actionlint`** over both workflows, and consider adding it as a job.
 3. **Branch protection**: `build`, `test`, `architecture-tests` and
    `vendor-package-uniqueness` are the checks that pass today and are safe to
-   require immediately. Add `content-validation` after M0-10 and `compose-boot`
-   after M0-03.
+   require immediately, and `content-validation` joined them with M0-09. Add
+   `compose-boot` after M0-03.

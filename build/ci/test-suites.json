@@ -44,16 +44,6 @@
 
   "knownEmpty": [
     {
-      "project": "SlayIdleRepeat.Core.Tests",
-      "turnsOn": "M0-06",
-      "reason": "Seeded empty by M0-01. First real tests are the Hash64 reference vectors (14 §8.0); domain suites follow through M1-M6."
-    },
-    {
-      "project": "SlayIdleRepeat.Application.Tests",
-      "turnsOn": "M1-09",
-      "reason": "Seeded empty by M0-01. Fills when the first use cases land."
-    },
-    {
       "project": "SlayIdleRepeat.Contract.Tests",
       "turnsOn": "M1-09",
       "reason": "Seeded empty by M0-01. 14 §13 wants one shared suite per port run against every implementation including the in-memory fake; there are no ports with two implementations yet."
