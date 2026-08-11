@@ -129,29 +129,47 @@ public sealed class CommandSeedPinTests
     // ------------------------------------------------------- floors under the classifier's inputs
 
     /// <summary>
-    /// 🔒 Steering S3 — a floor under the set every rule here quantifies over. The M1 kickoff froze
-    /// the vocabulary at 49 commands of which exactly nine draw; a set that quietly shrank would
-    /// take every rule above green over fewer and fewer commands.
+    /// 🔒 Steering S3 — a floor under the set every rule here quantifies over, pinned by
+    /// <b>identity</b> rather than cardinality. A count-only floor is satisfied by swapping one of
+    /// the nine for a run command, and every other rule in this file is driven from this very set,
+    /// so the substitution would leave the whole file green with a run command classified as
+    /// seed-bearing.
     /// </summary>
+    /// <remarks>
+    /// The nine are the ⚄-marked rows of `14` §2.3, restated by the M1 kickoff (2026-08-11), which
+    /// froze the vocabulary at 49 — 19 run commands, all carrying <c>null</c>, and 30 meta commands
+    /// of which exactly these nine draw. Changing this list is a vocabulary decision, not a test edit.
+    /// </remarks>
     [Fact]
-    public void Exactly_nine_meta_commands_are_declared_seed_bearing()
+    public void The_seed_bearing_set_is_the_nine_the_command_vocabulary_freezes()
     {
-        CommandSeedPin.SeedBearingMetaCommands.Count.ShouldBe(
-            9,
-            "the M1 kickoff froze the command vocabulary at 49 (19 run + 30 meta) with exactly nine " +
-            "seed-bearing meta commands. Changing this number is a vocabulary decision, not a test edit.");
+        CommandSeedPin.SeedBearingMetaCommands.ShouldBe(
+            new[]
+            {
+                "BEGIN_SESSION", "OPEN_CHEST", "OPEN_CRATE", "OPEN_EGG", "REFORGE_ITEM",
+                "REROLL_QUEST", "RETUNE_ITEM", "SPIN_WHEEL", "START_DUEL",
+            },
+            ignoreOrder: true,
+            "these are the nine meta commands 14 §2.3 marks as drawing randomness. Every other rule " +
+            "in this file quantifies over this set, so a substitution here silences all of them.");
     }
 
     /// <summary>
-    /// 🔒 Membership is ordinal. No wire-name casing convention is enforced anywhere in code, so a
-    /// case-insensitive set would classify a differently-cased near-miss as seed-bearing and hand
-    /// a run command a seed with this rule green.
+    /// 🔒 Membership is ordinal, asserted <b>through the classifier</b> rather than through the
+    /// set. Shouldly's collection <c>ShouldContain</c>/<c>ShouldNotContain</c> compare with
+    /// <c>EqualityComparer&lt;T&gt;.Default</c> and never consult a <c>HashSet</c>'s own comparer,
+    /// so a set-level assertion here would pass unchanged if the set were rebuilt
+    /// <c>OrdinalIgnoreCase</c> — which is exactly the defect this rule exists to catch.
     /// </summary>
     [Fact]
     public void The_seed_bearing_set_matches_ordinally()
     {
-        CommandSeedPin.SeedBearingMetaCommands.ShouldContain("SPIN_WHEEL");
-        CommandSeedPin.SeedBearingMetaCommands.ShouldNotContain("spin_wheel");
+        CommandSeedPin.SeedBearingMetaCommands.Contains("spin_wheel").ShouldBeFalse();
+
+        CommandSeedPin.Violations("SPIN_WHEEL", GameContexts.WithSeed(AnySeed)).ShouldBeEmpty();
+        CommandSeedPin.Violations("spin_wheel", GameContexts.WithSeed(AnySeed)).ShouldNotBeEmpty(
+            "a lowercase near-miss is not one of the nine, so a seed handed to it is spurious. A " +
+            "case-insensitive set would classify it as seed-bearing and let a run command carry a seed.");
     }
 
     /// <summary>
@@ -172,6 +190,24 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
+    /// ⚠️ The heuristic's known limit, pinned rather than papered over: a run of capitals is not an
+    /// acronym to it. Pinning it means the eventual mismatch against M1-02's real names reads as
+    /// "teach this the convention", not "the mapper is subtly broken".
+    /// </summary>
+    [Fact]
+    public void WireName_does_not_understand_an_acronym_and_says_so_here()
+    {
+        CommandSeedPin.WireName(typeof(OpenPvPCommand)).ShouldBe("OPEN_PV_P");
+    }
+
+    /// <summary>A missing type is a caller bug, not an empty wire name.</summary>
+    [Fact]
+    public void WireName_refuses_a_null_type()
+    {
+        Should.Throw<ArgumentNullException>(() => CommandSeedPin.WireName(null!));
+    }
+
+    /// <summary>
     /// 🔒 Steering S3 — the selector that builds <see cref="CommandSeedPin.CommandTypes"/> is not
     /// itself the reason that set is empty. Pointed at a namespace that exists today it reaches
     /// real types; if it did not, the vacuous rule below would stay green on the day M1-02 lands
@@ -180,7 +216,7 @@ public sealed class CommandSeedPinTests
     [Fact]
     public void The_command_type_selector_reaches_a_namespace_that_exists_today()
     {
-        CommandSeedPin.PublicTypesUnder("SlayIdleRepeat.Core.Content")
+        CommandSeedPin.TypesUnder("SlayIdleRepeat.Core.Content")
             .Select(t => t.Name)
             .ShouldContain(nameof(ContentSnapshot));
 
@@ -225,11 +261,21 @@ public sealed class CommandSeedPinTests
     /// still-empty subject set keep looking like a passing pin.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// 🔒 This tripwire and the rule above share one predicate — whether
+    /// <see cref="CommandSeedPin.CommandTypes"/> is empty — which is why that selector filters
+    /// nesting only and not accessibility: an <c>internal</c> vocabulary must wake both, or the two
+    /// would go silent together. The independent backstop is
+    /// <c>SubjectSetFloorTests.Pending[SlayIdleRepeat.Core.Commands]</c> in the architecture suite,
+    /// which reads the same assembly with Mono.Cecil and fails the build when the namespace appears.
+    /// </para>
+    /// <para>
     /// <b>When this fails, the pin has woken up.</b> M1-02 landed the command vocabulary. Check
     /// <see cref="Every_seed_bearing_command_name_names_a_real_command_type"/> is green, wire
     /// <see cref="CommandSeedPin.Violations"/> into the command-construction path so the invariant
     /// is asserted per command rather than only over the nine names, and delete this tripwire.
     /// Never weaken the selector to make it green again.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives()
@@ -248,4 +294,6 @@ public sealed class CommandSeedPinTests
     private sealed record BeginSessionCommand;
 
     private sealed record OpenChest;
+
+    private sealed record OpenPvPCommand;
 }

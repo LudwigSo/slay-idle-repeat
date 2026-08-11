@@ -1,5 +1,6 @@
 using System.Reflection;
 using Shouldly;
+using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
@@ -58,7 +59,9 @@ public sealed class EntitlementsTests
         typeof(Entitlements)
             .GetFields(BindingFlags.Public | BindingFlags.Instance)
             .Select(f => f.Name)
-            .ShouldBeEmpty();
+            .ShouldBeEmpty(
+                "a hand-rolled public field is the only way a member here could be writable while " +
+                "the property check above stayed green. A tripwire, not noise.");
     }
 
     /// <summary>
@@ -81,8 +84,10 @@ public sealed class EntitlementsTests
     [Fact]
     public void Entitlements_declares_no_equality_because_an_equality_would_branch_on_HasPlus()
     {
+        // Static as well as instance: a `public static Entitlements None` convenience would be a
+        // fifth member this rule is meant to see, and an instance-only filter would miss it.
         var declared = typeof(Entitlements)
-            .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Select(m => m.Name)
             .OrderBy(n => n, StringComparer.Ordinal);
 
@@ -99,7 +104,7 @@ public sealed class EntitlementsTests
     [InlineData(true)]
     public void Entitlements_carries_the_values_the_composition_root_resolved(bool hasPlus)
     {
-        var expiry = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
+        var expiry = GameContexts.FixedInstant;
 
         var entitlements = new Entitlements(hasPlus, expiry);
 

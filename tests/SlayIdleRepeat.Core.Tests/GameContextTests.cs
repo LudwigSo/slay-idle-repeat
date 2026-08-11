@@ -96,7 +96,23 @@ public sealed class GameContextTests
         typeof(GameContext)
             .GetFields(BindingFlags.Public | BindingFlags.Instance)
             .Select(f => f.Name)
-            .ShouldBeEmpty();
+            .ShouldBeEmpty(
+                "a hand-rolled public field is the one way a member of this record could be " +
+                "writable while every property check above stayed green. Auto-properties never " +
+                "produce one, which is why this reads as trivially true — it is a tripwire, not noise.");
+    }
+
+    /// <summary>
+    /// `30` §3 — <c>GameContext</c> is a <c>record</c>, not merely an immutable class: value
+    /// equality is what lets a replay compare the context a command was handed against the one it
+    /// was recorded with, which is the whole point of the version-stamped content and the
+    /// server-issued seed riding on it.
+    /// </summary>
+    [Fact]
+    public void Two_contexts_built_from_the_same_values_are_equal()
+    {
+        GameContexts.WithSeed(AnySeed).ShouldBe(GameContexts.WithSeed(AnySeed));
+        GameContexts.WithSeed(AnySeed).ShouldNotBe(GameContexts.WithSeed(null));
     }
 
     /// <summary>
@@ -112,10 +128,14 @@ public sealed class GameContextTests
     [Fact]
     public void GameContext_offers_no_static_factory_that_could_reach_for_a_clock()
     {
+        // GetMembers, not GetMethods: a property getter is IsSpecialName, so `public static
+        // GameContext Now => new(DateTimeOffset.UtcNow, …)` — the most idiomatic spelling of the
+        // exact thing being banned — is invisible to a method-only filter. So are a static field
+        // and a nested factory type. Only the record's synthesized operators are excused.
         var factories = typeof(GameContext)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(m => !m.IsSpecialName)
-            .Select(m => m.Name);
+            .GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(m => m.Name is not ("op_Equality" or "op_Inequality"))
+            .Select(m => $"{m.MemberType} {m.Name}");
 
         factories.ShouldBeEmpty(
             "a convenience factory on GameContext is where a clock call comes back into Core " +
@@ -162,24 +182,26 @@ public sealed class GameContextTests
     {
         var context = new GameContext(
             GameContexts.FixedInstant,
-            0x0123456789ABCDEFUL,
+            AnySeed,
             GameContexts.EmptyContent,
             GameContexts.WithoutPlus,
             GameContexts.NoKillSwitchThrown);
 
         context.NowUtc.ShouldBe(GameContexts.FixedInstant);
-        context.CommandSeed.ShouldBe(0x0123456789ABCDEFUL);
+        context.CommandSeed.ShouldBe(AnySeed);
         context.Content.ShouldBeSameAs(GameContexts.EmptyContent);
         context.Entitlements.ShouldBeSameAs(GameContexts.WithoutPlus);
         context.Flags.ShouldBeSameAs(GameContexts.NoKillSwitchThrown);
     }
+
+    private const ulong AnySeed = 0x0123456789ABCDEFUL;
 
     /// <summary>The single public instance constructor — a sealed record's copy constructor is private.</summary>
     private static ConstructorInfo PrimaryConstructor() =>
         typeof(GameContext).GetConstructors().ShouldHaveSingleItem();
 
     /// <summary>An <c>init</c> accessor is a construction-time setter, not a mutation surface.</summary>
-    internal static bool IsInitOnly(MethodInfo setter) =>
+    private static bool IsInitOnly(MethodInfo setter) =>
         setter.ReturnParameter
             .GetRequiredCustomModifiers()
             .Any(m => m.FullName == "System.Runtime.CompilerServices.IsExternalInit");

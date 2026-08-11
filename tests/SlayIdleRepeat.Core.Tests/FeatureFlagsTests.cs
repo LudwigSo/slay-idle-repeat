@@ -35,14 +35,25 @@ public sealed class FeatureFlagsTests
     private const string FirstChapter = "CH_01_EMBERFALL";
 
     /// <summary>
+    /// A chapter identifier no kill switch names. Deliberately not a plausible one: `game-data`
+    /// writes <c>CH_01_EMBERFALL</c> and then an ellipsis, so any second chapter id spelled here
+    /// would be a naming scheme invented by this test — which is M5-10's to decide (steering S6).
+    /// </summary>
+    private const string UnnamedChapter = "A_CHAPTER_NO_KILL_SWITCH_NAMES";
+
+    /// <summary>
     /// 🔒 `14` §14 — the whole public surface, pinned. Four switches and the two membership
     /// readers, and no fifth flag arrives without this test going red and forcing the decision.
     /// </summary>
     [Fact]
     public void FeatureFlags_is_closed_at_the_four_kill_switches_of_14_section_14()
     {
+        // Static as well as instance: a `public static FeatureFlags AllEnabled` convenience is both
+        // a fifth member and a pre-decided remote-config fallback, and an instance-only filter
+        // would let it in silently. Whether an unresolved config fails open or closed is M5-10's
+        // decision to make explicitly, not this record's to imply.
         var declared = typeof(FeatureFlags)
-            .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Select(m => m.Name)
             .OrderBy(n => n, StringComparer.Ordinal);
 
@@ -69,6 +80,36 @@ public sealed class FeatureFlagsTests
     }
 
     /// <summary>
+    /// 🔒 …and the surface is pinned by <b>type</b>, not only by name. A fifth flag smuggled in by
+    /// widening an existing member — <c>DisabledChapters</c> becoming an
+    /// <c>IReadOnlyList&lt;string&gt;</c>, <c>PvpEnabled</c> becoming a <c>bool?</c> with a third
+    /// "unresolved" state — changes the contract while leaving a name-only pin green.
+    /// </summary>
+    [Fact]
+    public void The_four_kill_switches_keep_their_declared_types()
+    {
+        typeof(FeatureFlags)
+            .GetConstructors()
+            .ShouldHaveSingleItem()
+            .GetParameters()
+            .Select(p => $"{p.Name}:{p.ParameterType.FullName}")
+            .ShouldBe(new[]
+            {
+                $"pvpEnabled:{typeof(bool).FullName}",
+                $"plusOfferEnabled:{typeof(bool).FullName}",
+                $"disabledAdPlacements:{typeof(IEnumerable<string>).FullName}",
+                $"disabledChapters:{typeof(IEnumerable<string>).FullName}",
+            });
+
+        typeof(FeatureFlags).GetProperty(nameof(FeatureFlags.PvpEnabled))!.PropertyType.ShouldBe(typeof(bool));
+        typeof(FeatureFlags).GetProperty(nameof(FeatureFlags.PlusOfferEnabled))!.PropertyType.ShouldBe(typeof(bool));
+        typeof(FeatureFlags).GetProperty(nameof(FeatureFlags.DisabledAdPlacements))!.PropertyType
+            .ShouldBe(typeof(IReadOnlySet<string>));
+        typeof(FeatureFlags).GetProperty(nameof(FeatureFlags.DisabledChapters))!.PropertyType
+            .ShouldBe(typeof(IReadOnlySet<string>));
+    }
+
+    /// <summary>
     /// 🔒 `14` §14 — no general string-keyed bag, and no indexer. A <c>bool this[string key]</c> or
     /// an <c>IReadOnlyDictionary&lt;string, bool&gt; Extra</c> would reopen the closed list through
     /// the back door while leaving the test above green.
@@ -88,10 +129,8 @@ public sealed class FeatureFlagsTests
 
     /// <summary>`14` §14 — the two boolean switches are stored as given.</summary>
     [Theory]
-    [InlineData(true, true)]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    [InlineData(false, false)]
     public void The_PvP_and_Plus_offer_switches_are_stored_as_given(bool pvp, bool plusOffer)
     {
         var flags = new FeatureFlags(pvp, plusOffer, [], []);
@@ -124,7 +163,7 @@ public sealed class FeatureFlagsTests
         flags.IsAdPlacementEnabled(ElitePlacement).ShouldBeFalse();
         flags.IsAdPlacementEnabled(LuckPlacement).ShouldBeTrue();
         flags.IsChapterEnabled(FirstChapter).ShouldBeFalse();
-        flags.IsChapterEnabled("CH_02").ShouldBeTrue();
+        flags.IsChapterEnabled(UnnamedChapter).ShouldBeTrue();
     }
 
     /// <summary>
@@ -156,7 +195,7 @@ public sealed class FeatureFlagsTests
         var flags = new FeatureFlags(true, true, placements, chapters);
 
         placements.Add(LuckPlacement);
-        chapters.Add("CH_02");
+        chapters.Add(UnnamedChapter);
 
         flags.DisabledAdPlacements.ShouldBe(new[] { ElitePlacement }, ignoreOrder: true);
         flags.DisabledChapters.ShouldBe(new[] { FirstChapter }, ignoreOrder: true);
@@ -177,14 +216,30 @@ public sealed class FeatureFlagsTests
         Should.Throw<NotSupportedException>(() => ((ICollection<string>)flags.DisabledChapters).Clear());
     }
 
+    /// <summary>
+    /// A duplicate entry is the config saying the same thing twice, not an error. Pinned so the
+    /// answer is a decision rather than whatever the chosen set type happens to do.
+    /// </summary>
+    [Fact]
+    public void A_repeated_identifier_is_the_same_kill_switch_named_twice()
+    {
+        var flags = new FeatureFlags(true, true, [ElitePlacement, ElitePlacement], []);
+
+        flags.DisabledAdPlacements.ShouldBe(new[] { ElitePlacement });
+        flags.IsAdPlacementEnabled(ElitePlacement).ShouldBeFalse();
+    }
+
     /// <summary>A missing identifier is a caller bug, not "enabled". Fail loudly (steering S6).</summary>
     [Fact]
     public void A_null_identifier_throws_rather_than_reading_as_enabled()
     {
         var flags = new FeatureFlags(true, true, [], []);
 
-        Should.Throw<ArgumentNullException>(() => flags.IsAdPlacementEnabled(null!));
-        Should.Throw<ArgumentNullException>(() => flags.IsChapterEnabled(null!));
+        Should.Throw<ArgumentNullException>(() => flags.IsAdPlacementEnabled(null!))
+            .ParamName.ShouldBe("adPlacementId");
+
+        Should.Throw<ArgumentNullException>(() => flags.IsChapterEnabled(null!))
+            .ParamName.ShouldBe("chapterId");
     }
 
     /// <summary>`30` §3 — flags are resolved at the composition root; an unresolved list is not a value.</summary>
@@ -195,6 +250,22 @@ public sealed class FeatureFlagsTests
             .ParamName.ShouldBe("disabledAdPlacements");
 
         Should.Throw<ArgumentNullException>(() => new FeatureFlags(true, true, [], null!))
+            .ParamName.ShouldBe("disabledChapters");
+    }
+
+    /// <summary>
+    /// 🔒 …and a null <em>inside</em> a kill list. A remote-config document with a null array entry
+    /// is a realistic source, and both <c>HashSet</c> and <c>FrozenSet</c> accept one silently —
+    /// after which the set holds a <c>null</c> that no lookup can ever match and the guard above
+    /// never sees. Refusing at construction is the loud failure S6 asks for.
+    /// </summary>
+    [Fact]
+    public void FeatureFlags_refuses_a_null_inside_a_kill_list()
+    {
+        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [ElitePlacement, null!], []))
+            .ParamName.ShouldBe("disabledAdPlacements");
+
+        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [], [null!]))
             .ParamName.ShouldBe("disabledChapters");
     }
 
@@ -209,6 +280,13 @@ public sealed class FeatureFlagsTests
             .Where(p => p.SetMethod is not null)
             .Select(p => p.Name)
             .ShouldBeEmpty();
+
+        typeof(FeatureFlags)
+            .GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .Select(f => f.Name)
+            .ShouldBeEmpty(
+                "a hand-rolled public field is the only way a switch here could be writable while " +
+                "the property check above stayed green. A tripwire, not noise.");
     }
 
     /// <summary>True for a dictionary-shaped property — the bag shape the rule above forbids.</summary>

@@ -66,21 +66,35 @@ internal static class CommandSeedPin
     /// <summary>The namespace `30` §11.4 reserves for the command vocabulary. Empty until M1-02.</summary>
     internal const string CommandsNamespace = "SlayIdleRepeat.Core.Commands";
 
-    /// <summary>Every public, non-nested command type. Empty until M1-02 lands the vocabulary.</summary>
-    internal static IReadOnlyList<Type> CommandTypes { get; } = PublicTypesUnder(CommandsNamespace);
-
-    /// <summary>
-    /// Every public, non-nested type declared in <c>Core</c> under a namespace or below it.
-    /// </summary>
+    /// <summary>Every non-nested command type. Empty until M1-02 lands the vocabulary.</summary>
     /// <remarks>
+    /// 🔒 Cross-check: <c>SubjectSetFloorTests.Pending</c> in the architecture suite declares
+    /// <c>SlayIdleRepeat.Core.Commands</c> absent and owned by M1-06/M1-02, and fails the build the
+    /// day it arrives. That entry reads the assembly with Mono.Cecil and sees internal types, so it
+    /// is the independent backstop for this set — but only if <em>this</em> selector sees the same
+    /// types, which is why accessibility is not filtered below.
+    /// </remarks>
+    internal static IReadOnlyList<Type> CommandTypes { get; } = TypesUnder(CommandsNamespace);
+
+    /// <summary>Every non-nested type declared in <c>Core</c> under a namespace or below it.</summary>
+    /// <remarks>
+    /// <para>
     /// Exposed rather than inlined so the self-tests can prove this half is not the vacuity source:
     /// pointed at a namespace that exists today it must reach something, or
     /// <see cref="CommandTypes"/> would stay empty for the wrong reason on the day M1-02 lands.
+    /// </para>
+    /// <para>
+    /// ⚠️ Accessibility is deliberately <b>not</b> filtered. <c>Core</c> grants
+    /// <c>InternalsVisibleTo</c> to this assembly (`30` §11.3) and `30` §11.2 makes handlers and
+    /// rules internal, so an internal or file-scoped command vocabulary is entirely plausible — and
+    /// an <c>IsPublic</c> filter would silence the rule that quantifies over this set <em>and</em>
+    /// the tripwire that announces it, together, on the same accessibility choice.
+    /// </para>
     /// </remarks>
-    internal static IReadOnlyList<Type> PublicTypesUnder(string namespacePrefix) =>
+    internal static IReadOnlyList<Type> TypesUnder(string namespacePrefix) =>
         typeof(GameContext).Assembly
             .GetTypes()
-            .Where(t => t.IsPublic && !t.IsNested)
+            .Where(t => !t.IsNested)
             .Where(t => IsUnder(t.Namespace, namespacePrefix))
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToArray();
@@ -96,12 +110,20 @@ internal static class CommandSeedPin
     /// <c>SpinWheelCommand</c> → <c>SPIN_WHEEL</c>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// ⚠️ This is a <b>matching heuristic, not an authored naming scheme</b> — nothing in the design
     /// set says how M1-02's type names map to `14` §2.3's wire names. It fails LOUDLY rather than
     /// silently: if M1-02 uses a different convention, every one of the nine names below stops
     /// matching and <c>Every_seed_bearing_command_name_names_a_real_command_type</c> goes red. The
-    /// fix then is to teach this method M1-02's real convention (or read the wire name off whatever
-    /// M1-02 declares it as) — never to delete the rule.
+    /// fix then is to teach this method M1-02's real convention — better still, to have M1-02
+    /// declare the wire name on the command type and read it here instead of guessing — never to
+    /// delete the rule.
+    /// </para>
+    /// <para>
+    /// Known limit, pinned by the tests rather than papered over: a run of capitals is not treated
+    /// as an acronym, so <c>OpenPvPCommand</c> reads as <c>OPEN_PV_P</c>. That is a loud mismatch,
+    /// not a silent one.
+    /// </para>
     /// </remarks>
     internal static string WireName(Type commandType)
     {
