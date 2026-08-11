@@ -78,6 +78,25 @@ internal static class UnsupportedSnapshots
     /// <summary>A record with no fields at all — nothing to serialise is not a state.</summary>
     internal sealed record Empty;
 
+    /// <summary>
+    /// 🔒 A positional record carrying a public property <b>outside</b> its primary constructor —
+    /// the one shape whose fields the writer could silently drop.
+    /// </summary>
+    /// <remarks>
+    /// The field list is the constructor's parameter list, so <c>RevivesUsed</c> would contribute
+    /// zero bytes: <c>{ RevivesUsed = 0 }</c> and <c>{ RevivesUsed = 99 }</c> would share a
+    /// <c>stateHash</c> while record equality correctly reported them different, and
+    /// <c>CanonicalFieldOrder</c> — asking the same question — would never pin the field at all.
+    /// <c>record</c> + <c>{ get; init; }</c> is exactly what an optional member of
+    /// <c>PlayerSnapshot</c>/<c>RunSnapshot</c> reaches for, so the refusal is the guard rail that
+    /// has to exist before those records do.
+    /// </remarks>
+    internal sealed record WithPropertyOutsideTheConstructor(int SchemaVersion, int ChapterId)
+    {
+        /// <summary>The field outside the primary constructor.</summary>
+        public int RevivesUsed { get; init; }
+    }
+
     /// <summary>A record that contains itself, so a naive descent never terminates.</summary>
     internal sealed record SelfReferencing(int Depth, SelfReferencing? Next);
 

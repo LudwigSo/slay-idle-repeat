@@ -305,6 +305,45 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
+    /// 🔒 A record carrying a public property that is <b>not</b> a primary-constructor parameter is
+    /// refused. The field list is the parameter list, so such a property would be hashed as zero
+    /// bytes — the one defect a state hash may never have, and the shape an optional snapshot
+    /// member (<c>record</c> + <c>{ get; init; }</c>) reaches for by default.
+    /// </summary>
+    [Fact]
+    public void CanonicalBytes_refuses_a_record_property_declared_outside_the_primary_constructor()
+    {
+        var act = () => CanonicalStateWriter.CanonicalBytes(
+            new UnsupportedSnapshots.WithPropertyOutsideTheConstructor(1, 3) { RevivesUsed = 99 });
+
+        act.Should().Throw<NotSupportedException>()
+            .WithMessage("*16.6*")
+            .WithMessage("*ZERO BYTES*")
+            .WithMessage("*primary constructor*");
+    }
+
+    /// <summary>
+    /// 🔒 And it is refused rather than silently dropped. Record equality sees the extra field, so
+    /// an encoder that skipped it would hand two demonstrably different states the same
+    /// <c>stateHash</c> — §2.4's client-mirror check and §13's parity tests would both report
+    /// agreement on genuinely divergent state.
+    /// </summary>
+    [Fact]
+    public void HashMetaCommandState_refuses_the_shape_whose_extra_field_record_equality_can_see()
+    {
+        var quiet = new UnsupportedSnapshots.WithPropertyOutsideTheConstructor(1, 3) { RevivesUsed = 0 };
+        var busy = quiet with { RevivesUsed = 99 };
+
+        busy.Should().NotBe(quiet);
+
+        var hashQuiet = () => CanonicalStateWriter.HashMetaCommandState(quiet);
+        var hashBusy = () => CanonicalStateWriter.HashMetaCommandState(busy);
+
+        hashQuiet.Should().Throw<NotSupportedException>();
+        hashBusy.Should().Throw<NotSupportedException>();
+    }
+
+    /// <summary>
     /// A snapshot nested deeper than the writer's descent limit terminates with a diagnosable
     /// failure rather than a stack overflow. Snapshots are shallow trees by construction; runaway
     /// depth is a bug in the snapshot, and it must be sayable rather than fatal to the process.

@@ -694,10 +694,21 @@ public static class CanonicalStateWriter
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The shape it demands: exactly one public constructor, at least one parameter, and every
-    /// parameter matched by a public readable property of the same name and type. The order is the
+    /// The shape it demands: exactly one public constructor, at least one parameter, every
+    /// parameter matched by a public readable property of the same name and type, and — 🔒 the
+    /// converse — <b>no public instance property beyond those parameters</b>. The order is the
     /// constructor's, which <see cref="MethodBase.GetParameters"/> guarantees; property order is
     /// not guaranteed at all.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Why the converse matters.</b> The field list <i>is</i> the parameter list, so a
+    /// public property declared outside the primary constructor — <c>public int RevivesUsed
+    /// { get; init; }</c> beside a positional record, exactly the shape an optional snapshot
+    /// member reaches for — would contribute <b>zero bytes</b>. Two states that record equality
+    /// correctly calls different would then share a <c>stateHash</c>, and
+    /// <see cref="CanonicalFieldOrder"/> asks the same question, so the <c>SchemaVersion</c>
+    /// field-order pin would never see the field either. The writer refuses the shape rather than
+    /// silently omitting it.
     /// </para>
     /// <para>
     /// Recognising the shape and resolving the properties are one pass because the writer needs
@@ -737,6 +748,17 @@ public static class CanonicalStateWriter
             }
 
             properties[i] = property;
+        }
+
+        // 🔒 The property set must be EXACT, not merely a superset of the parameters. A public
+        // property outside the constructor is state the pinned field list never saw, and the loop
+        // above only proves every parameter has a property — never the converse.
+        // EqualityContract is `protected`, so BindingFlags.Public excludes it: this reads the same
+        // for a `record` and a `record struct`.
+        var declared = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        if (declared.Length != parameters.Length)
+        {
+            return null;
         }
 
         return properties;
@@ -867,7 +889,11 @@ public static class CanonicalStateWriter
         "integers, booleans, enums, strings, doubles, timestamps, optionals, lists " +
         "(IReadOnlyList<T>), maps (IReadOnlyDictionary<TKey, TValue>) and positional records — " +
         "and deliberately nothing else, because 'no unordered container is ever hashed as-is' " +
-        "and a type with no pinned byte layout would be a second serialisation contract.");
+        "and a type with no pinned byte layout would be a second serialisation contract. A record " +
+        "carrying a public property that is not a primary-constructor parameter is refused for the " +
+        "same reason: the field list is the constructor's parameter list, so such a property would " +
+        "be hashed as ZERO BYTES — two states differing only in it would share a stateHash, and " +
+        "the SchemaVersion field-order pin would never see it. Move it into the primary constructor.");
 
     /// <summary>
     /// The growable byte sink one hash writes into.

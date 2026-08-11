@@ -282,5 +282,6 @@ public sealed class SnapshotFieldOrderPinTests
         typeof(UnsupportedSnapshots.NotARecord),
         typeof(UnsupportedSnapshots.AmbiguousConstructors),
         typeof(UnsupportedSnapshots.Empty),
+        typeof(UnsupportedSnapshots.WithPropertyOutsideTheConstructor),
     };
 }
