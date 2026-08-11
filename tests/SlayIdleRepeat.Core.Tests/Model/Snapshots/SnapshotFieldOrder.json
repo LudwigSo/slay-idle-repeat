@@ -1,0 +1,50 @@
+{
+  "_README": [
+    "THE FIELD-ORDER PIN OF 14 section 16.6, PER SchemaVersion.",
+    "",
+    "*** CHANGING A PINNED LIST IS A SERIALISATION CHANGE, NEVER A TEST FIX. ***",
+    "",
+    "14 section 16.6, Field order: 'Declaration order of the snapshot record, depth-first.",
+    "Adding, removing or reordering a field is a serialisation change: it bumps",
+    "SchemaVersion and is handled as a versioned migration, never silently. A CI test",
+    "pins the field list per SchemaVersion.'",
+    "",
+    "This file IS that pin, and SnapshotFieldOrderPinTests is that CI test.",
+    "",
+    "If the pin fails, a snapshot record's shape moved. Every stateHash ever issued to a",
+    "client moved with it, every persisted snapshot now deserialises against a different",
+    "layout, and every client mirror stops agreeing with the server. The fix is:",
+    "",
+    "  1. bump SnapshotSchema.SchemaVersion,",
+    "  2. add a NEW entry below for the new version with the new field list,",
+    "  3. leave the old entry exactly as it is -- it describes data that already exists,",
+    "  4. write the versioned migration.",
+    "",
+    "The fix is never to edit an existing version's list.",
+    "",
+    "THE LISTS ARE NOT HAND-WRITTEN. Each entry is CanonicalStateWriter.CanonicalFieldOrder",
+    "for that record -- the writer's OWN depth-first traversal -- so the pin cannot drift",
+    "from the bytes it guards. The path notation mirrors the traversal:",
+    "",
+    "    Name              a field of the record",
+    "    Outer.Inner       a field reached by descending into a nested record",
+    "    Items[]           the element slot of a list",
+    "    Map{key}          a dictionary's key slot",
+    "    Map{value}        a dictionary's value slot",
+    "",
+    "and the text after the colon is the slot's DECLARED type, so widening a field, making",
+    "one optional or wrapping one in a list all read as the changes they are.",
+    "",
+    "SchemaVersion 1's list is EMPTY, and that is correct rather than unfinished:",
+    "PlayerSnapshot and RunSnapshot are M1-04 and M1-05's, and M0-07 deliberately does not",
+    "author them. The rule is live against an empty subject set and converts into a real",
+    "assertion the moment M1 declares the first record -- which will fail this pin until",
+    "the record is added below, which is exactly the intent."
+  ],
+  "pins": [
+    {
+      "schemaVersion": 1,
+      "snapshots": {}
+    }
+  ]
+}
