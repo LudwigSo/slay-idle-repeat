@@ -1,0 +1,26 @@
+; Engine configuration file for the O23 Android export spike (task M0-05a).
+; This is a THROWAWAY project. It exists only to prove that the Godot 4.x
+; C#/.NET Android export works through the CUSTOM BUILD TEMPLATE (Gradle) path
+; required by game-design/12_MONETIZATION_ADS.md section 3.2.
+; It is deliberately not part of SlayIdleRepeat.sln.
+
+config_version=5
+
+[application]
+
+config/name="Slay. Idle. Repeat. (O23 Spike)"
+config/description="Throwaway spike proving the Godot 4 C# Android custom-template export path."
+run/main_scene="res://Main.tscn"
+config/icon="res://icon.svg"
+config/features=PackedStringArray("4.7", "C#", "Mobile")
+
+[dotnet]
+
+project/assembly_name="GodotAndroidSpike"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+; Mandatory for Android export -- Godot refuses the export without it.
+textures/vram_compression/import_etc2_astc=true

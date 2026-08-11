@@ -4,3 +4,18 @@
 
 # Godot import cache — never committed
 .godot/
+
+# --- M0-05a / O23 Android export spike (spikes/godot-android-export) ---
+# The Godot Android build template is unpacked into <project>/android/ by
+# `--install-android-build-template`. It is ~200 MB of vendored engine source
+# plus Gradle output and is fully regenerable, so it is never committed.
+# If a task ever needs to hand-edit android/build/build.gradle (e.g. injecting
+# the AppLovin MAX AARs), that edit must be committed as a patch or a script
+# instead — see docs/spikes/O23-godot-android-export.md.
+spikes/**/android/
+
+# Exported binaries and .NET build output inside spikes.
+spikes/**/bin/
+spikes/**/obj/
+*.apk
+*.aab
