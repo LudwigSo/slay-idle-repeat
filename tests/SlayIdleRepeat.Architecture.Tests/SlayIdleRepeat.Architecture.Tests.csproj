@@ -12,14 +12,30 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+
+    <!--
+      Every rule in this suite must name the doc section it enforces, and
+      SuiteIntegrityTests reads those XML summaries back at run time to prove it
+      (acceptance criterion 4 of M0-08). That only works if the compiler emits
+      the doc file, and with TreatWarningsAsErrors the CS1591 that comes with it
+      turns "a rule with no citation" into a build error rather than a habit.
+    -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- 🔒 FluentAssertions stays on 7.x — v8+ is a paid commercial licence, v7 is Apache-2.0. -->
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
     <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
+    <!--
+      Mono.Cecil arrives transitively with NetArchTest; named explicitly because
+      this suite scans IL directly for the rules NetArchTest cannot express
+      (field writes, banned member references, async state machines).
+    -->
+    <PackageReference Include="Mono.Cecil" Version="0.11.3" />
   </ItemGroup>
 
   <ItemGroup>
