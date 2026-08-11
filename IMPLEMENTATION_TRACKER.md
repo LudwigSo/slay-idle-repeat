@@ -14,7 +14,7 @@ This is the single tracking document for turning the design set in [`game-design
 
 | # | Milestone | Build-order steps (16 Part D) | Status |
 |---|---|---|---|
-| M0 | Foundations, CI & week-1 spikes | pre-1, 2 (partial), spikes O14/O23 | ⬜ |
+| M0 | Foundations, CI & week-1 spikes | pre-1, 2 (partial), spikes O14/O23 | 🔄 |
 | M1 | Core domain skeleton & `InMemoryGame` | 1 | ⬜ |
 | M2 | Effect DSL & combat simulation | 1 | ⬜ |
 | M3 | Board, dice & the run loop | 1 | ⬜ |
@@ -63,10 +63,19 @@ These live across the whole project; they start in M0 and grow with every milest
 **Goal:** the solution skeleton, the deterministic primitives, and the two schedule-risk spikes — before any feature work.
 **Exit:** CI builds everything, boots the compose stack, runs the architecture tests; both spikes have written findings.
 
-**Kickoff decisions**
-1. **O18** — bundle/package identifier: studio/organisation prefix (blocks store upload and the iOS export spike).
-2. Confirm repo/branching/versioning conventions for the multi-project solution.
-3. Sign-off that spikes O14/O23 run first, in parallel with scaffolding ("the fallback discussion happens in week 1, not month 4" — 16 Part B).
+**Kickoff decisions** — ✅ resolved 2026-08-11 (record: `.claude/.milestone-runs/M0/kickoff.md`)
+1. **O18 — bundle/package identifier: `de.ludwigso.slayidlerepeat`.** Reverse-DNS of a controlled domain. Subscription product ID unchanged (`slayidlerepeat.plus.monthly`). → fold into `00` §0a and `16` Part B as **O18 closed**.
+2. **Repo/branching/versioning:** base branch renamed `master` → `main`. Branches: `milestone/M<N>` ← `feature-M<N>-<nn>-<slug>`, review on `review/M<N>`. **Three independent version numbers**, each hand-bumped with a written rule and a CI pin: assembly SemVer `0.x.y` in one `Directory.Build.props` (→ `1.0.0` at soft launch), wire `PROTOCOL_VERSION` (int, from 1, `14` §16.1), snapshot `SchemaVersion` (int, from 1, `14` §16.6).
+3. **Spikes signed off to run first, in parallel with scaffolding** — dispatched in wave 1. Scope bounded by the available hardware: **O23's Android leg is executed for real locally**; the **iOS leg is a written CI recipe + findings** (no Mac / Apple Developer account), split out as M0-05b. **O14 is a source-and-docs verdict** on the MAX Godot plugin (no AppLovin account needed to read an MIT repo).
+4. **Runtime pin: `net8.0` for every project**, so `Core` stays loadable by the Godot client. Godot version pinned by the O23 spike to the newest 4.x stable that passes the full custom-export path.
+5. **CI: GitHub Actions**, authored now under `.github/workflows/`. ⚠️ **No git remote exists** — nothing can actually run until the user creates the repo and pushes, so M0-02's deliverable is *authored and locally validated*, not *observed green*.
+6. **Local observability (M0-03):** OTel Collector + Jaeger + Prometheus + Grafana in compose. Sentry/PostHog adapters wired but pointed at a local sink — no cloud account, no multi-GB self-hosted stacks.
+
+**Assumptions recorded after the interactive window**
+- `tuning/` holds **16 files** per `21` §3.1 (the catalogue `14` §6 points at). `14` §6's "14 files" is stale prose — implement 21, and flag the fix in `14`.
+- Unit-test stack: **xUnit + FluentAssertions + NetArchTest**, per the code shapes in `23` §6.
+- Architecture tests (M0-08) are written in full now and pass vacuously against the skeleton where their subject types don't exist yet — never `[Skip]`, so they bite the moment M1 code lands.
+- `SlayIdleRepeat.Client` is a **non-Godot placeholder** in M0 (`.csproj` + `project.godot` stub, editor never opened). Only M0-05a runs a real Godot toolchain, on a throwaway spike project.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
@@ -74,7 +83,8 @@ These live across the whole project; they start in M0 and grow with every milest
 | M0-02 | CI pipeline: build + test + content validation + server container image + compose boot; placeholder job for the Android custom-export-template build (real in M7) | 14 §14 | ⬜ |
 | M0-03 | Local dev stack: `docker compose up` brings API stub, Postgres, Redis, MinIO and observability containers up with no cloud account | 14 §1.1 | ⬜ |
 | M0-04 | **Spike O14:** AppLovin MAX Godot plugin — verify S2S rewarded callbacks and `setUserId` exist; write up the fallback (patch the MIT plugin vs signed-nonce client assertion) | 12 §3.3 | ⬜ |
-| M0-05 | **Spike O23:** Godot 4 C#/.NET Android + iOS export through the full custom export-template CI path (Gradle/Java 17; CocoaPods/Xcode) | 14 §1, 12 §3.2 | ⬜ |
+| M0-05a | **Spike O23 (Android, executed):** Godot 4 C#/.NET Android export through the full custom export-template path (Gradle/Java 17), run for real locally; findings + the Godot version pin | 14 §1, 12 §3.2 | ⬜ |
+| M0-05b | **Spike O23 (iOS, on paper):** the CocoaPods/Xcode export path as a written CI recipe + risk findings; macOS runner job authored but not executed (no Mac/Apple Developer account) | 14 §1, 12 §3.2 | ⬜ |
 | M0-06 | `Core/Rng`: `Hash64` (xxHash64, pinned encoding) + committed reference-vector table; `DeterministicRng` counter-based streams (`WeightedPick` = one draw) | 14 §8.0–8.1 | ⬜ |
 | M0-07 | `CanonicalStateWriter` — the single FNV-1a serialiser for `stateHash` / `LogHash` / parity hashes, with the field-order/SchemaVersion CI pin | 14 §16.6 | ⬜ |
 | M0-08 | Seed `SlayIdleRepeat.Architecture.Tests` with the dependency rules + banned-API greps (`System.Random`, `DateTime.Now`, `Guid.NewGuid`, …) | 23 §6 | ⬜ |
@@ -530,7 +540,7 @@ Quick index of every open item from `16_DECISION_LOG.md` Part B to the kickoff t
 | O15 | Client DI approach | M7 kickoff |
 | O16 | Subscription display name | M15 kickoff (blocks store assets) |
 | O17 | "Idle" title vs store copy | M18 kickoff |
-| O18 | Bundle ID prefix | **M0 kickoff** |
+| O18 | Bundle ID prefix | ✅ **Closed at M0 kickoff (2026-08-11): `de.ludwigso.slayidlerepeat`** |
 | O23 | Godot mobile export maturity | **M0 spike** |
 | O24 | Dungeon payout vs movement | M10 kickoff |
 | O25 | Content distribution hardening | M5 (task M5-09) |
