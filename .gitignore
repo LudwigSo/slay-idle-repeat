@@ -1,0 +1,6 @@
+# Skill run state (handover files, kickoff records) — not deliverables
+.claude/.feature-runs/
+.claude/.milestone-runs/
+
+# Godot import cache — never committed
+.godot/
