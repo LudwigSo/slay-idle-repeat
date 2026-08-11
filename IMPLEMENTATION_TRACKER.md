@@ -9,12 +9,13 @@ This is the single tracking document for turning the design set in [`game-design
 - **Spec references** (`14 §8.1` etc.) point into `game-design/`. Where docs disagree, the authority chain ruled in `16` A7 applies — implement against the referenced authority doc, not a summarising one.
 - Tasks are sized to be one autonomous feature-pipeline run each (spec → tests → implementation → reviews). If a task turns out too large, split it here first, then implement.
 - Milestones are ordered, but the **workstreams marked ∥ can run in parallel** with the mainline (noted per milestone).
+- **After each milestone, `milestone-review` runs a whole-milestone quality pass and a retro.** Its output lands in `.claude/retros/M<N>.md`, and the distilled rules in **`.claude/retros/STEERING.md`** — which `kickoff-milestone` reads and pastes into every dispatched agent prompt. Steering rules bind later milestones; read them before planning one.
 
 ## Milestone snapshot
 
 | # | Milestone | Build-order steps (16 Part D) | Status |
 |---|---|---|---|
-| M0 | Foundations, CI & week-1 spikes | pre-1, 2 (partial), spikes O14/O23 | ✅ **done** — reviewed on `review/M0`; all 4 exit criteria met (CI is authored-not-observed — see X-07) |
+| M0 | Foundations, CI & week-1 spikes | pre-1, 2 (partial), spikes O14/O23 | ✅ **done — merged to `main` 2026-08-11** (95 commits). All 4 exit criteria met; CI is authored-not-observed — see X-07 |
 | M1 | Core domain skeleton & `InMemoryGame` | 1 | ⬜ |
 | M2 | Effect DSL & combat simulation | 1 | ⬜ |
 | M3 | Board, dice & the run loop | 1 | ⬜ |
@@ -62,6 +63,7 @@ These live across the whole project; they start in M0 and grow with every milest
 
 **Goal:** the solution skeleton, the deterministic primitives, and the two schedule-risk spikes — before any feature work.
 **Exit:** CI builds everything, boots the compose stack, runs the architecture tests; both spikes have written findings.
+✅ **Complete.** `feature-M0-*` → `milestone/M0` → `review/M0` → **`main`, merged 2026-08-11.** Retro: `.claude/retros/M0.md`.
 
 **Kickoff decisions** — ✅ resolved 2026-08-11 (record: `.claude/.milestone-runs/M0/kickoff.md`)
 1. **O18 — bundle/package identifier: `de.ludwigso.slayidlerepeat`.** Reverse-DNS of a controlled domain. Subscription product ID unchanged (`slayidlerepeat.plus.monthly`). → fold into `00` §0a and `16` Part B as **O18 closed**.
@@ -115,6 +117,13 @@ These live across the whole project; they start in M0 and grow with every milest
 ---
 
 ## M1 — Core domain skeleton & `InMemoryGame`
+
+⚠️ **Inherited from the M0 review — resolve at kickoff, before dispatch:**
+1. 🔴 **`30` §6 vs `14` §6 collide at M1-11.** `30` §6 shows `ContentSnapshot.LoadFromDisk(…)` on the Core type; `14` §6 says loading is I/O and belongs in an adapter, which is what M0-09 built. But `30` §6 also requires `InMemoryGame` to depend on `Core` **alone**, enforced mechanically by `The_whole_game_is_playable_from_Core_alone` — so `InMemoryGame` cannot construct a `ContentSnapshot`, and the obvious escape hatch puts filesystem I/O back inside `Core`. Recommended: the harness takes a **pre-built** `ContentSnapshot`, and `EconomySim` becomes a small composition root over `{Core, Application, Adapters.Content.LocalFile}`.
+2. 🔴 **The RNG `Position` write-back needs one choke point.** It is authoritative run state and nothing persists it yet. A handler that draws and forgets to persist its counter breaks determinism *silently and unreproducibly*. Decide the mechanism before any handler draws.
+3. **M1-12 is already delivered** — all ten Core architecture rules exist and are live from M0-08. Restate it as *verify the vacuous rules woke up now that M1 populated their subjects, and delete the now-false "vacuous until M1" comments*.
+4. **`SchemaVersion` must be the first field of every `*Snapshot` record** (`30` §11.3), and `CanonicalStateWriter` **refuses** a record with any public property outside its primary constructor — such a property would hash as zero bytes. Both are pinned by live tests that wake on M1's first snapshot type.
+5. **FluentAssertions is pinned at 7.2.0** (v8 moved to a paid commercial licence). If that trajectory is unwelcome, swapping to Shouldly is cheap now and expensive after M1–M4 write thousands of assertions.
 
 **Goal:** `GameRules.Apply` exists, the aggregates exist, and a full (rules-light) game session runs in memory from `Core` alone.
 **Exit:** `InMemoryGame` drives a multi-day player through commands with the day cycle, energy and currencies working; all ten Core architecture tests green.
