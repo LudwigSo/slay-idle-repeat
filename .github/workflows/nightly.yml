@@ -1,0 +1,106 @@
+# Slay Idle Repeat — nightly.
+#
+# Requirement: 14 §14, verbatim —
+#   "Nightly: balance harness + economy simulator."
+#
+# HONEST BUT THIN, and deliberately so. Both tools exist and both are empty
+# shells today:
+#
+#   tools/BalanceHarness  prints "BalanceHarness: not implemented yet" -> exit 0
+#   tools/EconomySim      prints "EconomySim: not implemented yet"     -> exit 0
+#
+# So this workflow really does build and run both, and really does fail if either
+# stops building or starts crashing. It just has very little to assert yet. That
+# is a thin real job, not a fake one — the alternative (gating it off until the
+# tools are real) would let the tools rot unbuilt for six milestones.
+#
+# What fills it in:
+#   M2-16  Balance harness v1 — 10,000 fights per (chapter, tier, archetype) and
+#          the 6 guardrail tests (05 §9). The run stops being a smoke test and
+#          starts failing on a guardrail breach.
+#   M6-09  Economy simulator assertions A1–A16 plus inherited E1–E23, wired as
+#          the CI gate on SlayIdleRepeat.Data changes, with a perf budget of
+#          180 d × 14 profiles × 200 seeds in under 4 minutes (21 §9).
+#
+# When M6-09 lands, the economy simulator also becomes a PR-triggered gate on
+# SlayIdleRepeat.Data — that trigger belongs in ci.yml with a paths filter, not
+# here; nightly keeps the full-length sweep.
+#
+# ⚠️ Two things about `schedule:` on a repository that does not exist yet
+# (kickoff decision 5): it will not fire until the repo is pushed, and GitHub
+# disables scheduled workflows after 60 days with no commits. workflow_dispatch
+# is present so the sweep can always be triggered by hand.
+
+name: Nightly
+
+on:
+  schedule:
+    # 03:00 UTC daily. Deliberately off the hour — the top of the hour is the
+    # busiest slot on shared runners and schedules there are delayed most.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+
+  # ===========================================================================
+  # balance-harness — 05 §9, filled in by M2-16
+  # ===========================================================================
+  balance-harness:
+    name: balance harness (05 §9)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Run the balance harness
+        # Asserts exit 0 — which is all there is to assert until M2-16 gives the
+        # harness its 6 guardrail tests. It does already catch a harness that
+        # stops compiling or starts throwing, which is the failure mode a tool
+        # nobody runs for six milestones actually has.
+        run: dotnet run --project tools/BalanceHarness/SlayIdleRepeat.BalanceHarness.csproj --configuration Release
+
+  # ===========================================================================
+  # economy-simulator — 21, filled in by M6-09
+  # ===========================================================================
+  economy-simulator:
+    name: economy simulator (21)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Run the economy simulator
+        # 21 §9's assertions A1–A16 arrive with M6-09, along with the perf budget.
+        run: dotnet run --project tools/EconomySim/SlayIdleRepeat.EconomySim.csproj --configuration Release
