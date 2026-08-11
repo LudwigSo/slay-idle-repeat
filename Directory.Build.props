@@ -1,0 +1,38 @@
+<Project>
+
+  <!--
+    Shared build settings for EVERY project in SlayIdleRepeat.
+
+    net8.0 everywhere, no exceptions: Godot 4.x C# targets .NET 8 and
+    SlayIdleRepeat.Core must be loadable by the Godot client as well as by the
+    Linux server container. A split target framework would fracture the solution
+    immediately. global.json pins the SDK to the 8.0 feature band.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <!--
+    THE THREE NUMBERS — they are three, they are independent, and they are never
+    bumped together "for tidiness".
+
+      1. Assembly SemVer (the <Version> below)
+         0.x.y during development, hand-bumped, -> 1.0.0 at soft launch.
+
+      2. PROTOCOL_VERSION (wire, `14` §16.1)
+         A SEPARATE integer, bumped only on a wire-contract change.
+         Lives as a public const in SlayIdleRepeat.Contracts.
+
+      3. SchemaVersion (snapshot serialisation, `14` §16.6)
+         A SEPARATE integer, bumped on ANY change to snapshot field order/set —
+         never silently. Lives as a public const in SlayIdleRepeat.Core.
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+</Project>
