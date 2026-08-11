@@ -1,0 +1,57 @@
+{
+  "__comment": [
+    "A synthetic OTLP/HTTP trace payload, used to prove the telemetry pipeline",
+    "end to end before SlayIdleRepeat.Server emits anything of its own (M5-11).",
+    "",
+    "  curl -X POST http://127.0.0.1:4318/v1/traces \\",
+    "       -H 'Content-Type: application/json' \\",
+    "       -d @infra/otel-collector/testdata/span.json",
+    "",
+    "Expect: HTTP 200 with {\"partialSuccess\":{}} from the collector, then the",
+    "service 'sir-pipeline-probe' appears in Jaeger at http://127.0.0.1:16686,",
+    "and otelcol_receiver_accepted_spans_total / otelcol_exporter_sent_spans_total",
+    "both increase in Prometheus. That is the whole road: OTLP in -> collector ->",
+    "Jaeger, with the collector's own metrics visible in Prometheus and Grafana.",
+    "",
+    "The timestamps are fixed, so the span lands at 2026-01-01T00:00:00Z rather",
+    "than 'now'. Widen Jaeger's time range if you cannot find it. Fixed values",
+    "keep this file byte-stable and reviewable; a template with a clock in it",
+    "would need a script, and this needs to work from a bare curl.",
+    "",
+    "Unknown JSON members are ignored by the OTLP/JSON decoder, which is why this",
+    "comment block can live inside the payload itself. If a future collector",
+    "version rejects it, move the text into a sibling README rather than deleting",
+    "it."
+  ],
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "sir-pipeline-probe" } },
+          { "key": "service.namespace", "value": { "stringValue": "slayidlerepeat" } },
+          { "key": "deployment.environment", "value": { "stringValue": "local" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "infra/otel-collector/testdata/span.json", "version": "m0-03" },
+          "spans": [
+            {
+              "traceId": "5b8efff798038103d269b633813fc60c",
+              "spanId": "eee19b7ec3c1b174",
+              "name": "compose-stack-smoke",
+              "kind": 2,
+              "startTimeUnixNano": "1767225600000000000",
+              "endTimeUnixNano": "1767225600120000000",
+              "attributes": [
+                { "key": "sir.milestone", "value": { "stringValue": "M0-03" } },
+                { "key": "sir.purpose", "value": { "stringValue": "prove OTLP -> collector -> Jaeger before M5-11 instruments the server" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

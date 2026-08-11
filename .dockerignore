@@ -34,6 +34,16 @@ docs/
 game-design/
 *.md
 
+# ------------------------------------------------- local dev stack (M0-03)
+# The compose stack CONFIGURES the server image; it is never inside it. These are
+# mounted into the Postgres/MinIO/collector/Prometheus/Grafana containers at run
+# time and have no business in the .NET build context.
+infra/
+docker-compose.yml
+docker-compose.*.yml
+.env
+.env.example
+
 # ----------------------------------------------------------- IDE and tooling
 .vs/
 .vscode/

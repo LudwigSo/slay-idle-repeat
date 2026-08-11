@@ -29,7 +29,7 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `content-validation` | 🔴 red until **M0-10** | Every JSON under `SlayIdleRepeat.Data/` parses strictly, has no duplicate property names, and pairs with a schema — no orphan data, no orphan schema. | `14` §6, `14` §13 |
 | `vendor-package-uniqueness` | 🟢 live | Fails if a vendor `PackageReference` appears in more than one `.csproj` (**A9-UNIQUE**), or in a project that is not an adapter (**A9-LOCATION**). | `14` §1.1 🔒 |
 | `server-image` | 🟢 live | Builds `src/SlayIdleRepeat.Server/Dockerfile`, starts the container, asserts it is **not running as root**, and waits for `GET /health` → 200 `{"status":"ok"}`. Build and smoke only — **no registry login, no push**. | `14` §14 |
-| `compose-boot` | 🔴 red until **M0-03** | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → wait for `/health` → integration suite → `down`. | `14` §14, `14` §13, `14` §1.1 🔒 |
+| `compose-boot` | 🟢 live *(since M0-03)* | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → wait for `/health` → integration suite → `down`. The stack it boots is `docker-compose.yml` + `infra/` — see [`infra/README.md`](../../infra/README.md). | `14` §14, `14` §13, `14` §1.1 🔒 |
 | `determinism` | ⛔ gated off | Matrix shape from `14` §8.2: **Linux x64 / Android ARM64 / iOS ARM64**, 10,000 fixed `(seed, build, enemy)` triples, compare `LogHash`, fail on divergence. | `14` §8.2 🔒 |
 | `android-export` | ⛔ gated off | Android debug APK **through the custom export template with the MAX plugin included** — a plain export does not produce a working ad build. | `14` §14, `12` §3.2 |
 
@@ -56,7 +56,12 @@ Both report **skipped**, not success. Neither runs `exit 0` over an empty step.
 | Job | Red because | Green when |
 |---|---|---|
 | `content-validation` | `SlayIdleRepeat.Data/` holds only `.gitkeep` files. A validator with nothing to validate reports failure rather than a green tick over an empty directory. | **M0-10** lands `schema/`, `tuning/` (the 16 files of `21` §3.1), `loc/`, `content/`. |
-| `compose-boot` | `docker-compose.yml` does not exist. The job checks for it explicitly so the failure reads as "M0-03 has not landed" rather than Docker's bare `no configuration file provided`. | **M0-03** lands the local dev stack. |
+
+`compose-boot` **had** a row here and no longer does: M0-03 landed
+`docker-compose.yml` and the whole `infra/` tree, and the job's sequence was
+walked locally against Docker 28.4.0 — `config` → `up -d --wait` (all 8 services
+healthy, 2 init containers completed) → `/health` → 200 `{"status":"ok"}` →
+integration suite 3/3 → `down -v`.
 
 This is planned sequencing, not defects. Neither was made to pass by weakening it.
 
@@ -90,12 +95,18 @@ Current exemptions, all seeded empty by M0-01:
 | `SlayIdleRepeat.Core.Tests` | M0-06 |
 | `SlayIdleRepeat.Application.Tests` | M1-09 |
 | `SlayIdleRepeat.Contract.Tests` | M1-09 |
-| `SlayIdleRepeat.Integration.Tests` | M0-03 |
 
-`SlayIdleRepeat.Architecture.Tests` **had** a row here and no longer does: M0-08
-merged mid-task with 33 live rules, and the stale-exemption rule is what caught
-it. That is the mechanism working — the entry was removed because CI insisted,
-not because anyone remembered.
+Two suites **had** a row here and no longer do, and in both cases the
+stale-exemption rule is what forced the removal rather than anyone remembering:
+
+- `SlayIdleRepeat.Architecture.Tests` — M0-08 merged mid-task with 33 live rules.
+- `SlayIdleRepeat.Integration.Tests` — its exemption said "needs the compose
+  stack, which does not exist until M0-03". M0-03 landed the stack, so the reason
+  expired. Rather than re-point the marker at M5 and leave `compose-boot`'s
+  "run integration suite against the live stack" step executing zero assertions
+  for five milestones, M0-03 filled the suite with its own acceptance criteria
+  (`ComposeStackSmokeTests`). `14` §13's full end-to-end run still arrives with
+  the adapters in M5-05 and after.
 
 ---
 
@@ -177,9 +188,13 @@ before `docker compose up` and fails on any of:
 It scans what the workflows *do*, with comment lines stripped, so a comment
 explaining a prohibition is never mistaken for a violation.
 
-MinIO's `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in `docker-compose.yml` are
-deliberately **not** flagged: MinIO speaks the S3 API, and those are local values
-for a local container, not a cloud account.
+Credential-shaped **variable names** in `docker-compose.yml` are deliberately not
+flagged — only real cloud endpoints and real secret injection are. As landed by
+M0-03 those are `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, `POSTGRES_PASSWORD`,
+`ObjectStore__AccessKey` / `__SecretKey` and `GF_SECURITY_ADMIN_PASSWORD`: fixed,
+committed, obviously-local values for containers on a laptop, all of them listed
+in [`infra/README.md`](../../infra/README.md#dev-credentials). MinIO speaks the S3
+API, so an S3-shaped key pair there is not a cloud account.
 
 `14` §14's **server release** (image → registry, rolling deploy, migrations as a
 pre-deploy job) genuinely needs a registry credential. When that workflow is
@@ -191,7 +206,7 @@ relaxed to let CI itself log in.
 
 | Thing | Owner |
 |---|---|
-| `docker-compose.yml` itself | M0-03 |
+| ~~`docker-compose.yml` itself~~ | ✅ landed with M0-03 — `docker-compose.yml` + `infra/`, documented in [`infra/README.md`](../../infra/README.md) |
 | The real content-validation harness | M0-09 |
 | The `SchemaVersion` snapshot field-list pin (`14` §16.6) | M0-07 — it lands as a test and the `test` job picks it up automatically via glob discovery |
 | The determinism + parity harness | M5-12 |
@@ -227,5 +242,5 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 2. **Run `actionlint`** over both workflows, and consider adding it as a job.
 3. **Branch protection**: `build`, `test`, `architecture-tests` and
    `vendor-package-uniqueness` are the checks that pass today and are safe to
-   require immediately. Add `content-validation` after M0-10 and `compose-boot`
-   after M0-03.
+   require immediately, and `compose-boot` joins them now that M0-03 has landed
+   the stack. Add `content-validation` after M0-10.

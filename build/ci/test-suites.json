@@ -57,11 +57,35 @@
       "project": "SlayIdleRepeat.Contract.Tests",
       "turnsOn": "M1-09",
       "reason": "Seeded empty by M0-01. 14 §13 wants one shared suite per port run against every implementation including the in-memory fake; there are no ports with two implementations yet."
-    },
+    }
+  ],
+
+  "$formerlyEmpty": [
     {
       "project": "SlayIdleRepeat.Integration.Tests",
-      "turnsOn": "M0-03",
-      "reason": "Needs the compose stack, which does not exist until M0-03. Runs in the compose-boot job, not in `test`."
+      "wasTurnsOn": "M0-03",
+      "filledBy": "M0-03",
+      "note": [
+        "This exemption was removed rather than re-pointed at a later milestone.",
+        "",
+        "Its stated reason was 'needs the compose stack, which does not exist until",
+        "M0-03'. M0-03 landed docker-compose.yml, so the reason expired — and rule 3",
+        "above (a knownEmpty entry that outlives its milestone fails as a stale",
+        "exemption) means the honest options were: fill the suite, or write a new",
+        "exemption with a new reason. Moving the milestone marker to M5 and leaving",
+        "the suite empty would have been the third option, and it is the one that",
+        "quietly turns the compose-boot job's 'run integration suite against the",
+        "live stack' step into a green tick over zero assertions for five",
+        "milestones.",
+        "",
+        "So M0-03 put its own acceptance criteria in the suite instead — the API",
+        "answers /health, the object store is reachable, every telemetry scrape",
+        "target is up. See tests/SlayIdleRepeat.Integration.Tests/",
+        "ComposeStackSmokeTests.cs. The full end-to-end run of 14 §13 arrives with",
+        "the adapters (M5-05 onward) and is added alongside these, not instead.",
+        "",
+        "This block is documentation. Invoke-UnitTests.ps1 reads `knownEmpty` only."
+      ]
     }
   ]
 }

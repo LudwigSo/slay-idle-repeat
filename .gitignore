@@ -9,6 +9,12 @@
 .godot/
 mono_crash.*.json
 
+# Local compose overrides (M0-03). `.env.example` IS committed and documents
+# every knob; `.env` is one developer's port numbers and never belongs in the
+# tree. docker-compose.yml works with no .env present.
+.env
+docker-compose.override.yml
+
 # ----------------------------------------------------------------- .NET build
 [Bb]in/
 [Oo]bj/

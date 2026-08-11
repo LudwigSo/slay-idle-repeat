@@ -1,0 +1,532 @@
+# Slay Idle Repeat — the whole backend on a laptop.
+#
+#   docker compose up -d --wait      # boot and block until every service is healthy
+#   docker compose down -v           # stop and delete the volumes
+#
+# See infra/README.md for the service-by-service map, the ports, the dev
+# credentials and what M5 has to add.
+#
+# ============================================================================
+# The rule this file exists to satisfy — 14 §1.1, verbatim:
+#
+#   | Local development | `docker compose up` brings the entire stack — API,
+#     Postgres, Redis, MinIO, observability — up on a laptop with no cloud
+#     account. |
+#   | Portability test  | CI builds and boots the full stack in Docker Compose
+#     on every commit. **If it cannot run on a laptop, it is locked in.** |
+#
+# So, three hard constraints, all of them checkable:
+#
+#   1. NO CREDENTIALS. Nothing here is a secret, nothing is fetched from a
+#      secret store, nothing needs a registry login. Every value below is an
+#      obviously-local dev default, and build/ci/Test-NoCloudCredentials.ps1
+#      fails the build if that ever stops being true.
+#   2. EVERY IMAGE PINNED BY TAG AND DIGEST. The tag says what it is; the digest
+#      is what actually gets pulled. A re-tag upstream cannot silently change
+#      the stack. Never `:latest`. Same discipline as
+#      src/SlayIdleRepeat.Server/Dockerfile (M0-02).
+#   3. EVERY SERVICE HAS A HEALTHCHECK, so `up --wait` blocks until the stack is
+#      genuinely usable rather than merely started. The compose-boot CI job
+#      depends on this: it runs `up --wait` and then immediately polls /health.
+#
+# ============================================================================
+# WHAT IS DELIBERATELY *NOT* HERE
+#
+# Sentry and PostHog. 14 §10 lists both, and both are wired in the codebase as
+# adapters — but it also says of Sentry "self-hosted **or** SaaS — identical SDK,
+# so the choice is a deployment detail", and PostHog is "self-hostable", not
+# "self-hosted". That latitude is being used on purpose:
+#
+#   * self-hosted Sentry is ~9 containers and wants 4+ GB of RAM on its own;
+#     self-hosted PostHog drags in ClickHouse, Kafka and Zookeeper.
+#   * adding either would make `docker compose up` unusable on a laptop, and the
+#     first thing every developer would do is comment them out — at which point
+#     the stack is lying about what it boots.
+#   * neither is on the path of anything M1–M4 needs: they are sinks for data the
+#     server does not emit until M5-11.
+#
+# So the Sentry and PostHog adapters point at a no-op sink locally (see the `api`
+# service's environment below) and at a real DSN/host in deployed environments,
+# which is exactly the "deployment detail" 14 §10 says it is. If you are here to
+# "complete" the observability stack, this is the paragraph that says don't.
+#
+# Loki is also absent, and that one is explicit in the doc: 14 §10 says
+# "**Loki** (or plain stdout + the platform's log store)". This stack takes the
+# second option — Serilog writes structured JSON to stdout, Docker captures it,
+# `docker compose logs` reads it. See infra/README.md § "Why no Loki".
+# ============================================================================
+
+name: slayidlerepeat
+
+# ---------------------------------------------------------------------------
+# Anchors. Repeated settings live here so they cannot drift apart.
+# ---------------------------------------------------------------------------
+x-logging: &json-logging
+  # 14 §10 "Structured JSON logs via Serilog" — plus a size cap, because an
+  # unbounded json-file driver is how a laptop dev stack eats a disk overnight.
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+x-restart: &no-restart
+  # Deliberately NOT `unless-stopped`. A service that crash-loops quietly is the
+  # failure mode `up --wait` exists to catch; restarting it hides that.
+  restart: 'no'
+
+services:
+
+  # =========================================================================
+  # api — SlayIdleRepeat.Server (23 §7.1 composition root)
+  #
+  # Built from the image M0-02 already authored. That Dockerfile is the one and
+  # only definition of how the server is containerised — non-root (uid 1654),
+  # base images pinned by tag and digest, configuration by environment variable
+  # only. Do not add a second Dockerfile here.
+  #
+  # Build context is the REPOSITORY ROOT: the Server project needs global.json,
+  # Directory.Build.props and its whole ProjectReference graph under src/.
+  # =========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: src/SlayIdleRepeat.Server/Dockerfile
+    image: slayidlerepeat/server:dev
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      - '${SIR_API_PORT:-8080}:8080'
+    environment:
+      # ---- ASP.NET host ------------------------------------------------
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: '8080'
+
+      # ---- 14 §1.1 "Configuration | Environment variables only (12-factor)" --
+      #
+      # ⚠️ THE SERVER DOES NOT READ ANY OF THE VARIABLES BELOW YET. Today it is a
+      # /health endpoint and nothing else; the adapters that consume these arrive
+      # with M5-05 (Postgres/Redis/S3) and M5-11 (observability). They are defined
+      # here, now, with the names M5 will bind to, so that the wiring is a
+      # reviewable artefact instead of folklore — and so M5 changes code, not this
+      # file. If M5 needs a different name, change it in BOTH places in the same
+      # commit and update infra/README.md.
+      #
+      # `__` is the ASP.NET Core configuration separator: `ConnectionStrings__Postgres`
+      # binds to configuration key `ConnectionStrings:Postgres`. No vendor config
+      # service, no config file that varies per environment.
+
+      # Postgres — 14 §7.1 🔒 "The system of record for everything, per command".
+      ConnectionStrings__Postgres: 'Host=postgres;Port=5432;Database=slayidlerepeat;Username=sir_app;Password=sir_local_dev_password;Include Error Detail=true'
+
+      # Redis — 14 §7.1 🔒 "Rebuildable cache only, never a system of record."
+      ConnectionStrings__Redis: 'redis:6379,abortConnect=false'
+      Cache__RunStateTtlHours: '48'   # 14 §7.1 "Run-state cache TTL 48 h"
+
+      # S3-compatible object storage — 14 §7.1 "Battle logs for replay, ghost
+      # snapshots over a size threshold". MinIO locally, any S3 in production;
+      # reached only through IBattleLogStore (23 A4), never an IS3Client.
+      ObjectStore__ServiceUrl: 'http://minio:9000'
+      ObjectStore__Region: 'us-east-1'          # MinIO ignores it; the S3 SDKs demand one.
+      ObjectStore__ForcePathStyle: 'true'       # MinIO has no virtual-host-style DNS locally.
+      ObjectStore__AccessKey: 'sir_app'
+      ObjectStore__SecretKey: 'sir_local_dev_password'
+      ObjectStore__BattleLogBucket: 'battle-logs'
+      ObjectStore__GhostSnapshotBucket: 'ghost-snapshots'
+
+      # OpenTelemetry — 14 §10 "OpenTelemetry → Prometheus + Grafana".
+      # These are the OTel specification's own variable names, which the .NET
+      # OTel SDK reads with no code: M5-11 adds the SDK and it picks these up.
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-collector:4317'
+      OTEL_EXPORTER_OTLP_PROTOCOL: 'grpc'
+      OTEL_SERVICE_NAME: 'slayidlerepeat-server'
+      OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=slayidlerepeat,deployment.environment=local'
+      OTEL_TRACES_SAMPLER: 'always_on'          # local only; production samples.
+
+      # Sentry / PostHog — see the header. Adapters exist, sinks are local no-ops.
+      # An empty Sentry DSN is the SDK's own documented "disabled" value, so the
+      # adapter can be registered unconditionally and simply does nothing here.
+      Sentry__Dsn: ''
+      PostHog__Enabled: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_healthy
+    healthcheck:
+      # 14 §14 / the compose-boot CI job both hang on GET /health returning 200
+      # with {"status":"ok"}.
+      #
+      # ⚠️ Why this looks strange: mcr.microsoft.com/dotnet/aspnet ships neither
+      # curl nor wget, and M0-02's Dockerfile says so explicitly and declines to
+      # install one ("installing one to poll a local port would widen the runtime
+      # attack surface"). It does ship bash, whose /dev/tcp redirection speaks
+      # enough HTTP/1.1 to ask one question. That keeps the probe inside the
+      # container — where Docker needs it — without adding a package to the
+      # production image. CMD-SHELL is not usable: /bin/sh is dash on Debian and
+      # dash has no /dev/tcp.
+      test:
+        - CMD
+        - bash
+        - -c
+        - 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep -q "\"status\":\"ok\""'
+      interval: 5s
+      timeout: 5s
+      retries: 24          # 2 minutes: a cold .NET start on a loaded laptop is slow.
+      start_period: 20s
+    mem_limit: 640m
+
+  # =========================================================================
+  # postgres — 14 §7.1 🔒 the system of record
+  #
+  # "Player profiles, inventory, gear instances, pets, mounts, talents, presets,
+  #  active run snapshots, player messages (28 A), PvP ghosts, ratings, ladder,
+  #  seasons, entitlements, idempotency outcomes, an append-only economy event log"
+  #
+  # ⚠️ THERE IS NO SCHEMA HERE, AND THAT IS CORRECT. Tables, indexes and
+  # migrations are M5-05's deliverable. What this service guarantees today is the
+  # database and the role the server is configured to connect as, created by the
+  # image's own documented mechanism (POSTGRES_DB/USER/PASSWORD) plus the
+  # committed scripts in infra/postgres/initdb/ — never by a human following a
+  # README.
+  # =========================================================================
+  postgres:
+    image: postgres:16.9-alpine@sha256:7c688148e5e156d0e86df7ba8ae5a05a2386aaec1e2ad8e6d11bdf10504b1fb7
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      - '${SIR_POSTGRES_PORT:-5432}:5432'
+    environment:
+      # Local dev values. Not secrets — the password is spelled out on purpose so
+      # nobody mistakes it for one, and so it can never be quietly promoted to a
+      # real environment. Deployed environments inject their own (14 §1.1
+      # "Secrets | Injected as environment variables").
+      POSTGRES_DB: slayidlerepeat
+      POSTGRES_USER: sir_app
+      POSTGRES_PASSWORD: sir_local_dev_password
+      # Deterministic collation regardless of the host's locale — collation
+      # differences change ORDER BY results and index contents between machines.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Scripts run once, on an empty data directory, in filename order.
+      - ./infra/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    command:
+      - postgres
+      # Modest, laptop-sized. Not production tuning — production is deployment.
+      - '-c'
+      - 'max_connections=100'
+      - '-c'
+      - 'shared_buffers=128MB'
+      # Logs every statement's duration over 200 ms. Cheap here, and it is how
+      # you find the N+1 the moment M5-05 lands.
+      - '-c'
+      - 'log_min_duration_statement=200'
+    healthcheck:
+      # `pg_isready` alone answers true during the init-scripts phase on the
+      # bootstrap socket, so name the real database and role to be sure the
+      # server's own connection would succeed.
+      test: ['CMD-SHELL', 'pg_isready -U sir_app -d slayidlerepeat -h 127.0.0.1']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    mem_limit: 512m
+
+  # =========================================================================
+  # redis — 14 §7.1 🔒 rebuildable cache ONLY
+  #
+  # "Hot run state, sessions, idempotency hot-cache, matchmaking candidate cache,
+  #  rate limits ... Rebuildable cache only, never a system of record. On loss or
+  #  inconsistency, rebuilt from Postgres. Flushing Redis costs latency, never
+  #  progress. Run-state cache TTL 48 h."
+  #
+  # Persistence is switched OFF (`--save ""`, `--appendonly no`) and there is no
+  # volume, on purpose. This is the rule made physical: locally, Redis cannot
+  # survive a restart, so any code that starts treating it as durable fails on the
+  # developer's machine rather than in production. `allkeys-lru` says the same
+  # thing again — under pressure this data is expendable.
+  # =========================================================================
+  redis:
+    image: redis:7.4.5-alpine@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      - '${SIR_REDIS_PORT:-6379}:6379'
+    command:
+      - redis-server
+      - '--save'
+      - ''
+      - '--appendonly'
+      - 'no'
+      - '--maxmemory'
+      - '192mb'
+      - '--maxmemory-policy'
+      - 'allkeys-lru'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    mem_limit: 256m
+
+  # =========================================================================
+  # minio — 14 §7.1 S3-compatible object storage
+  #
+  # "Battle logs for replay, ghost snapshots over a size threshold |
+  #  MinIO locally and self-hosted; any S3 service in production."
+  #
+  # Speaks the S3 API, so the adapter written against MinIO here is the same
+  # adapter that runs against any S3 service in production (14 §1.1: "the S3
+  # client lives only in Adapters.ObjectStore.S3").
+  # =========================================================================
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      - '${SIR_MINIO_API_PORT:-9000}:9000'      # S3 API
+      - '${SIR_MINIO_CONSOLE_PORT:-9001}:9001'  # web console
+    environment:
+      # Root credentials for a container on a laptop. MinIO refuses passwords
+      # under 8 characters, hence the length; there is nothing else to read into
+      # it. The API does NOT use these — minio-init creates a separate, non-root
+      # account for it (see infra/minio/init.sh).
+      MINIO_ROOT_USER: sir_local_root
+      MINIO_ROOT_PASSWORD: sir_local_dev_password
+      MINIO_BROWSER_REDIRECT_URL: 'http://127.0.0.1:${SIR_MINIO_CONSOLE_PORT:-9001}'
+    command: ['server', '/data', '--console-address', ':9001']
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      # MinIO's own liveness probe. curl ships in this image (verified).
+      test: ['CMD', 'curl', '--fail', '--silent', 'http://127.0.0.1:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    mem_limit: 512m
+
+  # =========================================================================
+  # minio-init — creates the buckets and the application account, then exits.
+  #
+  # A short-lived init container, NOT a README instruction. A bucket that a human
+  # has to remember to click into existence is a bucket that does not exist on
+  # the next machine, and an S3 adapter's first integration test is exactly where
+  # you find that out.
+  #
+  # Idempotent: `mc mb --ignore-existing`, and the user/policy steps tolerate
+  # already-done. Safe to re-run against a warm volume.
+  # =========================================================================
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    <<: *no-restart
+    logging: *json-logging
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ENDPOINT: 'http://minio:9000'
+      MINIO_ROOT_USER: sir_local_root
+      MINIO_ROOT_PASSWORD: sir_local_dev_password
+      # Must match the api service's ObjectStore__AccessKey / __SecretKey above.
+      SIR_APP_ACCESS_KEY: sir_app
+      SIR_APP_SECRET_KEY: sir_local_dev_password
+      # 14 §7.1's two object-store consumers, and nothing else.
+      SIR_BUCKETS: 'battle-logs ghost-snapshots'
+    entrypoint: ['/bin/sh', '/init/init.sh']
+    volumes:
+      - ./infra/minio:/init:ro
+    mem_limit: 128m
+
+  # =========================================================================
+  # otel-collector — 14 §10 "OpenTelemetry → Prometheus + Grafana"
+  #
+  # The single ingestion point. The API pushes OTLP here; the collector fans out
+  # to Jaeger (traces) and exposes a Prometheus scrape endpoint (metrics). That
+  # indirection is the whole point of "Vendor-neutral instrumentation. Swap the
+  # backend freely." — swapping Jaeger for Tempo is an edit to
+  # infra/otel-collector/config.yaml and to nothing else.
+  #
+  # ⚠️ The image is distroless: no shell, no curl, no wget, only the collector
+  # binary (verified by exporting the filesystem). A Docker healthcheck must run
+  # a command *inside* the container, so a static busybox is copied into a shared
+  # volume by otel-probe-tools below and used as the probe. It is not elegant,
+  # but the alternatives were worse: rebuilding the vendor image, or leaving the
+  # one service the whole telemetry pipeline hangs on without a healthcheck.
+  # =========================================================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.130.1@sha256:9c247564e65ca19f97d891cca19a1a8d291ce631b890885b44e3503c5fdb3895
+    <<: *no-restart
+    logging: *json-logging
+    command: ['--config=/etc/otelcol/config.yaml']
+    ports:
+      # Published so a server run from `dotnet run` on the host — which is how
+      # M5 will actually develop — can export to the same collector.
+      - '${SIR_OTLP_GRPC_PORT:-4317}:4317'
+      - '${SIR_OTLP_HTTP_PORT:-4318}:4318'
+    volumes:
+      - ./infra/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+      - otel-probe:/probe:ro
+    depends_on:
+      jaeger:
+        condition: service_healthy
+      otel-probe-tools:
+        condition: service_completed_successfully
+    healthcheck:
+      # The health_check extension, at :13133. Answers 200 only once every
+      # pipeline in config.yaml has started.
+      test: ['CMD', '/probe/busybox', 'wget', '--spider', '-q', 'http://127.0.0.1:13133/']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    mem_limit: 512m
+
+  # =========================================================================
+  # otel-probe-tools — copies a statically-linked busybox into a shared volume so
+  # the distroless collector above can be health-checked. Runs for well under a
+  # second and exits. busybox:uclibc is fully static, so it runs in a container
+  # with no libc at all.
+  # =========================================================================
+  otel-probe-tools:
+    image: busybox:1.37.0-uclibc@sha256:8d7b1636e974e0adfd8d945955fca609304f0a56c18799dfd032d6e661382d84
+    <<: *no-restart
+    logging: *json-logging
+    command: ['/bin/sh', '-c', 'cp /bin/busybox /probe/busybox && chmod 0755 /probe/busybox && /probe/busybox --help >/dev/null && echo "probe tools staged"']
+    volumes:
+      - otel-probe:/probe
+    mem_limit: 64m
+
+  # =========================================================================
+  # jaeger — trace backend. 14 §10 "Metrics & tracing | OpenTelemetry".
+  #
+  # all-in-one: collector, query service and UI in one container, with in-memory
+  # storage. Traces do not survive a restart — correct for a laptop, and the
+  # reason there is no volume here. Production picks a real backend; the
+  # application never knows, because it only ever speaks OTLP to the collector.
+  # =========================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.71.0@sha256:beb31282a9c5d0d10cb78dd168945dab9887acebb42fcc0bd738b08c36b68bc0
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      - '${SIR_JAEGER_UI_PORT:-16686}:16686'   # UI
+      # 4317/4318 are NOT published: the collector is the only thing that should
+      # be writing traces, and it reaches Jaeger over the compose network.
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+      # Bound so a runaway trace volume cannot eat the laptop's RAM.
+      MEMORY_MAX_TRACES: '20000'
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:14269/']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    mem_limit: 512m
+
+  # =========================================================================
+  # prometheus — 14 §10 metrics store.
+  #
+  # Scrapes the collector, not the API. The API pushes OTLP; the collector
+  # re-exposes it for scraping. One ingestion path, so there is exactly one place
+  # to change when the backend changes.
+  # =========================================================================
+  prometheus:
+    image: prom/prometheus:v3.5.0@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      - '${SIR_PROMETHEUS_PORT:-9090}:9090'
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=72h'   # a laptop is not a metrics archive
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:9090/-/healthy']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    mem_limit: 512m
+
+  # =========================================================================
+  # grafana — 14 §10 dashboards.
+  #
+  # 🔒 Datasources are PROVISIONED FROM COMMITTED FILES (infra/grafana/
+  # provisioning/), never clicked in. A dashboard that exists only in one
+  # developer's browser profile is not observability, and "add the Prometheus
+  # datasource" in a README is a setup step that rots.
+  # =========================================================================
+  grafana:
+    image: grafana/grafana-oss:12.0.2@sha256:b5b59bfc7561634c2d7b136c4543d702ebcc94a3da477f21ff26f89ffd4214fa
+    <<: *no-restart
+    logging: *json-logging
+    ports:
+      - '${SIR_GRAFANA_PORT:-3000}:3000'
+    environment:
+      # Anonymous admin: this is a container on a laptop with no data worth
+      # protecting, and a login wall in front of a dev dashboard is a login wall
+      # people work around by sharing a password. The login form still exists.
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: 'Admin'
+      GF_SECURITY_ADMIN_USER: 'admin'
+      GF_SECURITY_ADMIN_PASSWORD: 'sir_local_dev_password'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'   # no phoning home from a dev box
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+      GF_NEWS_NEWS_FEED_ENABLED: 'false'
+      GF_INSTALL_PLUGINS: ''                    # no plugin downloads at boot
+      # ⚠️ Measured, not guessed: Grafana 12 runs ~670 SQLite migrations on a
+      # fresh volume, and in rollback-journal mode each one fsyncs. That took
+      # 2m30s on the development machine. WAL mode turns those fsyncs into
+      # sequential appends and cuts the cold start to well under a minute. It is
+      # also why start_period below is generous rather than tight — every
+      # `docker compose down -v` makes the next boot a cold one, and CI is always
+      # cold.
+      GF_DATABASE_WAL: 'true'
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:3000/api/health']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      # Failures inside start_period do not count towards `retries`, and the
+      # first success ends it immediately — so a long window costs nothing on a
+      # fast machine and is the difference between a green boot and a spurious
+      # "grafana is unhealthy" on a slow one. Grafana is the last service to come
+      # up and the only one with a database migration on its critical path.
+      start_period: 180s
+    mem_limit: 384m
+
+volumes:
+  postgres-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:
+  # Staging area for the static busybox the distroless collector is probed with.
+  otel-probe:
+  # NOTE: there is deliberately no redis volume — see the redis service.
+
+networks:
+  default:
+    name: slayidlerepeat
