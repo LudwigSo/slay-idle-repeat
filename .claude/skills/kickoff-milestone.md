@@ -17,7 +17,7 @@ The tracker is the single source of truth for scope and state. The design docs i
 
 ## Phase 0 — Preflight (no user interaction)
 
-1. Read `IMPLEMENTATION_TRACKER.md`: the target milestone's goal, exit criteria, kickoff-decisions block, task table, and the open-decision registry rows that point at this milestone.
+1. Read `IMPLEMENTATION_TRACKER.md`: the target milestone's goal, exit criteria, kickoff-decisions block, task table, and the open-decision registry rows that point at this milestone. Also read `.claude/retros/STEERING.md` if it exists — the cumulative steering rules distilled by `milestone-review` retros. They bind this kickoff (planning and dispatch alike) and are pasted into every agent prompt in Phase 5.
 2. Check prerequisites honestly:
    - Are the milestones this one builds on ✅/🔍, or at least far enough that this milestone's tasks have what they need? (Use the build-order column and each task's spec refs, not just the snapshot row.)
    - Is the working tree clean? If not, stop and ask the user before touching anything.
@@ -83,8 +83,9 @@ Record the wave plan in the kickoff record and echo it to the user in one compac
 1. The instruction to invoke the `feature-oneshot` skill with the task as its argument.
 2. The task: ID, full description, spec references, and the **relevant excerpts** from the design docs (the exact formulas/tables/rules the task implements — pull them from your Phase 0 reading or the kickoff record).
 3. **The pre-answered clarification block**: feature-oneshot's Phase 1 stops for the user, but a spawned agent has no user. State explicitly: *"The milestone kickoff already ran the clarification phase. The answers below are the user's answers; treat them as final, do not stop or wait for input at any gate. If a genuinely new question arises mid-run, make the most reasonable decision consistent with these answers and record it as an assumption in your completion report."* — followed by every kickoff answer and assumption relevant to this task.
-4. Branch/worktree instructions: base off `milestone/M<N>`; branch name `feature-M<N>-<nn>-<slug>`. Worktree'd agents work entirely inside their worktree; main-checkout agents must confirm the tree is clean first.
-5. What to return: the feature-oneshot completion report, verbatim, plus the branch name.
+4. The current steering rules from `.claude/retros/STEERING.md` (if the file exists), pasted verbatim — these are lessons from previous milestones' retros and override default habits where they conflict.
+5. Branch/worktree instructions: base off `milestone/M<N>`; branch name `feature-M<N>-<nn>-<slug>`. Worktree'd agents work entirely inside their worktree; main-checkout agents must confirm the tree is clean first.
+6. What to return: the feature-oneshot completion report, verbatim, plus the branch name.
 
 On dispatch, set the task 🔄 in the tracker (you, the conductor, own the tracker — agents never edit it; parallel edits from worktrees would conflict and worktree copies diverge anyway).
 
