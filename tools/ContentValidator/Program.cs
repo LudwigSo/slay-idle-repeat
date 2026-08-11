@@ -1,5 +1,5 @@
 using System.Globalization;
-using SlayIdleRepeat.Adapters.Cache.LocalFile;
+using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Content.Tunables;
 

@@ -23,7 +23,7 @@
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Billing.GooglePlay\SlayIdleRepeat.Adapters.Billing.GooglePlay.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Billing.StoreKit\SlayIdleRepeat.Adapters.Billing.StoreKit.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Api.Http\SlayIdleRepeat.Adapters.Api.Http.csproj" />
-    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Cache.LocalFile\SlayIdleRepeat.Adapters.Cache.LocalFile.csproj" />
+    <ProjectReference Include="..\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Push.Firebase\SlayIdleRepeat.Adapters.Push.Firebase.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Consent.AppLovinCmp\SlayIdleRepeat.Adapters.Consent.AppLovinCmp.csproj" />

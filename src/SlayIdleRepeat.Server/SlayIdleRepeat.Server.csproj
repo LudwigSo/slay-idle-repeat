@@ -12,6 +12,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+
+    <!--
+      14 §6: the SERVER is the source of truth for content. M1/M2 need a ContentSnapshot here to
+      build GameContext, and until this reference existed the composition root that owns the truth
+      could not construct one — the cheap fix under time pressure being Server referencing a
+      *client* adapter. Same project, both hosts, because both read the same bytes (23 §4).
+    -->
+    <ProjectReference Include="..\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Persistence.Postgres\SlayIdleRepeat.Adapters.Persistence.Postgres.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.Cache.Redis\SlayIdleRepeat.Adapters.Cache.Redis.csproj" />
     <ProjectReference Include="..\adapters\server\SlayIdleRepeat.Adapters.ObjectStore.S3\SlayIdleRepeat.Adapters.ObjectStore.S3.csproj" />

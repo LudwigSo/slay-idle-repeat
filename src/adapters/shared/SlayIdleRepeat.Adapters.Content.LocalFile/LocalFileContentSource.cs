@@ -1,8 +1,9 @@
 using System.Globalization;
 using System.Text;
 using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Core.Content;
 
-namespace SlayIdleRepeat.Adapters.Cache.LocalFile;
+namespace SlayIdleRepeat.Adapters.Content.LocalFile;
 
 /// <summary>
 /// Reads <c>SlayIdleRepeat.Data</c> off the local filesystem — the real
@@ -73,6 +74,13 @@ public sealed class LocalFileContentSource : IContentSourcePort
     public IReadOnlyList<string> ListDocuments() => Files().Select(Relative).ToArray();
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// 🔒 One declared failure type for every way a path can fail to be a listed document —
+    /// absent, a directory that does not exist, or an escape attempt. The port declares
+    /// <see cref="MissingContentException"/>; letting <c>File.ReadAllBytes</c>'s
+    /// <c>FileNotFoundException</c> and a path-escape <c>ArgumentException</c> out instead made
+    /// this adapter fail three different ways, none of them the fake's.
+    /// </remarks>
     public ReadOnlyMemory<byte> ReadDocument(string documentPath)
     {
         ArgumentException.ThrowIfNullOrEmpty(documentPath);
@@ -87,7 +95,16 @@ public sealed class LocalFileContentSource : IContentSourcePort
 
         if (!absolute.StartsWith(root, StringComparison.Ordinal))
         {
-            throw new ArgumentException($"'{documentPath}' escapes the content root.", nameof(documentPath));
+            throw new MissingContentException(
+                documentPath,
+                "it escapes the content root, so it is not a document this source lists. A document " +
+                "path is a key inside the content set, never a way out of it.");
+        }
+
+        if (!File.Exists(absolute))
+        {
+            throw new MissingContentException(
+                documentPath, $"there is no such file under '{DataRootPath}'");
         }
 
         return File.ReadAllBytes(absolute);

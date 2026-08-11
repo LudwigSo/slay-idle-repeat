@@ -23,7 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
-    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Cache.LocalFile\SlayIdleRepeat.Adapters.Cache.LocalFile.csproj" />
+    <ProjectReference Include="..\..\src\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj" />
   </ItemGroup>
 
 </Project>

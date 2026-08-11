@@ -1,3 +1,5 @@
+using SlayIdleRepeat.Core.Content;
+
 namespace SlayIdleRepeat.Application.Ports.Shared;
 
 /// <summary>
@@ -29,6 +31,11 @@ public interface IContentSourcePort
     /// An opaque token that changes whenever any document behind this source changes. Lets a dev
     /// hot-reload decide whether a rebuild is even necessary without re-hashing everything.
     /// </summary>
+    /// <remarks>
+    /// 🔒 It moves <em>if and only if</em> the content moves. Both halves are the contract: a token
+    /// that does not move on a change means a dev never sees their edit, and one that moves without
+    /// a change means a rebuild on every poll.
+    /// </remarks>
     string Revision { get; }
 
     /// <summary>
@@ -37,6 +44,12 @@ public interface IContentSourcePort
     /// </summary>
     IReadOnlyList<string> ListDocuments();
 
-    /// <summary>The raw UTF-8 bytes of one document. Throws when the path is not listed.</summary>
+    /// <summary>The raw UTF-8 bytes of one document.</summary>
+    /// <exception cref="MissingContentException">
+    /// 🔒 The declared failure for a path this source does not list — <b>whatever the reason</b>:
+    /// absent, outside the content root, or a directory that does not exist. One declared type, so
+    /// a caller written against the fake behaves the same against the real adapter. The two
+    /// implementations disagreed here before <c>Contract.Tests</c> existed to notice.
+    /// </exception>
     ReadOnlyMemory<byte> ReadDocument(string documentPath);
 }

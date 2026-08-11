@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The IContentSourcePort adapter: SlayIdleRepeat.Data read off the local filesystem.
+    BCL System.IO only — no vendor package.
+
+    shared/, not client/ (23 §4). 14 §6 makes the SERVER the source of truth for content
+    and the client a copy of the same bytes, so both hosts read it through the same seam —
+    exactly the argument IContentSourcePort.cs makes for living in Ports/Shared/. It sat
+    under client/ while SlayIdleRepeat.Server referenced no content source at all, so the
+    composition root that owns the truth could not construct one, and the cheap fix under
+    time pressure would have been Server referencing a *client* adapter.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

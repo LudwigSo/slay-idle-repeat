@@ -52,8 +52,19 @@ public sealed class InMemoryContentSource : IContentSourcePort
     public IReadOnlyList<string> ListDocuments() => _documents.Keys.ToArray();
 
     /// <inheritdoc/>
-    public ReadOnlyMemory<byte> ReadDocument(string documentPath) =>
-        _documents.TryGetValue(documentPath, out var bytes)
+    /// <remarks>
+    /// 🔒 <see cref="SlayIdleRepeat.Core.Content.MissingContentException"/>, the type the port
+    /// declares — not <c>KeyNotFoundException</c>, which is what a dictionary happens to throw. A
+    /// fake that fails differently from the real adapter is a fake that makes every case written
+    /// against it say nothing about production.
+    /// </remarks>
+    public ReadOnlyMemory<byte> ReadDocument(string documentPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(documentPath);
+
+        return _documents.TryGetValue(documentPath, out var bytes)
             ? bytes
-            : throw new KeyNotFoundException($"No content document '{documentPath}' in this source.");
+            : throw new SlayIdleRepeat.Core.Content.MissingContentException(
+                documentPath, $"this source holds {_documents.Count} document(s) and none of them is that one");
+    }
 }

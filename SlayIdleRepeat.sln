@@ -19,7 +19,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Bil
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Billing.StoreKit", "src\adapters\client\SlayIdleRepeat.Adapters.Billing.StoreKit\SlayIdleRepeat.Adapters.Billing.StoreKit.csproj", "{EDF15C51-8156-4F10-B4AA-8CC92C1B333F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Cache.LocalFile", "src\adapters\client\SlayIdleRepeat.Adapters.Cache.LocalFile\SlayIdleRepeat.Adapters.Cache.LocalFile.csproj", "{94A41D82-F2FF-4C27-81D6-469BF2833918}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Content.LocalFile", "src\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj", "{94A41D82-F2FF-4C27-81D6-469BF2833918}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Consent.AppLovinCmp", "src\adapters\client\SlayIdleRepeat.Adapters.Consent.AppLovinCmp\SlayIdleRepeat.Adapters.Consent.AppLovinCmp.csproj", "{EBED70D8-BEEB-4A12-8590-057CEC078C71}"
 EndProject
@@ -28,6 +28,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Push.Firebase", "src\adapters\client\SlayIdleRepeat.Adapters.Push.Firebase\SlayIdleRepeat.Adapters.Push.Firebase.csproj", "{1EAC28D3-42E0-43F9-9802-353DA91795D9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Telemetry.Sentry", "src\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj", "{444A9658-261A-434D-8F6C-DC0EF1ED4136}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shared", "shared", "{7A1C0E3D-5B42-4F6A-9C18-3E0D2A7B4F51}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fakes", "fakes", "{B830DAEB-7ABC-4D09-959E-F7BE82326A50}"
 EndProject
@@ -239,7 +241,8 @@ Global
 		{068BA988-C8EF-4378-BC41-88AC5ED0D681} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
 		{391F434C-91E9-40BB-88AB-FEA4BFF93F4C} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
 		{EDF15C51-8156-4F10-B4AA-8CC92C1B333F} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
-		{94A41D82-F2FF-4C27-81D6-469BF2833918} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
+		{7A1C0E3D-5B42-4F6A-9C18-3E0D2A7B4F51} = {673B7BF0-F824-4555-BAFA-1875DBE42927}
+		{94A41D82-F2FF-4C27-81D6-469BF2833918} = {7A1C0E3D-5B42-4F6A-9C18-3E0D2A7B4F51}
 		{EBED70D8-BEEB-4A12-8590-057CEC078C71} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
 		{886C6BFC-807F-4C40-AB20-4B28B38810C2} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
 		{1EAC28D3-42E0-43F9-9802-353DA91795D9} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
