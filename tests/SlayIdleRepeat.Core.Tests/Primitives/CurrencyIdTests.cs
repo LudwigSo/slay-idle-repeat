@@ -34,13 +34,6 @@ public sealed class CurrencyIdTests
         ("HONOR", 8),
     };
 
-    /// <summary>
-    /// 🔒 `10` §1.1 — counters, not currencies. They live under <c>nonWalletCounters</c> and must
-    /// never become <see cref="CurrencyId"/> members: a counter that gained a wallet slot would
-    /// start emitting <c>CurrencyChanged</c> and land in the income-attribution report as income.
-    /// </summary>
-    private static readonly string[] NonWalletCounters = { "BEAST_MARKS", "SET_TOKENS" };
-
     [Fact]
     public void The_wallet_is_exactly_the_eight_currencies_of_10_1()
     {
@@ -55,7 +48,13 @@ public sealed class CurrencyIdTests
             "10 §1 fixes a currency CurrencyId does not declare. Every wallet currency needs a member, " +
             "or the exhaustive switches that pay it out cannot name it.");
 
-        declared.Length.ShouldBe(Wallet.Length);
+        declared.Length.ShouldBe(
+            8,
+            "10 §1 fixes eight wallet currencies. Written as the literal 8 rather than as " +
+            "Wallet.Length: a count taken from the transcription cannot notice the transcription " +
+            "itself being trimmed, which is the one edit both set differences above would survive. " +
+            "16 O10 may take this to seven in M18 — that is a 🔒 ruling, and it is meant to cost a " +
+            "deliberate edit here.");
     }
 
     [Fact]
@@ -94,15 +93,24 @@ public sealed class CurrencyIdTests
             "as GOLD and quietly credit the wrong wallet.");
     }
 
-    [Fact]
-    public void The_non_wallet_counters_of_10_1_1_are_not_currencies()
+    /// <summary>
+    /// 🔒 `10` §1.1 — counters, not currencies. They live under <c>nonWalletCounters</c> and must
+    /// never become <see cref="CurrencyId"/> members: a counter that gained a wallet slot would
+    /// start emitting <c>CurrencyChanged</c> and land in the income-attribution report as income.
+    /// </summary>
+    /// <remarks>
+    /// One <c>[InlineData]</c> row per counter rather than a loop over an array field: an array that
+    /// was quietly emptied is a loop that runs zero times and a case that asserts nothing, and xUnit
+    /// cannot tell that apart from a passing test.
+    /// </remarks>
+    [Theory]
+    [InlineData("BEAST_MARKS")]
+    [InlineData("SET_TOKENS")]
+    public void A_non_wallet_counter_of_10_1_1_is_not_a_currency(string counter)
     {
-        foreach (var counter in NonWalletCounters)
-        {
-            Enum.TryParse<CurrencyId>(counter, out _).ShouldBeFalse(
-                $"'{counter}' is a nonWalletCounter (10 §1.1), not a currency. Making it a CurrencyId " +
-                "member would put it in the wallet, in CurrencyChanged, and in the income-attribution " +
-                "report that answers risk R10.");
-        }
+        Enum.TryParse<CurrencyId>(counter, out _).ShouldBeFalse(
+            $"'{counter}' is a nonWalletCounter (10 §1.1), not a currency. Making it a CurrencyId " +
+            "member would put it in the wallet, in CurrencyChanged, and in the income-attribution " +
+            "report that answers risk R10.");
     }
 }

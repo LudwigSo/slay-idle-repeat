@@ -55,9 +55,20 @@ public sealed class CurrencyIdMatchesTuningDataTests
     {
         var counters = IdsOf("nonWalletCounters");
 
-        counters.ShouldNotBeEmpty(
-            $"{CurrenciesDocument} declares no nonWalletCounters. 10 §1.1 names two (BEAST_MARKS, " +
-            "SET_TOKENS); an empty list means this case is asserting nothing.");
+        // 🔒 The floor, and it is named rather than counted: the intersection below is empty for an
+        // empty subject set, so without this the case passes forever the moment the reader stops
+        // finding counters. `ShouldNotBeEmpty` would not be that floor either — it accepts one, while
+        // the sentence it is defending names two. Deliberately a floor and not a ceiling: 10 §1.1 may
+        // gain a third counter, and that is not this case's business.
+        counters.ShouldContain(
+            "BEAST_MARKS",
+            $"10 §1.1 names BEAST_MARKS a nonWalletCounter, and {CurrenciesDocument} does not author " +
+            "it. The document moved — fix the reader, do not delete the case.");
+
+        counters.ShouldContain(
+            "SET_TOKENS",
+            $"10 §1.1 names SET_TOKENS a nonWalletCounter, and {CurrenciesDocument} does not author " +
+            "it. The document moved — fix the reader, do not delete the case.");
 
         counters.Intersect(Enum.GetNames<CurrencyId>(), StringComparer.Ordinal).ShouldBeEmpty(
             "a nonWalletCounter became a CurrencyId member. 10 §1.1 keeps counters out of the wallet " +

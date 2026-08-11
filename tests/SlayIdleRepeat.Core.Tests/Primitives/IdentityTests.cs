@@ -37,16 +37,26 @@ public sealed class IdentityTests
             "string, even explicit — is the hole through which that protection leaks back out.");
     }
 
-    [Fact]
-    public void A_PlayerId_is_not_a_RunId()
+    /// <summary>
+    /// An id is a <c>readonly record struct</c>, not a <c>record</c> class.
+    /// </summary>
+    /// <remarks>
+    /// This is the one shape decision in `30` §4 that <b>every other case in this file passes either
+    /// way</b> — a record class carries its value, prints it, compares by it and rejects a blank one
+    /// exactly as the struct does. The difference is in the bytes and in the nulls, so it needs its
+    /// own case or nothing in the suite reads it.
+    /// </remarks>
+    [Theory]
+    [InlineData(typeof(PlayerId))]
+    [InlineData(typeof(RunId))]
+    public void An_id_is_a_value_type_not_a_record_class(Type idType)
     {
-        typeof(PlayerId).IsAssignableFrom(typeof(RunId)).ShouldBeFalse();
-        typeof(RunId).IsAssignableFrom(typeof(PlayerId)).ShouldBeFalse();
-
-        // The real claim: neither is a string wearing a name. A `global using PlayerId = string;`
-        // alias would satisfy both assertions above and none of the protection they stand for.
-        typeof(PlayerId).ShouldNotBe(typeof(string));
-        typeof(RunId).ShouldNotBe(typeof(string));
+        idType.IsValueType.ShouldBeTrue(
+            $"{idType.Name} is a reference type. `14` §16.6 gives EVERY nullable-capable slot a " +
+            "presence byte, so a class id adds one to every snapshot field that carries it — " +
+            "PrimitiveEncodingTests pins that at 7 bytes, and this is the change that would move it. " +
+            "It also makes a null id representable again in a field whose whole point is that it " +
+            "cannot be absent.");
     }
 
     [Theory]
@@ -71,7 +81,11 @@ public sealed class IdentityTests
     public void A_RunId_refuses_a_blank_identifier(string? blank)
     {
         Should.Throw<ArgumentException>(() => new RunId(blank!))
-            .Message.ShouldMatchWildcard("*RunId*");
+            .Message.ShouldMatchWildcard(
+                "*RunId*",
+                "the refusal must name RunId, for the same reason its PlayerId twin must name " +
+                "PlayerId: the two guards are identical, so the type name is the only thing in the " +
+                "message that says which seam the reader should open.");
     }
 
     [Fact]
@@ -92,10 +106,27 @@ public sealed class IdentityTests
         new RunId("r-1").ShouldBe(new RunId("r-1"));
     }
 
+    /// <summary>
+    /// Ids compare <b>ordinally</b> — by code unit, never by culture.
+    /// </summary>
+    /// <remarks>
+    /// Case is the cheap half. The half that actually distinguishes ordinal from culture-aware is
+    /// canonical equivalence: <c>"a" + U+030A</c> (combining ring) and <c>U+00E5</c> render the same
+    /// glyph and <i>are</i> equal under <see cref="StringComparison.InvariantCulture"/>, and are two
+    /// different strings ordinally. An id whose equality went through a culture comparer would make
+    /// two distinct player rows the same player on an ICU host and not on a globalization-invariant
+    /// one — a divergence that never reproduces on the machine that reported it.
+    /// </remarks>
     [Fact]
-    public void Ids_compare_ordinally_not_case_insensitively()
+    public void Ids_compare_ordinally_not_by_culture_or_case()
     {
         new PlayerId("p-1").ShouldNotBe(new PlayerId("P-1"));
         new RunId("r-1").ShouldNotBe(new RunId("R-1"));
+
+        var combining = "a" + (char)0x030A;
+        var precomposed = ((char)0x00E5).ToString();
+
+        new PlayerId(combining).ShouldNotBe(new PlayerId(precomposed));
+        new RunId(combining).ShouldNotBe(new RunId(precomposed));
     }
 }

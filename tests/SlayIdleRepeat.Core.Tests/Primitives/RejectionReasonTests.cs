@@ -1,6 +1,5 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Primitives;
-using SlayIdleRepeat.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Primitives;
@@ -106,9 +105,11 @@ public sealed class RejectionReasonTests
             "rejection some producer has to be able to send.");
 
         declared.Length.ShouldBe(
-            Catalogue.Length,
-            "the catalogue is 20 values — 10 transport, 10 domain. A count that moved without either " +
-            "set difference firing means a duplicate name, which the enum cannot express.");
+            20,
+            "14 §16.2's table has twenty rows — 10 transport, 10 domain. Written as the literal 20 " +
+            "rather than as Catalogue.Length: a count taken from the transcription cannot notice the " +
+            "transcription itself being trimmed, which is the one edit both set differences above " +
+            "would survive.");
     }
 
     [Fact]
@@ -166,9 +167,11 @@ public sealed class RejectionReasonTests
             "well-formed ones.");
 
         actual.Count.ShouldBe(
-            DomainTierPin.Length,
-            "30 §2's sentence names exactly ten domain-tier values. This is a floor as well as a " +
-            "ceiling: a tier set that quietly emptied would satisfy both set differences above.");
+            10,
+            "30 §2's sentence names exactly ten domain-tier values. Written as the literal 10 rather " +
+            "than as DomainTierPin.Length: the set differences above compare the tier against the pin, " +
+            "so they both stay satisfied if the pin and the tier are trimmed together. Only a literal " +
+            "notices that.");
     }
 
     [Fact]
@@ -184,8 +187,10 @@ public sealed class RejectionReasonTests
             "domain-tier value classified as transport would be refused when Apply returns it.");
 
         actual.Count.ShouldBe(
-            TransportTierPin.Length,
-            "14 §16.2's table has exactly ten transport rows.");
+            10,
+            "14 §16.2's table has exactly ten transport rows. The literal, not TransportTierPin.Length, " +
+            "for the reason given on the domain-tier case: a pin and a tier trimmed together satisfy " +
+            "both set differences above.");
     }
 
     [Fact]
@@ -193,7 +198,11 @@ public sealed class RejectionReasonTests
     {
         var all = RejectionReasons.All;
 
-        all.Count.ShouldBe(Catalogue.Length);
+        all.Count.ShouldBe(
+            20,
+            "RejectionReasons.All is the whole of 14 §16.2's table — twenty rows. The literal is the " +
+            "floor: without it the partition below holds just as happily over an empty All and two " +
+            "empty tiers.");
 
         RejectionReasons.DomainTier.Intersect(RejectionReasons.TransportTier).ShouldBeEmpty(
             "a value cannot be produced by both tiers — 14 §16.2 gives every row exactly one.");
@@ -220,11 +229,25 @@ public sealed class RejectionReasonTests
         }
     }
 
+    /// <summary>
+    /// <c>IsDomainTier</c> is the question M1-06 asks of a handler result, so it is asked here of
+    /// every row rather than of one value per tier — a two-sample check leaves eighteen values whose
+    /// answer nothing in this suite has ever read.
+    /// </summary>
     [Fact]
-    public void IsDomainTier_is_the_question_M1_06_asks_of_a_handler_result()
+    public void IsDomainTier_answers_the_tier_column_of_14_16_2_for_every_value()
     {
-        RejectionReasons.IsDomainTier(RejectionReason.INSUFFICIENT_ENERGY).ShouldBeTrue();
-        RejectionReasons.IsDomainTier(RejectionReason.SEQUENCE_GAP).ShouldBeFalse();
+        foreach (var (name, _, tier) in Catalogue)
+        {
+            var value = Enum.Parse<RejectionReason>(name);
+            var isDomain = tier == RejectionReasonTier.Domain;
+
+            RejectionReasons.IsDomainTier(value).ShouldBe(
+                isDomain,
+                $"14 §16.2 puts {name} in the {tier} tier, so IsDomainTier must answer {isDomain}. " +
+                "M1-06 branches on this: a transport-tier value answering true would let the envelope " +
+                "layer's refusal pass for a decision the domain made.");
+        }
     }
 
     [Fact]
@@ -233,19 +256,51 @@ public sealed class RejectionReasonTests
         var thrown = Should.Throw<ArgumentOutOfRangeException>(
             () => RejectionReasons.TierOf((RejectionReason)9999));
 
-        thrown.Message.ShouldMatchWildcard(
-            "*9999*14 §16.2*",
-            "the refusal must name the unmapped value and the table that is missing a row for it — a " +
-            "bare ArgumentOutOfRangeException leaves the reader guessing which of the two enums drifted.");
+        ShouldNameTheValueAndTheTable(thrown, "9999");
     }
 
     [Fact]
     public void TierOf_refuses_the_uninitialised_value()
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => RejectionReasons.TierOf(default))
-            .Message.ShouldMatchWildcard(
-                "*0*14 §16.2*",
-                "default(RejectionReason) is not a rejection. Classifying it silently is how an " +
-                "unset field becomes a legal-looking 'no'.");
+        var thrown = Should.Throw<ArgumentOutOfRangeException>(
+            () => RejectionReasons.TierOf(default));
+
+        ShouldNameTheValueAndTheTable(
+            thrown,
+            "0",
+            "default(RejectionReason) is not a rejection, and 0 is the only name it has. Classifying " +
+            "it silently is how an unset field becomes a legal-looking 'no'.");
+    }
+
+    /// <summary>
+    /// Both facts `14` §16.2 requires of the refusal — the offending value, and the table with no row
+    /// for it — asserted as two independent fragments.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Deliberately <b>not</b> one ordered <c>ShouldMatchWildcard("*0*14 §16.2*")</c>.
+    /// <see cref="ArgumentOutOfRangeException"/> appends its own <c>"Actual value was 0."</c> line
+    /// <i>after</i> whatever message the thrower wrote, so an ordered pattern demanding the value
+    /// before the citation cannot be satisfied by the idiomatic
+    /// <c>new ArgumentOutOfRangeException(nameof(reason), reason, "… 14 §16.2 …")</c> at all — it
+    /// would force the thrower to duplicate the value into the prose purely to satisfy a word order
+    /// nothing in the spec asks for. Both fragments are the claim (steering S2: pin which rule fired);
+    /// their order is not.
+    /// </remarks>
+    private static void ShouldNameTheValueAndTheTable(
+        ArgumentOutOfRangeException thrown, string value, string? valueMessage = null)
+    {
+        thrown.Message.ShouldContain(
+            value,
+            Case.Sensitive,
+            valueMessage
+            ?? $"the refusal must name the unmapped value {value} — a refusal that does not say which " +
+               "value it could not classify sends the reader to read the whole switch.");
+
+        thrown.Message.ShouldContain(
+            "14 §16.2",
+            Case.Sensitive,
+            "the refusal must cite the table that is missing a row for the value. A bare " +
+            "ArgumentOutOfRangeException leaves the reader guessing which of the two enums drifted, " +
+            "and TierOf is not the only thing in this file that can throw one.");
     }
 }

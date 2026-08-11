@@ -61,7 +61,12 @@ public sealed class ResultTests
             "the reason turns 'a corrupt row fails loudly at the seam' (30 §11.3) into a stack trace " +
             "that names the reader instead of the row.");
 
-        thrown.Message.ShouldContain("Result", Case.Sensitive);
+        thrown.Message.ShouldContain(
+            "Result",
+            Case.Sensitive,
+            "and the refusal must say it was a Result that refused. The stack trace names the reader's " +
+            "own line, so without this word the exception reads as a bug where the value was used " +
+            "rather than a corrupt row that was never loaded.");
     }
 
     [Fact]
@@ -80,6 +85,7 @@ public sealed class ResultTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
+    [InlineData("\t")]
     public void A_failure_requires_a_non_empty_description(string? blank)
     {
         Should.Throw<ArgumentException>(() => Result<Row>.Failure(blank!))
@@ -95,12 +101,24 @@ public sealed class ResultTests
         Should.Throw<ArgumentNullException>(() => Result<Row>.Success(null!));
     }
 
+    /// <summary>
+    /// <c>Success(default(T))</c> for a value type is a success, not a null.
+    /// </summary>
+    /// <remarks>
+    /// The null guard on <c>Success</c> has to be a genuine null check
+    /// (<see cref="ArgumentNullException.ThrowIfNull(object?, string?)"/>, which sees a boxed
+    /// <c>0</c> and passes) rather than a <c>default(T)</c> comparison, which would refuse the
+    /// perfectly ordinary <c>Result&lt;int&gt;.Success(0)</c> — and refuse it only for the values a
+    /// rehydrated row is most likely to hold.
+    /// </remarks>
     [Fact]
-    public void A_value_type_result_works_without_a_null_check_pretending_to_be_one()
+    public void A_value_type_result_accepts_the_default_of_its_type()
     {
         var result = Result<int>.Success(0);
 
-        result.IsSuccess.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue(
+            "0 is a value, not an absence. A guard written as a default(T) comparison rather than a " +
+            "null check turns every zero balance and every unset counter into a load failure.");
         result.Value.ShouldBe(0);
     }
 }
