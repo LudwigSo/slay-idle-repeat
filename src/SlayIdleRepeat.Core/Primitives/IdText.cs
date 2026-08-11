@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace SlayIdleRepeat.Core.Primitives;
 
 /// <summary>
@@ -25,35 +27,31 @@ namespace SlayIdleRepeat.Core.Primitives;
 internal static class IdText
 {
     /// <summary>
-    /// The primary-constructor parameter every id in this namespace declares, named once so the
-    /// <c>paramName</c> on the refusal cannot drift from the parameter it blames.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 It is <c>Value</c>, not <c>value</c>, and the capital is load-bearing:
-    /// <c>CanonicalStateWriter</c> matches a positional record's constructor parameters to its
-    /// public properties by <b>case-sensitive</b> name (`14` §16.6). An id whose parameter were
-    /// <c>value</c> would have no canonical encoding at all, and would be discovered by whoever
-    /// first put one in a snapshot.
-    /// </remarks>
-    internal const string Parameter = "Value";
-
-    /// <summary>
     /// Returns the identifier, or throws naming the id type that rejected it.
     /// </summary>
     /// <param name="value">The candidate identifier.</param>
     /// <param name="idType">The simple name of the id type being constructed.</param>
+    /// <param name="parameter">
+    /// The parameter the refusal blames. 🔒 Never passed by hand — the compiler substitutes the
+    /// source text of <paramref name="value"/> at the call site, which is the primary-constructor
+    /// parameter itself, so a rename carries the <c>paramName</c> with it. A hand-written constant
+    /// here would keep blaming a parameter that no longer exists, and nothing would say so.
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="value"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="value"/> is empty or whitespace.</exception>
-    internal static string Require(string? value, string idType)
+    internal static string Require(
+        string? value,
+        string idType,
+        [CallerArgumentExpression(nameof(value))] string? parameter = null)
     {
         if (value is null)
         {
-            throw new ArgumentNullException(Parameter, Explain(idType, "null"));
+            throw new ArgumentNullException(parameter, Explain(idType, "null"));
         }
 
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new ArgumentException(Explain(idType, $"'{value}'"), Parameter);
+            throw new ArgumentException(Explain(idType, $"'{value}'"), parameter);
         }
 
         return value;

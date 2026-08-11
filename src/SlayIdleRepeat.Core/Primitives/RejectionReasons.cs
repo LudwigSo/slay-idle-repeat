@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace SlayIdleRepeat.Core.Primitives;
 
 /// <summary>
@@ -25,11 +27,26 @@ public static class RejectionReasons
     /// <summary>
     /// The whole catalogue, in ascending wire-number order.
     /// </summary>
-    public static IReadOnlyList<RejectionReason> All { get; } = Enum.GetValues<RejectionReason>();
+    /// <remarks>
+    /// 🔒 A <see cref="ReadOnlyCollection{T}"/>, not the array <see cref="Enum.GetValues{TEnum}"/>
+    /// hands back. An <see cref="IReadOnlyList{T}"/> over a bare array states an intention it
+    /// cannot enforce: the runtime type is still <c>RejectionReason[]</c>, so one cast and one
+    /// indexer write re-label a row of `14` §16.2 — permanently, process-wide, for every reader of
+    /// this static, with no allocation and no failure anywhere to notice it. These three sets are
+    /// the in-memory copy of a wire contract; the wrapper makes the write throw instead.
+    /// </remarks>
+    public static IReadOnlyList<RejectionReason> All { get; } =
+        Array.AsReadOnly(Enum.GetValues<RejectionReason>());
 
     /// <summary>
     /// 🔒 The values <c>GameRules.Apply</c> may return, and the only ones (`30` §2).
     /// </summary>
+    /// <remarks>
+    /// This is the set M1-06 polices a handler result against, which is what makes the
+    /// <see cref="All"/> wrapper more than tidiness here: a writable <c>DomainTier</c> lets a
+    /// caller put a <see cref="RejectionReasonTier.Transport"/> value into the list that decides
+    /// whether a transport value reaching <c>Apply</c> is allowed.
+    /// </remarks>
     public static IReadOnlyList<RejectionReason> DomainTier { get; } = Of(RejectionReasonTier.Domain);
 
     /// <summary>
@@ -92,10 +109,17 @@ public static class RejectionReasons
     /// Every catalogue value in one tier, in ascending wire-number order.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Reads <see cref="Enum.GetValues{TEnum}"/> directly rather than <see cref="All"/>: static
     /// property initialisers run in declaration order, and a set that silently came out empty
     /// because it initialised first would make every rule stated over it pass over nothing.
+    /// </para>
+    /// <para>
+    /// Wrapped for the reason <see cref="All"/> is wrapped, and the <c>ToArray</c> is what makes
+    /// that necessary — the query is materialised once here rather than re-run per read, so the
+    /// array it produces is the one every caller shares.
+    /// </para>
     /// </remarks>
     private static IReadOnlyList<RejectionReason> Of(RejectionReasonTier tier) =>
-        Enum.GetValues<RejectionReason>().Where(value => TierOf(value) == tier).ToArray();
+        Array.AsReadOnly(Enum.GetValues<RejectionReason>().Where(value => TierOf(value) == tier).ToArray());
 }

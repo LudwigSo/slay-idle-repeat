@@ -13,9 +13,16 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// </remarks>
 public readonly record struct RunId(string Value)
 {
-    /// <inheritdoc cref="RunId"/>
+    /// <summary>
+    /// The identifier text. Never null, empty or whitespace — except on <c>default(RunId)</c>,
+    /// whose backing field no constructor ever assigned.
+    /// </summary>
     public string Value { get; } = IdText.Require(Value, nameof(RunId));
 
     /// <summary>The identifier text, so a log line reads the id rather than the record's shape.</summary>
-    public override string ToString() => Value;
+    /// <remarks>
+    /// The <c>??</c> is <c>default(RunId)</c>, for the reason spelled out on
+    /// <see cref="PlayerId.ToString"/>.
+    /// </remarks>
+    public override string ToString() => Value ?? $"default({nameof(RunId)})";
 }

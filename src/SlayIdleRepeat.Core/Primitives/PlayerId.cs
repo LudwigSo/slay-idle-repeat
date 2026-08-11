@@ -24,6 +24,13 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// field in an id costs zero bytes.
 /// </para>
 /// <para>
+/// 🔒 <b>The capital in <c>Value</c> is load-bearing</b>, and it is the same test that makes it so:
+/// the writer matches constructor parameters to properties by <b>case-sensitive</b> name. Lower-case
+/// the parameter alone and the compiler emits a second public property beside the one declared
+/// below; the property set is then a superset of the parameter list, which the writer refuses, and
+/// this id joins <c>ContentVersion</c> in having no canonical encoding at all.
+/// </para>
+/// <para>
 /// ⚠️ Two consequences of that choice, both deliberate and neither hidden. <c>default(PlayerId)</c>
 /// bypasses the constructor and holds a null <see cref="Value"/> — a struct's default runs no code,
 /// so the seam that validates a persisted id is <c>Rehydrate</c> (`30` §11.3), not this type. And
@@ -41,9 +48,21 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// </remarks>
 public readonly record struct PlayerId(string Value)
 {
-    /// <inheritdoc cref="PlayerId"/>
+    /// <summary>
+    /// The identifier text. Never null, empty or whitespace — except on
+    /// <c>default(PlayerId)</c>, whose backing field no constructor ever assigned.
+    /// </summary>
     public string Value { get; } = IdText.Require(Value, nameof(PlayerId));
 
     /// <summary>The identifier text, so a log line reads the id rather than the record's shape.</summary>
-    public override string ToString() => Value;
+    /// <remarks>
+    /// ⚠️ The <c>??</c> is the <c>default(PlayerId)</c> case above, and it is not defensive
+    /// padding: <see cref="Value"/> is null there, so a bare <c>=&gt; Value</c> returns <c>null</c>
+    /// from a method the language and every caller type as non-null — <c>id.ToString().Length</c>
+    /// is a <see cref="NullReferenceException"/> and <c>$"{id}"</c> is the empty string. Both fail
+    /// on the diagnostic path, at the one moment the reader needs the line to say the id was never
+    /// set. The marker says exactly that and cannot be mistaken for an identifier: no id contains
+    /// parentheses, and it greps.
+    /// </remarks>
+    public override string ToString() => Value ?? $"default({nameof(PlayerId)})";
 }

@@ -98,6 +98,29 @@ public sealed class IdentityTests
         new RunId("r-0001").ToString().ShouldBe("r-0001");
     }
 
+    /// <summary>
+    /// <c>default(PlayerId)</c> prints as what it is, not as nothing.
+    /// </summary>
+    /// <remarks>
+    /// A struct's default runs no constructor, so <c>Value</c> is null there — the one hole the
+    /// blank guard above cannot close, and the reason `30` §11.3 puts a persisted id's validation
+    /// in <c>Rehydrate</c>. What this case pins is that the hole does not also swallow the
+    /// diagnostic: a bare <c>=&gt; Value</c> returns <c>null</c> from a method the language types
+    /// non-null, so <c>$"{id}"</c> is the empty string and <c>id.ToString().Length</c> is a
+    /// <see cref="NullReferenceException"/> — both failing at the one moment a reader needs the log
+    /// line to say the id was never set.
+    /// </remarks>
+    [Fact]
+    public void A_default_id_prints_as_the_default_it_is()
+    {
+        default(PlayerId).ToString().ShouldBe("default(PlayerId)");
+        default(RunId).ToString().ShouldBe("default(RunId)");
+
+        $"{default(PlayerId)}".ShouldNotBeNullOrEmpty(
+            "an interpolated default id must say something. The empty string is the answer that " +
+            "makes an unset id look like an absent log field.");
+    }
+
     [Fact]
     public void Two_ids_with_the_same_text_are_the_same_id()
     {

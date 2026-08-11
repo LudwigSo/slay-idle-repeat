@@ -250,6 +250,39 @@ public sealed class RejectionReasonTests
         }
     }
 
+    /// <summary>
+    /// 🔒 The three published sets are immutable at runtime, not merely typed as if they were.
+    /// </summary>
+    /// <remarks>
+    /// <c>IReadOnlyList&lt;T&gt;</c> over a bare array states an intention it cannot enforce: the
+    /// runtime type is still <c>RejectionReason[]</c>, so one cast and one indexer write re-label a
+    /// row of `14` §16.2 permanently, process-wide, for every reader of the static — with no
+    /// allocation and nothing anywhere to notice. On <c>DomainTier</c> that is the set M1-06 will
+    /// police handler results against, so the write inserts a transport-tier value into the list
+    /// that decides whether a transport-tier value is allowed.
+    /// </remarks>
+    [Theory]
+    [InlineData(nameof(RejectionReasons.All))]
+    [InlineData(nameof(RejectionReasons.DomainTier))]
+    [InlineData(nameof(RejectionReasons.TransportTier))]
+    public void A_published_tier_set_cannot_be_written_through(string setName)
+    {
+        var set = setName switch
+        {
+            nameof(RejectionReasons.All) => RejectionReasons.All,
+            nameof(RejectionReasons.DomainTier) => RejectionReasons.DomainTier,
+            nameof(RejectionReasons.TransportTier) => RejectionReasons.TransportTier,
+            _ => throw new InvalidOperationException($"Unhandled set '{setName}'."),
+        };
+
+        (set as RejectionReason[]).ShouldBeNull(
+            $"RejectionReasons.{setName} is a bare array behind an IReadOnlyList. A caller who casts " +
+            "it back can rewrite the catalogue for the whole process.");
+
+        Should.Throw<NotSupportedException>(() => ((IList<RejectionReason>)set).Add(RejectionReason.RATE_LIMITED));
+        Should.Throw<NotSupportedException>(() => ((IList<RejectionReason>)set)[0] = RejectionReason.RATE_LIMITED);
+    }
+
     [Fact]
     public void TierOf_refuses_a_value_outside_the_catalogue()
     {
