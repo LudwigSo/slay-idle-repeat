@@ -234,7 +234,7 @@ public static class CanonicalStateWriter
     internal static bool IsCanonicalRecord(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        return PrimaryConstructor(type) is not null;
+        return CanonicalProperties(type) is not null;
     }
 
     /// <summary>
@@ -317,9 +317,62 @@ public static class CanonicalStateWriter
                 "itself, directly or through a collection.");
         }
 
+        if (IsCanonicalScalar(type))
+        {
+            WriteScalar(buffer, value, type);
+            return;
+        }
+
+        if (TryGetDictionaryTypes(type, out var keyType, out var valueType))
+        {
+            WriteDictionary(buffer, value, keyType, valueType, depth);
+            return;
+        }
+
+        if (TryGetListElementType(type, out var elementType))
+        {
+            WriteList(buffer, value, elementType, depth);
+            return;
+        }
+
+        if (CanonicalProperties(type) is { } properties)
+        {
+            WriteRecord(buffer, value, type, properties, depth);
+            return;
+        }
+
+        throw Unsupported(type);
+    }
+
+    /// <summary>
+    /// 🔒 The scalar half of the allowlist: the shapes the §16.6 table pins a byte layout for.
+    /// </summary>
+    /// <remarks>
+    /// Asked by <see cref="WriteValue"/> before it writes a leaf and by <see cref="DescribeSlot"/>
+    /// before it pins one. One predicate, deliberately: a second list of "the scalars" would let
+    /// the <c>SchemaVersion</c> field list bless a field the bytes go on to refuse.
+    /// </remarks>
+    private static bool IsCanonicalScalar(Type type) =>
+        type.IsEnum ||
+        type == typeof(DateTimeOffset) ||
+        Type.GetTypeCode(type) is
+            TypeCode.Boolean or
+            TypeCode.SByte or TypeCode.Int16 or TypeCode.Int32 or TypeCode.Int64 or
+            TypeCode.Byte or TypeCode.UInt16 or TypeCode.UInt32 or TypeCode.UInt64 or
+            TypeCode.Double or TypeCode.String or TypeCode.DateTime;
+
+    /// <summary>One scalar, by the §16.6 table row for its declared type.</summary>
+    private static void WriteScalar(CanonicalBuffer buffer, object value, Type type)
+    {
         if (type.IsEnum)
         {
             WriteWidenedEnum(buffer, value, type);
+            return;
+        }
+
+        if (type == typeof(DateTimeOffset))
+        {
+            WriteSigned(buffer, ((DateTimeOffset)value).ToUnixTimeMilliseconds());
             return;
         }
 
@@ -374,38 +427,14 @@ public static class CanonicalStateWriter
                 return;
 
             default:
-                break;
+                // Unreachable: IsCanonicalScalar is the gate on every call site.
+                throw Unsupported(type);
         }
-
-        if (type == typeof(DateTimeOffset))
-        {
-            WriteSigned(buffer, ((DateTimeOffset)value).ToUnixTimeMilliseconds());
-            return;
-        }
-
-        if (TryGetDictionaryTypes(type, out var keyType, out var valueType))
-        {
-            WriteDictionary(buffer, value, keyType, valueType, depth);
-            return;
-        }
-
-        if (TryGetListElementType(type, out var elementType))
-        {
-            WriteList(buffer, value, elementType, depth);
-            return;
-        }
-
-        if (IsCanonicalRecord(type))
-        {
-            WriteRecord(buffer, value, type, depth);
-            return;
-        }
-
-        throw Unsupported(type);
     }
 
     /// <summary>A record: its fields in declaration order, depth-first.</summary>
-    private static void WriteRecord(CanonicalBuffer buffer, object value, Type type, int depth)
+    private static void WriteRecord(
+        CanonicalBuffer buffer, object value, Type type, PropertyInfo[] properties, int depth)
     {
         // 🔒 The pinned field list belongs to the DECLARED type. A subclass in a base-typed slot
         // carries fields the SchemaVersion pin never saw, so it has no canonical encoding here.
@@ -418,17 +447,21 @@ public static class CanonicalStateWriter
                 $"({Specification}). Snapshot records are not polymorphic.");
         }
 
-        foreach (var parameter in PrimaryConstructor(type)!.GetParameters())
+        foreach (var property in properties)
         {
-            var property = type.GetProperty(parameter.Name!, BindingFlags.Public | BindingFlags.Instance)!;
-            WriteSlot(buffer, property.GetValue(value), parameter.ParameterType, depth + 1);
+            WriteSlot(buffer, property.GetValue(value), property.PropertyType, depth + 1);
         }
     }
 
     /// <summary>A list: a 4-byte little-endian element count, then the elements in stored order.</summary>
+    /// <remarks>
+    /// The count precedes the elements, so the elements are gathered before any of them is
+    /// written. Sized up front wherever the container knows its own size, which is every list
+    /// shape a snapshot actually uses.
+    /// </remarks>
     private static void WriteList(CanonicalBuffer buffer, object value, Type elementType, int depth)
     {
-        var elements = new List<object?>();
+        var elements = new List<object?>(value is ICollection sized ? sized.Count : 0);
         foreach (var element in (IEnumerable)value)
         {
             elements.Add(element);
@@ -457,7 +490,7 @@ public static class CanonicalStateWriter
         var keyProperty = entryType.GetProperty("Key")!;
         var valueProperty = entryType.GetProperty("Value")!;
 
-        var entries = new List<(object Key, object? Value)>();
+        var entries = new List<(object Key, object? Value)>(value is ICollection sized ? sized.Count : 0);
         foreach (var entry in (IEnumerable)value)
         {
             entries.Add((keyProperty.GetValue(entry)!, valueProperty.GetValue(entry)));
@@ -512,23 +545,36 @@ public static class CanonicalStateWriter
     }
 
     /// <summary>An enum: its numeric value, widened through its underlying integral type.</summary>
+    /// <remarks>
+    /// 🔒 Widened by the same two helpers that impose the ascending order on an enum-keyed map — a
+    /// boxed enum unboxes straight to its underlying type — so an enum can never sort as one
+    /// number and hash as another. Routing one of the two through <c>Convert</c> instead would be
+    /// a second widening rule in the file whose entire point is that there is one.
+    /// </remarks>
     private static void WriteWidenedEnum(CanonicalBuffer buffer, object value, Type enumType)
     {
         var underlying = Enum.GetUnderlyingType(enumType);
-        var numeric = Convert.ChangeType(value, underlying, CultureInfo.InvariantCulture);
 
         switch (Type.GetTypeCode(underlying))
         {
+            case TypeCode.SByte:
+            case TypeCode.Int16:
+            case TypeCode.Int32:
+            case TypeCode.Int64:
+                WriteSigned(buffer, WidenSigned(value, underlying));
+                return;
+
             case TypeCode.Byte:
             case TypeCode.UInt16:
             case TypeCode.UInt32:
             case TypeCode.UInt64:
-                WriteUnsigned(buffer, WidenUnsigned(numeric, underlying));
+                WriteUnsigned(buffer, WidenUnsigned(value, underlying));
                 return;
 
             default:
-                WriteSigned(buffer, WidenSigned(numeric, underlying));
-                return;
+                // C# admits only the eight integral types above; an IL-authored enum over
+                // anything else is named here rather than reported as its underlying type.
+                throw Unsupported(enumType);
         }
     }
 
@@ -632,11 +678,24 @@ public static class CanonicalStateWriter
     };
 
     /// <summary>
-    /// The single public constructor whose parameters all map to public readable properties of
-    /// the same name and type — the positional-record shape — or <c>null</c> when the type has
-    /// no such constructor and therefore no reflection-guaranteed declaration order.
+    /// A positional record's public readable properties, in the primary constructor's parameter
+    /// order — or <c>null</c> when the type has no such constructor and therefore no
+    /// reflection-guaranteed declaration order.
     /// </summary>
-    private static ConstructorInfo? PrimaryConstructor(Type type)
+    /// <remarks>
+    /// <para>
+    /// The shape it demands: exactly one public constructor, at least one parameter, and every
+    /// parameter matched by a public readable property of the same name and type. The order is the
+    /// constructor's, which <see cref="MethodBase.GetParameters"/> guarantees; property order is
+    /// not guaranteed at all.
+    /// </para>
+    /// <para>
+    /// Recognising the shape and resolving the properties are one pass because the writer needs
+    /// both for every record it descends into — and nothing is memoised across calls, because a
+    /// command's <c>stateHash</c> may never depend on the command before it.
+    /// </para>
+    /// </remarks>
+    private static PropertyInfo[]? CanonicalProperties(Type type)
     {
         if (type.IsAbstract || type.IsInterface || type.IsArray || type.IsPointer ||
             type.IsEnum || type.IsPrimitive || type.ContainsGenericParameters || type == typeof(string))
@@ -658,16 +717,19 @@ public static class CanonicalStateWriter
             return null;
         }
 
-        foreach (var parameter in parameters)
+        var properties = new PropertyInfo[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++)
         {
-            var property = type.GetProperty(parameter.Name!, BindingFlags.Public | BindingFlags.Instance);
-            if (property is null || !property.CanRead || property.PropertyType != parameter.ParameterType)
+            var property = type.GetProperty(parameters[i].Name!, BindingFlags.Public | BindingFlags.Instance);
+            if (property is null || !property.CanRead || property.PropertyType != parameters[i].ParameterType)
             {
                 return null;
             }
+
+            properties[i] = property;
         }
 
-        return constructors[0];
+        return properties;
     }
 
     /// <summary>The <see cref="IReadOnlyDictionary{TKey, TValue}"/> a type is, or implements once.</summary>
@@ -719,11 +781,11 @@ public static class CanonicalStateWriter
     /// <summary>The field paths of a record, depth-first, appended to <paramref name="paths"/>.</summary>
     private static void DescribeRecord(Type type, string prefix, List<string> paths, int depth)
     {
-        var constructor = PrimaryConstructor(type) ?? throw Unsupported(type);
+        var properties = CanonicalProperties(type) ?? throw Unsupported(type);
 
-        foreach (var parameter in constructor.GetParameters())
+        foreach (var property in properties)
         {
-            DescribeSlot(parameter.ParameterType, prefix + parameter.Name, paths, depth + 1);
+            DescribeSlot(property.PropertyType, prefix + property.Name, paths, depth + 1);
         }
     }
 
@@ -739,8 +801,21 @@ public static class CanonicalStateWriter
 
         var effectiveType = Nullable.GetUnderlyingType(declaredType) ?? declaredType;
 
+        // 🔒 The same four questions, in the same order, as WriteValue — including the refusal at
+        // the bottom. A traversal that described a slot the writer will not write would pin a
+        // field list for a snapshot that cannot be hashed at all.
+        if (IsCanonicalScalar(effectiveType))
+        {
+            paths.Add($"{path}:{DescribeType(declaredType)}");
+            return;
+        }
+
         if (TryGetDictionaryTypes(effectiveType, out var keyType, out var valueType))
         {
+            // Asking the writer's own comparer factory, for its refusal: a key type with no
+            // ascending order must not be pinnable here and unhashable there.
+            _ = KeyComparison(keyType);
+
             DescribeSlot(keyType, path + "{key}", paths, depth + 1);
             DescribeSlot(valueType, path + "{value}", paths, depth + 1);
             return;
@@ -758,7 +833,7 @@ public static class CanonicalStateWriter
             return;
         }
 
-        paths.Add($"{path}:{DescribeType(declaredType)}");
+        throw Unsupported(declaredType);
     }
 
     /// <summary>A type's name for the pinned field list: <c>Namespace.Name&lt;Argument&gt;</c>.</summary>
@@ -820,18 +895,30 @@ public static class CanonicalStateWriter
 
         private void EnsureCapacity(int extra)
         {
-            if (_length + extra <= _bytes.Length)
+            // In long throughout: past 1 GiB, `_length + extra` overflows to a negative int and
+            // the doubling below walks int.MaxValue -> negative -> 0, which never reaches the
+            // target and spins forever. A hash that hangs is worse than one that refuses.
+            var required = (long)_length + extra;
+            if (required <= _bytes.Length)
             {
                 return;
             }
 
-            var capacity = _bytes.Length;
-            while (capacity < _length + extra)
+            if (required > Array.MaxLength)
+            {
+                throw new NotSupportedException(
+                    $"A snapshot needing {required} bytes exceeds the {Array.MaxLength} bytes one " +
+                    $"canonical encoding can occupy ({Specification}). A snapshot that large is a " +
+                    "state bug — an unbounded collection, most likely — not a hash to compute.");
+            }
+
+            var capacity = (long)_bytes.Length;
+            while (capacity < required)
             {
                 capacity *= 2;
             }
 
-            Array.Resize(ref _bytes, capacity);
+            Array.Resize(ref _bytes, (int)Math.Min(capacity, Array.MaxLength));
         }
     }
 }
