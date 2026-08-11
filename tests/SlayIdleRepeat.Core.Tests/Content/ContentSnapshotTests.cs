@@ -233,14 +233,23 @@ public sealed class ContentSnapshotTests
     [Fact]
     public void ContentSnapshot_exposes_no_public_mutation_surface()
     {
-        var members = typeof(ContentSnapshot)
-            .GetMembers(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            .OfType<System.Reflection.PropertyInfo>()
-            .Where(p => p.CanWrite)
-            .Select(p => p.Name);
+        const System.Reflection.BindingFlags Public =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
 
-        members.Should().BeEmpty(
+        var properties = typeof(ContentSnapshot).GetProperties(Public);
+
+        properties.Where(p => p.CanWrite).Select(p => p.Name).Should().BeEmpty(
             "14 §6 requires the snapshot to be immutable — a settable property is how hot-reload " +
             "starts mutating instead of swapping");
+
+        typeof(ContentSnapshot).GetFields(Public).Select(f => f.Name).Should().BeEmpty(
+            "a public field is a settable property that reflection over properties cannot see");
+
+        // The realistic hazard is not a setter but an exposed mutable collection: a caller that can
+        // Add to DocumentPaths has mutated a snapshot somebody else is still reading.
+        properties.Select(p => p.PropertyType)
+            .Where(t => t.IsGenericType)
+            .Select(t => t.GetGenericTypeDefinition())
+            .Should().NotContain([typeof(List<>), typeof(Dictionary<,>), typeof(HashSet<>)]);
     }
 }

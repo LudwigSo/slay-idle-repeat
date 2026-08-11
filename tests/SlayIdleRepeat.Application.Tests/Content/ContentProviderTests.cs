@@ -129,6 +129,22 @@ public sealed class ContentProviderTests
     }
 
     [Fact]
+    public void TryReloadIfChanged_returns_false_rather_than_throwing_when_reload_is_not_permitted()
+    {
+        // A Try* that throws on a shipping build is a crash waiting for the first content change.
+        var source = ContentTestData.Valid();
+        var provider = new ContentProvider(source, ContentLoadOptions.Canonical, ContentReloadPolicy.Disabled);
+        var booted = provider.Current;
+        source.Set(ContentTestData.TuningPath,
+            ContentTestData.WidgetTuning.Replace("\"inputCount\": 3", "\"inputCount\": 4", StringComparison.Ordinal));
+
+        var reloaded = provider.TryReloadIfChanged(out var snapshot);
+
+        reloaded.Should().BeFalse();
+        snapshot.Should().BeSameAs(booted);
+    }
+
+    [Fact]
     public void TryReloadIfChanged_does_nothing_when_the_source_revision_has_not_moved()
     {
         var provider = DevProvider(ContentTestData.Valid());

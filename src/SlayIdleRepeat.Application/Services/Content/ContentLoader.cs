@@ -30,12 +30,6 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// </remarks>
 public static class ContentLoader
 {
-    private const string SchemaDirectory = "schema/";
-    private const string LocaleDirectory = "loc/";
-    private const string ExperimentDirectory = "tuning/experiments/";
-    private const string SchemaSuffix = ".schema.json";
-    private const string LocaleSchema = "schema/loc.schema.json";
-
     /// <summary>
     /// 🔒 The only schemas allowed to govern nothing, because the content they describe has an
     /// owner and a date rather than a doubt.
@@ -89,19 +83,27 @@ public static class ContentLoader
         }
 
         var schemas = parsed
-            .Where(d => d.Key.StartsWith(SchemaDirectory, StringComparison.Ordinal))
+            .Where(d => ContentLayout.IsSchema(d.Key))
             .ToDictionary(d => d.Key, d => d.Value, StringComparer.Ordinal);
 
         var data = parsed
-            .Where(d => !d.Key.StartsWith(SchemaDirectory, StringComparison.Ordinal) &&
-                        !d.Key.StartsWith(ExperimentDirectory, StringComparison.Ordinal))
+            .Where(d => !ContentLayout.IsSchema(d.Key) &&
+                        !ContentLayout.IsExperiment(d.Key))
             .ToDictionary(d => d.Key, d => d.Value, StringComparer.Ordinal);
 
         if (schemas.Count == 0)
         {
             issues.Add(new ContentIssue(
-                ContentIssueCode.MissingSchema, SchemaDirectory,
+                ContentIssueCode.MissingSchema, ContentLayout.SchemaDirectory,
                 "holds no schema files, so no data file can be validated against anything (14 §6)."));
+        }
+
+        // 🔒 Sweep each schema for keywords this validator does not implement ONCE, before any
+        // instance is validated — not once per data file, and not only where an instance happens to
+        // walk. A keyword in a branch no document reaches is still a keyword nobody is enforcing.
+        foreach (var (schemaPath, schema) in schemas.OrderBy(s => s.Key, StringComparer.Ordinal))
+        {
+            issues.AddRange(JsonSchemaValidator.CheckSchemaKeywords(schema, schemaPath));
         }
 
         ApplyOverrides(parsed, data, options, issues);
@@ -109,7 +111,13 @@ public static class ContentLoader
         var pairing = Pair(data, schemas, issues);
         var bindings = ValidateAgainstSchemas(data, schemas, pairing, issues);
 
-        issues.AddRange(ContentInvariants.Check(data, bindings));
+        // The cross-file rules read schema-validated shapes: a `"chapter": 1.5` that the schema has
+        // already rejected would reach an AsInt32() and throw, replacing a located, actionable
+        // finding with a stack trace naming neither document nor pointer.
+        if (issues.Count == 0)
+        {
+            issues.AddRange(ContentInvariants.Check(data, bindings));
+        }
 
         var ordered = issues
             .OrderBy(i => i.Location, StringComparer.Ordinal)
@@ -189,9 +197,7 @@ public static class ContentLoader
 
         foreach (var path in data.Keys.OrderBy(p => p, StringComparer.Ordinal))
         {
-            var expected = path.StartsWith(LocaleDirectory, StringComparison.Ordinal)
-                ? LocaleSchema
-                : SchemaDirectory + StemOf(path) + SchemaSuffix;
+            var expected = ContentLayout.SchemaFor(path);
 
             if (schemas.ContainsKey(expected))
             {
@@ -248,11 +254,4 @@ public static class ContentLoader
         return bindings;
     }
 
-    private static string StemOf(string documentPath)
-    {
-        var slash = documentPath.LastIndexOf('/');
-        var name = slash < 0 ? documentPath : documentPath[(slash + 1)..];
-        var dot = name.LastIndexOf('.');
-        return dot < 0 ? name : name[..dot];
-    }
 }

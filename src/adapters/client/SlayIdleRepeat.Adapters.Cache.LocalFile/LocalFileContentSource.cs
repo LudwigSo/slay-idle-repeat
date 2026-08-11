@@ -46,6 +46,12 @@ public sealed class LocalFileContentSource : IContentSourcePort
     public string DataRootPath { get; }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// ⚠️ Paths, sizes and last-write ticks. On a filesystem with coarse timestamps an edit that
+    /// changes neither the length nor the visible mtime produces an identical revision and the dev
+    /// hot-reload silently does nothing — the failure this class exists to prevent. If that is ever
+    /// observed, hash the bytes here rather than widening the heuristic.
+    /// </remarks>
     public string Revision
     {
         get
@@ -73,8 +79,13 @@ public sealed class LocalFileContentSource : IContentSourcePort
 
         var absolute = Path.GetFullPath(Path.Combine(DataRootPath, documentPath));
 
-        // A document path is a key inside the content set, never a way out of it.
-        if (!absolute.StartsWith(DataRootPath, StringComparison.Ordinal))
+        // A document path is a key inside the content set, never a way out of it. The trailing
+        // separator matters: a bare prefix test lets a sibling directory `…Data-backup` through.
+        var root = DataRootPath.EndsWith(Path.DirectorySeparatorChar)
+            ? DataRootPath
+            : DataRootPath + Path.DirectorySeparatorChar;
+
+        if (!absolute.StartsWith(root, StringComparison.Ordinal))
         {
             throw new ArgumentException($"'{documentPath}' escapes the content root.", nameof(documentPath));
         }

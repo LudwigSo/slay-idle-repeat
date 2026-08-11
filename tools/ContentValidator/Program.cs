@@ -12,13 +12,28 @@ namespace SlayIdleRepeat.ContentValidator;
 /// </summary>
 /// <remarks>
 /// Exit code 0 means the content is loadable and the tuning surface has not eroded. Exit code 1
-/// means it has, and says exactly where.
+/// means it has, and says exactly where. Nothing else is an exit code: an unhandled exception that
+/// escaped to the runtime would print a stack trace naming no document and hand CI a code nobody
+/// specified.
 /// </remarks>
 internal static class Program
 {
     private const string BaselineRelativePath = "build/content/tunable-marker-baseline.json";
 
     private static int Main(string[] args)
+    {
+        try
+        {
+            return Run(args);
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"  ERROR content validation could not complete: {exception.Message}");
+            return 1;
+        }
+    }
+
+    private static int Run(string[] args)
     {
         var repositoryRoot = Argument(args, "--repository-root") ?? FindRepositoryRoot();
         var dataRoot = Argument(args, "--data-root") ?? Path.Combine(repositoryRoot, "SlayIdleRepeat.Data");
@@ -48,47 +63,25 @@ internal static class Program
                               $"stamp {result.Snapshot.Version.Short}…");
         }
 
-        var markers = ScanMarkers(designDocs);
-        var citations = ScanCitations(source);
+        var baseline = writeBaseline
+            ? TunableBaseline.None
+            : TunableAuditComposition.ReadBaseline(baselinePath);
 
-        Console.WriteLine($"📐 markers  : {markers.Count} across " +
-                          $"{markers.Select(m => m.Section.DocId).Distinct().Count()} document(s)");
-        Console.WriteLine($"Citations   : {citations.Count} " +
-                          $"({citations.Count(c => c.GovernsTuningFile)} from tuning schemas)");
+        var audit = TunableAuditComposition.Run(dataRoot, designDocs, baseline);
 
-        var tuningFiles = source.ListDocuments()
-            .Where(p => p.StartsWith("tuning/", StringComparison.Ordinal) &&
-                        !p.StartsWith("tuning/experiments/", StringComparison.Ordinal))
-            .Select(p => p["tuning/".Length..])
-            .ToArray();
-
-        var baseline = writeBaseline ? TunableBaseline.None : ReadBaseline(baselinePath);
-        var audit = TunableMarkerAudit.Run(markers, citations, baseline, tuningFiles);
+        Console.WriteLine($"📐 markers  : {TunableAuditComposition.ScanMarkers(designDocs).Count} marker(s)");
+        Console.WriteLine($"Unmatched   : {audit.UnmatchedMarkers.Count} marker section(s), " +
+                          $"{audit.UnmarkedCitations.Count} citation section(s)");
 
         if (writeBaseline)
         {
-            foreach (var section in audit.UnmatchedMarkers)
-            {
-                var sample = markers.First(m => m.Section == section);
-                Console.WriteLine($"  marker {section} (line {sample.Line}): " +
-                                  sample.Text[..Math.Min(150, sample.Text.Length)]);
-            }
-
-            foreach (var section in audit.UnmarkedCitations)
-            {
-                var sample = citations.First(c => c.Section == section && c.GovernsTuningFile && c.GovernsNumericKey);
-                Console.WriteLine($"  citation {section}: {sample.SchemaPath}{sample.PropertyPointer}");
-            }
-
             BaselineWriter.Write(baselinePath, audit);
             Console.WriteLine($"Baseline    : rewritten with {audit.UnmatchedMarkers.Count} unmatched marker(s) " +
-                              $"and {audit.UnmarkedCitations.Count} unmarked citation(s).");
+                              $"and {audit.UnmarkedCitations.Count} unmarked citation(s). Now write the reasons.");
             return 0;
         }
 
         Console.WriteLine($"Baseline    : {baseline.Count} accepted mismatch(es), recorded {baseline.RecordedOn}");
-        Console.WriteLine($"Unmatched   : {audit.UnmatchedMarkers.Count} marker section(s), " +
-                          $"{audit.UnmarkedCitations.Count} citation section(s)");
 
         foreach (var issue in audit.Issues)
         {
@@ -102,48 +95,6 @@ internal static class Program
             : $"Content validation FAILED with {failures} issue(s).");
 
         return failures == 0 ? 0 : 1;
-    }
-
-    private static IReadOnlyList<TunableMarker> ScanMarkers(string designDocs) =>
-        Directory.GetFiles(designDocs, "*.md")
-                 .OrderBy(f => f, StringComparer.Ordinal)
-                 .SelectMany(f => TunableMarkerScanner.Scan(Path.GetFileName(f), File.ReadAllText(f)))
-                 .ToArray();
-
-    private static IReadOnlyList<SchemaCitation> ScanCitations(LocalFileContentSource source)
-    {
-        var paths = source.ListDocuments();
-        var citations = new List<SchemaCitation>();
-
-        foreach (var path in paths.Where(p => p.StartsWith("schema/", StringComparison.Ordinal)))
-        {
-            if (!JsonContentReader.TryRead(path, source.ReadDocument(path).Span, out var root, out _))
-            {
-                continue;
-            }
-
-            var stem = Path.GetFileName(path).Replace(".schema.json", string.Empty, StringComparison.Ordinal);
-            var governsTuning = paths.Contains($"tuning/{stem}.json", StringComparer.Ordinal);
-            citations.AddRange(SchemaCitationScanner.Scan(path, root!, governsTuning));
-        }
-
-        return citations;
-    }
-
-    private static TunableBaseline ReadBaseline(string path)
-    {
-        if (!File.Exists(path))
-        {
-            Console.Error.WriteLine(
-                $"  ERROR the 📐 baseline '{path}' is missing. The check fails on any mismatch it " +
-                "does not record, so running without one is not the same as running clean.");
-            return TunableBaseline.None;
-        }
-
-        return JsonContentReader.TryRead(path, File.ReadAllBytes(path), out var root, out var issues)
-            ? TunableBaseline.FromContent(root!)
-            : throw new InvalidOperationException(
-                $"The 📐 baseline does not parse: {string.Join("; ", issues)}");
     }
 
     private static string? Argument(string[] args, string name)
@@ -165,8 +116,9 @@ internal static class Program
     }
 
     /// <summary>
-    /// Rewrites the baseline from the current mismatch set. Run by hand, never by CI: the whole
-    /// point of the baseline is that it is a committed, reviewed record.
+    /// Rewrites the baseline's SHAPE from the current mismatch set. Run by hand, never by CI: the
+    /// whole point of the baseline is that it is a committed, reviewed record, and a generated
+    /// reason is not a reason.
     /// </summary>
     private static class BaselineWriter
     {
@@ -181,10 +133,12 @@ internal static class Program
                 "    \"14 §6's build-time 📐 check fails on any mismatch NOT recorded here, and equally on\",",
                 "    \"an entry here that no longer describes a real mismatch. This file is therefore a\",",
                 "    \"measurement of spec debt, not a way to hide it: it can only shrink without a review.\",",
-                "    \"Regenerate with: dotnet run --project tools/ContentValidator -- --write-baseline\",",
+                "    \"Regenerate the SHAPE with: dotnet run --project tools/ContentValidator -- --write-baseline\",",
                 "    \"and then WRITE THE REASONS BY HAND. A generated reason is not a reason.\"",
                 "  ],",
-                "  \"recordedOn\": \"" + DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + "\",",
+
+                // UTC, not local time: a committed artefact must not carry the author's timezone.
+                "  \"recordedOn\": \"" + DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + "\",",
                 "  \"unmatchedMarkers\": [",
             };
 
@@ -195,7 +149,9 @@ internal static class Program
             lines.Add("  ]");
             lines.Add("}");
 
-            File.WriteAllLines(path, lines);
+            // LF, explicitly: WriteAllLines would emit CRLF on Windows and LF on Linux, so the same
+            // regeneration would produce a different committed file per machine.
+            File.WriteAllText(path, string.Join('\n', lines) + '\n');
         }
 
         private static IEnumerable<string> Entries(IReadOnlyList<DocSection> sections) =>

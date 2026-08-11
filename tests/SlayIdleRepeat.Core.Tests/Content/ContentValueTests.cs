@@ -21,44 +21,29 @@ public sealed class ContentValueTests
         value.IsUnauthorised.Should().BeTrue();
     }
 
-    [Fact]
-    public void AsNumber_throws_UnauthorisedTunableException_for_an_unauthorised_value()
+    /// <summary>
+    /// 🔒 Every accessor, not a sample of them. Four hand-written cases over one shared code path
+    /// read as exhaustive while leaving <c>AsDouble</c> and <c>AsInt64</c> — the two with no
+    /// unauthorised coverage at any layer — untested.
+    /// </summary>
+    public static TheoryData<string, Func<ContentValue, object>> Accessors => new()
     {
-        var value = ContentValue.Unauthorised;
+        { "AsNumber", v => v.AsNumber() },
+        { "AsDouble", v => v.AsDouble() },
+        { "AsInt32", v => v.AsInt32() },
+        { "AsInt64", v => v.AsInt64() },
+        { "AsText", v => v.AsText() },
+        { "AsBoolean", v => v.AsBoolean() },
+    };
 
-        var act = () => value.AsNumber();
-
-        act.Should().Throw<UnauthorisedTunableException>();
-    }
-
-    [Fact]
-    public void AsInt32_throws_UnauthorisedTunableException_for_an_unauthorised_value()
+    [Theory]
+    [MemberData(nameof(Accessors))]
+    public void Every_accessor_throws_UnauthorisedTunableException_rather_than_returning_a_default(
+        string accessor, Func<ContentValue, object> read)
     {
-        var value = ContentValue.Unauthorised;
+        var act = () => read(ContentValue.Unauthorised);
 
-        var act = () => value.AsInt32();
-
-        act.Should().Throw<UnauthorisedTunableException>();
-    }
-
-    [Fact]
-    public void AsText_throws_UnauthorisedTunableException_for_an_unauthorised_value()
-    {
-        var value = ContentValue.Unauthorised;
-
-        var act = () => value.AsText();
-
-        act.Should().Throw<UnauthorisedTunableException>();
-    }
-
-    [Fact]
-    public void AsBoolean_throws_UnauthorisedTunableException_for_an_unauthorised_value()
-    {
-        var value = ContentValue.Unauthorised;
-
-        var act = () => value.AsBoolean();
-
-        act.Should().Throw<UnauthorisedTunableException>();
+        act.Should().Throw<UnauthorisedTunableException>(accessor);
     }
 
     [Fact]
@@ -135,14 +120,6 @@ public sealed class ContentValueTests
         var act = () => value.AsInt32();
 
         act.Should().Throw<ContentTypeMismatchException>();
-    }
-
-    [Fact]
-    public void AsNumber_keeps_the_exact_decimal_the_data_file_wrote()
-    {
-        var value = ContentValue.Number(0.15m);
-
-        value.AsNumber().Should().Be(0.15m);
     }
 
     [Fact]

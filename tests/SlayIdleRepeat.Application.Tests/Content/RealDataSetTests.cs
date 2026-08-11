@@ -134,6 +134,7 @@ public sealed class RealDataSetTests
     [Fact]
     public void The_baseline_records_the_date_it_was_taken()
     {
+        File.Exists(BaselinePath).Should().BeTrue($"{BaselineRelativePath} is a committed deliverable of M0-09");
         Baseline().RecordedOn.Should().MatchRegex(@"^\d{4}-\d{2}-\d{2}$");
     }
 
@@ -148,44 +149,23 @@ public sealed class RealDataSetTests
             "a baseline without reasons and owners is a place mismatches go to be forgotten");
     }
 
+    /// <summary>
+    /// 🔒 The SAME composition `tools/ContentValidator` runs. Re-assembling the wiring inside the
+    /// test would prove the algorithm and leave the tool's doc glob, its governsTuningFile
+    /// derivation and its baseline path unexercised — all of which can break with this green.
+    /// </summary>
     private static TunableAuditReport RunAudit() =>
-        TunableMarkerAudit.Run(Markers(), Citations(), Baseline(), TuningFileNames());
-
-    private static IReadOnlyCollection<string> TuningFileNames() =>
-        RepoData.Documents.Keys
-                .Where(p => p.StartsWith("tuning/", StringComparison.Ordinal) &&
-                            !p.StartsWith("tuning/experiments/", StringComparison.Ordinal))
-                .Select(p => p["tuning/".Length..])
-                .ToArray();
+        TunableAuditComposition.Run(RepoData.DataRoot, RepoData.DesignDocsRoot, BaselinePath);
 
     private static IReadOnlyList<TunableMarker> Markers() =>
-        Directory.GetFiles(RepoData.DesignDocsRoot, "*.md")
-                 .OrderBy(f => f, StringComparer.Ordinal)
-                 .SelectMany(f => TunableMarkerScanner.Scan(Path.GetFileName(f), File.ReadAllText(f)))
-                 .ToArray();
+        TunableAuditComposition.ScanMarkers(RepoData.DesignDocsRoot);
 
     private static IReadOnlyList<SchemaCitation> Citations() =>
-        RepoData.Documents
-                .Where(d => d.Key.StartsWith("schema/", StringComparison.Ordinal))
-                .SelectMany(d =>
-                {
-                    JsonContentReader.TryRead(d.Key, Encoding.UTF8.GetBytes(d.Value), out var root, out _);
-                    var stem = Path.GetFileName(d.Key)
-                        .Replace(".schema.json", string.Empty, StringComparison.Ordinal);
-                    return SchemaCitationScanner.Scan(
-                        d.Key, root!, RepoData.Documents.ContainsKey($"tuning/{stem}.json"));
-                })
-                .ToArray();
+        TunableAuditComposition.ScanCitations(
+            RepoData.DataRoot, TunableAuditComposition.TuningFileNames(RepoData.DataRoot));
 
-    private static TunableBaseline Baseline()
-    {
-        var path = Path.Combine(RepoData.RepositoryRoot, BaselineRelativePath);
-        File.Exists(path).Should().BeTrue($"{BaselineRelativePath} is a committed deliverable of M0-09");
+    private static TunableBaseline Baseline() => TunableAuditComposition.ReadBaseline(BaselinePath);
 
-        JsonContentReader.TryRead(
-            BaselineRelativePath, File.ReadAllBytes(path), out var root, out var issues);
-        issues.Should().BeEmpty();
-
-        return TunableBaseline.FromContent(root!);
-    }
+    private static string BaselinePath =>
+        Path.Combine(RepoData.RepositoryRoot, BaselineRelativePath);
 }

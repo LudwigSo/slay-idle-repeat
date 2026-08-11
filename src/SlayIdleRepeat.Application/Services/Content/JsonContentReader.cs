@@ -115,7 +115,10 @@ public static class JsonContentReader
             ContentIssueCode.MalformedJson, Locate(documentPath, pointer),
             "the number does not fit an exact decimal. Content numbers are held exactly so the " +
             "load path never rounds; a value needing binary floating point does not belong here."));
-        return ContentValue.Number(0m);
+
+        // Never a zero, even as a placeholder the issue above already short-circuits: a literal 0
+        // standing in for an unrepresentable value is the exact shape the null convention forbids.
+        return ContentValue.Unauthorised;
     }
 
     private static ContentValue ReadObject(

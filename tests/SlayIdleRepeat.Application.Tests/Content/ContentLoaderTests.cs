@@ -38,14 +38,6 @@ public sealed class ContentLoaderTests
     }
 
     [Fact]
-    public void Load_keeps_an_unauthorised_leaf_unauthorised_all_the_way_into_the_snapshot()
-    {
-        var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
-
-        snapshot.IsAuthorised($"{ContentTestData.TuningPath}#/merge/perLevelSuccessRate").Should().BeFalse();
-    }
-
-    [Fact]
     public void Load_produces_a_snapshot_whose_unauthorised_leaf_throws_rather_than_reading_as_zero()
     {
         var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
@@ -138,7 +130,9 @@ public sealed class ContentLoaderTests
     {
         var result = ContentLoader.Load(new Adapters.InMemory.InMemoryContentSource());
 
-        result.Succeeded.Should().BeFalse();
+        result.Issues.Should().ContainSingle()
+              .Which.Should().Match<ContentIssue>(i =>
+                  i.Code == ContentIssueCode.MissingSchema && i.Location == "(content source)");
     }
 
     [Fact]

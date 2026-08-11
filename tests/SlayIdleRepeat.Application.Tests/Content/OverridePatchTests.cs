@@ -134,6 +134,63 @@ public sealed class OverridePatchTests
     }
 
     [Fact]
+    public void An_override_that_nulls_a_value_the_schema_does_not_permit_null_on_is_rejected()
+    {
+        // 🔒 The de-authorising direction. An override is the one mechanism that rewrites content at
+        // load time, so it is the one place a null could reach a key the docs DID authorise — and a
+        // rule already reading that key would then see "unauthorised" where a number used to be.
+        var source = SourceWithOverride("""
+        { "widgets.json": { "merge": { "statBonusPerLevel": null } } }
+        """);
+
+        var result = ContentLoader.Load(source, With(OverridePath));
+
+        result.Succeeded.Should().BeFalse();
+        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.SchemaViolation);
+    }
+
+    [Fact]
+    public void An_override_may_de_authorise_a_leaf_the_schema_permits_null_on_and_it_reads_as_unauthorised()
+    {
+        var source = SourceWithOverride("""
+        { "widgets.json": { "merge": { "dustSubstituteCost": null } } }
+        """);
+
+        var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
+
+        snapshot.Read($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost").IsUnauthorised.Should().BeTrue();
+
+        var act = () => snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost");
+        act.Should().Throw<Core.Content.UnauthorisedTunableException>("a de-authorised leaf is never 0");
+    }
+
+    [Fact]
+    public void An_override_whose_root_is_not_an_object_is_rejected()
+    {
+        var result = ContentLoader.Load(SourceWithOverride("[1, 2]"), With(OverridePath));
+
+        result.Succeeded.Should().BeFalse();
+        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
+    }
+
+    [Fact]
+    public void An_override_naming_a_file_name_that_is_ambiguous_across_two_documents_is_rejected()
+    {
+        // The moment a second widgets.json exists anywhere, an override keyed on the bare file name
+        // would otherwise silently pick one — or stop applying — with nothing said.
+        var source = SourceWithOverride("""
+        { "widgets.json": { "merge": { "inputCount": 2 } } }
+        """)
+            .Set("content/widgets.json", ContentTestData.WidgetTuning)
+            .Set("schema/widgets2.schema.json", ContentTestData.WidgetSchema);
+
+        var result = ContentLoader.Load(source, With(OverridePath));
+
+        result.Succeeded.Should().BeFalse();
+        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
+    }
+
+    [Fact]
     public void An_override_that_names_a_key_the_canonical_file_does_not_have_is_rejected()
     {
         var source = SourceWithOverride("""
@@ -142,6 +199,7 @@ public sealed class OverridePatchTests
 
         var result = ContentLoader.Load(source, With(OverridePath));
 
+        result.Succeeded.Should().BeFalse();
         result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
     }
 
@@ -154,6 +212,7 @@ public sealed class OverridePatchTests
 
         var result = ContentLoader.Load(source, With(OverridePath));
 
+        result.Succeeded.Should().BeFalse();
         result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
     }
 
@@ -198,14 +257,11 @@ public sealed class OverridePatchTests
     [Fact]
     public void The_port_that_content_is_read_through_exposes_no_way_to_write_a_canonical_file()
     {
-        var writeShaped = typeof(Ports.Shared.IContentSourcePort)
-            .GetMethods()
-            .Where(m => m.Name.Contains("Write", StringComparison.OrdinalIgnoreCase)
-                     || m.Name.Contains("Save", StringComparison.OrdinalIgnoreCase)
-                     || m.Name.Contains("Set", StringComparison.OrdinalIgnoreCase));
-
-        writeShaped.Should().BeEmpty(
-            "21 §3.3's 'never as edits to them' is a structural guarantee here, not a convention " +
-            "the loader is trusted to keep");
+        // An exact set, not a hunt for verbs: a substring test for Write/Save/Set cannot fail today
+        // and would not fail for Persist, Put, Store or Apply tomorrow.
+        typeof(Ports.Shared.IContentSourcePort).GetMembers().Select(m => m.Name).Should().BeEquivalentTo(
+            ["get_Revision", "Revision", "ListDocuments", "ReadDocument"],
+            "21 §3.3's 'never as edits to them' is structural here, not a convention the loader is " +
+            "trusted to keep — any new member on this port is a decision somebody must argue for");
     }
 }

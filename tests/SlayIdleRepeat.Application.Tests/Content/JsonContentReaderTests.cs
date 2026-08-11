@@ -35,12 +35,23 @@ public sealed class JsonContentReaderTests
     }
 
     [Fact]
-    public void TryRead_keeps_a_decimal_exactly_as_written()
+    public void TryRead_keeps_a_decimal_at_the_scale_the_data_file_wrote()
     {
+        // decimal.Equals is scale-insensitive (1.075m == 1.0750m), so asserting on the value would
+        // pass even if the reader normalised away the very thing this test is named for.
         Read("""{ "legendXpExponent": 1.0750 }""", out var root, out _);
 
         root!.TryGetMember("legendXpExponent", out var member);
-        member!.AsNumber().Should().Be(1.0750m);
+        member!.AsNumber().ToString(System.Globalization.CultureInfo.InvariantCulture).Should().Be("1.0750");
+    }
+
+    [Fact]
+    public void TryRead_keeps_a_value_a_double_round_trip_would_corrupt()
+    {
+        Read("""{ "quality": 0.1234567890123456789 }""", out var root, out _);
+
+        root!.TryGetMember("quality", out var member);
+        member!.AsNumber().Should().Be(0.1234567890123456789m);
     }
 
     [Fact]

@@ -43,11 +43,19 @@ public sealed class ContentProvider
 {
     private readonly IContentSourcePort _source;
     private readonly ContentLoadOptions _options;
+    private readonly object _reloadGate = new();
 
-    // Written only by an Interlocked exchange, read without a lock: a reader either sees the whole
-    // previous snapshot or the whole next one, and both are valid for its lifetime.
-    private ContentSnapshot _current;
-    private string _loadedRevision;
+    /// <summary>
+    /// The snapshot and the source revision it was built from, published as one value.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Two separate fields would be two separate publications: a reader could see the new
+    /// snapshot beside the old revision — in which case <see cref="TryReloadIfChanged"/> reports
+    /// "nothing changed" while <see cref="Current"/> is stale, and the dev never sees their edit.
+    /// </remarks>
+    private sealed record Loaded(ContentSnapshot Snapshot, string Revision);
+
+    private Loaded _state;
 
     /// <summary>Loads the initial snapshot. Throws <see cref="ContentLoadException"/> if invalid.</summary>
     public ContentProvider(IContentSourcePort source, ContentLoadOptions options, ContentReloadPolicy reloadPolicy)
@@ -59,24 +67,28 @@ public sealed class ContentProvider
         _options = options;
         ReloadPolicy = reloadPolicy;
 
-        _loadedRevision = source.Revision;
-        _current = ContentLoader.Load(source, options).Require();
+        var revision = source.Revision;
+        _state = new Loaded(ContentLoader.Load(source, options).Require(), revision);
     }
 
     /// <summary>The live snapshot. Never null, never mutated.</summary>
-    public ContentSnapshot Current => Volatile.Read(ref _current);
+    public ContentSnapshot Current => Volatile.Read(ref _state).Snapshot;
 
     /// <summary>Whether this host may reload.</summary>
     public ContentReloadPolicy ReloadPolicy { get; }
 
     /// <summary>The source revision <see cref="Current"/> was built from.</summary>
-    public string LoadedRevision => Volatile.Read(ref _loadedRevision);
+    public string LoadedRevision => Volatile.Read(ref _state).Revision;
 
     /// <summary>Rebuilds from the source and swaps in the new snapshot, which it returns.</summary>
     /// <remarks>
     /// 🔒 The rebuild happens first and completely. If the edited content is invalid the exception
     /// leaves <see cref="Current"/> exactly as it was — a dev who saves a half-typed JSON file gets
     /// an error, not a game running on nothing.
+    /// <para>
+    /// Serialised: a file watcher and a manual reload can otherwise interleave so that the
+    /// <em>older</em> rebuild wins the last write and the newer edit is silently discarded.
+    /// </para>
     /// </remarks>
     public ContentSnapshot Reload()
     {
@@ -85,24 +97,42 @@ public sealed class ContentProvider
             throw new ContentReloadNotPermittedException();
         }
 
-        var revision = _source.Revision;
-        var rebuilt = ContentLoader.Load(_source, _options).Require();
+        lock (_reloadGate)
+        {
+            var revision = _source.Revision;
+            var rebuilt = ContentLoader.Load(_source, _options).Require();
 
-        Interlocked.Exchange(ref _current, rebuilt);
-        Interlocked.Exchange(ref _loadedRevision, revision);
-        return rebuilt;
+            Volatile.Write(ref _state, new Loaded(rebuilt, revision));
+            return rebuilt;
+        }
     }
 
     /// <summary>Reloads only when the source revision moved. False means nothing changed.</summary>
+    /// <remarks>
+    /// 🔒 Never throws on a host that may not reload. This is the method a watcher polls, and a
+    /// <c>Try*</c> that throws on a shipping build is a crash waiting for the first content
+    /// change — it reports "nothing to do", which is the truth for that host.
+    /// </remarks>
     public bool TryReloadIfChanged(out ContentSnapshot snapshot)
     {
-        if (string.Equals(_source.Revision, LoadedRevision, StringComparison.Ordinal))
+        if (ReloadPolicy != ContentReloadPolicy.Enabled)
         {
             snapshot = Current;
             return false;
         }
 
-        snapshot = Reload();
-        return true;
+        lock (_reloadGate)
+        {
+            // Inside the gate: reading the revision and acting on it must be one decision, or two
+            // callers both see "changed" and both rebuild.
+            if (string.Equals(_source.Revision, LoadedRevision, StringComparison.Ordinal))
+            {
+                snapshot = Current;
+                return false;
+            }
+
+            snapshot = Reload();
+            return true;
+        }
     }
 }

@@ -166,6 +166,24 @@ public sealed class SchemaValidationTests
         issues.Should().Contain(i => i.Code == ContentIssueCode.LocalisationMismatch);
     }
 
+    [Fact]
+    public void Load_rejects_a_locale_string_that_nothing_in_the_content_set_names()
+    {
+        // Added to BOTH locales, so this is an orphaned reference and not a parity mismatch.
+        var source = ContentTestData.Valid()
+            .Set(ContentTestData.EnglishPath, ContentTestData.English.Replace(
+                "\"loc.widget.bellows.name\": \"Bellows\"",
+                "\"loc.widget.bellows.name\": \"Bellows\", \"loc.widget.tongs.name\": \"Tongs\"",
+                StringComparison.Ordinal))
+            .Set(ContentTestData.GermanPath, ContentTestData.German.Replace(
+                "\"loc.widget.bellows.name\": \"##TODO_DE## Bellows\"",
+                "\"loc.widget.bellows.name\": \"##TODO_DE## Bellows\", " +
+                "\"loc.widget.tongs.name\": \"##TODO_DE## Tongs\"",
+                StringComparison.Ordinal));
+
+        Issues(source).Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+    }
+
     // ----------------------------------------------------------- 14 §6: missing icons
 
     [Fact]
@@ -225,8 +243,47 @@ public sealed class SchemaValidationTests
         issues.Should().Contain(i => i.Code == ContentIssueCode.UnsupportedSchemaKeyword);
     }
 
+    /// <summary>
+    /// 🔒 One violation per enforced keyword. The list-equality test below can only see that a
+    /// keyword is <em>claimed</em>; this is what sees whether it is <em>enforced</em>. Without it,
+    /// deleting the <c>multipleOf</c> or <c>maxLength</c> block from the validator leaves every
+    /// test green while a bound in the real schemas silently stops biting.
+    /// </summary>
+    [Theory]
+    [InlineData("\"inputCount\": 3", "\"inputCount\": 9", ContentIssueCode.OutOfRange)]                    // maximum
+    [InlineData("\"inputCount\": 3", "\"inputCount\": 1", ContentIssueCode.OutOfRange)]                    // minimum
+    [InlineData("\"statBonusPerLevel\": 0.07", "\"statBonusPerLevel\": 0", ContentIssueCode.OutOfRange)]   // exclusiveMinimum
+    [InlineData("\"ratio\": 0.5", "\"ratio\": 1", ContentIssueCode.OutOfRange)]                            // exclusiveMaximum
+    [InlineData("\"batchSize\": 10", "\"batchSize\": 12", ContentIssueCode.OutOfRange)]                    // multipleOf
+    [InlineData("\"tag\": \"anvil\"", "\"tag\": \"averylongtag\"", ContentIssueCode.OutOfRange)]           // maxLength
+    [InlineData("\"tag\": \"anvil\"", "\"tag\": \"\"", ContentIssueCode.OutOfRange)]                       // minLength
+    [InlineData("\"stoneCosts\": [2, 3]", "\"stoneCosts\": [2, 3, 4, 5]", ContentIssueCode.OutOfRange)]    // maxItems
+    [InlineData("\"limits\": { \"perDay\": 3 }", "\"limits\": { \"a\": 1, \"b\": 2, \"c\": 3 }", ContentIssueCode.OutOfRange)] // maxProperties
+    [InlineData("\"rule\": \"MAX_OF_REAL_INPUTS\"", "\"rule\": \"MIN_OF_REAL_INPUTS\"", ContentIssueCode.UnknownId)] // const
+    [InlineData("\"topRarity\": \"SS\"", "\"topRarity\": \"SSS\"", ContentIssueCode.UnknownId)]             // enum
+    [InlineData("\"id\": \"WID_ANVIL\"", "\"id\": \"anvil\"", ContentIssueCode.UnknownId)]                  // pattern
+    [InlineData("\"payout\": 5", "\"payout\": 1.5", ContentIssueCode.SchemaViolation)]                     // oneOf
+    [InlineData("\"openedAt\": \"2026-08-11T05:00:00Z\"", "\"openedAt\": \"the fifth\"", ContentIssueCode.SchemaViolation)] // format
+    [InlineData("\"inputCount\": 3", "\"inputCount\": \"3\"", ContentIssueCode.SchemaViolation)]             // type
+    public void Load_enforces_every_keyword_it_claims_to_support(
+        string find, string replaceWith, ContentIssueCode expected)
+    {
+        Issues(ContentTestData.WithTuningEdit(find, replaceWith)).Should().Contain(i => i.Code == expected);
+    }
+
     [Fact]
-    public void SupportedKeywords_does_not_silently_grow_to_cover_a_keyword_nobody_implemented()
+    public void Load_enforces_uniqueItems_so_a_repeated_collection_entry_cannot_pass()
+    {
+        Issues(ContentTestData.WithTuningEdit(
+            "{ \"id\": \"WID_BELLOWS\", \"rarity\": \"B\", \"icon\": \"icon_bellows\", " +
+            "\"displayName\": \"loc.widget.bellows.name\", \"requires\": \"WID_ANVIL\" }",
+            "{ \"id\": \"WID_ANVIL\", \"rarity\": \"C\", \"icon\": \"icon_anvil\", " +
+            "\"displayName\": \"loc.widget.anvil.name\", \"requires\": null }"))
+            .Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
+    }
+
+    [Fact]
+    public void SupportedKeywords_is_the_exact_set_this_validator_claims()
     {
         JsonSchemaValidator.SupportedKeywords.Should().BeEquivalentTo(
         [

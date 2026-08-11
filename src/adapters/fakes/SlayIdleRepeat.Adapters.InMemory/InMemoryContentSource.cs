@@ -30,7 +30,9 @@ public sealed class InMemoryContentSource : IContentSourcePort
         ArgumentException.ThrowIfNullOrEmpty(documentPath);
         ArgumentNullException.ThrowIfNull(bytes);
 
-        _documents[documentPath] = bytes;
+        // Copied: a test that mutates its array afterwards would otherwise change the source
+        // without moving Revision, which is the one thing this fake exists to model faithfully.
+        _documents[documentPath] = bytes.ToArray();
         _revision++;
         return this;
     }

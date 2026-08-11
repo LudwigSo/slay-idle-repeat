@@ -280,26 +280,43 @@ public sealed class TunableMarkerAuditTests
         report.StaleBaselineEntries.Should().ContainSingle();
     }
 
+    /// <summary>The real catalogue, so these cases assert a configuration that actually occurs.</summary>
+    private static readonly string[] Catalogue = ["currencies.json", "forge.json", "luck.json"];
+
     [Fact]
     public void Run_fails_when_an_economy_marker_names_a_data_file_outside_the_tuning_directory()
     {
         var report = TunableMarkerAudit.Run(
-            [MarkerAt("10", "4", "currencies.json")],
+            [MarkerAt("10", "4", "loot_tables.json")],
             [CitationAt("10", "4")],
-            TunableBaseline.None);
+            TunableBaseline.None,
+            Catalogue);
 
         report.Issues.Should().Contain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
     }
 
     [Fact]
+    public void Run_accepts_a_marker_naming_a_tuning_file_by_its_bare_name()
+    {
+        // The docs write the same file three ways; a bare `currencies.json` IS in the catalogue and
+        // must not be reported, or the rule cries wolf on every marker in doc 10.
+        var report = TunableMarkerAudit.Run(
+            [MarkerAt("10", "4", "currencies.json")],
+            [CitationAt("10", "4")],
+            TunableBaseline.None,
+            Catalogue);
+
+        report.Issues.Should().NotContain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
+    }
+
+    [Fact]
     public void Run_allows_an_allow_listed_non_economy_file_outside_the_tuning_directory()
     {
-        var allowed = TunableMarkerAudit.NonEconomyDataFiles[0];
-
         var report = TunableMarkerAudit.Run(
-            [MarkerAt("05", "2", allowed)],
+            [MarkerAt("05", "2", "combat_caps.json")],
             [CitationAt("05", "2")],
-            TunableBaseline.None);
+            TunableBaseline.None,
+            Catalogue);
 
         report.Issues.Should().NotContain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
     }
@@ -327,15 +344,9 @@ public sealed class TunableMarkerAuditTests
             // 17 §1.2 — boss phases and mechanics. Combat balance and content identity; the kill
             // rewards are economy and stay in currencies.json. Authored by M3.
             "bosses.json",
-        ]);
-    }
-
-    [Fact]
-    public void The_non_economy_allow_list_stays_short_because_an_escape_hatch_that_widens_quietly_defeats_the_rule()
-    {
-        TunableMarkerAudit.NonEconomyDataFiles.Should().HaveCountLessThanOrEqualTo(6,
-            "14 §6's rule survives only while the exception list is small enough to read in one " +
-            "glance and argue with line by line");
+        ],
+        "14 §6's rule survives only while this list is short enough to read in one glance and " +
+        "argue with line by line — an escape hatch that widens quietly defeats the whole rule");
     }
 
     private static Core.Content.ContentValue ParseSchema(string json)

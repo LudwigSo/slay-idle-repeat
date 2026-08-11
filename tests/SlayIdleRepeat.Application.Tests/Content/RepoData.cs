@@ -1,3 +1,4 @@
+using FluentAssertions;
 using SlayIdleRepeat.Adapters.InMemory;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
@@ -23,21 +24,31 @@ internal static class RepoData
 {
     private const string SolutionFileName = "SlayIdleRepeat.sln";
 
+    // Lazy, not static initialisers: a run where SlayIdleRepeat.sln is not an ancestor of the test
+    // output (a published build, a container holding only bin/) would otherwise fail every test in
+    // three classes with a TypeInitializationException wrapping a .sln message, instead of one
+    // legible assertion saying this suite needs a checkout.
+    private static readonly Lazy<string> LazyRepositoryRoot = new(FindRepositoryRoot);
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> LazyDocuments = new(ReadDocuments);
+
     /// <summary>The directory holding <c>SlayIdleRepeat.sln</c>.</summary>
-    internal static string RepositoryRoot { get; } = FindRepositoryRoot();
+    internal static string RepositoryRoot => LazyRepositoryRoot.Value;
 
     /// <summary>The <c>SlayIdleRepeat.Data</c> root.</summary>
-    internal static string DataRoot { get; } = Path.Combine(RepositoryRoot, "SlayIdleRepeat.Data");
+    internal static string DataRoot => Path.Combine(RepositoryRoot, "SlayIdleRepeat.Data");
 
     /// <summary>The <c>game-design</c> documentation root.</summary>
-    internal static string DesignDocsRoot { get; } = Path.Combine(RepositoryRoot, "game-design");
+    internal static string DesignDocsRoot => Path.Combine(RepositoryRoot, "game-design");
 
     /// <summary>Every real data document, keyed by its snapshot-relative path.</summary>
-    internal static IReadOnlyDictionary<string, string> Documents { get; } = ReadDocuments();
+    internal static IReadOnlyDictionary<string, string> Documents => LazyDocuments.Value;
 
     /// <summary>A source over the real data set.</summary>
     internal static InMemoryContentSource Source()
     {
+        Directory.Exists(DataRoot).Should().BeTrue(
+            $"these cases read the real SlayIdleRepeat.Data; searched upward from {AppContext.BaseDirectory}");
+
         var source = new InMemoryContentSource();
         foreach (var (path, text) in Documents)
         {

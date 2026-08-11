@@ -42,13 +42,23 @@ internal static class ContentTestData
           "description": "08 §4.1 — the merge block.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["inputCount", "statBonusPerLevel", "topRarity", "dustSubstituteCost", "perLevelSuccessRate"],
+          "$comment": "Every keyword SupportedKeywords claims is exercised by a property here, so a keyword that stopped being enforced fails a test instead of passing silently.",
+          "required": ["inputCount", "statBonusPerLevel", "topRarity", "dustSubstituteCost", "perLevelSuccessRate",
+                       "batchSize", "rule", "tag", "ratio", "payout", "stoneCosts", "openedAt", "limits"],
           "properties": {
             "inputCount": { "description": "08 §4.1 — inputs per merge.", "type": "integer", "minimum": 2, "maximum": 5 },
             "statBonusPerLevel": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
             "topRarity": { "$ref": "#/$defs/rarity" },
             "dustSubstituteCost": { "$ref": "#/$defs/nullableCost" },
-            "perLevelSuccessRate": { "type": ["array", "null"], "items": { "type": "number" } }
+            "perLevelSuccessRate": { "type": ["array", "null"], "items": { "type": "number" } },
+            "batchSize": { "type": "integer", "multipleOf": 5 },
+            "rule": { "const": "MAX_OF_REAL_INPUTS" },
+            "tag": { "type": "string", "minLength": 1, "maxLength": 8 },
+            "ratio": { "type": "number", "exclusiveMaximum": 1 },
+            "payout": { "oneOf": [{ "type": "integer" }, { "const": "FULL" }] },
+            "stoneCosts": { "type": "array", "maxItems": 3, "items": { "type": "integer" } },
+            "openedAt": { "type": "string", "format": "date-time" },
+            "limits": { "type": "object", "maxProperties": 2, "additionalProperties": { "type": "integer" } }
           }
         },
         "widgets": {
@@ -84,7 +94,15 @@ internal static class ContentTestData
         "statBonusPerLevel": 0.07,
         "topRarity": "SS",
         "dustSubstituteCost": null,
-        "perLevelSuccessRate": null
+        "perLevelSuccessRate": null,
+        "batchSize": 10,
+        "rule": "MAX_OF_REAL_INPUTS",
+        "tag": "anvil",
+        "ratio": 0.5,
+        "payout": 5,
+        "stoneCosts": [2, 3],
+        "openedAt": "2026-08-11T05:00:00Z",
+        "limits": { "perDay": 3 }
       },
       "widgets": [
         { "id": "WID_ANVIL", "rarity": "C", "icon": "icon_anvil", "displayName": "loc.widget.anvil.name", "requires": null },
