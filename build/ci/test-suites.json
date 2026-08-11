@@ -16,7 +16,21 @@
     "  2. A suite listed in knownEmpty may report zero tests.",
     "  3. A suite listed in knownEmpty that DOES report tests fails the build with",
     "     'stale exemption'. The entry cannot outlive the milestone that fills the",
-    "     suite — removing it is forced, not remembered."
+    "     suite — removing it is forced, not remembered.",
+    "  4. A name in a group's include/exclude that matches no discovered suite",
+    "     fails the build. Neither list errors on its own: a typo in `include`",
+    "     quietly shrinks the group and a typo in `exclude` quietly stops",
+    "     excluding, and in both cases the job stays green while running a",
+    "     different set of tests than this file claims it runs.",
+    "  5. A knownEmpty entry naming a project that is not among the discovered",
+    "     suites fails the build — a renamed or deleted project must take its",
+    "     exemption with it, or the exemption sits here pre-armed for whatever",
+    "     lands on that name next.",
+    "  6. A knownEmpty entry must carry a well-formed `turnsOn` milestone and a",
+    "     non-empty `reason`. An exemption with no milestone has no expiry.",
+    "",
+    "  See $knownGapInThisMechanism at the foot of this file for what these",
+    "  rules deliberately do NOT catch."
   ],
 
   "discoveryGlob": "tests/*/*.csproj",
@@ -42,15 +56,29 @@
     }
   },
 
-  "knownEmpty": [
-    {
-      "project": "SlayIdleRepeat.Contract.Tests",
-      "turnsOn": "M1-09",
-      "reason": "Seeded empty by M0-01. 14 §13 wants one shared suite per port run against every implementation including the in-memory fake; there are no ports with two implementations yet."
-    }
-  ],
+  "knownEmpty": [],
 
   "$formerlyEmpty": [
+    {
+      "project": "SlayIdleRepeat.Contract.Tests",
+      "wasTurnsOn": "M1-09",
+      "filledBy": "M0-09 review",
+      "note": [
+        "Its stated reason was 'there are no ports with two implementations yet'.",
+        "That stopped being true on this branch: M0-09 landed IContentSourcePort",
+        "with a shared contract suite (IContentSourcePortContractTests) and two",
+        "derived fixtures, one per implementation. 24 passing cases. Rule 3 above",
+        "would have failed the build on the next run — which is the mechanism",
+        "working, and this entry moving here is what it was for.",
+        "",
+        "Recorded because it was wrong in a second way nobody would have caught:",
+        "turnsOn said M1-09, and M1-09 is the BEGIN_SESSION handler. The port",
+        "catalogue and the shared contract suites are M5-01. A knownEmpty entry",
+        "can therefore be stale on its MILESTONE as well as on its test count, and",
+        "only the count is mechanically checkable — see the note at the foot of",
+        "this file."
+      ]
+    },
     {
       "project": "SlayIdleRepeat.Integration.Tests",
       "wasTurnsOn": "M0-03",
@@ -77,5 +105,29 @@
         "This block is documentation. Invoke-UnitTests.ps1 reads `knownEmpty` only."
       ]
     }
+  ],
+
+  "$knownGapInThisMechanism": [
+    "WHAT IS NOT CHECKED, so that nobody assumes it is.",
+    "",
+    "Rules 3-6 catch an exemption that is stale in its SHAPE: the suite gained",
+    "tests, the project no longer exists, the milestone marker is missing or",
+    "malformed, the reason field is blank. All of those are decidable from the",
+    "repository.",
+    "",
+    "What is NOT decidable, and is therefore unenforced, is an exemption whose",
+    "REASON has stopped being true while the suite is still empty. The",
+    "Contract.Tests entry above was exactly that for the interval between",
+    "IContentSourcePort landing and the suite being populated: its reason said",
+    "'there are no ports with two implementations yet' after that had become",
+    "false. Nothing goes red for that state, because 'is this English sentence",
+    "still true' is not a predicate a script can evaluate. It was caught by a",
+    "human reading the file during the M0 review.",
+    "",
+    "The mitigations that ARE in place are all indirect: the entry must name a",
+    "milestone (so it has an expiry a reader can check), it must carry a written",
+    "reason (so there is something to falsify), and the moment the suite gains a",
+    "single test the build fails. Treat a knownEmpty entry as something to",
+    "re-read at every milestone kickoff, not as something CI is watching for you."
   ]
 }
