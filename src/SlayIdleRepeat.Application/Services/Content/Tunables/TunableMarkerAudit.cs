@@ -256,8 +256,15 @@ public static partial class SchemaCitationScanner
     /// <c>powerCurve</c>, <c>hardPityStep</c>). A <c>$ref</c> to one of these is a number key even
     /// though the referring object declares no <c>type</c> of its own.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <c>CultureInvariant</c> is load-bearing next to <c>IgnoreCase</c>. Without it the casing
+    /// rules come from the current culture, and under <c>tr-TR</c> an uppercase <c>I</c> does not
+    /// fold to <c>i</c> — <c>rarityCostMap</c> would stop matching and <c>GovernsNumericKey</c>
+    /// would flip, quietly shrinking the audited set on one developer's machine.
+    /// </remarks>
     [GeneratedRegex(
-        "(?i)(cost|rate|curve|scalar|share|weight|multiplier|pity|price|power|amount|map|value|assertion)")]
+        "(cost|rate|curve|scalar|share|weight|multiplier|pity|price|power|amount|map|value|assertion)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex NumericDefinitionName();
 
     [GeneratedRegex(@"\b(\d{2})\s*§\s*(\d+[a-z]?(?:\.\d+[a-z]?)*)(?:\s*[-–]\s*(\d+[a-z]?(?:\.\d+[a-z]?)*))?")]

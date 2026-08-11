@@ -44,13 +44,19 @@ public sealed class ContentSnapshot
         }
 
         _paths = _documents.Keys.OrderBy(p => p, StringComparer.Ordinal).ToArray();
+        DocumentPaths = Array.AsReadOnly(_paths);
     }
 
     /// <summary>🔒 The deterministic content hash this snapshot was stamped with.</summary>
     public ContentVersion Version { get; }
 
     /// <summary>Every document path, ordinal-sorted.</summary>
-    public IReadOnlyList<string> DocumentPaths => _paths;
+    /// <remarks>
+    /// 🔒 A wrapper, not the backing array: an <c>IReadOnlyList&lt;string&gt;</c> that <em>is</em> a
+    /// <c>string[]</c> can be cast back and written through, and this snapshot promises to describe
+    /// the same content for its whole life.
+    /// </remarks>
+    public IReadOnlyList<string> DocumentPaths { get; }
 
     /// <summary>Looks a document up by path.</summary>
     public bool TryGetDocument(string documentPath, out ContentDocument? document) =>

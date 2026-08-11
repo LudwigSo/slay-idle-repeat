@@ -8,7 +8,8 @@ namespace SlayIdleRepeat.Core.Content;
 /// <em>"<c>null</c> means 'the design docs do not authorise a value here.' It is never a
 /// legitimate runtime value."</em> A JSON <c>null</c> therefore loads as
 /// <see cref="Unauthorised"/> — a kind whose whole purpose is that no reader can mistake it
-/// for zero, empty or a default. 98 leaves in the shipped tuning files are in this state.
+/// for zero, empty or a default. 96 leaves in the shipped tuning files are in this state, a
+/// population pinned file by file by <c>RealDataNegativeCaseTests</c>.
 /// </remarks>
 public enum ContentValueKind
 {

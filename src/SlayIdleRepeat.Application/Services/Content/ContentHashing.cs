@@ -16,8 +16,10 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// members ordinal-sorted, arrays in index order, every string and count length-prefixed, numbers
 /// written as a normalised invariant decimal. No locale, no hash-table iteration order and no
 /// floating-point formatting can reach it, so the same content stamps identically on a Windows
-/// dev box, a Linux CI runner and an Android device. `14` §16.6's snapshot hashing is built on
-/// this later; a non-deterministic ordering here would break it silently rather than loudly.
+/// dev box, a Linux CI runner and an Android device. The content stamp may be carried inside a
+/// snapshot, so it must be deterministic or <c>stateHash</c> moves with the machine; it is a
+/// <em>separate encoding</em> from `14` §16.6's — that one is <c>Core</c>'s
+/// <c>CanonicalStateWriter</c>, FNV-1a 64 over snapshot DTOs — and the two never share bytes.
 /// </para>
 /// <para>
 /// The stamp identifies <em>content</em>, not <em>formatting</em>: reindenting a data file does
@@ -98,7 +100,7 @@ public static class ContentHashing
 
                 break;
 
-            default:
+            case ContentValueKind.Object:
                 buffer.WriteByte(TagObject);
                 WriteCount(buffer, value.MemberNames.Count);
                 foreach (var name in value.MemberNames)
@@ -109,6 +111,17 @@ public static class ContentHashing
                 }
 
                 break;
+
+            // 🔒 A closed allowlist with a throwing default, matching CanonicalStateWriter. With
+            // Object in `default:` a seventh ContentValueKind would encode silently as an object
+            // and move every stamp in the repository — the one class of change this encoding
+            // exists to make impossible by accident.
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(value), value.Kind,
+                    "ContentHashing has no canonical encoding for this kind. Adding a " +
+                    "ContentValueKind means adding its tag and its bytes here, deliberately, in " +
+                    "the same commit — and bumping CanonicalFormatVersion if any stamp moves.");
         }
     }
 
@@ -128,9 +141,17 @@ public static class ContentHashing
         return text is "-0" or "" ? "0" : text;
     }
 
+    /// <summary>
+    /// UTF-8 <em>without</em> a BOM and with no exception fallback swapped in, stated explicitly
+    /// rather than inherited from <see cref="Encoding.UTF8"/> — the same posture, and the same
+    /// reason, as the two <c>Core</c> hashers. Byte-identical output; the point is that the
+    /// encoding a hash is taken over is never a default somebody could change elsewhere.
+    /// </summary>
+    private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
+
     private static void WriteString(MemoryStream buffer, string value)
     {
-        var bytes = Encoding.UTF8.GetBytes(value);
+        var bytes = Utf8.GetBytes(value);
         WriteCount(buffer, bytes.Length);
         buffer.Write(bytes);
     }

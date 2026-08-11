@@ -47,10 +47,18 @@ public static partial class ContentInvariants
     /// </param>
     public static IReadOnlyList<ContentIssue> Check(
         IReadOnlyDictionary<string, ContentValue> documents,
-        IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings)
+        IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings) =>
+        Check(documents, patternBindings, ContentLoadOptions.Canonical);
+
+    /// <summary>Every cross-file rule, plus the ship gates when <paramref name="options"/> asks.</summary>
+    public static IReadOnlyList<ContentIssue> Check(
+        IReadOnlyDictionary<string, ContentValue> documents,
+        IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings,
+        ContentLoadOptions options)
     {
         ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(patternBindings);
+        ArgumentNullException.ThrowIfNull(options);
 
         var issues = new List<ContentIssue>();
 
@@ -61,7 +69,57 @@ public static partial class ContentInvariants
         CheckLocaleKeyReferences(documents, issues);
         DeclaredRules.Check(documents, issues);
 
+        if (options.ShippingBuild)
+        {
+            CheckTranslationSentinels(documents, issues);
+        }
+
         return issues;
+    }
+
+    /// <summary>The sentinel a German value carries until a human has translated it.</summary>
+    /// <remarks>
+    /// `SlayIdleRepeat.Data/README.md` and <c>schema/loc.schema.json</c> both state the same
+    /// sentence: <em>"A build that ships to players must fail while any sentinel remains."</em>
+    /// It was declared 🔒 in two places and implemented in neither — the string appeared nowhere in
+    /// production code or CI, only in test fixtures.
+    /// </remarks>
+    public const string TranslationSentinel = "##TODO_DE##";
+
+    /// <summary>
+    /// 🔒 `16` D20 / X-04: nothing machine-translated reaches a player. This is the mechanism that
+    /// keeps that promise, and it only runs for a build that is going to players
+    /// (<see cref="ContentLoadOptions.ShippingBuild"/>) — every DE value is a sentinel today, so
+    /// running it always would fail M0-M16 by design rather than catching anything.
+    /// </summary>
+    private static void CheckTranslationSentinels(
+        IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
+    {
+        foreach (var (path, root) in documents
+                     .Where(d => d.Key.StartsWith(LocaleDirectory, StringComparison.Ordinal))
+                     .OrderBy(d => d.Key, StringComparer.Ordinal))
+        {
+            if (!root.TryGetMember(StringsMemberName, out var strings))
+            {
+                continue;
+            }
+
+            foreach (var key in strings!.MemberNames)
+            {
+                strings.TryGetMember(key, out var value);
+
+                if (value!.Kind == ContentValueKind.Text &&
+                    value.AsText().Contains(TranslationSentinel, StringComparison.Ordinal))
+                {
+                    issues.Add(new ContentIssue(
+                        ContentIssueCode.LocalisationMismatch,
+                        $"{path}#/{StringsMemberName}/{key}",
+                        $"still carries the {TranslationSentinel} sentinel, so no human has " +
+                        "translated it. 16 D20: nothing machine-translated reaches a player, and a " +
+                        "build that ships must fail while any sentinel remains."));
+                }
+            }
+        }
     }
 
     /// <summary>

@@ -16,11 +16,27 @@ public sealed record ContentLoadOptions
     /// <summary>A plain load of the canonical data, with no overrides.</summary>
     public static ContentLoadOptions Canonical { get; } = new();
 
+    /// <summary>A load that also enforces the rules that only matter for a build going to players.</summary>
+    public static ContentLoadOptions Shipping { get; } = new() { ShippingBuild = true };
+
     /// <summary>
     /// Override document paths, applied in order. Each must be listed by the source and must be a
     /// sparse patch keyed by canonical file name (`21` §3.3).
     /// </summary>
     public IReadOnlyList<string> OverrideDocuments { get; init; } = [];
+
+    /// <summary>
+    /// 🔒 True when this content is going in front of players, which turns on the ship gates.
+    /// </summary>
+    /// <remarks>
+    /// Today that means one rule: <c>SlayIdleRepeat.Data/README.md</c> and
+    /// <c>schema/loc.schema.json</c> both state that <em>"a build that ships to players must fail
+    /// while any sentinel remains"</em>, and `16` D20/X-04 forbid machine translation reaching a
+    /// player at all. All 82 DE values are <c>##TODO_DE##</c> sentinels right now, so the gate
+    /// cannot be on by default without failing M0-M16 on purpose. Off it is a promise nobody keeps;
+    /// behind this flag it is a release job that fails, on the day it should.
+    /// </remarks>
+    public bool ShippingBuild { get; init; }
 }
 
 /// <summary>The outcome of a load: a snapshot, or the reasons there isn't one.</summary>

@@ -132,6 +132,34 @@ public sealed partial class RealDataSetTests
         ContentLoader.Load(source).Issues.Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
+    // -------------------------------------------------------------- 16 D20 · the ship gate
+
+    /// <summary>
+    /// 🔒 The gate <c>SlayIdleRepeat.Data/README.md</c> and <c>schema/loc.schema.json</c> both
+    /// declare 🔒 and neither implemented: <em>"A build that ships to players must fail while any
+    /// sentinel remains."</em> All 82 DE values are sentinels, so this is what stops `16` D20's
+    /// "nothing machine-translated reaches a player" from being a sentence nobody enforces.
+    /// </summary>
+    [Fact]
+    public void A_shipping_build_fails_while_any_German_string_is_still_a_sentinel()
+    {
+        var issues = ContentLoader.Load(RepoData.Source(), ContentLoadOptions.Shipping).Issues;
+
+        issues.Should().Contain(i =>
+            i.Code == ContentIssueCode.LocalisationMismatch &&
+            i.Location == "loc/de.json#/strings/loc.currency.gold.name");
+    }
+
+    /// <summary>
+    /// And the other state, which is the one M0-M16 run in. The gate has to be off by default or
+    /// every milestone before the translation pass fails on purpose and gets switched off for real.
+    /// </summary>
+    [Fact]
+    public void A_development_build_does_not_fail_on_the_sentinels_it_is_supposed_to_still_have()
+    {
+        ContentLoader.Load(RepoData.Source(), ContentLoadOptions.Canonical).Issues.Should().BeEmpty();
+    }
+
     // ------------------------------------------------- the declared rules are still alive
 
     /// <summary>

@@ -169,4 +169,50 @@ public sealed class ContentProviderTests
         reloaded.Should().BeTrue();
         snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(4);
     }
+
+    /// <summary>
+    /// 🔒 The <c>Try*</c> contract, on the branch that could reach it. The policy gate returns
+    /// before the revision is even read, so a shipping host whose content <em>had</em> changed used
+    /// to be one line away from a <see cref="ContentReloadNotPermittedException"/> thrown out of a
+    /// method whose own doc says it never throws for such a host.
+    /// </summary>
+    [Fact]
+    public void TryReloadIfChanged_reports_nothing_to_do_on_a_shipping_host_whose_content_did_change()
+    {
+        var source = ContentTestData.Valid();
+        var provider = new ContentProvider(source, ContentLoadOptions.Canonical, ContentReloadPolicy.Disabled);
+        var booted = provider.Current;
+
+        source.Set(ContentTestData.TuningPath,
+            ContentTestData.WidgetTuning.Replace("\"inputCount\": 3", "\"inputCount\": 4", StringComparison.Ordinal));
+
+        var act = () => provider.TryReloadIfChanged(out _);
+
+        act.Should().NotThrow();
+        provider.TryReloadIfChanged(out var snapshot).Should().BeFalse();
+        snapshot.Should().BeSameAs(booted);
+    }
+
+    /// <summary>
+    /// 🔒 A dev host asked to reload content that has become invalid. The load exception is the
+    /// right outcome — the dev asked for a rebuild and it failed — but <c>Current</c> must still
+    /// be the last snapshot that was actually good, or a half-typed JSON file leaves the game
+    /// running on nothing.
+    /// </summary>
+    [Fact]
+    public void TryReloadIfChanged_over_content_that_became_invalid_throws_and_leaves_Current_last_good()
+    {
+        var source = ContentTestData.Valid();
+        var provider = DevProvider(source);
+        var booted = provider.Current;
+
+        source.Set(ContentTestData.TuningPath,
+            ContentTestData.WidgetTuning.Replace("\"inputCount\": 3", "\"inputCount\": 99", StringComparison.Ordinal));
+
+        var act = () => provider.TryReloadIfChanged(out _);
+
+        act.Should().Throw<ContentLoadException>();
+        provider.Current.Should().BeSameAs(booted);
+        provider.Current.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
+    }
 }

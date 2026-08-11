@@ -14,7 +14,10 @@ namespace SlayIdleRepeat.Core.Content;
 /// <para>
 /// 🔒 <b>Ordering is pinned.</b> Object members are stored ordinal-sorted by name and arrays
 /// keep their document order. That is what makes the version stamp reproducible across
-/// machines and runtimes — see <c>ContentHashing</c> — and it is load-bearing for `14` §16.6.
+/// machines and runtimes — see <c>ContentHashing</c>. The content stamp may be carried inside a
+/// snapshot, so a non-deterministic one would move <c>stateHash</c>; it is a separate encoding
+/// from `14` §16.6's <c>CanonicalStateWriter</c>, which never sees a <see cref="ContentValue"/>,
+/// and the two never share bytes.
 /// </para>
 /// </remarks>
 public sealed class ContentValue : IEquatable<ContentValue>
@@ -45,6 +48,8 @@ public sealed class ContentValue : IEquatable<ContentValue>
         _names = names;
         _memberValues = memberValues;
         _items = items;
+        MemberNames = System.Array.AsReadOnly(names);
+        Items = System.Array.AsReadOnly(items);
     }
 
     /// <summary>🔒 The <c>null</c> of the data files: "the design docs do not authorise a value here".</summary>
@@ -74,10 +79,17 @@ public sealed class ContentValue : IEquatable<ContentValue>
     public bool IsUnauthorised => Kind == ContentValueKind.Unauthorised;
 
     /// <summary>Member names, ordinal-sorted. Empty for anything but an object.</summary>
-    public IReadOnlyList<string> MemberNames => _names;
+    /// <remarks>
+    /// 🔒 A wrapper, not the backing array. An <c>IReadOnlyList&lt;T&gt;</c> that <em>is</em> a
+    /// <c>string[]</c> can be cast back and written through, and this type's immutability is what
+    /// the version stamp rests on. Built once in the constructor rather than per read, because
+    /// these two are walked in tight loops by the validator and the hasher.
+    /// </remarks>
+    public IReadOnlyList<string> MemberNames { get; }
 
     /// <summary>Array items in document order. Empty for anything but an array.</summary>
-    public IReadOnlyList<ContentValue> Items => _items;
+    /// <remarks>🔒 A wrapper, for the same reason as <see cref="MemberNames"/>.</remarks>
+    public IReadOnlyList<ContentValue> Items { get; }
 
     /// <summary>Creates a text value.</summary>
     public static ContentValue Text(string value)

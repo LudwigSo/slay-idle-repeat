@@ -109,9 +109,17 @@ public sealed class ContentProvider
 
     /// <summary>Reloads only when the source revision moved. False means nothing changed.</summary>
     /// <remarks>
-    /// 🔒 Never throws on a host that may not reload. This is the method a watcher polls, and a
+    /// 🔒 Never throws <see cref="ContentReloadNotPermittedException"/> on a host that may not
+    /// reload, whether or not its revision moved. This is the method a watcher polls, and a
     /// <c>Try*</c> that throws on a shipping build is a crash waiting for the first content
     /// change — it reports "nothing to do", which is the truth for that host.
+    /// <para>
+    /// It does still propagate a <see cref="ContentLoadException"/> from a dev host whose edited
+    /// content is invalid. That is not the same thing: the caller asked for a rebuild, the rebuild
+    /// failed, and swallowing it would leave a dev staring at stale content with no error. As with
+    /// <see cref="Reload"/>, <see cref="Current"/> is untouched and still serves the last good
+    /// snapshot.
+    /// </para>
     /// </remarks>
     public bool TryReloadIfChanged(out ContentSnapshot snapshot)
     {
@@ -131,7 +139,17 @@ public sealed class ContentProvider
                 return false;
             }
 
-            snapshot = Reload();
+            // 🔒 Rebuild inline rather than delegating to Reload(). Reload() re-checks the policy
+            // and throws, and this method's own contract is that it never throws for a host that
+            // may not reload — but the policy gate above returns before the revision is even read,
+            // so a shipping host whose revision HAD moved would have reached Reload() and got a
+            // ContentReloadNotPermittedException out of a Try* method. It cannot today only
+            // because of the ordering; that is not a property worth relying on.
+            var revision = _source.Revision;
+            var rebuilt = ContentLoader.Load(_source, _options).Require();
+
+            Volatile.Write(ref _state, new Loaded(rebuilt, revision));
+            snapshot = rebuilt;
             return true;
         }
     }

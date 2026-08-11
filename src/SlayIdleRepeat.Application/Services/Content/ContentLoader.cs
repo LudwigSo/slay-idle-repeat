@@ -12,8 +12,10 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// <para>
 /// 🔒 Deterministic by construction. Documents are processed in ordinal path order, object
 /// members are held ordinal-sorted, and the stamp is computed over a canonical serialisation — so
-/// the same bytes always produce the same snapshot and the same stamp, on any machine. `14` §16.6's
-/// hashing depends on that and would fail silently without it.
+/// the same bytes always produce the same snapshot and the same stamp, on any machine. The stamp
+/// may end up carried inside a snapshot, in which case a non-deterministic one would move
+/// <c>stateHash</c>; it is a separate encoding from `14` §16.6's, which is <c>Core</c>'s
+/// <c>CanonicalStateWriter</c>, and the two never share bytes.
 /// </para>
 /// <para>
 /// The directory convention it reads, from `SlayIdleRepeat.Data/README.md`:
@@ -139,7 +141,7 @@ public static class ContentLoader
         // finding with a stack trace naming neither document nor pointer.
         if (issues.Count == 0)
         {
-            issues.AddRange(ContentInvariants.Check(data, bindings));
+            issues.AddRange(ContentInvariants.Check(data, bindings, options));
         }
 
         var ordered = issues

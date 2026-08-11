@@ -139,4 +139,46 @@ public sealed class ContentHashingTests
 
         second.Should().Be(first);
     }
+
+    // -------------------------------------- 🔒 the two decimal decisions, which had no test
+
+    /// <summary>
+    /// 🔒 <c>ContentValue</c> holds numbers as <see cref="decimal"/> so the load path never rounds.
+    /// Nothing asserted it: refactoring <c>_number</c> to <c>double</c> keeps every other test in
+    /// the repository green while <c>AsNumber()</c> starts answering
+    /// <c>0.30000000000000004</c> — and a tuning number that shifts in the last place shifts every
+    /// stamp with it.
+    /// </summary>
+    [Fact]
+    public void A_sum_of_two_shipped_style_rates_is_exact_because_the_load_path_never_rounds()
+    {
+        var sum = ContentValue.Number(0.1m).AsNumber() + ContentValue.Number(0.2m).AsNumber();
+
+        sum.Should().Be(0.3m);
+        ContentValue.Number(sum).Should().Be(ContentValue.Number(0.3m));
+    }
+
+    /// <summary>
+    /// 🔒 <em>"1.5 and 1.500 are one number."</em> Value equality, not representation equality —
+    /// the decision <c>ContentValue.Equals</c> and <c>GetHashCode</c> both state in comments and
+    /// neither had a case. The duplicate-id gate now groups on this, so it is load-bearing twice.
+    /// </summary>
+    [Fact]
+    public void The_same_number_written_at_two_scales_is_one_value_and_one_hash_code()
+    {
+        ContentValue.Number(1.5m).Should().Be(ContentValue.Number(1.500m));
+
+        ContentValue.Number(1.500m).GetHashCode()
+                    .Should().Be(ContentValue.Number(1.5m).GetHashCode());
+    }
+
+    /// <summary>And the stamp agrees with equality: the canonical encoding normalises the scale.</summary>
+    [Fact]
+    public void The_same_number_written_at_two_scales_stamps_identically()
+    {
+        var left = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1.5m)))]);
+        var right = ContentHashing.Compute([Doc("tuning/a.json", ("x", ContentValue.Number(1.500m)))]);
+
+        right.Should().Be(left);
+    }
 }
