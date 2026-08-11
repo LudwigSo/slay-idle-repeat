@@ -1,0 +1,67 @@
+{
+  "$comment": [
+    "Which test suites belong to which CI job, and which ones are ALLOWED to be",
+    "empty right now. Consumed by build/ci/Invoke-UnitTests.ps1.",
+    "",
+    "Why this file exists: `dotnet test` exits 0 on an assembly containing zero",
+    "tests. Verified on this repo 2026-08-11 — an empty suite produces a TRX with",
+    "Counters total=\"0\" and a green exit code. Without the declarations below,",
+    "the `test` job would be a green tick that has executed nothing, which is",
+    "exactly the vacuous pass 14 §13 is trying to prevent.",
+    "",
+    "The rules Invoke-UnitTests.ps1 enforces:",
+    "  1. Every test project under tests/ is discovered automatically. A new suite",
+    "     (e.g. SlayIdleRepeat.Client.Tests) joins the `unit` group with no edit",
+    "     here, and is REQUIRED to contain tests from day one.",
+    "  2. A suite listed in knownEmpty may report zero tests.",
+    "  3. A suite listed in knownEmpty that DOES report tests fails the build with",
+    "     'stale exemption'. The entry cannot outlive the milestone that fills the",
+    "     suite — removing it is forced, not remembered."
+  ],
+
+  "discoveryGlob": "tests/*/*.csproj",
+
+  "groups": {
+    "unit": {
+      "job": "test",
+      "description": "Domain, application and contract suites. Everything that needs no container.",
+      "exclude": [
+        "SlayIdleRepeat.Architecture.Tests",
+        "SlayIdleRepeat.Integration.Tests"
+      ]
+    },
+    "architecture": {
+      "job": "architecture-tests",
+      "description": "23 §6 / 30 §9 dependency, port-purity and adapter-isolation rules. Its own job so a flake elsewhere can never mask it — 23 §6 says it fails the build.",
+      "include": [ "SlayIdleRepeat.Architecture.Tests" ]
+    },
+    "integration": {
+      "job": "compose-boot",
+      "description": "14 §13: a full run played end-to-end against the docker compose stack. Runs only once the stack is up.",
+      "include": [ "SlayIdleRepeat.Integration.Tests" ]
+    }
+  },
+
+  "knownEmpty": [
+    {
+      "project": "SlayIdleRepeat.Core.Tests",
+      "turnsOn": "M0-06",
+      "reason": "Seeded empty by M0-01. First real tests are the Hash64 reference vectors (14 §8.0); domain suites follow through M1-M6."
+    },
+    {
+      "project": "SlayIdleRepeat.Application.Tests",
+      "turnsOn": "M1-09",
+      "reason": "Seeded empty by M0-01. Fills when the first use cases land."
+    },
+    {
+      "project": "SlayIdleRepeat.Contract.Tests",
+      "turnsOn": "M1-09",
+      "reason": "Seeded empty by M0-01. 14 §13 wants one shared suite per port run against every implementation including the in-memory fake; there are no ports with two implementations yet."
+    },
+    {
+      "project": "SlayIdleRepeat.Integration.Tests",
+      "turnsOn": "M0-03",
+      "reason": "Needs the compose stack, which does not exist until M0-03. Runs in the compose-boot job, not in `test`."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$comment": [
+    "The allow-list for build/ci/Test-VendorPackageUniqueness.ps1.",
+    "",
+    "14 §1.1 🔒: 'No driver or vendor SDK anywhere outside an adapter ... Enforced",
+    "by architecture tests (23 §6) plus a CI check that fails if a vendor",
+    "PackageReference appears in more than one .csproj.'",
+    "",
+    "The check treats EVERY PackageReference as a vendor SDK unless it is named",
+    "here. That default is deliberate: a new driver must be argued for in a diff",
+    "to this file, not slipped in as a transitively-obvious dependency.",
+    "",
+    "What belongs here: test infrastructure and analysers - things that are not a",
+    "swappable third-party service behind a port, and therefore cannot lock the",
+    "project in. What does NOT belong here: anything that talks to a database, a",
+    "cache, an object store, a payment or ad network, a push service, an analytics",
+    "backend or a telemetry backend. Those live in exactly one adapter project.",
+    "",
+    "Entries may end in '*' to match a prefix, e.g. 'xunit*'."
+  ],
+
+  "packages": [
+    { "id": "Microsoft.NET.Test.Sdk", "reason": "Test host. Required in every test project by construction." },
+    { "id": "xunit", "reason": "Test framework." },
+    { "id": "xunit.runner.visualstudio", "reason": "Test adapter; without it the suite reports zero tests." },
+    { "id": "FluentAssertions", "reason": "Assertion library." },
+    { "id": "NetArchTest.Rules", "reason": "The engine the 23 §6 architecture rules are written against." },
+    { "id": "Mono.Cecil", "reason": "IL reader used by SlayIdleRepeat.Architecture.Tests (M0-08, Infrastructure/Il.cs) to inspect method bodies for the banned-API rules. It reads assemblies; it is not a service behind a port and cannot lock anything in." },
+    { "id": "coverlet.collector", "reason": "Coverage collector. Test-time only." },
+    { "id": "Microsoft.SourceLink.*", "reason": "Debug symbol metadata. Build-time only, no runtime surface." }
+  ]
+}
