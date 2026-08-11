@@ -26,7 +26,6 @@ public static partial class ContentInvariants
     private const string IdMemberName = "id";
     private const string IconMemberName = "icon";
     private const string LocaleDirectory = "loc/";
-    private const string SourceLocale = "loc/en.json";
     private const string StringsMemberName = "strings";
 
     /// <summary>Every cross-file rule, over the merged, schema-valid document set.</summary>
@@ -396,10 +395,10 @@ public static partial class ContentInvariants
 
             referenced.Add(key);
 
-            foreach (var (path, keys) in locales.Where(l => !l.Value.Contains(key))
-                         .OrderBy(l => l.Key, StringComparer.Ordinal))
+            foreach (var path in locales.Where(l => !l.Value.Contains(key))
+                         .Select(l => l.Key)
+                         .OrderBy(p => p, StringComparer.Ordinal))
             {
-                _ = keys;
                 issues.Add(new ContentIssue(
                     ContentIssueCode.MissingIcon, $"{documentPath}#{pointer}",
                     $"names the string '{key}', which {path} does not carry. It would render as its " +
