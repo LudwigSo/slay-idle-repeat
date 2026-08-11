@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/drops.schema.json",
+  "title": "drops.json",
+  "description": "08 §2, §3, §3.0a, §3.1, §3.2, §6 and 24 §4.0a — rarity tables per chapter band, item stat generation, affix pool, quality range, container contents.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "rarities", "dropShareByChapterBand", "itemGeneration", "slotCoefficients", "percentStatsByRarity", "affixPool", "sets", "containerContents", "acquisitionRates"],
+  "$defs": {
+    "rarity": { "enum": ["C", "B", "A", "S", "SS"] },
+    "slot": { "enum": ["WEAPON", "HELMET", "ARMOR", "BOOTS", "RING", "AMULET"] },
+    "rarityShareMap": {
+      "description": "Percentages by rarity; a band must sum to 100.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "patternProperties": { "^(C|B|A|S|SS)$": { "type": "number", "minimum": 0, "maximum": 100 } }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "rarities": {
+      "description": "08 §2 — the five rarities, ascending. Exactly five; ids unique.",
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "displayName", "statMultiplier", "affixCount"],
+        "properties": {
+          "id": { "$ref": "#/$defs/rarity" },
+          "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+          "statMultiplier": { "type": "number", "minimum": 1 },
+          "affixCount": { "type": "integer", "minimum": 0, "maximum": 4 }
+        }
+      }
+    },
+    "dropShareByChapterBand": {
+      "description": "08 §2 — DropShare(chapter). Bands must tile chapters 1-8 without gaps or overlaps, and each share map must sum to 100. Later chapters remove C entirely and lift the S/SS shares.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chapterFrom", "chapterTo", "share"],
+        "properties": {
+          "chapterFrom": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "chapterTo": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "share": { "$ref": "#/$defs/rarityShareMap" }
+        }
+      }
+    },
+    "itemGeneration": {
+      "description": "08 §3 — ItemPower(chapter, rarity) = ChapterPowerTarget(chapter) * itemPowerCoefficient * RarityMult(rarity). Quality is one scalar q in [0,1] per item instance, displayed directly as a 0-100% bar. The ranges are deliberately asymmetric.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "itemPowerCoefficient", "quality"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "itemPowerCoefficient": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max", "primaryScale", "secondaryScale"],
+          "properties": {
+            "min": { "const": 0.0 },
+            "max": { "const": 1.0 },
+            "primaryScale": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["base", "span"],
+              "properties": {
+                "base": { "type": "number", "exclusiveMinimum": 0 },
+                "span": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            },
+            "secondaryScale": { "$ref": "#/properties/itemGeneration/properties/quality/properties/primaryScale" }
+          }
+        }
+      }
+    },
+    "slotCoefficients": {
+      "description": "08 §3.0a — one row per equipment slot. Flat stats scale with ItemPower and therefore with chapter; percent stats scale with rarity only and carry a null coefficient here, meaning 'read percentStatsByRarity instead'. 08 §3.0a warns that the flat coefficients are expected to move under assertion A13.",
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slot", "primaryStat", "primaryCoef", "secondaryStat", "secondaryCoef"],
+        "properties": {
+          "slot": { "$ref": "#/$defs/slot" },
+          "primaryStat": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "primaryCoef": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+          "secondaryStat": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "secondaryCoef": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "percentStatsByRarity": {
+      "description": "08 §3.0a — percent stats scale with rarity only, never with chapter, because they feed capped percentages (05 §1.1) and must not inflate across chapters. Values are fractions, not percentages.",
+      "type": "object",
+      "required": ["_doc"],
+      "additionalProperties": false,
+      "properties": { "_doc": { "type": "string", "minLength": 1 } },
+      "patternProperties": {
+        "^(CRIT|ASPD|DODGE|PEN|LIFESTEAL|BLOCK|DR)$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["C", "B", "A", "S", "SS"],
+          "patternProperties": { "^(C|B|A|S|SS)$": { "type": "number", "minimum": 0, "maximum": 1 } }
+        }
+      }
+    },
+    "affixPool": {
+      "description": "08 §3.1 — 14 affixes, slot-restricted, rolled by rarity B and above. Only three affix IDs exist in the design docs; the remaining eleven carry id: null and must not be invented.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "affixes"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "affixes": {
+          "type": "array",
+          "minItems": 14,
+          "maxItems": 14,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "displayName", "min", "max", "slots"],
+            "properties": {
+              "id": { "type": ["string", "null"], "pattern": "^AFX_[A-Z0-9_]+$" },
+              "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+              "min": { "type": "number", "minimum": 0 },
+              "max": { "type": "number", "minimum": 0 },
+              "slots": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/slot" } },
+              "minRarity": { "$ref": "#/$defs/rarity" }
+            }
+          }
+        }
+      }
+    },
+    "sets": {
+      "description": "08 §3.2 — exactly 4 sets, one per family axis, SS only. 4 sets x 6 slots = 24 SS items. The design docs give set names but no setId vocabulary.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "breakpoints", "sets"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "breakpoints": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1, "maximum": 6 } },
+        "sets": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "displayName", "familyAxis"],
+            "properties": {
+              "id": { "type": ["string", "null"], "pattern": "^SET_[A-Z0-9_]+$" },
+              "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+              "familyAxis": { "enum": ["BALANCED", "HEAVY", "CASTER", "AGILE"] }
+            }
+          }
+        }
+      }
+    },
+    "containerContents": {
+      "description": "24 §4.0a — what a container yields per open. chapterOrigin = max(1, highestChapterCleared), read at open time. CHEST_STANDARD's table is a function of dropShareByChapterBand, not a literal.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "CHEST_STANDARD", "CHEST_PREMIUM", "CHEST_APEX"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 }
+      },
+      "patternProperties": {
+        "^CHEST_[A-Z0-9_]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["itemsPerOpen", "rarityTable", "baseSsWeight"],
+          "properties": {
+            "itemsPerOpen": { "type": "integer", "exclusiveMinimum": 0 },
+            "rarityTable": { "oneOf": [{ "$ref": "#/$defs/rarityShareMap" }, { "type": "null" }] },
+            "rarityTableSource": {
+              "description": "Set when rarityTable is null because the table is derived rather than literal. Names the field it is derived from.",
+              "type": "string",
+              "minLength": 1
+            },
+            "baseSsWeight": { "type": ["number", "null"], "minimum": 0 }
+          }
+        }
+      }
+    },
+    "acquisitionRates": {
+      "description": "08 §6 — how gear reaches the player. Design target: 20-35 items per hour of play, of which 2-5 are meaningful upgrades or merge fodder.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "eliteKillItems", "bossKillItemsMin", "bossKillItemsMax", "normalEnemyChance", "treasureTileChance"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "eliteKillItems": { "type": "integer", "minimum": 0 },
+        "bossKillItemsMin": { "type": "integer", "minimum": 0 },
+        "bossKillItemsMax": { "type": "integer", "minimum": 0 },
+        "normalEnemyChance": { "type": "number", "minimum": 0, "maximum": 1 },
+        "treasureTileChance": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

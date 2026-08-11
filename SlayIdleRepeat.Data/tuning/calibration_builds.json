@@ -1,0 +1,171 @@
+{
+  "$schema": "../schema/calibration_builds.schema.json",
+  "_doc": "29 §2.5 — the reference par build (fixes K_POWER), the standard dummy (makes EmpiricalPower measurable) and the five build-archetype loadouts 05 §9 sweeps. The harness loads these; it never synthesises its own.",
+  "_status": "transcribed",
+  "referenceParBuild": {
+    "comment": "Defines K_POWER: PlayerPower(this) := 1000 (Chapter 1 Normal par).",
+    "level": 10,
+    "stats": {
+      "maxHp": 1120,
+      "atk": 145,
+      "def": 74,
+      "aspd": 1.05,
+      "crit": 0.08,
+      "critDamage": 0.55,
+      "lifesteal": 0.02,
+      "dodge": 0.03,
+      "block": 0.0,
+      "pen": 0.02,
+      "dmgPct": 0.05,
+      "drPct": 0.03,
+      "healPct": 1.0,
+      "thorns": 0.0
+    },
+    "pets": ["PET_SPARKLING"],
+    "mount": null,
+    "targetPower": 1000
+  },
+  "standardDummy": {
+    "level": 40,
+    "maxHp": 100000,
+    "atk": 2000,
+    "def": 1500,
+    "aspd": 1.0,
+    "crit": 0.1,
+    "critDamage": 0.5,
+    "lifesteal": 0,
+    "dodge": 0,
+    "block": 0,
+    "pen": 0,
+    "dmgPct": 0,
+    "drPct": 0,
+    "healPct": 1.0,
+    "thorns": 0,
+    "flags": ["INVULNERABLE"]
+  },
+  "measurementProtocol": {
+    "seeds": 20,
+    "seedStream": "harness:{n}",
+    "aggregate": "median",
+    "dummyOutputPerSecond": 2100,
+    "offensePass": {
+      "dummyAtk": 0,
+      "windowSeconds": 30,
+      "measures": "DPS_emp"
+    },
+    "defensePass": {
+      "dummyAtFullAtk": true,
+      "clampSeconds": 300,
+      "measures": "TTD"
+    }
+  },
+  "scalingRule": {
+    "scaledStats": ["maxHp", "atk", "def"],
+    "bisectionTolerance": 0.001,
+    "scalarDecimalPlaces": 4,
+    "defaultLevel": 40,
+    "levelWhenTargetingContent": "EnemyLevel(c, t) per 05 §6.0"
+  },
+  "archetypes": [
+    {
+      "id": "ARCH_CRIT",
+      "stats": {
+        "maxHp": 900, "atk": 150, "def": 60, "aspd": 1.1,
+        "crit": 0.35, "critDamage": 1.2, "lifesteal": 0, "dodge": 0.03,
+        "block": 0, "pen": 0.1, "dmgPct": 0.05, "drPct": 0,
+        "healPct": 1.0, "thorns": 0
+      },
+      "pets": ["PET_NIPPER", "PET_VOIDKITTEN", "PET_WISP"],
+      "frozenPerks": [
+        "PK_KEEN_EYE III", "PK_HEAVY_SWING II", "PK_CRIT_CASCADE II", "PK_TWIN_STRIKE II",
+        "PK_SHARP_EDGE II", "PK_QUICK_HANDS II", "PK_SANGUINE II", "PK_EXECUTIONER II",
+        "PK_OPENER I", "PK_APEX I", "PK_TOUGH_HIDE I", "PK_DUELIST I"
+      ],
+      "draftPriority": [
+        "PK_KEEN_EYE", "PK_HEAVY_SWING", "PK_CRIT_CASCADE", "PK_TWIN_STRIKE", "PK_SANGUINE",
+        "PK_SHARP_EDGE", "PK_QUICK_HANDS", "PK_EXECUTIONER", "PK_APEX", "PK_OPENER",
+        "PK_DUELIST", "PK_TOUGH_HIDE", "PK_PERFECTIONIST", "PK_ANNIHILATE", "PK_GIANT_SLAYER"
+      ]
+    },
+    {
+      "id": "ARCH_TANK_THORNS",
+      "stats": {
+        "maxHp": 1600, "atk": 95, "def": 120, "aspd": 0.95,
+        "crit": 0.05, "critDamage": 0.5, "lifesteal": 0, "dodge": 0.02,
+        "block": 0.2, "pen": 0, "dmgPct": 0, "drPct": 0.15,
+        "healPct": 1.0, "thorns": 0.3
+      },
+      "pets": ["PET_SNAILGUARD", "PET_THORNBUD", "PET_AEGISOWL"],
+      "frozenPerks": [
+        "PK_THORNS II", "PK_MIRROR II", "PK_IRON_SKIN II", "PK_TOUGH_HIDE II",
+        "PK_BULWARK II", "PK_STOIC II", "PK_SECOND_SKIN II", "PK_REACTIVE II",
+        "PK_WARDED II", "PK_LAST_STAND I", "PK_AEGIS I", "PK_ANCHOR I"
+      ],
+      "draftPriority": [
+        "PK_THORNS", "PK_MIRROR", "PK_IRON_SKIN", "PK_TOUGH_HIDE", "PK_WARDED",
+        "PK_SECOND_SKIN", "PK_STOIC", "PK_BULWARK", "PK_REACTIVE", "PK_AEGIS",
+        "PK_LAST_STAND", "PK_ANCHOR", "PK_FORTRESS", "PK_IMMOVABLE", "PK_REGEN"
+      ]
+    },
+    {
+      "id": "ARCH_DOT",
+      "stats": {
+        "maxHp": 1050, "atk": 130, "def": 70, "aspd": 1.25,
+        "crit": 0.1, "critDamage": 0.6, "lifesteal": 0, "dodge": 0.03,
+        "block": 0, "pen": 0.15, "dmgPct": 0.1, "drPct": 0.03,
+        "healPct": 1.0, "thorns": 0
+      },
+      "pets": ["PET_EMBERCUB", "PET_SPOREMOTHER", "PET_WISP"],
+      "frozenPerks": [
+        "PK_RUPTURE II", "PK_IGNITE II", "PK_SUNDERING II", "PK_QUICK_HANDS II",
+        "PK_PIERCING II", "PK_BRUTALITY II", "PK_KEEN_EYE II", "PK_SHARP_EDGE II",
+        "PK_DEATHMARK I", "PK_GIANT_SLAYER I", "PK_TOUGH_HIDE I", "PK_REGEN I"
+      ],
+      "draftPriority": [
+        "PK_RUPTURE", "PK_IGNITE", "PK_SUNDERING", "PK_QUICK_HANDS", "PK_KEEN_EYE",
+        "PK_PIERCING", "PK_BRUTALITY", "PK_DEATHMARK", "PK_SHARP_EDGE", "PK_GIANT_SLAYER",
+        "PK_TOUGH_HIDE", "PK_REGEN", "PK_CLEAVE", "PK_TWIN_STRIKE", "PK_ANNIHILATE"
+      ]
+    },
+    {
+      "id": "ARCH_LIFESTEAL",
+      "stats": {
+        "maxHp": 1150, "atk": 135, "def": 70, "aspd": 1.1,
+        "crit": 0.08, "critDamage": 0.55, "lifesteal": 0.25, "dodge": 0.03,
+        "block": 0, "pen": 0.05, "dmgPct": 0.05, "drPct": 0.05,
+        "healPct": 1.2, "thorns": 0
+      },
+      "pets": ["PET_LEECHLING", "PET_TOADKING", "PET_MOSSLING"],
+      "frozenPerks": [
+        "PK_LEECH II", "PK_BLOODLETTER II", "PK_FEAST II", "PK_SANGUINE II",
+        "PK_HEALERS_TOUCH II", "PK_SHARP_EDGE II", "PK_QUICK_HANDS II", "PK_TOUGH_HIDE II",
+        "PK_VITAL_SURGE I", "PK_TRANSFUSION I", "PK_UNDYING I", "PK_ETERNAL I"
+      ],
+      "draftPriority": [
+        "PK_LEECH", "PK_BLOODLETTER", "PK_FEAST", "PK_SANGUINE", "PK_HEALERS_TOUCH",
+        "PK_SHARP_EDGE", "PK_QUICK_HANDS", "PK_TOUGH_HIDE", "PK_VITAL_SURGE", "PK_TRANSFUSION",
+        "PK_UNDYING", "PK_ETERNAL", "PK_PHOENIX", "PK_SECOND_SKIN", "PK_KEEN_EYE"
+      ]
+    },
+    {
+      "id": "ARCH_PET",
+      "stats": {
+        "maxHp": 1100, "atk": 125, "def": 75, "aspd": 1.05,
+        "crit": 0.1, "critDamage": 0.6, "lifesteal": 0.02, "dodge": 0.03,
+        "block": 0, "pen": 0.05, "dmgPct": 0.05, "drPct": 0.05,
+        "healPct": 1.0, "thorns": 0
+      },
+      "pets": ["PET_STORMFANG", "PET_VOIDKITTEN", "PET_CLOCKHOUND"],
+      "frozenPerks": [
+        "PK_PACK_LEADER II", "PK_SYMBIOSIS II", "PK_SHARP_EDGE II", "PK_TOUGH_HIDE II",
+        "PK_KEEN_EYE II", "PK_QUICK_HANDS II", "PK_SECOND_SKIN II", "PK_ECHO I",
+        "PK_ARSENAL I", "PK_REGEN I", "PK_STOIC I", "PK_HEAVY_SWING I"
+      ],
+      "draftPriority": [
+        "PK_PACK_LEADER", "PK_SYMBIOSIS", "PK_ECHO", "PK_ARSENAL", "PK_SHARP_EDGE",
+        "PK_KEEN_EYE", "PK_TOUGH_HIDE", "PK_QUICK_HANDS", "PK_SECOND_SKIN", "PK_REGEN",
+        "PK_STOIC", "PK_HEAVY_SWING", "PK_APEX", "PK_PERFECTIONIST", "PK_FLURRY"
+      ]
+    }
+  ]
+}

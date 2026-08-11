@@ -1,0 +1,136 @@
+{
+  "$schema": "../schema/sim_profiles.schema.json",
+  "_doc": "21 §5.4, §5.4.1–5.4.3 — the 14 behavioural profiles the economy simulator runs every time. Profiles may be added freely; these 14 are the minimum set the assertions in 21 §11 require.",
+  "_status": "transcribed",
+  "adPlacementGroups": {
+    "HIGH": [
+      "AD_DOUBLE_RUN_REWARDS", "AD_REVIVE", "AD_DOUBLE_QUEST",
+      "AD_FREE_GEAR_CHEST", "AD_FREE_PET_EGG", "AD_DOUBLE_LEGEND_XP"
+    ],
+    "MEDIUM": [
+      "AD_ENERGY", "AD_CROWNS", "AD_ENHANCE_STONES", "AD_MERGE_DUST",
+      "AD_FEED_BUNDLE", "AD_LUCKY_WHEEL", "AD_DOUBLE_CHEST", "AD_ELITE_GUARANTEE",
+      "AD_BOSS_SECOND_WIND", "AD_DOUBLE_HONOR", "AD_EXTRA_DUNGEON"
+    ],
+    "LOW": [
+      "AD_REROLL_PERK", "AD_EXTRA_PERK_CHOICE", "AD_REROLL_DICE", "AD_SHOP_REFRESH",
+      "AD_SHOP_FREEBIE", "AD_SKIP_CURSE", "AD_RETRY_MINIGAME", "AD_CAMPFIRE_HEAL",
+      "AD_EXTRA_DUEL", "AD_SHOP_REDRAW", "AD_FREE_RETRY", "AD_ENHANCE_LUCK"
+    ]
+  },
+  "profiles": [
+    {
+      "name": "NoAds_Casual",
+      "cadence": { "sessionsPerDay": 1, "minutesPerSession": 20, "daysPerWeekActive": 5, "lapseProbability": 0.15, "maxLapseDays": 3 },
+      "competence": { "skillFactor": 0.9, "systemLiteracy": 0.5 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 1.0, "dungeons": 0.0, "events": 0.0, "pvp": 0.0, "guildActivity": 0.0, "dailyQuests": 0.6, "luckyWheel": 0.5, "loginCalendar": 0.8, "forgeDiligence": 0.4, "focusUsage": 0.2, "autoSalvage": 0.3 },
+      "ads": { "defaultWatchRate": 0.0, "groupWatchRates": { "HIGH": 0.0, "MEDIUM": 0.0, "LOW": 0.0 }, "interstitialTolerance": 0.5 }
+    },
+    {
+      "name": "NoAds_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.03, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.7, "dailyQuests": 1.0, "luckyWheel": 1.0, "loginCalendar": 1.0, "forgeDiligence": 0.9, "focusUsage": 0.9, "autoSalvage": 0.9 },
+      "ads": { "defaultWatchRate": 0.0, "groupWatchRates": { "HIGH": 0.0, "MEDIUM": 0.0, "LOW": 0.0 }, "interstitialTolerance": 0.7 }
+    },
+    {
+      "name": "SomeAds_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.03, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.4, "dailyQuests": 0.9, "luckyWheel": 0.8, "loginCalendar": 1.0, "forgeDiligence": 0.8, "focusUsage": 0.7, "autoSalvage": 0.8 },
+      "ads": { "defaultWatchRate": 0.5, "groupWatchRates": { "HIGH": 0.9, "MEDIUM": 0.5, "LOW": 0.2 }, "interstitialTolerance": 0.7 }
+    },
+    {
+      "name": "AllAds_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.02, "maxLapseDays": 1 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.7, "dailyQuests": 1.0, "luckyWheel": 1.0, "loginCalendar": 1.0, "forgeDiligence": 0.9, "focusUsage": 0.9, "autoSalvage": 0.9 },
+      "ads": { "defaultWatchRate": 1.0, "groupWatchRates": { "HIGH": 1.0, "MEDIUM": 1.0, "LOW": 1.0 }, "interstitialTolerance": 0.8 }
+    },
+    {
+      "name": "Plus_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.02, "maxLapseDays": 1 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": true, "plusStartDay": 1, "plusEndDay": -1 },
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.7, "dailyQuests": 1.0, "luckyWheel": 1.0, "loginCalendar": 1.0, "forgeDiligence": 0.9, "focusUsage": 0.9, "autoSalvage": 0.9 },
+      "ads": { "defaultWatchRate": null, "groupWatchRates": { "HIGH": null, "MEDIUM": null, "LOW": null }, "interstitialTolerance": 1.0 }
+    },
+    {
+      "name": "Plus_Lapsed",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.05, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": true, "plusStartDay": 1, "plusEndDay": 60 },
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.7, "dailyQuests": 1.0, "luckyWheel": 1.0, "loginCalendar": 1.0, "forgeDiligence": 0.9, "focusUsage": 0.9, "autoSalvage": 0.9 },
+      "ads": { "defaultWatchRate": 0.3, "groupWatchRates": { "HIGH": 0.7, "MEDIUM": 0.3, "LOW": 0.1 }, "interstitialTolerance": 0.6 }
+    },
+    {
+      "name": "AllAds_Hardcore",
+      "cadence": { "sessionsPerDay": 5, "minutesPerSession": 60, "daysPerWeekActive": 7, "lapseProbability": 0.01, "maxLapseDays": 1 },
+      "competence": { "skillFactor": 1.2, "systemLiteracy": 1.0 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.55, "dungeons": 0.2, "events": 0.15, "pvp": 0.1, "guildActivity": 1.0, "dailyQuests": 1.0, "luckyWheel": 1.0, "loginCalendar": 1.0, "forgeDiligence": 1.0, "focusUsage": 1.0, "autoSalvage": 1.0 },
+      "ads": { "defaultWatchRate": 1.0, "groupWatchRates": { "HIGH": 1.0, "MEDIUM": 1.0, "LOW": 1.0 }, "interstitialTolerance": 0.9 }
+    },
+    {
+      "name": "NoAds_Weekend",
+      "cadence": { "sessionsPerDay": 2, "minutesPerSession": 90, "daysPerWeekActive": 2, "lapseProbability": 0.1, "maxLapseDays": 5 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.7 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.7, "dungeons": 0.15, "events": 0.1, "pvp": 0.05, "guildActivity": 0.2, "dailyQuests": 0.7, "luckyWheel": 0.3, "loginCalendar": 0.4, "forgeDiligence": 0.7, "focusUsage": 0.5, "autoSalvage": 0.6 },
+      "ads": { "defaultWatchRate": 0.0, "groupWatchRates": { "HIGH": 0.0, "MEDIUM": 0.0, "LOW": 0.0 }, "interstitialTolerance": 0.6 }
+    },
+    {
+      "name": "Lapsed_Returner",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 3, "lapseProbability": 0.25, "maxLapseDays": 6 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.7 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.65, "dungeons": 0.15, "events": 0.1, "pvp": 0.1, "guildActivity": 0.3, "dailyQuests": 0.7, "luckyWheel": 0.6, "loginCalendar": 0.7, "forgeDiligence": 0.6, "focusUsage": 0.5, "autoSalvage": 0.5 },
+      "ads": { "defaultWatchRate": 0.5, "groupWatchRates": { "HIGH": 0.9, "MEDIUM": 0.5, "LOW": 0.2 }, "interstitialTolerance": 0.5 }
+    },
+    {
+      "name": "Guildless_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.03, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.0, "dailyQuests": 0.9, "luckyWheel": 0.8, "loginCalendar": 1.0, "forgeDiligence": 0.8, "focusUsage": 0.7, "autoSalvage": 0.8 },
+      "ads": { "defaultWatchRate": 0.5, "groupWatchRates": { "HIGH": 0.9, "MEDIUM": 0.5, "LOW": 0.2 }, "interstitialTolerance": 0.7 }
+    },
+    {
+      "name": "Guilded_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.03, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.7, "dailyQuests": 0.9, "luckyWheel": 0.8, "loginCalendar": 1.0, "forgeDiligence": 0.8, "focusUsage": 0.7, "autoSalvage": 0.8 },
+      "ads": { "defaultWatchRate": 0.5, "groupWatchRates": { "HIGH": 0.9, "MEDIUM": 0.5, "LOW": 0.2 }, "interstitialTolerance": 0.7 }
+    },
+    {
+      "name": "EventSkipper_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.03, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.68, "dungeons": 0.22, "events": 0.0, "pvp": 0.1, "guildActivity": 0.4, "dailyQuests": 0.9, "luckyWheel": 0.8, "loginCalendar": 1.0, "forgeDiligence": 0.8, "focusUsage": 0.7, "autoSalvage": 0.8 },
+      "ads": { "defaultWatchRate": 0.5, "groupWatchRates": { "HIGH": 0.9, "MEDIUM": 0.5, "LOW": 0.2 }, "interstitialTolerance": 0.7 }
+    },
+    {
+      "name": "DungeonOnly",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.03, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "features": { "runs": 0.05, "dungeons": 0.75, "events": 0.1, "pvp": 0.1, "guildActivity": 0.4, "dailyQuests": 0.9, "luckyWheel": 0.8, "loginCalendar": 1.0, "forgeDiligence": 0.8, "focusUsage": 0.7, "autoSalvage": 0.8 },
+      "ads": { "defaultWatchRate": 0.5, "groupWatchRates": { "HIGH": 0.9, "MEDIUM": 0.5, "LOW": 0.2 }, "interstitialTolerance": 0.7 }
+    },
+    {
+      "name": "Unlucky_Core",
+      "cadence": { "sessionsPerDay": 3, "minutesPerSession": 40, "daysPerWeekActive": 7, "lapseProbability": 0.03, "maxLapseDays": 2 },
+      "competence": { "skillFactor": 1.0, "systemLiteracy": 0.8 },
+      "plus": { "hasPlus": false, "plusStartDay": -1, "plusEndDay": -1 },
+      "seedBand": "p10",
+      "features": { "runs": 0.6, "dungeons": 0.2, "events": 0.12, "pvp": 0.08, "guildActivity": 0.4, "dailyQuests": 0.9, "luckyWheel": 0.8, "loginCalendar": 1.0, "forgeDiligence": 0.8, "focusUsage": 0.7, "autoSalvage": 0.8 },
+      "ads": { "defaultWatchRate": 0.5, "groupWatchRates": { "HIGH": 0.9, "MEDIUM": 0.5, "LOW": 0.2 }, "interstitialTolerance": 0.7 }
+    }
+  ]
+}

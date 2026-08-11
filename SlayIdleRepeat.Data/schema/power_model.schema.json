@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/power_model.schema.json",
+  "title": "power_model.json",
+  "description": "29 §2-3 — PlayerPower formula weights, reference opponent, pet ability weights, Utility Index weights.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "model", "kPower", "referenceOpponent", "effectiveHp", "mitigation", "petAbilityWeights", "utilityIndex"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "model": {
+      "description": "29 §2.1 — both forms ship so the change is reversible without a client patch. 'geometric' is the default and every table in 29 is authored against it.",
+      "enum": ["geometric", "additive_legacy"]
+    },
+    "kPower": {
+      "description": "29 §2.1 — pure calibration constant with no design meaning, fixed once by solving PlayerPower(referenceParBuild) = 1000. null until the harness derives it.",
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "kPowerExpectedMagnitude": {
+      "description": "29 §2.1 — expected magnitude of kPower (approx 5.3). A derived kPower far from this means the reference par build or the formula has drifted.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "referenceOpponent": {
+      "description": "29 §2.2 — fixed reference opponent, defined once and never varied by chapter. This is what makes PlayerPower an absolute, comparable scalar.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "atk", "def", "aspd", "crit", "critDamage", "pen"],
+      "properties": {
+        "level": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "atk": { "type": "number", "minimum": 0 },
+        "def": { "type": "number", "minimum": 0 },
+        "aspd": { "type": "number", "exclusiveMinimum": 0 },
+        "crit": { "type": "number", "minimum": 0, "maximum": 1 },
+        "critDamage": { "type": "number", "minimum": 0 },
+        "pen": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "effectiveHp": {
+      "description": "29 §2.3 — weights in the EffectiveHP composition.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockWeight", "lifestealWeight", "regenWeight"],
+      "properties": {
+        "blockWeight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "lifestealWeight": { "type": "number", "minimum": 0 },
+        "regenWeight": { "type": "number", "minimum": 0 }
+      }
+    },
+    "mitigation": {
+      "description": "29 §2.3 / 05 §4 — MitigationVsReference = effDef / (effDef + flatConstant + perLevelConstant * level). 05 §3 calls these the two most important balance dials in the game.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["flatConstant", "perLevelConstant"],
+      "properties": {
+        "flatConstant": { "type": "number", "exclusiveMinimum": 0 },
+        "perLevelConstant": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "petAbilityWeights": {
+      "description": "29 §2.4 — per-ability weight table so pets with non-damage actives (shields, heals, FREEZE) contribute to EffectiveHP rather than being ignored. Empty until the pet catalogue is authored (M3).",
+      "type": "object",
+      "propertyNames": { "pattern": "^PET_[A-Z0-9_]+$" },
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
+    "utilityIndex": {
+      "description": "29 §3.1 — the second, cruder scalar covering everything PlayerPower deliberately excludes. Never shown to the player.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scale", "dieFaceWeights", "componentWeights"],
+      "properties": {
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "dieFaceWeights": {
+          "description": "29 §3.1 — sum of per-face weights. Only the two endpoints (Star=1.0, Pip1=0.05) are authored in the design docs; the rest are null. Face kinds are the 04 §1 DieFaceKind enum.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["STAR", "SURGE", "FORTUNE", "CHAIN", "VOID", "PIP_1", "PIP_2", "PIP_3", "PIP_4", "PIP_5", "PIP_6"],
+          "patternProperties": {
+            "^(STAR|SURGE|FORTUNE|CHAIN|VOID|PIP_[1-6])$": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+          }
+        },
+        "componentWeights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["incomeMultiplier", "boardControl", "throughput"],
+          "properties": {
+            "incomeMultiplier": { "type": ["number", "null"], "minimum": 0 },
+            "boardControl": { "type": ["number", "null"], "minimum": 0 },
+            "throughput": { "type": ["number", "null"], "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

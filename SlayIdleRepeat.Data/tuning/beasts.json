@@ -1,0 +1,44 @@
+{
+  "$schema": "../schema/beasts.schema.json",
+  "_doc": "07 §2.2 (pet progression), §3.1a (mount levelling), §5 (duplicates) — pet/mount level costs and egg/crate odds. Pity for EGG_PET and CRATE_MOUNT is owned by 24 §4.4-4.5 and lives in luck.json.",
+  "_status": "transcribed",
+  "pets": {
+    "totalInV1": 24,
+    "maxEquipped": 3,
+    "equipSlotUnlockLegendLevels": [5, 15, 30],
+    "rarities": ["B", "A", "S", "SS"],
+    "minLevel": 1,
+    "maxLevel": 60,
+    "minStar": 1,
+    "maxStar": 5,
+    "feedCost": { "coefficient": 8, "exponent": 1.3 },
+    "crownCost": { "coefficient": 50, "exponent": 1.075 },
+    "auraPerLevel": 0.035,
+    "ascensionDuplicates": { "2": 2, "3": 4, "4": 8, "5": 16 },
+    "auraBonusPerStar": 0.2,
+    "cooldownReductionPerStar": 0.08,
+    "eggOdds": { "B": 62, "A": 28, "S": 9, "SS": 1 },
+    "duplicateBeyondMaxStarBeastFeed": 200
+  },
+  "mounts": {
+    "totalInV1": 12,
+    "maxEquipped": 1,
+    "equipSlotUnlockLegendLevel": 20,
+    "rarities": ["A", "S", "SS"],
+    "minLevel": 1,
+    "maxLevel": 30,
+    "statPerLevel": 0.035,
+    "feedCost": { "coefficient": 24, "exponent": 1.3 },
+    "mountFeedScalar": 3.0,
+    "crownCost": null,
+    "runPerkScalesWithLevel": false,
+    "crateOdds": { "A": 70, "S": 26, "SS": 4 },
+    "ascends": false,
+    "duplicateBeastFeed": 300
+  },
+  "containerPrices": {
+    "_doc": "10 §2 — Soul Shard sinks. Containers are granted unopened; odds, pity and Focus are read at open (24 §4.0).",
+    "petEggSoulShards": 900,
+    "mountCrateSoulShards": 2500
+  }
+}

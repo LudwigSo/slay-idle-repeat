@@ -1,0 +1,81 @@
+{
+  "$schema": "../schema/progression.schema.json",
+  "_doc": "07 §1.1 (Legend XP curve, unlock ladder), 02 §5.1a (Legend XP income), 10 §3 (Energy), 10 §8 (catch-up / frontier curve). 21 §12: the legendXp exponent is the highest-suspicion number in the whole economy — sweep it first.",
+  "_status": "partial",
+  "legendLevel": {
+    "min": 1,
+    "max": 200,
+    "xpCoefficient": 120,
+    "xpExponent": 1.05,
+    "xpExponentSweepRange": { "min": 0.95, "max": 1.15 },
+    "talentPointsPerLevel": 1
+  },
+  "unlocks": {
+    "_doc": "07 §1.1 — Legend Level unlock ladder.",
+    "PET_SLOT_1": 5,
+    "FORGE": 8,
+    "DUNGEONS": 8,
+    "PVP": 10,
+    "PET_SLOT_2": 15,
+    "GUILDS": 15,
+    "MOUNT_SLOT": 20,
+    "PET_SLOT_3": 30,
+    "TALENT_BRANCH_FORTUNE": 40,
+    "MYTHIC_TIER": 60,
+    "CODEX_MASTERY": 100,
+    "EVENTS": 12
+  },
+  "runXp": {
+    "_doc": "02 §5.1a — BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1). XP is a banked reward, subject to CompletionMultiplier (02 §5.2) and AD_DOUBLE_LEGEND_XP.",
+    "baseXpCoefficient": 25,
+    "baseXpGrowth": 1.55,
+    "tierMultiplier": { "NORMAL": 1.0, "HEROIC": 1.6, "MYTHIC": 2.5 },
+    "sourceMultiplier": {
+      "NORMAL_ENEMY_KILL": 1,
+      "ELITE_KILL": 3,
+      "BOSS_KILL": 15,
+      "RUN_VICTORY_BONUS": 10,
+      "RESOURCE_DUNGEON": 0.2
+    }
+  },
+  "completionMultiplier": {
+    "_doc": "02 §5.2",
+    "VICTORY": 1.0,
+    "STAGE_3_DEATH": 0.6
+  },
+  "energy": {
+    "_doc": "10 §3. 28 Part C is the authority for the Energy Reserve.",
+    "baseMax": 120,
+    "perLegendLevel": 2,
+    "maxCap": 200,
+    "regenMinutesPerPoint": 4,
+    "runCost": 20,
+    "dungeonCost": 10,
+    "reserveMultipleOfMax": 1,
+    "reserveReceivesOverflowOnly": true,
+    "reserveRegeneratesOnItsOwn": false,
+    "regenWhileOffline": true,
+    "sources": {
+      "AD_ENERGY": { "amount": 40, "capPerDay": 4 },
+      "DAILY_FREE_REFILL": { "amount": "FULL", "capPerDay": 1 },
+      "LEGEND_LEVEL_UP": { "amount": "FULL", "capPerDay": null },
+      "DAILY_QUEST": { "amount": 20, "capPerDay": 3 },
+      "TILE_EVENT": { "amount": 10, "capPerDay": null }
+    },
+    "medianSessionEnergyExhaustionAlarmShare": 0.25
+  },
+  "chapterGating": {
+    "_doc": "10 §7 — no level gate on Normal chapters.",
+    "NORMAL": { "requiresClear": "PREVIOUS_CHAPTER_NORMAL", "requiresLegendLevel": null },
+    "HEROIC": { "requiresClear": "SAME_CHAPTER_NORMAL", "requiresLegendLevel": null },
+    "MYTHIC": { "requiresClear": "SAME_CHAPTER_HEROIC", "requiresLegendLevel": 60 }
+  },
+  "catchUp": {
+    "_doc": "10 §8 — NEEDS DETAIL. The frontier-bonus / catch-up curve is sketched, not specified: it cannot be authored by hand and deriving it is the economy simulator's first job (O1, 21 §12). Only the two sketched endpoints below appear in the docs; the curve itself is deliberately unauthored.",
+    "belowHighestChapterRewardReduction": 0.6,
+    "frontierChapterBonus": 0.5,
+    "curve": null,
+    "rawTimeToChapterCoefficientHours": 0.55,
+    "rawTimeToChapterGrowth": 2.0
+  }
+}

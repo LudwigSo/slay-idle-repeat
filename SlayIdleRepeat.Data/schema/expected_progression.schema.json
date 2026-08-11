@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/expected_progression.schema.json",
+  "title": "expected_progression.json",
+  "description": "29 §6 — the product owner's statement of intent: PlayerPower per profile per checkpoint day, with a fractional tolerance band. 21 A14 grades every profile against it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "checkpointDays", "toleranceLadders", "profiles"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "checkpointDays": {
+      "description": "29 §6 — 8 per profile: days 1, 3, 7, 14, 30, 60, 90, 180. More may be added; the simulator interpolates between them for charting.",
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 1, "maximum": 180 }
+    },
+    "toleranceLadders": {
+      "description": "29 §6.0 — named tolerance ladders. A fraction: 0.25 means actual must land within +/-25% of expected. Bands widen with time because variance compounds.",
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 8,
+        "items": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "profiles": {
+      "description": "29 §6.0 — one entry per simulated profile (21 §5.4). Exactly one must be marked canonical: the AllAds_Core curve every other row is derived from.",
+      "type": "array",
+      "minItems": 14,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profile", "canonical", "toleranceLadder", "expectedPower"],
+        "properties": {
+          "profile": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+          "canonical": { "type": "boolean" },
+          "toleranceLadder": { "type": "string", "minLength": 1 },
+          "expectedPower": {
+            "description": "29 §6.0 — one value per entry in checkpointDays, in the same order. Must be strictly ascending: a profile's expected power never goes down.",
+            "type": "array",
+            "minItems": 8,
+            "items": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,234 @@
+{
+  "$schema": "../schema/currencies.schema.json",
+  "_doc": "03 §7a (in-run income tables, the single source of truth), 03 §6.1 (minigame rewards), 03 §7 (shop tile prices), 10 §2-§6 (Soul Shards, Crowns, the Shop, daily quests), 19 Part G (the 28-day login calendar). 10 §9: until the simulator has run, all economy numbers here are informed guesses — including the ones that look precise.",
+  "_status": "transcribed",
+  "wallet": [
+    { "id": "GOLD", "displayName": "loc.currency.gold.name", "scope": "RUN", "purchasable": false },
+    { "id": "CROWNS", "displayName": "loc.currency.crowns.name", "scope": "META", "purchasable": false },
+    { "id": "SOUL_SHARDS", "displayName": "loc.currency.soul_shards.name", "scope": "META", "purchasable": false },
+    { "id": "ENERGY", "displayName": "loc.currency.energy.name", "scope": "GATE", "purchasable": false },
+    { "id": "ENHANCE_STONES", "displayName": "loc.currency.enhance_stones.name", "scope": "META", "purchasable": false },
+    { "id": "MERGE_DUST", "displayName": "loc.currency.merge_dust.name", "scope": "META", "purchasable": false },
+    { "id": "BEAST_FEED", "displayName": "loc.currency.beast_feed.name", "scope": "META", "purchasable": false },
+    { "id": "HONOR", "displayName": "loc.currency.honor.name", "scope": "META", "purchasable": false }
+  ],
+  "nonWalletCounters": [
+    { "id": "BEAST_MARKS", "displayName": "loc.counter.beast_marks.name" },
+    { "id": "SET_TOKENS", "displayName": "loc.counter.set_tokens.name" }
+  ],
+  "chapterScalars": {
+    "_doc": "03 §7a — two chapter scalars. G(c) = goldGrowth^(c-1) matches XP and shop-price growth exactly; M(c) = metaGrowth^(c-1) is deliberately slower than the x2/chapter power curve so material income never outruns the merge bottleneck. adBundleScalar is the linear 1 + 0.35*highestChapterCleared form used by ad bundles (12 §5), minigames (03 §6.1), the login calendar (19 Part G) and the shop's scaled material offers.",
+    "goldGrowth": 1.55,
+    "metaGrowth": 1.35,
+    "adBundleScalar": 0.35,
+    "roundingMode": "NEAREST_INTEGER"
+  },
+  "inRunIncome": {
+    "goldPerKill": {
+      "_doc": "03 §7a.1 — GoldPerKill(c) = base * G(c). No Gold is paid for run victory.",
+      "base": 40,
+      "eliteMultiplier": 3,
+      "bossMultiplier": 10
+    },
+    "runCompletionCrowns": {
+      "_doc": "03 §7a.2 — RunCrowns(c) = base * M(c), takes CompletionMultiplier and the Reward multiplier.",
+      "base": 90
+    },
+    "treasureProfiles": {
+      "_doc": "03 §7a.3 — each treasure tile rolls one payout profile, seeded, stream 'treasure'. Amounts are multiples of M(c). Treasure tiles never drop gear in v1.",
+      "seedStream": "treasure",
+      "profiles": [
+        { "id": "COIN_HOARD", "weight": 55, "crowns": 40, "enhanceStones": 2, "mergeDust": 0 },
+        { "id": "STONE_CACHE", "weight": 30, "crowns": 18, "enhanceStones": 6, "mergeDust": 0 },
+        { "id": "DUST_TROVE", "weight": 15, "crowns": 15, "enhanceStones": 0, "mergeDust": 10 }
+      ]
+    },
+    "cache": {
+      "_doc": "03 §7a.4 — CacheFeed(c) = base * M(c). On an egg hit the cache pays one Pet Egg instead of the Feed. The egg rate is flat across chapters.",
+      "beastFeedBase": 25,
+      "eggChance": 0.06
+    },
+    "shrineBuffPool": {
+      "_doc": "03 §7a.5 — a shrine offers 2 distinct options drawn seeded (stream 'shrine', equal weights) from this pool of 10. Buffs are permanent for the run and stack additively. Cleanse rule: with at least one active cleansable curse, option slot 2 is always a Cleanse.",
+      "seedStream": "shrine",
+      "optionsOffered": 2,
+      "equalWeights": true,
+      "buffs": [
+        { "id": "SHR_ATK", "displayName": "loc.shrine.atk.name", "stat": "ATK", "magnitude": 0.12 },
+        { "id": "SHR_HP", "displayName": "loc.shrine.hp.name", "stat": "MAX_HP", "magnitude": 0.18, "immediateHealPctMaxHp": 0.18 },
+        { "id": "SHR_ASPD", "displayName": "loc.shrine.aspd.name", "stat": "ASPD", "magnitude": 0.1 },
+        { "id": "SHR_CRIT", "displayName": "loc.shrine.crit.name", "stat": "CRIT", "magnitude": 0.08 },
+        { "id": "SHR_DEF", "displayName": "loc.shrine.def.name", "stat": "DEF", "magnitude": 0.2 },
+        { "id": "SHR_LS", "displayName": "loc.shrine.ls.name", "stat": "LIFESTEAL", "magnitude": 0.06 },
+        { "id": "SHR_DR", "displayName": "loc.shrine.dr.name", "stat": "DR", "magnitude": 0.06 },
+        { "id": "SHR_THORN", "displayName": "loc.shrine.thorn.name", "stat": "THORNS", "magnitude": 0.25 },
+        { "id": "SHR_GOLD", "displayName": "loc.shrine.gold.name", "stat": "GOLD_GAIN", "magnitude": 0.15 },
+        { "id": "SHR_HEAL", "displayName": "loc.shrine.heal.name", "stat": null, "magnitude": null, "immediateHealPctMaxHp": 0.4 }
+      ]
+    }
+  },
+  "minigameRewards": {
+    "_doc": "03 §6.1 — Chapter 1 base values, multiplied by (1 + 0.35 * (chapter - 1)).",
+    "MG_CHEST_PICK": [
+      { "outcome": "BRONZE", "gold": 150, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "SILVER", "gold": 300, "crowns": 20, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "GOLD", "gold": 500, "crowns": 60, "beastFeed": 15, "enhanceStones": 0, "rerollCharges": 0 }
+    ],
+    "MG_TIMING_BAR": [
+      { "outcome": "HITS_0", "gold": 100, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "HITS_1", "gold": 250, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "HITS_2", "gold": 400, "crowns": 30, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "HITS_3", "gold": 600, "crowns": 80, "beastFeed": 0, "enhanceStones": 5, "rerollCharges": 0 }
+    ],
+    "MG_DICE_DUEL": [
+      { "outcome": "LOSS", "gold": 150, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "WIN_2_1", "gold": 400, "crowns": 40, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "WIN_2_0", "gold": 550, "crowns": 50, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 1 }
+    ],
+    "MG_MEMORY_RUNE": [
+      { "outcome": "FAIL_ROUND_1", "gold": 100, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "ROUND_1_ONLY", "gold": 300, "crowns": 25, "beastFeed": 0, "enhanceStones": 0, "rerollCharges": 0 },
+      { "outcome": "BOTH_ROUNDS", "gold": 550, "crowns": 70, "beastFeed": 20, "enhanceStones": 0, "rerollCharges": 0 }
+    ]
+  },
+  "shopTile": {
+    "_doc": "03 §7 — Price = BasePrice(itemType, rarity) * (1 + 0.25 * stageIndex) * chapterPriceScalar. Gold income and shop prices are both tier-invariant. The FTUE tutorial shop does not use this formula (19 Part D).",
+    "slots": 4,
+    "freeRefreshesPerVisit": 1,
+    "stagePriceStep": 0.25,
+    "chapterPriceScalar": [1.0, 1.55, 2.4, 3.72, 5.77, 8.95, 13.86, 21.5],
+    "basePrice": {
+      "PERK": { "COMMON": 180, "RARE": 320, "EPIC": 560, "LEGENDARY": 950 },
+      "CONSUMABLE": {
+        "CON_HEALTH_DRAUGHT": 140,
+        "CON_REROLL_TOKEN": 120,
+        "CON_DRAFT_TOKEN": 160,
+        "CON_ESCAPE_ROPE": 100
+      },
+      "RUN_BUFF": { "WHETSTONE": 300, "HEARTROOT_TONIC": 300, "HAWKS_EYE": 280 },
+      "HEAL": 150
+    },
+    "healPctMaxHp": 0.35,
+    "runBuffs": [
+      { "id": "WHETSTONE", "displayName": "loc.runbuff.whetstone.name", "stat": "ATK", "base": 12, "chapterGrowth": 2.0 },
+      { "id": "HEARTROOT_TONIC", "displayName": "loc.runbuff.heartroot_tonic.name", "stat": "MAX_HP", "base": 90, "chapterGrowth": 2.0 },
+      { "id": "HAWKS_EYE", "displayName": "loc.runbuff.hawks_eye.name", "stat": "CRIT", "base": 0.04, "chapterGrowth": 1.0 }
+    ],
+    "leftoverGoldAlarmShare": 0.2
+  },
+  "soulShards": {
+    "_doc": "10 §2. Design target: a daily active player earns ~700-1,100 Soul Shards/day in mid-game.",
+    "sources": {
+      "BOSS_KILL_NORMAL_PER_CHAPTER": 15,
+      "BOSS_KILL_HEROIC_PER_CHAPTER": 40,
+      "BOSS_KILL_MYTHIC_PER_CHAPTER": 100,
+      "FIRST_CLEAR_MIN": 100,
+      "FIRST_CLEAR_MAX": 800,
+      "DAILY_QUEST_EACH": 20,
+      "DAILY_QUEST_ALL_THREE_CHEST": 100,
+      "WEEKLY_CHALLENGE": 400,
+      "PVP_SEASON_MIN": 200,
+      "PVP_SEASON_MAX": 3000,
+      "DAILY_LOGIN_MIN": 30,
+      "DAILY_LOGIN_MAX": 500
+    },
+    "sinks": {
+      "PET_EGG": 900,
+      "MOUNT_CRATE": 2500,
+      "S_TIER_GEAR_CHEST": 1800,
+      "ENERGY_REFILL_BASE": 300,
+      "ENERGY_REFILL_INCREMENT_PER_USE_PER_DAY": 150,
+      "INVENTORY_EXPANSION_FLAT": 400
+    },
+    "dailyTargetMin": 700,
+    "dailyTargetMax": 1100
+  },
+  "crowns": {
+    "_doc": "10 §4 — the income rows there are the product of the authored in-run tables above, not independent numbers. Design target: a mid-game player is Crown-constrained on merging but never Crown-starved for pet levelling.",
+    "inventoryExpansionLadder": [800, 1000, 1250, 1560, 1950, 2440, 3050, 3810, 4770, 6000],
+    "inventoryExpansionMaxPurchases": 10,
+    "inventoryExpansionSlotsPerPurchase": 20
+  },
+  "shop": {
+    "_doc": "10 §5.1-5.2 — the Daily and Materials tabs. Prices are fixed; material amounts on rotating offers scale by the adBundleScalar.",
+    "dailyTab": {
+      "rotatingOffersPerDay": 6,
+      "alwaysIncluded": ["DLY_RANDOM_S"],
+      "maxSoulShardPricedOffersPerDay": 3,
+      "seededFrom": "the day's quest-draw seed (BEGIN_SESSION, 14 §2.3)",
+      "staples": [
+        { "id": "STP_PET_EGG", "displayName": "loc.shop.staple.pet_egg.name", "currency": "SOUL_SHARDS", "price": 900 },
+        { "id": "STP_MOUNT_CRATE", "displayName": "loc.shop.staple.mount_crate.name", "currency": "SOUL_SHARDS", "price": 2500 },
+        { "id": "STP_S_GEAR_CHEST", "displayName": "loc.shop.staple.s_gear_chest.name", "currency": "SOUL_SHARDS", "price": 1800 },
+        { "id": "STP_ENERGY_REFILL", "displayName": "loc.shop.staple.energy_refill.name", "currency": "SOUL_SHARDS", "price": 300 }
+      ],
+      "rotatingPool": [
+        { "id": "DLY_RANDOM_S", "displayName": "loc.shop.daily.random_s.name", "currency": "SOUL_SHARDS", "price": 1400, "limitPerDay": 1, "amount": 1, "scaled": false },
+        { "id": "DLY_CHEST_STD", "displayName": "loc.shop.daily.chest_std.name", "currency": "CROWNS", "price": 1200, "limitPerDay": 1, "amount": 1, "scaled": false },
+        { "id": "DLY_CHEST_PREM", "displayName": "loc.shop.daily.chest_prem.name", "currency": "SOUL_SHARDS", "price": 1500, "limitPerDay": 1, "amount": 1, "scaled": false },
+        { "id": "DLY_EGG", "displayName": "loc.shop.daily.egg.name", "currency": "SOUL_SHARDS", "price": 750, "limitPerDay": 1, "amount": 1, "scaled": false },
+        { "id": "DLY_CRATE", "displayName": "loc.shop.daily.crate.name", "currency": "SOUL_SHARDS", "price": 2100, "limitPerDay": 1, "amount": 1, "scaled": false },
+        { "id": "DLY_STONES", "displayName": "loc.shop.daily.stones.name", "currency": "CROWNS", "price": 700, "limitPerDay": 1, "amount": 30, "scaled": true },
+        { "id": "DLY_DUST", "displayName": "loc.shop.daily.dust.name", "currency": "CROWNS", "price": 650, "limitPerDay": 1, "amount": 120, "scaled": true },
+        { "id": "DLY_FEED", "displayName": "loc.shop.daily.feed.name", "currency": "CROWNS", "price": 650, "limitPerDay": 1, "amount": 90, "scaled": true },
+        { "id": "DLY_STONE_BULK", "displayName": "loc.shop.daily.stone_bulk.name", "currency": "SOUL_SHARDS", "price": 500, "limitPerDay": 1, "amount": 80, "scaled": true },
+        { "id": "DLY_DUST_BULK", "displayName": "loc.shop.daily.dust_bulk.name", "currency": "SOUL_SHARDS", "price": 450, "limitPerDay": 1, "amount": 300, "scaled": true }
+      ]
+    },
+    "materialsTab": {
+      "_doc": "10 §5.2 — rates are exactly x10/3 of the Honor Shop's per-unit prices (11 §7: 7.5 / 1.8 / 2.4 Honor). The daily caps keep Crowns from becoming a universal material converter.",
+      "ENHANCE_STONES": { "crownsPerUnit": 25, "dailyCap": 40 },
+      "MERGE_DUST": { "crownsPerUnit": 6, "dailyCap": 250 },
+      "BEAST_FEED": { "crownsPerUnit": 8, "dailyCap": 200 }
+    }
+  },
+  "dailyQuests": {
+    "_doc": "10 §6 — 3 per day from a pool of 20 authored quests (19 Part B). One free reroll.",
+    "perDay": 3,
+    "poolSize": 20,
+    "freeRerolls": 1,
+    "hardQuestRewardMultiplier": 2,
+    "rewardPerQuest": { "crowns": 500, "energy": 20 },
+    "rewardOneOf": [
+      { "enhanceStones": 15 },
+      { "beastFeed": 30 },
+      { "soulShards": 20 }
+    ],
+    "allThreeBonusChest": true
+  },
+  "loginCalendar": {
+    "_doc": "19 Part G — the 28-day cycle. Advances at BEGIN_SESSION, not by date; it advances at most once per game day and only when the currently open day has been claimed. Crown and Merge Dust values are Chapter-1 base and scale by the adBundleScalar. Pet Eggs are EGG_PET; day-14/28 S-tier chests are CHEST_PREMIUM.",
+    "cycleDays": 28,
+    "everyCyclePaysIdentically": true,
+    "days": [
+      { "day": 1, "crowns": 300 },
+      { "day": 2, "enhanceStones": 20 },
+      { "day": 3, "beastFeed": 40 },
+      { "day": 4, "soulShards": 100 },
+      { "day": 5, "energy": 30 },
+      { "day": 6, "mergeDust": 200 },
+      { "day": 7, "petEggs": 1 },
+      { "day": 8, "crowns": 500 },
+      { "day": 9, "enhanceStones": 30 },
+      { "day": 10, "beastFeed": 60 },
+      { "day": 11, "soulShards": 150 },
+      { "day": 12, "energy": 40 },
+      { "day": 13, "mergeDust": 300 },
+      { "day": 14, "chest": "CHEST_PREMIUM" },
+      { "day": 15, "crowns": 800 },
+      { "day": 16, "enhanceStones": 40 },
+      { "day": 17, "beastFeed": 90 },
+      { "day": 18, "soulShards": 200 },
+      { "day": 19, "energy": 60 },
+      { "day": 20, "mergeDust": 400 },
+      { "day": 21, "petEggs": 1, "soulShards": 200 },
+      { "day": 22, "crowns": 1200 },
+      { "day": 23, "enhanceStones": 60 },
+      { "day": 24, "beastFeed": 120 },
+      { "day": 25, "soulShards": 300 },
+      { "day": 26, "energyRefillFull": true },
+      { "day": 27, "mergeDust": 600 },
+      { "day": 28, "chest": "CHEST_PREMIUM", "petEggs": 1 }
+    ]
+  }
+}

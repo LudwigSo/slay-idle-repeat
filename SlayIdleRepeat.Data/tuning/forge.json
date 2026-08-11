@@ -1,0 +1,64 @@
+{
+  "$schema": "../schema/forge.schema.json",
+  "_doc": "08 §4.1-4.3 (merge, enhance, salvage) and 24 §6.1-6.2 (reforge, retune). 25 §7 E9/E10: MergeCrownCost and the +11 to +15 stone costs must be re-derived by the simulator with dungeons, events and guilds enabled together; do not pre-emptively tune them by hand.",
+  "_status": "partial",
+  "merge": {
+    "_doc": "08 §4.1",
+    "inputCount": 3,
+    "dustSubstituteMaxInputs": 1,
+    "availableFromRarity": "C",
+    "availableToRarity": "SS",
+    "outputQualityRule": "MAX_OF_REAL_INPUTS",
+    "outputChapterOriginRule": "MAX_OF_REAL_INPUTS",
+    "outputKeepsSharedEnhanceLevel": true,
+    "outputRerollsAffixes": true,
+    "dustSubstituteCost": { "C": 50, "B": 200, "A": 800, "S": 3200, "SS": null },
+    "crownCostByOutputRarity": { "B": 120, "A": 600, "S": 3000, "SS": 15000 }
+  },
+  "enhance": {
+    "_doc": "08 §4.2. Success rates are authored as band endpoints only — the doc gives '85% -> 65%' and '50% -> 25%' and never states the interpolation, so perLevelSuccessRate is left unauthored.",
+    "minLevel": 0,
+    "maxLevel": 15,
+    "statBonusPerLevel": 0.07,
+    "totalMultiplierAtMax": 2.05,
+    "neverDestroysOrDowngrades": true,
+    "failureLosesLevel": false,
+    "failureConsumesStones": true,
+    "stoneCostPerLevel": [2, 3, 4, 6, 8, 12, 16, 22, 30, 40, 55, 75, 100, 140, 200],
+    "successRateBands": [
+      { "fromLevel": 1, "toLevel": 5, "startRate": 1.0, "endRate": 1.0 },
+      { "fromLevel": 6, "toLevel": 10, "startRate": 0.85, "endRate": 0.65 },
+      { "fromLevel": 11, "toLevel": 15, "startRate": 0.5, "endRate": 0.25 }
+    ],
+    "perLevelSuccessRate": null,
+    "plusLuckyChargesPerDay": 3,
+    "plusLuckyPercentagePoints": 15,
+    "plusLuckyChargesAccumulate": false
+  },
+  "salvage": {
+    "_doc": "08 §4.3",
+    "baseDustByRarity": { "C": 10, "B": 40, "A": 160, "S": 640, "SS": 2560 },
+    "dustPerEnhanceLevel": 0.15,
+    "stoneRefundShare": 0.6
+  },
+  "reforge": {
+    "_doc": "24 §6.1 — quality re-roll, keep-best, unlimited attempts. Mirrored in luck.json; this is the forge-screen view of the same numbers.",
+    "currency": "MERGE_DUST",
+    "costByRarity": { "C": 100, "B": 300, "A": 1000, "S": 4000, "SS": 12000 }
+  },
+  "retune": {
+    "_doc": "24 §6.2 — affix re-roll with lockable affixes and a wishlist. No C-rarity row: C items roll no affixes (08 §2).",
+    "currency": "ENHANCE_STONES",
+    "costByRarity": { "B": 20, "A": 60, "S": 200, "SS": 600 },
+    "lockCostMultiplier": { "1": 2, "2": 5, "3": 12 },
+    "wishlistMaxAffixes": 3,
+    "wishlistMissWeightBonus": 0.1
+  },
+  "inventory": {
+    "_doc": "08 §5 and 10 §4 — expansion prices are authored in currencies.json (the Crown ladder) and 10 §2 (the flat Soul Shard alternative). CONFLICT: 08 §5 caps capacity at 400, but 10 §4's later ruling (16 A7) authors a hard cap of 10 purchases of +20 slots from a base of 120, which reaches only 320. Both are transcribed as written; maxCapacity holds 08 §5's figure and the ladder in currencies.json holds 10 §4's. The two cannot both be right and the docs must pick one.",
+    "baseCapacity": 120,
+    "expansionStep": 20,
+    "maxCapacity": 400,
+    "maxCapacityReachableFromLadder": 320
+  }
+}
