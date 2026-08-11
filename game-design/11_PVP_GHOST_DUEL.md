@@ -109,12 +109,30 @@ Duels not costing Energy is important: PvP must never compete with PvE for the s
 
 Offering three candidates instead of forcing one gives the player agency and lets them dodge a counter-build. It also makes the perk-budget metagame legible: you can see roughly what you're walking into (opponent rating, Legend Level, tier) and pick your fight.
 
+🔒 **At least one of the three candidates must be rated below the player** (`24_LUCK_PROTECTION.md` §4.10 B3). Three consecutive stronger opponents turns a limited daily attempt into a wasted one, and the attempt allowance is small enough that this matters.
+
+🔒 **Guild membership is not part of the Ghost snapshot** and confers no combat advantage of any kind — see `27_GUILDS.md` §1 R1. The ladder measures the player, not their guild.
+
 ### 4.3 The duel itself
 
-- Both sides are simulated by `Simulate(duelSeed, attackerSnapshot, defenderSnapshot)`.
+- Both sides are simulated by `Simulate(duelSeed, attackerSnapshot, defenderSnapshot)`. 🔒 **Duel-specific combat semantics — targeting, initiative, `ON_KILL`, condition reads — are ruled in `05` §3.3.**
 - `duelSeed` is issued by the server, not the client. This prevents seed-shopping.
 - Both fighters are rendered side by side with their name, Legend Level and tier label.
 - Duration cap: **60 s of simulated time** — a PvP-specific override of the simulator's 90 s default (`05` §3), set as `pvpMaxFightSeconds` in `data/combat_caps.json`. Duels are watched end to end far more often than PvE fights, so they are kept shorter. On timeout, the side with the higher remaining HP fraction wins. On an exact tie, the **lower-rated** player wins (a small underdog bias that prevents stagnation at the top).
+
+### 4.4 Candidate selection and sparse populations 🔒
+
+Previously unspecified: the band width, and what happens on day 1 or at the extremes of the ladder.
+
+| Rule | Specification |
+|---|---|
+| Band | Candidates are drawn from **±150 rating** 📐 around the player |
+| Widening | If fewer than 3 candidates exist, widen by **+150 per retry** up to **±600** 📐 |
+| Bot backfill | If fewer than 3 real candidates exist at max width, **or rule B3 (`24` §4.10) cannot be satisfied**, backfill with the authored bot Ghosts from §8, scaled to the player's `PlayerPower`. Bots pay normal Honor but reduced rating gains (half delta) 📐. |
+| Floor exemption | The **lowest-rated real player** is exempt from B3 — no one exists below them; a bot fills the slot instead. |
+| Self and repeats | Never the player's own Ghost; never the same defender twice in one day's candidate sets. |
+
+This is what makes the Arena work identically at 300 players and at 300,000.
 
 ---
 
@@ -136,6 +154,8 @@ Rating floor: 800. Rating never drops below the floor of your current tier's ent
 ```
 
 🔒 **Only the attacker's rating changes.** The defender's Ghost result is recorded and shown to them, but their rating is untouched.
+
+⚠️ **Consequence, accepted (risk R13 in `16` Part C):** one-sided Elo is not zero-sum, so the ladder inflates over time — attackers can always pick the weakest of three candidates, and defender losses cost nothing on the other side. The soft season reset (§5.3) absorbs drift; a **season rating drift metric** (median and p90 rating per season) is added to the telemetry set (`14` §10.1) so the drift is measured rather than assumed. Revisit tier thresholds only if the data shows material inflation. No mechanic change in v1.
 
 ### 5.2 Tiers
 
@@ -229,5 +249,20 @@ Honor buys **materials and collection progress only** — no power that cannot a
 - Unlocks at **Legend Level 10** (day 1 for most players).
 - First entry runs a scripted duel against a fixed tutorial Ghost, tuned to be a guaranteed win, to teach the perk-budget screen.
 - The first 5 duels of a new account are matched against bot Ghosts with authored builds at the player's power level, so a new player's first PvP experience is never a wall.
+
+### 8.1 The authored bot Ghosts 🔒
+
+Six authored builds — the tutorial Ghost plus five archetypes. Gear, talents and pets are generated at duel time to land at the target `PlayerPower` multiple; the perk sets are fixed (all Tier II, within the 10-point budget). The same five archetype bots serve as the sparse-population backfill in §4.4, at 0.85–1.05× the player's power.
+
+| ID | Display name | Archetype | PvP perk set (cost) | Power vs player |
+|---|---|---|---|---|
+| `GHOST_TUTORIAL` | Sparring Ghost | Balanced, deliberately weak | `PK_SHARP_EDGE`, `PK_TOUGH_HIDE` (2) | 0.60× — a guaranteed win |
+| `BOT_BALANCED` | The Wayfarer | Balanced | `PK_SHARP_EDGE`, `PK_TOUGH_HIDE`, `PK_SECOND_SKIN`, `PK_BLOODLETTER`, `PK_KEEN_EYE` (7) | 0.85× |
+| `BOT_CRIT` | The Duellist | Crit burst | `PK_KEEN_EYE`, `PK_HEAVY_SWING`, `PK_CRIT_CASCADE`, `PK_SANGUINE`, `PK_TWIN_STRIKE` (9) | 0.90× |
+| `BOT_TANK` | The Bulwark | Tank | `PK_IRON_SKIN`, `PK_TOUGH_HIDE`, `PK_WARDED`, `PK_LAST_STAND`, `PK_STOIC` (8) | 0.95× |
+| `BOT_DOT` | The Alchemist | DoT | `PK_RUPTURE`, `PK_IGNITE`, `PK_SUNDERING`, `PK_BRUTALITY`, `PK_PIERCING` (9) | 1.00× |
+| `BOT_LIFESTEAL` | The Leech | Sustain | `PK_LEECH`, `PK_BLOODLETTER`, `PK_FEAST`, `PK_SANGUINE`, `PK_VITAL_SURGE` (8) | 1.05× |
+
+The onboarding sequence runs them in the order above — an escalating ramp from 0.85× to 1.05× across the five real duels. Bots are flagged internally, never marked as bots to the player, carry plausible generated names after onboarding (§4.4 backfill), and never appear on the leaderboard. 📐 Power multiples tunable.
 - A permanent tooltip on the Arena screen states plainly: **"No power in this game can be bought. Every opponent got here by playing."** This is a differentiator and should be said out loud.
 - The candidate cards show rating, name, Legend Level and tier — enough to choose a fight, never enough to feel like a profile page.

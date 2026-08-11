@@ -19,7 +19,7 @@ Slay Idle Repeat has an unusually strong case for hexagonal architecture, and it
 | **The rules library is shared between client and server** | `SlayIdleRepeat.Core` runs in Godot *and* in a Linux container. Anything it touched that was platform-specific would break one of the two. Ports are what make that sharing possible at all. |
 | **No vendor lock-in is already a locked decision (D12)** | A rule that says "portable across hyperscalers and self-hosting" is unenforceable if `NpgsqlConnection` and an S3 client are scattered through the application. Ports are the mechanism that makes D12 true rather than aspirational. |
 | **Every external dependency here is genuinely swappable** | Ad network, analytics, crash reporting, push transport, object store and even the database are all "current best choice", not permanent commitments. |
-| **The economy simulator and balance harness need the whole game without any of the I/O** | Doc 21's simulator runs 180 days × 7 profiles headless. It supplies in-memory adapters for every port and runs the *real* application logic. Without ports, that tool has to reimplement the game — and then it tests the reimplementation, not the game. |
+| **The economy simulator and balance harness need the whole game without any of the I/O** | Doc 21's simulator runs 180 days × 14 profiles headless. ✅ **After `30_DOMAIN_MODEL.md` it needs no adapters at all** — the whole game is playable from `SlayIdleRepeat.Core` alone via `InMemoryGame` (`30` §6). Ports remain what keeps everything *else* out of that assembly. |
 | **Determinism is a hard requirement** | The clock and randomness are external dependencies too. Making them ports is what makes `LogHash` reproducible across x64 and ARM64 (`14` §8). |
 | **Godot's SDK story is weak** | The MAX plugin is GDScript-only; billing needs a bridge; there is no first-party push. All of these are messy at the edge. Ports keep the mess in one small, isolated, individually-testable project each. |
 
@@ -43,6 +43,19 @@ Slay Idle Repeat has an unusually strong case for hexagonal architecture, and it
                          └───────────────────────────────────────┘
 ```
 
+### 2.0a Where the seam actually falls 🔒
+
+`Application` is **not** "the use-case layer" in the conventional Clean Architecture sense. The seam here is **I/O, not use case** (`30` §11.1):
+
+| Kind | Example | Where |
+|---|---|---|
+| **Decision** — *"the player rolled a 4; where do they land, what does it pay, which pity counters advance?"* | needs no port | 🔒 **`Core`** |
+| **Choreography** — *"load from Postgres, check idempotency, call the decision, persist, publish, return a delta"* | needs ports | `Application` |
+
+Drawing it the conventional way would put the deciding logic in a second assembly and gain nothing but a mapping layer between two layers that share a vocabulary — the "mapping fatigue" failure mode in §9. It would also make `30` §9's `The_whole_game_is_playable_from_Core_alone` unachievable, since `InMemoryGame` would then need `Application`.
+
+Keeping both in `Core` also buys the real prize: **`internal` becomes a compiler-enforced boundary**, so `GameRules.Apply` is the only public way to change state anywhere in the codebase (`30` §11.2).
+
 ### 2.1 The dependency rule 🔒
 
 **Dependencies point inward. Always.**
@@ -51,8 +64,8 @@ Slay Idle Repeat has an unusually strong case for hexagonal architecture, and it
 Adapters ──▶ Application ──▶ Core ──▶ (nothing)
 ```
 
-- `Core` references nothing but the .NET BCL. No Godot, no ASP.NET, no drivers, no clock, no RNG source.
-- `Application` references `Core` and `Contracts`. It **defines** every port. It references no adapter, ever.
+- `Core` references nothing but the .NET BCL. No Godot, no ASP.NET, no drivers, no clock, no RNG source. Internally it layers `Handlers → Rules → Model → Content → Primitives` (`30` §11.4), enforced by namespace-level architecture tests.
+- `Application` references `Core` and `Contracts`. It **defines** every port. It references no adapter, ever. It contains **no game rules** — its use cases load a slice, call `GameRules.Apply`, persist, and dispatch events (`30` §11.1).
 - `Adapters.*` reference `Application` (to implement its ports) and whatever vendor package they wrap. **Adapters never reference each other.**
 - **Composition roots** (`SlayIdleRepeat.Server`, `SlayIdleRepeat.Client`) are the only projects that reference concrete adapters. They exist to wire things up and do nothing else.
 
@@ -68,15 +81,29 @@ Ports are **owned by the application, not by the adapter**. `IRewardedAdPort` li
 SlayIdleRepeat.sln
 │
 ├── src/
-│   ├── SlayIdleRepeat.Core/                      # pure rules. Zero dependencies.
-│   ├── SlayIdleRepeat.Contracts/                 # DTOs shared client↔server. No behaviour.
-│   ├── SlayIdleRepeat.Application/               # use cases + ALL port interfaces
+│   ├── SlayIdleRepeat.Core/                      # THE WHOLE GAME. Zero dependencies.
+│   │   │                                         #   Full anatomy: 30_DOMAIN_MODEL.md §11.
+│   │   ├── Primitives/ Content/ Rng/        #   ids, ContentSnapshot, DeterministicRng
+│   │   ├── Model/                           #   AGGREGATES — public getters, internal ctors
+│   │   │   └── Snapshots/                   #     public persistence DTOs + Rehydrate()
+│   │   ├── Rules/                           #   INTERNAL calculators: combat, board, dice,
+│   │   │                                    #     stats, effects (18), luck (24), economy.
+│   │   │                                    #     Public only: CombatSimulator, PowerCalculator
+│   │   ├── Commands/ Events/                #   public — the input and output vocabulary
+│   │   ├── Handlers/                        #   INTERNAL — the services that steer the model
+│   │   ├── GameRules.cs                     #   🔒 public Apply() — the ONLY public mutation
+│   │   └── Testing/InMemoryGame.cs          #   🔒 the game, playable with NO other assembly
+│   ├── SlayIdleRepeat.Contracts/                 # WIRE ENVELOPES ONLY — commandId, sequence,
+│   │                                             #   stateHash, error shapes. 🔒 Never re-declares
+│   │                                             #   a command, event or domain type (30 §11.6).
+│   ├── SlayIdleRepeat.Application/               # I/O choreography + ALL port interfaces
 │   │   ├── Ports/
 │   │   │   ├── Client/                      #   IRewardedAdPort, IBillingPort, …
 │   │   │   ├── Server/                      #   IPlayerRepository, IRunStateStore, …
 │   │   │   └── Shared/                      #   IClockPort, IIdGeneratorPort, …
-│   │   ├── UseCases/                        #   RollDice, PickPerk, MergeGear, StartDuel…
-│   │   └── Services/                        #   orchestration over Core + ports
+│   │   ├── UseCases/                        #   orchestration ONLY: load slice → GameRules.Apply()
+│   │   │                                    #   → persist → dispatch events. No game rules. (30 §11)
+│   │   └── Services/                        #   choreography over ports
 │   │
 │   ├── adapters/
 │   │   ├── client/
@@ -120,8 +147,8 @@ SlayIdleRepeat.sln
 │
 ├── tools/
 │   ├── BalanceHarness/                      # mass battle simulation over Core
-│   └── EconomySim/                          # doc 21 — a DRIVING ADAPTER over Application,
-│                                            #   wired entirely to Adapters.InMemory
+│   └── EconomySim/                          # doc 21 — a thin wrapper over InMemoryGame;
+│                                            #   references SlayIdleRepeat.Core ONLY (30 §6)
 │
 └── tests/
     ├── SlayIdleRepeat.Core.Tests/
@@ -229,6 +256,10 @@ public interface IGhostRepository {
     Task UpsertAsync(GhostSnapshot ghost, CancellationToken ct);
     Task<IReadOnlyList<GhostSnapshot>> FindOpponentsAsync(int rating, int count, CancellationToken ct);
 }
+// ---- Query ports (read models) ----------------------------------------
+// 🔒 Per the CQRS split in 30 §12: query ports return VIEW MODELS, never aggregates,
+//    never mutate, contain no game rules (30 §12.5 Q2), and each declares its
+//    staleness budget. The player's OWN state is never served through one.
 public interface ILeaderboardRepository {
     Task<LeaderboardPage> GetTopAsync(int count, CancellationToken ct);
     Task<LeaderboardPage> GetAroundAsync(PlayerId id, int radius, CancellationToken ct);
@@ -281,6 +312,8 @@ public interface IIdGeneratorPort {
 
 🔒 **These two are the reason `Core` can be deterministic.** `DateTime.Now`, `Guid.NewGuid()` and `Random` are **banned outright** in `Core` and `Application` (`14` §8.1); the clock and ID generation are injected. Tests supply a frozen clock and a counting ID generator, which is what makes the reconnect chaos test and the economy simulator reproducible.
 
+⚠️ **`IClockPort` is never injected into `Core`.** The **composition root** calls it and passes the answer as `GameContext.NowUtc` (`30` §3). A rule that calls a clock is not pure, and a great many rules here are time-dependent — Energy regeneration, 05:00 UTC resets, event windows (`26` §4), guild weeks (`27` §4), PvP seasons, subscription expiry. An architecture test asserts `IClockPort` does not appear in `Core` at all.
+
 Note that game randomness is **not** a port — `DeterministicRng` lives in `Core` and is seeded from server-issued values, because it is part of the rules, not an external dependency.
 
 ---
@@ -328,6 +361,20 @@ Rules that are not enforced are suggestions. `SlayIdleRepeat.Architecture.Tests`
 [Fact] public void Core_and_Application_contain_no_ambient_time_or_randomness() =>
     // greps for DateTime.Now/UtcNow, Guid.NewGuid, new Random(), Random.Shared, Environment.TickCount
 ```
+
+**Six more, from `30_DOMAIN_MODEL.md` §9** — the rules that keep the domain playable in memory:
+
+```csharp
+[Fact] public void Domain_is_synchronous()                      // no Task/async/CancellationToken in Core
+[Fact] public void Domain_references_no_port_interface()        // Core names nothing from Ports/
+[Fact] public void Domain_has_no_clock()                        // IClockPort absent from Core entirely
+[Fact] public void Every_command_type_is_handled_by_Apply()     // no silently unhandled GameCommand
+[Fact] public void Every_currency_mutation_emits_CurrencyChanged()
+[Fact] public void The_whole_game_is_playable_from_Core_alone() //  InMemoryGame's assembly closure
+                                                                //  is exactly { Core, System.* }
+```
+
+🔒 **The last one is the load-bearing test in the entire codebase.** It is the only thing that will still be enforcing "the domain model is the centrepiece" in eighteen months, when someone is under deadline pressure and a repository reference in a rule would solve their problem in five minutes.
 
 Additional CI checks:
 - **Vendor package uniqueness (A9):** parse every `.csproj`; fail if a vendor `PackageReference` appears in more than one project.
@@ -433,5 +480,6 @@ What this buys, concretely:
 | **Mapping fatigue** — DTO ↔ domain conversion everywhere becoming the dominant code | Keep `Contracts` thin; let adapters map directly to domain types rather than through an intermediate model |
 | **Fakes drifting from reality**, so tests pass and production breaks | Rule A8: the shared contract-test suite runs against every implementation including the fake |
 | **Over-abstraction** — porting things that are not actually external (the effect DSL, the RNG, board generation) | If it is a *rule*, it belongs in `Core`. Only things that cross a process, network, device or vendor boundary get a port. |
+| **Logic leaking into `Application`** — a use case that decides rather than choreographs | `internal` handlers in `Core` (`30` §11.2) make the shortcut a compile error rather than a code-review argument. The test `Apply_is_the_only_public_mutation` is the backstop. |
 
 ⚠️ **NEEDS DETAIL:** whether to adopt a DI container in the Godot client (VContainer-style) or hand-roll a small service locator. Godot's node lifecycle does not cooperate well with constructor injection into scenes. Recommendation: a **hand-rolled composition root with explicit factory methods** — presenters receive their ports as constructor arguments from the root; scenes only ever talk to presenters. Avoids a dependency and Godot's lifecycle sharp edges.

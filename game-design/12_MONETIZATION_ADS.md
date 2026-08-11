@@ -36,8 +36,8 @@ State this contract in the store listing. It is the product's differentiator.
 | Type | Auto-renewing subscription, monthly |
 | Price | **€4.99 / $4.99** per month, regional equivalents via store price tiers |
 | Free trial | **7 days**, once per account 📐 TUNABLE |
-| Grants | 1. No interstitial ads, ever. 2. Every rewarded placement in §4 converts to an instant one-tap **CLAIM** with no ad, at the same daily cap. 3. Unlimited talent and loadout presets (free players get 3). 4. Battle-log replay history for the last 50 runs and duels. 5. A "Plus" tag beside the player name on the ladder — **text only, no art asset.** |
-| Does **not** grant | Any stat, currency, drop rate, energy cap, chapter, difficulty tier, pet, mount, gear or PvP advantage beyond the capped ad-reward equivalence |
+| Grants | 1. No interstitial ads, ever. 2. Every rewarded placement in §4 converts to an instant one-tap **CLAIM** with no ad, at the same daily cap. 3. Unlimited talent and loadout presets (free players get 3). 4. A "Plus" tag beside the player name on the ladder — **text only, no art asset.** |
+| Does **not** grant | Any stat, currency, drop rate, energy cap, chapter, difficulty tier, pet, mount, gear or PvP advantage beyond the capped ad-reward equivalence. **No pity-counter progress of any kind** (`24` §2). **No information advantage in PvP** — see §2.5. |
 | Restore | Standard platform subscription restore, plus server-side entitlement bound to the account |
 | Family sharing | Enabled where the platform allows |
 
@@ -93,6 +93,18 @@ When a subscription lapses, expires or is refunded:
 > *"You can earn every one of these rewards for free by watching ads. Plus saves you about 20 minutes of watching a day, and supports development. Your progress is yours forever, subscribed or not."*
 
 - The renewal price, renewal date and a direct link to the platform's cancel flow are shown **inside the app**, on the Plus tab, at all times while subscribed.
+
+---
+
+### 2.5 Battle-log replay history is free for everyone 🔒
+
+Replay history for the last **50 runs and duels** was previously a Plus grant. It is now a **base feature available to every player**, subscribed or not.
+
+The reason is narrow and important: duel replays let a player study the opponents they faced, and in an asynchronous ladder where you choose one of three candidates (`11` §4.2), that is a **PvP information advantage**. The fairness contract in §1 bounds *power*; it said nothing about *information*, and a subscriber-only scouting tool is exactly the kind of quiet edge that turns "no pay-to-win" from a promise into a technicality.
+
+Making replays free costs the subscription one bullet point and costs the game nothing — the logs are already written to object storage for anti-cheat purposes (`14` §7.1).
+
+**The general rule this establishes:** Plus may grant *time* and *convenience*. It may never grant *power* or *information*.
 
 ---
 
@@ -171,7 +183,7 @@ Both mean **the ad build cannot be produced by a plain one-click Godot export.**
 
 ---
 
-## 4. The rewarded ad catalogue (28 placements)
+## 4. The rewarded ad catalogue (29 placements)
 
 ### 4.1 In-run placements (13)
 
@@ -195,7 +207,7 @@ Both mean **the ad build cannot be produced by a plain one-click Godot export.**
 
 **Maximum in-run: 17 impressions per run.** In practice a player takes 3–6.
 
-### 4.2 Meta placements (15)
+### 4.2 Meta placements (16)
 
 | # | ID | Location | Reward | Cap |
 |---|---|---|---|---|
@@ -214,16 +226,19 @@ Both mean **the ad build cannot be produced by a plain one-click Godot export.**
 | 26 | `AD_FREE_RETRY` | Run results, after a loss | Re-enter the same chapter with no Energy cost | 2/day |
 | 27 | `AD_DOUBLE_LEGEND_XP` | Chapter select | ×2 Legend XP for the next run | 1/day |
 | 28 | `AD_ENHANCE_STONES` | Forge | Enhance Stone bundle | 2/day |
+| 29 | `AD_EXTRA_DUNGEON` | Dungeon select (`25` §6) | +1 Resource Dungeon entry, any dungeon | 3/day |
 
-**Maximum meta: 33 impressions/day.**
+**Maximum meta: 36 impressions/day** across **16** meta placements. Total catalogue: **29 placements.**
+
+🔒 **No placement in this catalogue may advance, reset or protect a pity counter** (`24` §2). `AD_ELITE_GUARANTEE` and `AD_ENHANCE_LUCK` remain one-shot boosts to a single roll and touch no counter.
 
 ### 4.3 Global caps
 
-Meta caps are **per day**; in-run caps are **per run**. A player doing 10 runs could theoretically be offered 170 + 33 impressions, so the global daily cap is what actually bounds the experience.
+Meta caps are **per day**; in-run caps are **per run**. A player doing 10 runs could theoretically be offered 170 + 36 impressions, so the global daily cap is what actually bounds the experience.
 
 | Cap | Value |
 |---|---|
-| Total rewarded impressions per day (soft cap) | **40** — set above the 33 meta placements so a player who exhausts the meta layer can still take in-run rewards |
+| Total rewarded impressions per day (soft cap) | **44** — set above the 36 meta placements so a player who exhausts the meta layer can still take in-run rewards 📐 |
 | Behaviour past the soft cap | Buttons remain visible but show "Come back tomorrow" |
 | Minimum gap between two rewarded ads | 20 s |
 | Ad load failure or no fill | **Grant the reward anyway, and consume the cap slot.** 🔒 Never punish a player for a network problem or an unfilled slot — but do not let airplane mode become a free-rewards exploit. Since rewards are granted server-side, the server applies this rule, not the client. |
@@ -250,7 +265,7 @@ Interstitials are the only *forced* ads and the main thing Plus removes. They mu
 
 | Placement | Frequency |
 |---|---|
-| After a **Stage Gate** | Every 3rd stage gate, max **2 per run** |
+| After a **Stage Gate** | Every 3rd stage gate crossed, **counted across runs** (a run has 2 gates), max **1 per run** |
 | Returning to Home from a run | Every 4th return |
 | Never | Mid-battle, mid-draft, during FTUE, in the first 3 days after install, after a death, while a rewarded reward is being granted, or during a reconnect |
 
@@ -321,7 +336,7 @@ An explicit "no" list, because in this genre the pressure to add these will be c
 
 ⚠️ **NEEDS DETAIL:** No validated revenue model exists. For planning, the shape of this business:
 
-- Rewarded-ad ARPDAU in this genre typically lands in **$0.02–$0.09** depending on geography and ad depth. Our design (28 placements, 40/day cap, MAX mediation) sits at the deep end of that range.
+- Rewarded-ad ARPDAU in this genre typically lands in **$0.02–$0.09** depending on geography and ad depth. Our design (29 placements, 44/day cap, MAX mediation) sits at the deep end of that range.
 - Subscription conversion for a "remove ads" sub in a free mobile game is typically **0.5–2% of MAU**, materially lower than the 2–5% a one-time unlock achieves — but each converter is worth far more over time. Break-even against a €5.99 one-time purchase is ~1.5 months of retention.
 - Median subscription lifetime in casual mobile is **3–6 months**, so a converter is worth roughly €12–25 net of store fees.
 - The absence of whales means revenue scales close to linearly with DAU. **This game lives or dies on retention and volume, not on monetisation depth.**

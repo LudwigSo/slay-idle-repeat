@@ -88,6 +88,8 @@ Egg rarity odds:  B 62% · A 28% · S 9% · SS 1%
 Pity: guaranteed S or better every 30 eggs; guaranteed SS every 150 eggs.
 ```
 
+🔒 **`24_LUCK_PROTECTION.md` §4.4 is the authority** for the `EGG_PET` source class and adds three rules on top of the above: **duplicate protection on every pity-forced egg**, the **Beast Mark** mercy-accrual exchange that lets a player buy a *specific* pet outright, and a **newcomer floor** forcing a player's first three eggs to be three distinct pets.
+
 ### 2.3 Pet catalogue (24)
 
 | ID | Name | Rarity | Passive aura | Active ability (cooldown) |
@@ -135,6 +137,10 @@ Pity: guaranteed S or better every 30 eggs; guaranteed SS every 150 eggs.
 | Rarity | A / S / SS |
 | Levels | 1 → 30, via **Beast Feed** |
 | No stars | Mounts do not ascend; duplicates convert to Beast Feed |
+| Crate odds | A 70% · S 26% · SS 4% 📐 |
+| Pity | Guaranteed S+ every **8** crates, SS every **30**, with duplicate protection — `24_LUCK_PROTECTION.md` §4.5 |
+
+⚠️ Mounts were previously the **only unprotected chase in the game** — 12 mounts, 2,500 Soul Shards per crate, and three SS mounts with run-defining effects. `24` §4.5 closes that.
 
 Mounts are the "run modifier" slot. Where pets shape combat, mounts shape the **run**: die faces, board movement, shop access, drop rates. This gives the two systems clearly separate identities.
 

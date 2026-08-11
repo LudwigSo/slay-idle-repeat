@@ -35,6 +35,36 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 | S25 | Daily Quests / Login | Quest list, login calendar, Lucky Wheel |
 | S26 | Settings | Audio, haptics, speed, accessibility, account, privacy, restore purchase |
 | S27 | Profile | Name, PvP tier label, lifetime stats |
+| S28 | Dungeon Select | 3 dungeon cards, tier, literal payout, entries remaining, ad entry (`25` §8) |
+| S29 | Dungeon Board | S05 without forks, stage pips or shop; material counter replaces Gold (`25` §8) |
+| S30 | **Events Hub** | Live and upcoming events, track progress, ENTER (`26` §6) |
+| S31 | Event Track | Milestone ladder, point total, how currency is earned (`26` §6) |
+| S32 | Event Shop | Event-currency stock list with per-player counts (`26` §6) |
+| S33 | **Guild Home** | Guild Quests, streak, Guild Boss card, Phrase Board, Guild Log (`27` §10) |
+| S34 | Guild Roster | 30 rows: role, last-active, weekly contribution, report (`27` §10) |
+| S35 | Guild Browser | Search, filter, sort by activity; create guild (`27` §10) |
+| S36 | Guild Boss | Shared HP bar, contribution list, attempts, bracket preview (`27` §10) |
+| S37 | **Inbox** | Server messages by category, attachments, CLAIM ALL (`28` Part A) |
+| S38 | **Feats** | 140 feats in 9 categories, tier pips, Renown header (`28` Part D) |
+
+**39 screens.** The bottom navigation stays at **five** items (`13` §2) — Dungeons enter from Chapter Select, Events and Guilds from Home cards. Adding a sixth nav item breaks one-handed reach on a 6.1" phone, and none of these three is a hub the player visits more than once a day.
+
+### 1.1 New surfaces on existing screens
+
+| Screen | Addition | Source |
+|---|---|---|
+| S03 Home | Chest-class pity counters on the chest widget; Event card (only while live); Guild card | `24` §9, `26` §6, `27` §10 |
+| S14 Run Results | Session-floor announcement line; `DROP_RUN` mercy counters in the tally footer | `24` §9 |
+| S16 Inventory | Focus selector; per-item Reforge / Retune entry points | `24` §9 |
+| S17 Forge | **Reforge** and **Retune** tabs; Set Token counter; Focus row | `24` §9 |
+| S19 Menagerie | Beast Mark exchange row with all three tiers | `24` §9 |
+| S23 Shop | Every chest listing states its class and current pity counter before purchase | `24` §9 |
+| S26 Settings | **Odds & Guarantees** page — every rate and every pity `N`, in plain language, in EN and DE | `24` §1.1 |
+| S26 Settings | **Account** row: link status, provider, linked date, delete-account path | `28` Part B |
+| S03 Home | Envelope icon with unread count; account-link banner (fortnightly, dismissible, unlinked players only) | `28` Parts A, B |
+| S03 Home | Energy readout becomes `138/200 (+200)` with a desaturated Reserve segment behind the main bar | `28` Part C |
+| S24 Codex | Gains a **Feats** sibling tab — collection and action, side by side | `28` Part D |
+| S27 Profile | Renown total beside Legend Level; account link status | `28` Part D |
 
 ---
 

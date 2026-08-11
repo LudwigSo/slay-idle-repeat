@@ -19,6 +19,12 @@
 
 **Eight currencies.** 🔒 Pet Food and Mount Feed were merged into a single **Beast Feed** (decision D17 in `16_DECISION_LOG.md`), removing a currency players would have touched a dozen times in their whole account life.
 
+### 1.1 Two counters that are not wallet currencies
+
+`24_LUCK_PROTECTION.md` §7 introduces **Beast Marks** (from ★5-duplicate pets and duplicate mounts → buy a chosen pet) and **Set Tokens** (from SS salvage and SS duplicates → buy a chosen SS gear item). Both are mercy-accrual counters (`24` §1, M3), and both are deliberately **kept out of the wallet**: single-sink, single-screen, never in the global currency header, never in a shop tab. They are progress bars counted in units, not currencies, and the eight-currency count above is unchanged.
+
+`26_LIVE_OPS_AND_EVENTS.md` adds a **per-event currency** which exists only while its event is live and auto-converts to Crowns at close (`26` C4). It is also not a wallet currency.
+
 ⚠️ **SCHEDULED REVIEW:** eight is still at the upper edge of what a player can hold in their head. After the first playtest, review whether **Merge Dust** and **Enhance Stones** should also merge into a single "Forge Material" — they are spent in the same screen, on the same items, by the same player, at the same time. That would bring the count to seven. A reminder for this review has been scheduled.
 
 ---
@@ -62,7 +68,10 @@ Design target: a daily active player earns **~700–1,100 Soul Shards/day** in m
 | Run cost | 20 |
 | Runs on a full tank | 6 |
 | Regen while offline | ✅ yes — this is the *only* offline accrual in the game |
-| Regen cap | Energy stops at max; no overflow banking |
+| Regen cap | Energy stops at max. Overflow is **not discarded** — it banks into the **Energy Reserve** (below). |
+| **Energy Reserve** | A second bank holding **1× Max Energy** (200 at cap). Receives overflow only, never regenerates on its own, and is drawn automatically when the main bar cannot cover a run or dungeon. **`28_LIVE_SERVICE_ESSENTIALS.md` Part C** is the authority. |
+
+⚠️ This section previously said *"no overflow banking"* in the same breath as *"a returning lapsed player should always find a full tank"*. Those contradicted each other: a player away for two days regenerated 720 Energy and kept 200. The Reserve resolves it without adding a second exception to D2 — nothing new accrues, less is discarded.
 
 ### 3.1 Energy sources beyond regen
 
@@ -180,9 +189,27 @@ That final number is too steep for a v1 launch. **Apply a catch-up curve:** rewa
 
 ## 9. Required: the economy simulator
 
-✅ **Fully specified in `21_ECONOMY_SIMULATOR_SPEC.md`.** It is a C# tool in `tools/EconomySim` that runs the **real application** (`SlayIdleRepeat.Application` + `SlayIdleRepeat.Core` + the real `SlayIdleRepeat.Data`) against in-memory adapters for every port, over 7 player profiles and 180 simulated days, with 9 CI assertions that fail the build on a broken economy.
+✅ **Fully specified in `21_ECONOMY_SIMULATOR_SPEC.md`.** It is a C# tool in `tools/EconomySim` that is a thin wrapper over `InMemoryGame` — it references **`SlayIdleRepeat.Core` only** (`30` §6) with the real `SlayIdleRepeat.Data`, over 14 behavioural profiles and 180 simulated days, with 16 named CI assertions plus 23 inherited requirements that fail the build on a broken economy.
 
 This is the tool that turns every 📐 TUNABLE in this documentation set into a real number. Until it has been run, **all economy numbers in this document are informed guesses** — including the ones that look precise.
+
+---
+
+## 9a. Three new material income streams ⚠️
+
+Three documents added after this one each introduce a material income stream, and each was sized independently:
+
+| Stream | Doc | Pays | Shape |
+|---|---|---|---|
+| **Resource Dungeons** | `25` | Enhance Stones, Beast Feed, Crowns | Deterministic, 9 entries/day, 10 Energy each |
+| **Events** | `26` | Crowns, Stones, Beast Feed, Soul Shards, Set Tokens | Rolling calendar, always one live |
+| **Guilds** | `27` | Crowns, Stones, Beast Feed + up to +8% multipliers | Daily Guild Chest, weekly Guild Boss |
+
+⚠️ **They compound, and guild perks are multiplicative on top of the other two.** Taken together they may double a mid-game player's Crown and Beast Feed income, which would remove the merge bottleneck this document identifies in §4 as the game's most exciting sink.
+
+🔒 **Do not tune any of the three individually.** Run the economy simulator with all three enabled, plus the new sinks from `24` §6 (Reforge and Retune), and re-derive `MergeCrownCost`, the `+11 → +15` Enhance Stone costs and `BeastFeedCost` together. This is assertion **E19** and it is the highest-risk item in the whole simulator spec.
+
+Energy pressure also changes: 9 dungeon entries × 10 Energy = 90 Energy/day on top of runs. §3.2's daily budget table must be recomputed — a player who does everything is now genuinely Energy-constrained, which may be correct or may need the regen rate raised. The simulator decides.
 
 ---
 

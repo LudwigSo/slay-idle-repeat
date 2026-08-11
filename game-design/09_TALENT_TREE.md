@@ -37,8 +37,9 @@ The gating means a player cannot cherry-pick the three keystones. They must comm
 | Chapter first clear (Mythic) | +5 each (40 total) |
 | PvP season rank rewards | +1 to +4 per season |
 | Codex milestones | +10 total |
+| **Renown milestones** (`28` Part D) | **+30 total** — +2 per 1,000 Renown, plus +6 at full Feat completion |
 
-**Maximum obtainable in v1: ~294 points** (199 from levels + 80 from first clears + ~5 from seasons + 10 from Codex) against a tree that costs **633 points to fully max**. The tree is deliberately never completable in v1 — a maxed player has bought less than half of it. This preserves meaningful choice and gives the post-launch level-cap raise somewhere to go.
+**Maximum obtainable in v1: ~324 points** (199 from levels + 80 from first clears + ~5 from seasons + 10 from Codex + 30 from Renown) against a tree that costs **633 points to fully max**. The tree is deliberately never completable in v1 — a maxed player has bought less than half of it. This preserves meaningful choice and gives the post-launch level-cap raise somewhere to go.
 
 ### 2.1 Respec
 
@@ -216,6 +217,8 @@ This is the branch that makes the die *yours*. It is deliberately gated late so 
 
 ## 8. Balance guardrail
 
+⚠️ **This table is now `TalentFactor(L)` in `29_POWER_MODEL.md` §5**, one of four factor curves that together define `ExpectedPower(L)`. It is subject to assertion **A13**: no single factor column may exceed 60% of the total power multiplier at any level. Talents currently sit well under that; **gear is the column at risk.**
+
 Across the whole tree, a fully-invested player should gain roughly:
 
 | Investment | Approx. power gain |
@@ -223,6 +226,8 @@ Across the whole tree, a fully-invested player should gain roughly:
 | 50 points | ×1.6 PlayerPower |
 | 120 points | ×2.8 |
 | 200 points | ×4.5 |
-| 294 points (v1 max) | ×6.5 |
+| 324 points (v1 max) | **×6.9** ⚠️ re-derive |
 
-Combined with gear (up to ×20 across chapters) and pets/mounts (up to ×2.5), total attainable power growth from Legend Level 1 to v1 endgame is roughly **×300**, against the ×128 enemy power ramp across 8 chapters plus ×16 for Mythic. That leaves a comfortable but not trivial margin at the top end. 📐 Verify with the balance harness (`05` §9).
+Combined with gear (up to ×20 across chapters) and pets/mounts (up to ×2.5), total attainable power growth from Legend Level 1 to v1 endgame is roughly **×320**, against the ×128 enemy power ramp across 8 chapters plus ×16 for Mythic. That leaves a comfortable but not trivial margin at the top end. 📐 Verify with the balance harness (`05` §9).
+
+⚠️ The v1 maximum rose from 294 to 324 when Renown milestones were added (`28` D3.1). The ×6.9 figure is extrapolated, not derived — it is **assertion E22** in `21` §7a and must be recomputed rather than assumed. The +30 is deliberately small precisely so that this extrapolation stays safe; if the harness disagrees, cut the Renown Talent Point grant before touching the tree.

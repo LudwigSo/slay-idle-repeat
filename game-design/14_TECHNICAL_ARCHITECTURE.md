@@ -108,7 +108,22 @@ POST /run/{runId}/command
 }
 ```
 
+🔒 **The wire command list and the domain `GameCommand` hierarchy are the same vocabulary** (`30` §11). One name per command, no mapping layer between transport and domain. This is the direct guard against the "mapping fatigue" failure mode recorded in `23` §9.
+
 **Command types:** `START_RUN`, `ROLL_DICE`, `USE_REROLL`, `CHOOSE_FORK`, `RESOLVE_TILE`, `PICK_PERK`, `REROLL_DRAFT`, `SKIP_DRAFT`, `SHOP_BUY`, `SHOP_REFRESH`, `EVENT_CHOOSE`, `MINIGAME_SUBMIT`, `CAMPFIRE_CHOOSE`, `START_BATTLE`, `CONFIRM_BATTLE_RESULT`, `REVIVE`, `END_RUN`, `ABANDON_RUN`, plus the meta commands (`EQUIP`, `MERGE`, `ENHANCE`, `SALVAGE`, `SPEND_TALENT`, `RESPEC`, `LEVEL_PET`, `ASCEND_PET`, `CLAIM_QUEST`, `CLAIM_AD_REWARD`, `UPLOAD_GHOST`, `START_DUEL`, `SUBMIT_DUEL`).
+
+### 2.3a The query surface 🔒
+
+Commands are not the whole API. Reads split into two kinds with **different rules**, per the CQRS split in `30` §12:
+
+| | Own authoritative state | Cross-player read models |
+|---|---|---|
+| Endpoints | `POST /run/{runId}/command`, `POST /player/command`, `GET /run/{runId}/state?sinceSequence=N` | `GET /ladder`, `/arena/candidates`, `/guild/{id}/roster`, `/guild/{id}/boss`, `/guilds?search=`, `/event/{id}/leaderboard` |
+| Consistency | 🔒 **Strong. Read-your-own-writes.** | Eventual, with a stated staleness budget per view (`30` §12.4) |
+| Routing | Always the primary | Cacheable, replica-eligible |
+| Idempotency key | Required on commands | None — `GET` is idempotent by nature |
+
+🔒 **The player's own profile and run are never served from a projection.** A player rolls ~30 times per run and each roll must resolve inside its 0.8 s animation; a stale read would break the run loop, `stateHash` verification and the prediction model in §2.4. `GET /run/{runId}/state` looks like a query but is a **write-model read** and stays on the primary.
 
 ### 2.4 Where prediction is allowed
 
@@ -276,6 +291,12 @@ res://
 
 Every number marked 📐 TUNABLE lives in `SlayIdleRepeat.Data/*.json`, never in code.
 
+🔒 **Every economy-affecting tunable lives specifically in `SlayIdleRepeat.Data/tuning/`** — a flat directory of 14 files, catalogued in `21` §3.1. A 📐 number outside that directory is a bug, and a build-time check enumerates every 📐 marker in the documentation set against the schema keys and **fails on a mismatch**. That check is what stops the tuning surface eroding over eighteen months, and it is what makes the economy simulator (`21`) and its parameter sweeps possible at all — a number in code can never be swept, and will therefore never be tuned.
+
+Experiments and what-ifs run as **sparse override patches** layered on top of the canonical files (`21` §3.3), never as edits to them. This keeps `git diff` on `SlayIdleRepeat.Data` a record of decisions rather than a record of attempts.
+
+🔒 Content is loaded once into an **immutable, version-stamped `ContentSnapshot`** and passed to the domain on `GameContext` (`30` §3). Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what lets a replayed command reproduce its original outcome after a balance patch — without it, replay and the reconnect chaos test silently diverge whenever content changes.
+
 - The **server** is the source of truth for content. The client ships a copy for prediction and display, and validates its content hash against the server at session start. A mismatch triggers a content download before play — this allows balance changes without an app store update.
 - JSON is validated at build time against schemas in `SlayIdleRepeat.Data/schema/`. The build fails on unknown IDs, missing icons, out-of-range values, orphaned references or duplicate IDs.
 - In editor/dev builds, content hot-reloads without restarting.
@@ -329,7 +350,11 @@ Example — chapter definition:
 | Concern | Approach |
 |---|---|
 | Anonymous first launch | Server issues a device-bound account immediately; the player is playing within seconds, no sign-in wall |
-| Upgrade to a real account | Sign in with Google / Apple, linking the anonymous account |
+| Upgrade to a real account | Sign in with Google / Apple, linking the anonymous account. 🔒 **Prompted at Legend Level 10 and 30, then a dismissible fortnightly banner — never blocking.** Full spec, including the one-time link reward and provider-uniqueness enforcement: `28_LIVE_SERVICE_ESSENTIALS.md` Part B. |
+| **Sign-in conflict** 🔒 | If the signed-in identity already owns an account and this device's anonymous account has meaningful progress, the client **must** show a side-by-side comparison and require an explicit, typed confirmation. Never resolve silently in either direction. The discarded account is soft-deleted with a 30-day support-recoverable window. `28` B4. |
+| Multiple providers | One account may link both Google and Apple. This is the cross-platform path. |
+| Unlinking | ❌ Not offered — it exists only to enable account selling and unanswerable support tickets. Deletion is the exit. |
+| Abandoned anonymous accounts | Purged after 180 days with no session. ⚠️ They cannot be warned; no contact channel exists. That is exactly the problem the prompts above solve. |
 | Cross-device | Automatic and instant — the profile has always lived on the server. No cloud-save provider is needed. ✅ This closes the old open question about save sync. |
 | Deletion | GDPR-compliant account deletion endpoint, hard delete within 30 days |
 
@@ -395,6 +420,7 @@ Server authority does most of the work. What remains:
 | Ad rewards | Granted server-side on AppLovin MAX server-side callbacks, never on client assertion. |
 | Entitlement | Plus status comes from store server-to-server notifications, never from a client receipt. |
 | Plausibility monitoring | Background job flags accounts whose power, currency or rating trajectory sits outside a statistical envelope. Flags go to a review queue, not to automatic bans. |
+| Skill minigames 🔒 | **Documented exception:** `MG_TIMING_BAR` and `MG_MEMORY_RUNE` outcomes are client-asserted (`03` §6.2). The server validates legality only (valid tier, one submission per tile, rate limits). Accepted because rewards are small, capped and run-local. |
 
 Sanctions ladder: shadow-exclusion from the ladder → rating reset → account action. Only on repeated, confirmed manipulation.
 
@@ -416,7 +442,7 @@ Sanctions ladder: shadow-exclusion from the ladder → rating reset → account 
 
 `run_start`, `run_end` (result, chapter, tier, duration, stage reached, rewards), `battle_end` (enemy, duration, hp remaining), `perk_drafted` (id, tier, options offered), `perk_skipped`, `die_rolled` (face), `tile_resolved` (type), `ad_offered / started / completed / failed` (placement), `plus_offer_viewed / trial_started / converted / renewed / cancelled / lapsed`, `gear_merged`, `gear_enhanced` (level, success), `talent_spent`, `pet_levelled`, `duel_start / duel_end`, `energy_empty`, `session_start / session_end`, `level_up`, `chapter_unlocked`, `tutorial_step`, `disconnect` (duration, screen), `resync`.
 
-The two most important derived metrics: **perk pick rate by perk id** (balance) and **run abandonment point by tile index** (pacing). A third is now available for free: **disconnect rate by region and screen**, which tells you whether the online requirement is hurting you.
+The two most important derived metrics: **perk pick rate by perk id** (balance) and **run abandonment point by tile index** (pacing). A third is now available for free: **disconnect rate by region and screen**, which tells you whether the online requirement is hurting you. A fourth is mandatory per risk R13: **season rating drift** — median and p90 ladder rating per season, tracking the inflation inherent in one-sided Elo (`11` §5.1).
 
 ---
 
@@ -443,7 +469,7 @@ Server techniques: run state in Redis so the API is stateless; battle logs writt
 |---|---|
 | Ads | **AppLovin MAX** via the **official MIT-licensed Godot 4 plugin** (<https://github.com/AppLovin/AppLovin-MAX-Godot>). The plugin is GDScript-only, so a GDScript autoload shim plus `AppLovinRewardedAdAdapter : IRewardedAdPort` is needed — **3–5 engineering days**, not the 2–3 weeks a native bridge would have cost. Everything AppLovin-specific lives in `Adapters.Ads.AppLovin`; the game sees only the port. See `12` §3 and `23` §8. **Note:** the Android and iOS builds require the custom export-template path (Gradle + Java 17; CocoaPods + Xcode), so CI must build ads through that path from day one. |
 | Subscription | Google Play Billing and StoreKit 2 behind `IBillingPort`, implemented by `Adapters.Billing.GooglePlay` and `Adapters.Billing.StoreKit`, selected per platform at the composition root. **Server-to-server notifications** are the authoritative entitlement source, consumed via `IStoreSubscriptionPort` on the server. |
-| Push notifications | Energy-full and season-ending only, opt-in, max 1/day. ⚠️ **NEEDS DETAIL:** provider not chosen — recommend FCM + APNs directly rather than a wrapper service, to stay lock-in-free. |
+| Push notifications | Energy-full, season-ending, event start (`26` §8), guild boss expiry (`27` §11) and material compensation (`28` A5) only. Opt-in, max 1/day. ⚠️ **NEEDS DETAIL:** provider not chosen — recommend FCM + APNs directly rather than a wrapper service, to stay lock-in-free. |
 | Auth | Anonymous device accounts, upgradeable via Sign in with Google / Apple. Tokens are our own JWTs; the identity providers are only used for the initial assertion. |
 
 ---

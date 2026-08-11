@@ -92,6 +92,10 @@ GenerateBoard(chapter, tier, seed):
         //  C4: TILE_PORTAL never in the last 4 nodes of a stage
         //  C5: TILE_CURSE never immediately before TILE_ELITE or TILE_BOSS
         //  C6: first node of stage 1 is always TILE_ENEMY (teach combat immediately)
+        //  C7: every run contains >= 2 TILE_TREASURE and >= 1 TILE_CACHE across all
+        //      three stages. If the weighted draw did not produce them, inject them
+        //      by replacing TILE_EMPTY tiles (or, failing that, TILE_ENEMY tiles) at
+        //      the latest available indices. See 24_LUCK_PROTECTION.md §4.10 B1.
 
         // --- Step 4: forks ---
         forkCount = rng.Range(1, 2)
@@ -132,12 +136,24 @@ Each chapter is a data file. Fields: `id`, `displayName`, `biomeArtSet`, `powerT
 |---|---|---|---|---|---|
 | 1 | **Greenwood Vale** | Sunlit forest | mossy stones, mushrooms, fireflies, warm greens | **Thornmaw**, a giant carnivorous flower | Tutorial-friendly, generous shrines |
 | 2 | **Ashen Mire** | Poison swamp | bogs, purple fog, twisted roots, bubbling tar | **Gulgrot**, a bloated toad shaman | Poison DoT enemies; healing matters |
-| 3 | **Sunken Crypt** | Undead catacomb | bone arches, candles, cracked sarcophagi, teal light | **Ossuary King**, a crowned skeleton | Enemies resurrect once at 20% HP |
-| 4 | **Emberpeak** | Volcano | obsidian, lava rivers, ember particles, orange/black | **Cindermaw**, a magma drake | Burn floor tiles: standing still costs HP |
+| 3 | **Sunken Crypt** | Undead catacomb | bone arches, candles, cracked sarcophagi, teal light | **Ossuary King**, a crowned skeleton | Enemies resurrect once at 20% HP (§4.1) |
+| 4 | **Emberpeak** | Volcano | obsidian, lava rivers, ember particles, orange/black | **Cindermaw**, a magma drake | Burning tiles: landing on a marked tile costs HP (§4.1) |
 | 5 | **Frostbound Reach** | Glacier | ice spires, aurora, pale blues, snow drifts | **Rimehold**, an ice golem | Freeze: attack speed periodically halved |
-| 6 | **Clockwork Vaults** | Brass machine dungeon | gears, pipes, steam, copper/teal | **Cogitator Prime**, a spider automaton | Enemies gain +5% stats per turn elapsed |
+| 6 | **Clockwork Vaults** | Brass machine dungeon | gears, pipes, steam, copper/teal | **Cogitator Prime**, a spider automaton | Clockwork Pressure: enemy power grows with each roll taken (§4.1) |
 | 7 | **Bloom of Decay** | Fungal overgrowth | bioluminescent spores, rot pinks, giant caps | **Sporequeen Vell** | Spore clouds add a stacking debuff |
 | 8 | **Astral Spire** | Celestial tower | starfields, floating platforms, violet/gold | **The Dicelord**, a masked cosmic figure | Random reality shifts: one die face is scrambled each stage |
+
+### 4.1 Chapter signature mechanics — rulings 🔒
+
+Three signatures were named but underspecified; these rulings define them. All are expressible in the effect DSL (`18`) and live in the chapter data file.
+
+| Chapter | Ruling |
+|---|---|
+| **3 — Sunken Crypt** | Chapter-pool normal enemies **and Elites** carry `ON_LETHAL (once) → REVIVE at 20% Max HP`. Active DoTs and debuffs **persist** through the revive (DoT builds are the natural counter — a chapter build identity). `SWARM` units revive individually. The boss is excluded — Ossuary King has his own Rise Again (`17` §4). |
+| **4 — Emberpeak** | **Burning tiles.** The generator marks ~20% 📐 of non-mandatory tiles as *Burning*, visibly flagged on the board. Landing on one costs **4% Max HP** 📐 before the tile resolves. A board-layer hazard the player can route around at forks and with `Star` faces — it makes board-control tools matter. `MNT_GLIDEWING`-style portal play and high preview range are the soft counters. Never on `TILE_CAMPFIRE`, the boss node, or the first 2 tiles of Stage 1. |
+| **6 — Clockwork Vaults** | **Clockwork Pressure.** Each die roll taken in the **current stage** adds **+5%** 📐 enemy power to subsequent battles, capped at **+50%** 📐, resetting at each Stage Gate. A board-level clock: efficient routing (portals, high rolls, `Chain`) is rewarded, dawdling is taxed. Displayed as a small gear counter in the board HUD. |
+
+Chapters 2, 5 and 7 need no ruling — their signatures (poison enemies, freeze, spore stacks) are ordinary combat effects already covered by §5 of `05`. Chapter 8's die scramble is specified via `MODIFY_DIE_FACE` (`18` §2.5).
 
 🔒 **Narrative scope: flavour text only.** Chapter names, boss names, one-line tile and event flavour, item descriptions. **No plot, no cutscenes, no recurring characters, no explanation of why the hero climbs.** The genre does not need it, it keeps localisation cheap, and it avoids setting a story expectation the rest of the game does not meet. The voice throughout is dry, terse and slightly wry — see the 30 event cards in `19_CONTENT_TABLES.md` Part A for the tone reference.
 
@@ -182,6 +198,36 @@ All minigames are ≤ 15 seconds, one-thumb, and *cannot* fail catastrophically 
 | `MG_MEMORY_RUNE` | **Rune Recall** | 4-symbol Simon-style sequence, 2 rounds. | Skill-scaled |
 
 Failed minigames offer a single ad-retry (`AD_RETRY_MINIGAME`, 1/run).
+
+### 6.1 Reward tables 🔒
+
+Values below are **Chapter 1 base values**, multiplied by `(1 + 0.35 × (chapter − 1))` 📐 — the same scaling shape as the ad bundles (`12` §5). All 📐 TUNABLE, in `data/tuning/currencies.json`; the simulator validates them.
+
+| Minigame | Outcome | Reward |
+|---|---|---|
+| `MG_CHEST_PICK` | Bronze chest | 150 Gold |
+| | Silver chest | 300 Gold + 20 Crowns |
+| | Gold chest | 500 Gold + 60 Crowns + 15 Beast Feed |
+| `MG_TIMING_BAR` | 0 hits | 100 Gold |
+| | 1 hit | 250 Gold |
+| | 2 hits | 400 Gold + 30 Crowns |
+| | 3 hits | 600 Gold + 80 Crowns + 5 Enhance Stones |
+| `MG_DICE_DUEL` | Loss | 150 Gold |
+| | Win 2–1 | 400 Gold + 40 Crowns |
+| | Win 2–0 | 550 Gold + 50 Crowns + 1 Reroll Charge |
+| `MG_MEMORY_RUNE` | Fail round 1 | 100 Gold |
+| | Clear round 1 only | 300 Gold + 25 Crowns |
+| | Clear both rounds | 550 Gold + 70 Crowns + 20 Beast Feed |
+
+`MG_CHEST_PICK`'s gold-tier guarantee is `24` §4.9. Rewards that grant gear route through `LuckService` as class `CHEST_STANDARD` (`24` §3).
+
+### 6.2 Server authority for skill minigames 🔒
+
+`MG_CHEST_PICK` and `MG_DICE_DUEL` are server-rolled like everything else. `MG_TIMING_BAR` and `MG_MEMORY_RUNE` are **genuine skill inputs, and their outcomes are client-asserted** — a deliberate, documented exception to `14` §2.1:
+
+- `MINIGAME_SUBMIT` carries the claimed result; the server validates **legality only** (a valid outcome tier, exactly one submission per tile, rate limits).
+- Accepted because the worst case is a player granting themselves a small, capped, run-local reward — and the alternative (server-scripted "skill") would be dishonest.
+- Recorded in `14` §9's anti-cheat table so nobody later mistakes it for an oversight.
 
 📐 TUNABLE: reward tables per minigame per chapter.
 

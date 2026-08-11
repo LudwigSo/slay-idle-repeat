@@ -79,7 +79,7 @@ A **fixed-tick** simulation.
 |---|---|
 | Tick rate | 20 ticks/second (`TICK = 0.05 s`) |
 | Max fight duration | 90 s = 1800 ticks. On timeout, the side with the higher **remaining HP fraction** wins. |
-| Actors | Hero (1), Pets (0–3), Mount (passive only, no actor), Enemies (1–5) |
+| Actors | Hero (1), Pets (0–3, ability modules — they never basic-attack, see §3.2), Mount (passive only, no actor), Enemies (1–5) |
 
 ### 3.1 Tick order (strict)
 
@@ -87,7 +87,7 @@ A **fixed-tick** simulation.
 for tick in 0..maxTicks:
     1. Advance all status effect timers; apply DoT/HoT ticks
     2. Resolve any expiring buffs/debuffs
-    3. For each actor in initiative order (Hero, Pets by slot, Enemies by index):
+    3. For each attacking actor in initiative order (Hero, then Enemies by index — pets never basic-attack, see §3.2):
          a. if actor.attackCooldown <= 0 and actor.alive:
               - select target (see 3.2)
               - resolve attack (see 4)
@@ -105,8 +105,23 @@ for tick in 0..maxTicks:
 ### 3.2 Targeting
 
 - Hero targets the enemy with the highest `targetPriority`, breaking ties by **lowest current HP**. `targetPriority` defaults to `0`; a value of `-1` makes an enemy deprioritised (used by Sporequeen Vell's sporelings — `17` §8), `+1` forces focus.
-- Pets target the enemy with the **highest current HP** (so pets chip the tanky one while the hero cleans up).
+- 🔒 **Pets never perform basic attacks.** They are aura + active-ability modules only (`07` §2.1) and have no ATK/ASPD stats of their own — abilities express their damage as a percentage of the **hero's** ATK. They appear in the tick loop only at step 4 (ability cooldowns). This ruling resolves the previous ambiguity between this section and `07`; `29` §2.4's `PetDpsShare` (abilities only) is confirmed correct.
+- A pet's *targeted ability* selects the enemy with the **highest current HP** (so pet abilities chip the tanky one while the hero cleans up), unless the ability specifies its own target (`18` §5).
 - Enemies always target the Hero. **Pets cannot be targeted or killed.** They are stat/effect modules with visual presence, not units to protect. 🔒 This keeps the single-hero fantasy intact and removes a large balancing surface.
+
+### 3.3 PvP duel simulation 🔒
+
+The sections above describe hero-vs-enemies. A Ghost Duel (`11`) is hero-vs-hero, and the following rulings define it — the simulator is the same code path with two hero-shaped sides:
+
+| Rule | Specification |
+|---|---|
+| Sides | Both sides are a full hero + pets snapshot. The mount contributes its stat block only, as in PvE. |
+| Targeting | Each hero targets **only the opposing hero**. Pets are untargetable and unkillable on both sides, per §3.2. Pet abilities that target an enemy target the opposing hero. |
+| Initiative | Within a tick: the **attacker's side acts first** (hero, then pet abilities), then the defender's side. Fixed and deterministic. The slight attacker edge is deliberate and consistent with only the attacker's rating being at stake (`11` §5.1). |
+| `ON_KILL` triggers | **Never fire in duels.** The only death in a duel ends the fight. |
+| Target-conditional effects | Conditions such as `TARGET_HP_BELOW_30` (`PK_EXECUTIONER`) read the **opposing hero**. `TARGET_IS_ELITE` / `TARGET_IS_BOSS` are always false. `ENEMY_COUNT` is always 1. |
+| Non-combat effects | Gear affixes and perk clauses with no duel meaning are skipped via the `IS_PVP` condition (`18` §4), never converted. |
+| Duration | 60 s cap (`pvpMaxFightSeconds`), timeout and tie rules exactly as `11` §4.3. |
 
 ---
 
@@ -188,6 +203,19 @@ EnemyStats(power, archetype):
     ...
 ```
 
+### 6.0 Enemy level 🔒
+
+The damage formula (§4) needs an attacker/defender **Level** for enemies, which the Power derivation above does not produce. Enemy level is a **chapter-based table**, set to roughly the Legend Level a player typically has at that chapter (`29` §5):
+
+```
+EnemyLevel(c, t) = BaseEnemyLevel(c) + TierLevelBonus(t)
+
+BaseEnemyLevel:   Ch1 10 · Ch2 15 · Ch3 20 · Ch4 30 · Ch5 40 · Ch6 50 · Ch7 60 · Ch8 80
+TierLevelBonus:   Normal +0 · Heroic +10 · Mythic +20
+```
+
+All enemies, Elites, Guardians (`25` §3) and bosses in a `(chapter, tier)` share this level. It preserves the intended pressure from §4's mitigation note — defense must keep growing to stay relevant across chapters. 📐 TUNABLE, lives in `data/tuning/par_power.json` beside the par table.
+
 ### 6.1 Enemy archetypes (8 base shapes, reskinned per biome)
 
 | Archetype | hpCoef | atkCoef | defCoef | aspdCoef | Behaviour flavour |
@@ -208,6 +236,8 @@ EnemyStats(power, archetype):
 `Enraged` (+50% ATK below 40% HP) · `Armored` (+80% DEF, −20% ASPD) · `Vampiric` (35% LS) · `Volatile` (explodes on death for 15% of hero Max HP) · `Shielded` (starts with a `WARD` equal to 30% Max HP) · `Swift` (+60% ASPD) · `Cursed` (applies a run-scoped curse on victory unless killed within 20 s) · `Reflective` (25% thorns)
 
 Elite modifiers are shown on the pre-battle banner. The player must be able to read the threat before it starts.
+
+🔒 **No Elite may draw the same modifier as the immediately preceding Elite in the same run** — redraw on collision. See `24_LUCK_PROTECTION.md` §4.10 B2.
 
 ### 6.3 Bosses
 
@@ -269,7 +299,7 @@ public readonly struct CombatEvent {
 
 The following must hold after tuning; write automated tests for them.
 
-1. A player at exactly `ChapterPowerTarget(c)` should clear chapter `c` Normal **~70%** of the time.
+1. A player at exactly `ParPower(c, t)` clears `(c, t)` **62–78%** of the time — target 70%. 🔒 This is no longer just a guardrail: it is the **definition** of `ParPower` (`29_POWER_MODEL.md` §4), it is authored as a 24-cell table rather than a formula, and it is enforced as simulator assertion **A11**. A cell outside the band means either the table is mis-authored or the content behind it has drifted.
 2. No single perk may increase clear rate by more than 12 percentage points in isolation.
 3. No build should be able to reduce a boss fight below 12 s at par power (prevents degenerate burst).
 4. No build should require more than 70 s for a boss fight at par power (prevents unwinnable stall).
@@ -277,3 +307,5 @@ The following must hold after tuning; write automated tests for them.
 6. Every stat must be worth taking: for each stat, there must exist at least one build archetype where it is top-3 by marginal power.
 
 Implement a **headless balance harness** that runs 10,000 simulated fights per `(chapter, tier, buildArchetype)` and reports clear rate, median duration and stat elasticities. This harness is a v1 deliverable, not a nice-to-have.
+
+It also produces **`EmpiricalPower`** (`29` §1): the power value solved from observed time-to-kill and time-to-die against a standard dummy. Assertion **A10** requires the closed-form `PlayerPower` to track it within ±12% across every archetype and chapter band. That check is what catches the class of bug where a stat is silently missing from the aggregate — the harness measures what actually happens, the formula predicts it, and they must agree.

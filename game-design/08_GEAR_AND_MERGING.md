@@ -67,6 +67,31 @@ SecondaryStat= ItemPower * SlotSecondaryCoef * RandRange(0.85, 1.15)
 
 The `RandRange` roll is the item's **quality roll**, displayed to the player as a 0–100% quality bar. Two S-rarity Blades are not identical, and the player can see why. This is a cheap, high-value source of loot excitement.
 
+### 3.0a Slot coefficients 🔒
+
+Previously unspecified. Two kinds of stat: **flat stats** scale with `ItemPower` (and therefore with chapter); **percent stats** scale with rarity only, because they feed capped percentages (`05` §1.1) and must not inflate across chapters.
+
+| Slot | Primary stat | `SlotPrimaryCoef` | Secondary stat | `SlotSecondaryCoef` |
+|---|---|---|---|---|
+| Weapon | ATK (flat) | 0.20 | Crit Chance (%) | see % table |
+| Helmet | DEF (flat) | 0.18 | Max HP (flat) | 0.55 |
+| Armor | Max HP (flat) | 1.10 | DEF (flat) | 0.12 |
+| Boots | Attack Speed (%) | see % table | Dodge (%) | see % table |
+| Ring | Crit Chance (%) | see % table | Armor Pen (%) | see % table |
+| Amulet | Max HP (flat) | 0.45 | Lifesteal (%) | see % table |
+
+Percent-stat values by rarity (quality roll still applies as ±10%):
+
+| Percent stat | C | B | A | S | SS |
+|---|---|---|---|---|---|
+| Crit Chance | 1.5% | 2.5% | 4% | 6% | 8% |
+| Attack Speed | 2% | 3% | 4.5% | 7% | 10% |
+| Dodge | 1% | 1.5% | 2.5% | 4% | 5.5% |
+| Armor Pen | 2% | 3.5% | 5% | 8% | 11% |
+| Lifesteal | 1.5% | 2.5% | 4% | 6% | 8% |
+
+📐 TUNABLE — all of it, in `data/tuning/drops.json`. Assertion **A13** (`29` §5.1 P2, gear ≤60% of the power multiplier) is what validates these; expect the flat coefficients to move.
+
 ### 3.1 Affixes
 
 Rarity B and above roll random affixes from a pool. Affix pools are slot-restricted so nothing nonsensical appears.
@@ -107,7 +132,7 @@ Because a set maps to a family axis, a full 6-piece set is also a full commitmen
 
 ## 4. The Forge
 
-Three operations, all free of real money.
+**Five** operations, all free of real money. Merge, Enhance and Salvage are specified below; **Reforge** (quality re-roll, better-of-two) and **Retune** (affix re-roll with lockable affixes and a wishlist) are specified in `24_LUCK_PROTECTION.md` §6 and are what turn an SS item from a lottery ticket into a platform the player improves.
 
 ### 4.1 Merge (fusion)
 
@@ -145,6 +170,8 @@ StatBonusPerLevel = +7% of base item stats (additive)
 | +11 → +15 | 50% → 25% | 55, 75, 100, 140, 200 | No level lost, stones consumed |
 
 🔒 **Enhancement never destroys or downgrades an item.** Destructive enhancement is a monetisation mechanic and has no place in a game with no monetisation. Failure costs materials only.
+
+🔒 **Failure mercy** (`24_LUCK_PROTECTION.md` §4.6): each consecutive failure **on that gear instance** adds `+8` percentage points to the next attempt, resetting on success. The counter lives on the item (so it cannot be farmed on cheap items) and is inherited by merge outputs. `AD_ENHANCE_LUCK` stacks on top and neither advances nor consumes it. Displayed as *"Success 41% (+16% mercy)"*.
 
 The rewarded ad `AD_ENHANCE_LUCK` grants **+15 percentage points** to the next enhancement attempt, **3 times per day**.
 
@@ -192,6 +219,14 @@ StoneRefund = 60% of stones invested
 | Ad chest (`AD_FREE_GEAR_CHEST`) | 2/day |
 
 Design target: a mid-game player should see **20–35 items per hour of play**, of which 2–5 are meaningful upgrades or merge fodder. High volume, aggressive auto-salvage, occasional real excitement.
+
+🔒 **All gear acquisition routes through `LuckService`** and obeys `24_LUCK_PROTECTION.md`:
+- Chests belong to `CHEST_STANDARD` / `CHEST_PREMIUM` / `CHEST_APEX` and carry the ten-chest rarity ladder (§4.1–4.2).
+- In-run drops belong to `DROP_RUN` and carry Elite mercy, boss mercy and the session floor (§4.3).
+- The **Focus** system (§5) biases *which item* a grant produces toward one player-chosen `(slot, family)`, at `×2.5` weight, free and unlimited.
+- **Set Tokens** (§5.1) make the 6-piece SS set a deterministic chase: 12 tokens buy any SS item outright.
+
+Without those, the SS set bonuses in §3.2 are a wall made entirely of luck — six natural SS drops in the right slots, or three *identical* S items per merge.
 
 ---
 

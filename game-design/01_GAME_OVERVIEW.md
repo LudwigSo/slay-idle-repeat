@@ -106,7 +106,10 @@ The emotional arc the design chases, in order:
 | Bosses | 8 (one per chapter) |
 | Minigames | 4 |
 | PvP modes | 1 (Ghost Duel) |
-| Rewarded ad placements | 28 |
+| Resource Dungeons × tiers | 3 × 8 |
+| Live event archetypes / launch events | 3 / 1 |
+| Guilds | 30 players, 15 guild quests, 8-boss weekly rotation, 60 phrases |
+| Rewarded ad placements | 29 |
 | Paid products | 1 (Slay Plus subscription) |
 | Cosmetics | 0 — cut from v1 |
 | Event cards | 30 |
@@ -147,4 +150,4 @@ The implementation is complete when all of the following hold:
 6. All game content lives in data files and can be changed server-side without an app store update.
 7. A full run at 60 FPS on a 2021 mid-range Android device (Snapdragon 695 class) with < 400 MB RAM.
 8. The whole backend stack boots from `docker compose` on a laptop with no cloud account.
-9. The economy simulator (`21`) passes all 9 assertions, including the 45% fairness gap.
+9. The economy simulator (`21`) passes all 16 named assertions and 23 inherited requirements, including the 45% fairness gap (A3).

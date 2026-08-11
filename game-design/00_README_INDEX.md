@@ -42,7 +42,7 @@ Four markers appear throughout:
 
 | Marker | Meaning |
 |---|---|
-| `🔒 LOCKED` | A decision made by the product owner. Do not redesign it. All 23 are listed in §1 and logged with rationale in `16_DECISION_LOG.md`. |
+| `🔒 LOCKED` | A decision made by the product owner. Do not redesign it. All 33 are listed in §1 and logged with rationale in `16_DECISION_LOG.md`. |
 | `📐 TUNABLE` | A number that must live in a data file, not in code. It will be re-tuned after the economy simulator runs and after playtest. |
 | `⚠️ NEEDS DETAIL` | Genuinely under-specified. Do **not** invent a final answer silently — implement the stated placeholder, surface the gap, and flag it. All are collected in `16_DECISION_LOG.md` Part B. |
 | `✅` | A previously-open item that has since been resolved, with a pointer to where. |
@@ -65,30 +65,40 @@ Four markers appear throughout:
 10. `09_TALENT_TREE.md` — the permanent power spine
 11. `10_ECONOMY_AND_PROGRESSION.md` — 8 currencies, energy, curves, pacing
 
+**Fairness, retention and social**
+
+12. `24_LUCK_PROTECTION.md` — **every pity, mercy and floor in the game.** Read it before implementing any drop, chest, egg, crate or draft.
+13. `25_RESOURCE_DUNGEONS.md` — three daily deterministic material dungeons
+14. `26_LIVE_OPS_AND_EVENTS.md` — the limited-time-event framework and the launch event
+15. `27_GUILDS.md` — 30-player guilds, guild quests, the weekly Guild Boss
+16. `28_LIVE_SERVICE_ESSENTIALS.md` — the inbox, account linking, the Energy Reserve, Feats & Renown
+
 **Competition and business**
 
-12. `11_PVP_GHOST_DUEL.md` — the single PvP mode and its global ladder
-13. `12_MONETIZATION_ADS.md` — 28 ad placements and the Plus subscription
+17. `11_PVP_GHOST_DUEL.md` — the single PvP mode and its global ladder
+18. `12_MONETIZATION_ADS.md` — 29 ad placements and the Plus subscription
 
 **Production**
 
-14. `13_UI_UX_SCREENS.md` — 27 screens, flows, fonts, accessibility, connection states
-15. `14_TECHNICAL_ARCHITECTURE.md` — Godot client, server-authoritative backend, determinism, observability
-16. `23_PORTS_AND_ADAPTERS.md` — **the architectural constraint that shapes the whole codebase**: port catalogue, adapter rules, enforcement
-17. `18_EFFECT_DSL.md` — the one language every game effect is written in
-18. `19_CONTENT_TABLES.md` — 30 events, 20 quests, 14 modifiers, FTUE, curses, the Lucky Wheel
-19. `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` — **975 art assets**
-20. `22_ICON_PROMPT_TABLES.md` — per-icon prompts for all 158 perk and talent icons
-21. `20_AUDIO_MANIFEST.md` — **106 audio assets**
-22. `21_ECONOMY_SIMULATOR_SPEC.md` — the tool that validates every economy number
+19. `13_UI_UX_SCREENS.md` — 39 screens, flows, fonts, accessibility, connection states
+20. `14_TECHNICAL_ARCHITECTURE.md` — Godot client, server-authoritative backend, determinism, observability
+21. `30_DOMAIN_MODEL.md` — **the centrepiece**: aggregates, one pure transition function, and the rule that the whole game is playable in memory from `Core` alone
+22. `23_PORTS_AND_ADAPTERS.md` — **the architectural constraint that shapes the whole codebase**: port catalogue, adapter rules, enforcement
+23. `18_EFFECT_DSL.md` — the one language every game effect is written in
+24. `19_CONTENT_TABLES.md` — 30 events, 20 quests, 14 modifiers, FTUE, curses, the Lucky Wheel, the 28-day login calendar
+25. `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` — **975 art assets**
+26. `22_ICON_PROMPT_TABLES.md` — per-icon prompts for all 158 perk and talent icons
+27. `20_AUDIO_MANIFEST.md` — **106 audio assets**
+28. `29_POWER_MODEL.md` — **`PlayerPower`, and the three authored tables that say what it should be.** The product owner's primary dial.
+29. `21_ECONOMY_SIMULATOR_SPEC.md` — the tool that grades the game against `29`: **14 player profiles, 16 assertions + 23 inherited requirements**
 
 **Governance**
 
-23. `16_DECISION_LOG.md` — every decision made, and everything still open
+30. `16_DECISION_LOG.md` — every decision made, and everything still open
 
 ---
 
-## 1. The 23 locked decisions
+## 1. The 33 locked decisions
 
 | # | Decision | Choice |
 |---|---|---|
@@ -115,6 +125,18 @@ Four markers appear throughout:
 | D21 | Observability | 🔒 **Self-hostable OSS** — Sentry, PostHog, OpenTelemetry, own remote config |
 | D22 | External dependencies | 🔒 **Ports and adapters (hexagonal), project-wide.** Every external dependency — ads, billing, push, telemetry, database, cache, object store, store APIs, remote config, clock, and Godot itself — is a C# interface owned by the application, implemented by an adapter in its own project. Enforced by architecture tests. |
 | D23 | Title | 🔒 **Slay. Idle. Repeat.** Code namespace `SlayIdleRepeat`; see §0a for the three naming forms. |
+| D24 | Resource Dungeons | 🔒 **Three daily deterministic material dungeons** — Stones, Beast Feed, Crowns. `25` |
+| D25 | Live-ops | 🔒 **Data-driven limited-time-event framework in v1**, with one launch event and a rolling calendar. The Weekly Chapter Challenge becomes an event package. `26` |
+| D26 | Guilds | 🔒 **30-player guilds ship in v1** — guild quests, a weekly Guild Boss, non-combat perks only, **no resource transfers, no free-text chat.** Reverses the previous no-social exclusion. `27` |
+| D27 | Luck protection | 🔒 **Every random source in the game has a deterministic floor**, and every counter is shown to the player. `24` |
+| D29 | Live-service essentials | 🔒 **Inbox, account linking, Energy Reserve, Feats & Renown all ship in v1.** `28` |
+| D33 | CQRS | 🔒 **Read/write split by aggregate ownership.** Your own `Player`/`Run` read through the write model, strongly consistent. Cross-player data (ladder, ghosts, guild rollups) from read models with a stated staleness budget. **No event sourcing, no second database, no mediator.** `30` §12 |
+| D32 | Domain model | 🔒 **The domain is a pure, synchronous state machine with one entry point**, `GameRules.Apply(state, command, context)`. **The whole game is playable in memory from `SlayIdleRepeat.Core` alone** — enforced by an architecture test. Time, content and entitlement are values, not services. `30` |
+| D30 | Power model | 🔒 **`PlayerPower = K·√(EffectiveHP × DPS)`**, evaluated against a fixed reference opponent, with authored `ParPower`, `ExpectedPower(L)` and `ExpectedProgression` tables. Supersedes the additive formula in `02` §4.4. `29` |
+| D31 | Economy validation | 🔒 **The economy simulator must pass before the live service opens.** 14 behavioural profiles, per-feature and per-ad-placement engagement, graded against the owner's authored expectation curve. `21` |
+| D28 | Endgame | 🔒 **Accept the content cliff for v1.** No endless mode; ascension stays as the first post-launch update. Events and guilds carry the day-30-to-day-90 window instead. See R8. |
+
+**The five design pillars for randomness, in one line:** no wallet shortcut *(D9)*, no luck shortcut *(D27)*, no social shortcut to combat power *(D26)*, no information advantage for payers *(`12` §2.5)*, and every floor visible to the player *(`24` §1.1)*.
 
 Plus these standing rules, decided alongside: revive works on bosses; PvP bans non-combat perk categories (68 eligible, 5 slots, 10 points); typefaces are Baloo 2 + Nunito Sans; determinism uses rounded doubles with a cross-platform CI hash test; ascension ships as the first post-launch update; the economy simulator is specced now and built in C# alongside the real code.
 
@@ -128,8 +150,8 @@ PvE progression is the main objective. The player should always see the next pow
 **P2 — Every run is a short, complete story.**
 8–12 minutes. Roll, move, fight, draft, get greedy, survive or die, bank the loot. A run must be legible in the first 30 seconds and satisfying even when it ends in death.
 
-**P3 — Randomness the player can bend.**
-Dice, drops and drafts are random, but the player accumulates tools to bend them: rerolls, upgraded die faces, draft rerolls, drop-rate talents. Luck is an input you level up.
+**P3 — Randomness the player can bend, and randomness that cannot bury them.**
+Dice, drops and drafts are random, but the player accumulates tools to bend them: rerolls, upgraded die faces, draft rerolls, drop-rate talents, a chosen loot **Focus**. Luck is an input you level up. And underneath all of it, **every random source has a visible floor** — a counted guarantee that no streak can outlast. A game with no wallet shortcut must not have a luck shortcut either. See `24_LUCK_PROTECTION.md`.
 
 **P4 — Competition without an arms race.**
 One PvP mode, asynchronous, decided by build quality and accumulated progress. Because nothing is purchasable, the ladder is a pure measure of play — and everyone can see exactly where they stand on it.
@@ -146,7 +168,7 @@ Explicitly out of scope. Do not implement these even if genre convention suggest
 - ❌ Loot boxes purchased with money
 - ❌ Timers that can be skipped with money
 - ❌ **Cosmetics of any kind** — no skins, frames, badges, trails
-- ❌ Guilds, chat, alliances, friend lists, social graph
+- ❌ ~~Guilds~~ — **amended by D26.** Guilds ship in v1. Still out: **free-text chat**, alliances, friend lists, direct messages, cross-guild social, guild-vs-guild PvP, and any resource transfer between players (`27` §1, §8)
 - ❌ Real-time multiplayer / netcode
 - ❌ Prestige / ascension reset loop (deferred to the first post-launch update)
 - ❌ Active skill buttons during combat
@@ -170,7 +192,13 @@ Explicitly out of scope. Do not implement these even if genre convention suggest
 | Minigames | 4 |
 | Event cards | 30 |
 | Daily quests / weekly modifiers | 20 / 14 |
-| Rewarded ad placements | 28 |
+| Resource Dungeons × tiers | 3 × 8 |
+| Live event archetypes / launch events | 3 / 1 |
+| Guild quests / Guild Boss rotation | 15 / 8 |
+| Guild phrase-board phrases | 60 |
+| Feats × tiers | 140 × 3 |
+| Screens | 39 |
+| Rewarded ad placements | 29 |
 | Art assets to generate | 975 |
 | Audio assets to generate | 106 |
 
@@ -189,6 +217,24 @@ Explicitly out of scope. Do not implement these even if genre convention suggest
 | **Legend Level** | The player's meta level, 1–200. Grants Talent Points and base stats. |
 | **Ghost** | A server-stored snapshot of a player's build, used as the opponent in async PvP. |
 | **Die Face** | One of the six configurable faces of the player's die. |
-| **Core** | `SlayIdleRepeat.Core` — the pure C# rules library shared by client and server. |
+| **Core** | `SlayIdleRepeat.Core` — the pure C# domain model and rules library shared by client and server. **The whole game runs from this one assembly.** `30` |
+| **Apply** | `GameRules.Apply(state, command, context) → (newState, events)` — the single entry point to every rule in the game. `30` §2 |
+| **GameContext** | Everything ambient, passed as data: time, seed, content snapshot, entitlement, feature flags. Never a service call. `30` §3 |
+| **InMemoryGame** | The harness that plays a full 180-day player in <200 ms with no storage, network or engine. `30` §6 |
+| **Read model** | A projection serving cross-player data (ladder, ghosts, guild rollups) with a stated staleness budget. **Never used for your own state.** `30` §12 |
 | **Plus** | Slay Plus, the €4.99/month subscription. |
 | **Beast Feed** | The single currency used to level both pets and mounts. |
+| **Pity** | A counted guarantee: after N misses the next draw is forced to succeed. Every one is server-owned and shown to the player. `24` |
+| **Focus** | A player-chosen `(slot, family)` that gets `×2.5` weight in every gear grant. Free, unlimited, 12-hour change cooldown. `24` §5 |
+| **Set Token** | Earned from SS salvage and SS duplicates; 12 buy any SS gear item outright. `24` §5.1 |
+| **Beast Mark** | Earned from ★5-duplicate pets and duplicate mounts; buys a *chosen* pet. `24` §4.4 |
+| **Dungeon** | A short, deterministic, fixed-payout board that farms one material. `25` |
+| **Event** | A limited-time JSON content package: re-skinned board, own currency, own reward track, own shop. `26` |
+| **Guild** | Up to 30 players sharing daily quests and a weekly boss. Non-combat benefits only, no transfers, no free text. `27` |
+| **Energy Reserve** | A second Energy bank, overflow-fed only, 1× Max Energy, spent automatically. `28` Part C |
+| **Feat** | One of 140 authored records of something the player has *done*, in 3 tiers, fully retroactive and never missable. `28` Part D |
+| **Renown** | The point total accumulated from Feats. The number a post-content player can still watch go up. `28` Part D |
+| **PlayerPower** | The canonical combat-power scalar, `K·√(EffectiveHP × DPS)` against a fixed reference opponent. `29` §2 |
+| **EmpiricalPower** | The same quantity *measured* from real simulated fights. Must track `PlayerPower` within ±12%. `29` §1 |
+| **ParPower** | The authored power at which a given `(chapter, tier)` clears ~70% of the time. A 24-cell table, not a formula. `29` §4 |
+| **Utility Index** | The second scalar covering everything `PlayerPower` excludes — die faces, income, board control, throughput. Internal only. `29` §3.1 |

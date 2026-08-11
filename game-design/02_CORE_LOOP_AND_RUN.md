@@ -162,18 +162,23 @@ Enemy stat derivation from Power is defined in `05_COMBAT_SIMULATION.md` §6.
 
 ### 4.4 Player Power
 
-The player's own Power is a display-only aggregate used for matchmaking, chapter recommendations and the "you may be too weak" warning:
+⚠️ **Superseded.** `PlayerPower` is no longer a display-only aggregate — it is the canonical scalar the whole game and the economy simulator are tuned against. **`29_POWER_MODEL.md` §2 is the authority.**
+
+The formula changed shape:
 
 ```
-PlayerPower = (EffectiveHP * 0.5) + (DPS * 10)
-
-EffectiveHP = MaxHP / (1 - AvgMitigation) * (1 + Dodge) * (1 + Lifesteal*2)
-DPS         = ATK * ASPD * (1 + Crit * CritDmg)
+PlayerPower = K_POWER * sqrt(EffectiveHP * DPS)        // 29 §2.1
 ```
 
-📐 TUNABLE. The formula must live in data so it can be re-weighted without a client patch.
+The previous additive form (`EffectiveHP * 0.5 + DPS * 10`) was **replaced because it is not monotone in both terms**: a build with enormous EffectiveHP and near-zero DPS scored highly, and under the 90-second fight cap (`05` §3) that build loses every fight it enters. A power number that recommends Chapter 6 to a build that cannot kill anything is worse than no number at all — and the simulator acts on it. The geometric mean goes to zero when either term does, which is the correct shape for *"time-to-kill must beat time-to-die"*.
 
-If `PlayerPower < 0.7 × ChapterPowerTarget × TierMult`, show a soft warning on the chapter confirm dialog. Never block the player — let them try.
+The additive form is retained in `data/tuning/power_model.json` as `additive_legacy` so the change is reversible without a client patch, per this section's original requirement. It is not the default.
+
+Both `EffectiveHP` and `DPS` are evaluated against a **fixed reference opponent** (`29` §2.2), which makes `PlayerPower` an absolute scalar: the same build scores the same number in Chapter 1 and Chapter 8.
+
+**The warning threshold is unchanged:** if `PlayerPower < 0.7 × ParPower(chapter, tier)`, show a soft warning on the chapter confirm dialog. Never block the player — let them try. `ParPower` is the authored table in `29` §4, and §4.1–4.2 above are its default fill.
+
+📐 TUNABLE — every weight, and now every `ParPower` cell independently.
 
 ---
 
@@ -191,6 +196,25 @@ If `PlayerPower < 0.7 × ChapterPowerTarget × TierMult`, show a soft warning on
 | Event tile | Variable, sometimes a choice with a cost |
 
 **Gold** is run-local and vanishes at run end. It exists only to be spent at Shop tiles. This keeps in-run economy decisions crisp and prevents "hoard gold, never spend" behaviour.
+
+### 5.1a Legend XP income 🔒
+
+Previously stated only as "small / large XP"; these are the placeholder values, 📐 TUNABLE in `data/tuning/progression.json` and validated by the simulator (`21`).
+
+```
+BaseXp(c) = 25 × 1.55^(c-1)          // c = chapter
+TierXpMult: Normal 1.0 · Heroic 1.6 · Mythic 2.5
+```
+
+| Source | Legend XP |
+|---|---|
+| Normal enemy kill | `1 × BaseXp(c) × TierXpMult` |
+| Elite kill | `3 ×` |
+| Boss kill | `15 ×` |
+| Run victory bonus | `10 ×` |
+| Resource Dungeon | `0.20 ×` the chapter equivalent (`25` §4.4) |
+
+XP is a banked reward and is subject to the `CompletionMultiplier` (§5.2) and `AD_DOUBLE_LEGEND_XP`. Sanity check: a Chapter 1 Normal victory pays ≈ 1,300 XP; ~4 first-day runs reach Legend Level 9–10, matching the "PvP unlocked day 1, ~45 min" target in `01` §7.
 
 ### 5.2 Run-end payout
 
@@ -281,10 +305,16 @@ After the tutorial run: force one gear equip, one talent point spend, then relea
 | Hook | Cadence | Reward |
 |---|---|---|
 | Daily Quests | 3/day, reroll 1 | Crowns, Enhance Stones, Energy |
-| Daily Login Calendar | 28-day cycle | Escalating; day 7/14/21/28 give pets or S-tier gear chests |
+| Daily Login Calendar | 28-day cycle | Escalating; day 7/14/21/28 give pets or S-tier gear chests — fully authored in `19` Part G |
 | Lucky Wheel | daily | 1 free spin + 2 via ad. 8 always-positive segments — see `19` Part F |
 | Weekly Chapter Challenge | weekly | A modifier-loaded run (e.g. "no shops, double drops") for Soul Shards |
 | PvP Season | 14 days | Soul Shards, Honor, gear chests, Talent Points |
 | Codex / Bestiary completion | ongoing | Permanent tiny stat bonuses for cataloguing enemies, perks, gear |
+| **Resource Dungeons** (`25`) | 9 entries/day | Deterministic Enhance Stones, Beast Feed, Crowns. The "I know exactly what I'm getting" errand. |
+| **Live event** (`26`) | always one running | Event currency → a milestone track and an event shop. 14-day windows, no gaps. |
+| **Guild Quests** (`27`) | daily | A collective goal and a Guild Chest for everyone who contributed anything |
+| **Guild Boss** (`27`) | weekly, Mon–Sun | 3 free attempts, damage brackets — every week pays, scaled to effort |
+
+The last four exist because the original list ran thin between day 30 and day 90. `16` **R8** records that the true end-of-content wall at Chapter 8 Mythic is still unsolved and belongs to ascension.
 
 ✅ **14 Weekly Challenge modifiers are authored in `19_CONTENT_TABLES.md` Part C**, with combination rules. The 20-quest daily pool is in Part B of the same document.

@@ -1,6 +1,6 @@
 # 19 — Content Tables: Events, Quests, Modifiers, FTUE, Curses, Wheel
 
-Resolves open items P1 #10 (30 event cards), P1 #11 (daily quest pool), P1 #12 (weekly modifiers) and P3 #35 (FTUE copy) — plus two gaps found in the consistency audit: the **curse catalogue** (Part E) and the **Lucky Wheel** (Part F), both referenced across several documents but never specified.
+Resolves open items P1 #10 (30 event cards), P1 #11 (daily quest pool), P1 #12 (weekly modifiers) and P3 #35 (FTUE copy) — plus three gaps found in consistency audits: the **curse catalogue** (Part E), the **Lucky Wheel** (Part F) and the **28-day login calendar** (Part G), all referenced across several documents but never specified.
 
 All strings shown here are **English source strings**. Every one is a localisation key in `data/loc/en.json`, with a `de.json` counterpart (EN + DE only at launch — `16` decision D20).
 
@@ -119,7 +119,11 @@ One challenge per week: a fixed `(chapter, tier, seed, modifier set)` shared by 
 
 **Combination rule:** never pair two `Denial` modifiers. Never pair `MOD_PERKLESS` with `MOD_ONE_LIFE`. Always include at least one Risk/Reward or Twist so the week has an identity rather than just being harder.
 
-⚠️ **NEEDS DETAIL:** the scoring formula for challenge runs is unspecified. Suggested: `score = tilesCleared × 100 + enemiesKilled × 25 + bossKilled × 2000 − secondsElapsed`, but this needs validation so that it does not simply reward the strongest account.
+✅ **The Weekly Chapter Challenge is now an `EVENT_SCORE_RUSH` package** in the live-ops framework — see `26_LIVE_OPS_AND_EVENTS.md` §3.2. The 14 modifiers above are unchanged and remain its content; what changes is that the challenge no longer has a bespoke system or a bespoke surface. It runs on the event scheduler, appears on the Events Hub (S30), and can be retuned weekly by editing a JSON package.
+
+✅ This structurally resolves open item **O3**: the scoring formula becomes a `leaderboard.formula` field on the event package rather than one hardcoded formula that must be right forever. The default remains `tilesCleared × 100 + enemiesKilled × 25 + bossKilled × 2000 − secondsElapsed`, and the concern that it may simply reward the strongest account still stands — but it is now correctable on live evidence within a week instead of within an app release.
+
+Rewards are paid by **percentile band, not absolute rank**, so the reward experience is identical at 10,000 players and at 1,000,000.
 
 ---
 
@@ -146,6 +150,8 @@ One challenge per week: a fixed `(chapter, tier, seed, modifier set)` shared by 
 **Post-FTUE:** the player is released with Energy full, 2 daily quests pre-assigned, and Chapter 1 available. The ATT prompt (iOS) fires here, not before. The first interstitial is 72 hours away.
 
 ⚠️ **NEEDS DETAIL:** beat 6 requires the elite fight to be scripted to leave the player at ~25% HP regardless of their build. In a deterministic simulator this is straightforward (fix the seed and the enemy stats), but it must be explicitly implemented as a **tutorial-only enemy definition**, not as a hack in the combat loop.
+
+🔒 **The tutorial run guarantees a level-up.** Beat 10 forces a Talent Point spend, and points come only from level-ups (`09` §2) — so the tutorial run pays a **fixed, scripted 300 Legend XP** (Level 2 needs 120, per `07` §1.1), guaranteeing at least one Talent Point exists before beat 10 regardless of play. Not subject to any multiplier.
 
 ---
 
@@ -210,6 +216,39 @@ Referenced as `AD_LUCKY_WHEEL` (`12` §4.2), screen S25 (`13` §1) and a Home wi
 
 `chapterScalar = 1 + 0.35 × highestChapterCleared`, matching the ad bundle scaling in `12` §5.
 
-**Pity:** the jackpot segment is guaranteed at least once every 60 spins. 📐 TUNABLE
+**Pity:** the jackpot segment is guaranteed at least once every 60 spins, with soft pity from spin 40 (slope `0.06`), and the same segment may never be rolled three times consecutively. `24_LUCK_PROTECTION.md` §4.8 is the authority. 📐 TUNABLE
 
 🔒 The wheel is **not** a gacha and cannot be bought. It is a small daily gift with variance, and every segment is a positive outcome — there are no blanks and no "better luck next time". A wheel that can land on nothing is a slot machine; a wheel that always gives something is a present.
+
+---
+
+# PART G — The 28-Day Login Calendar
+
+Referenced in `02` §9 ("28-day cycle, day 7/14/21/28 give pets or S-tier gear chests") but never authored. This is it.
+
+| Rule | Specification |
+|---|---|
+| Advancement | The calendar advances **on login, not by date**. A missed day pauses the calendar; nothing is skipped or lost. |
+| Cycle | After day 28 it restarts at day 1. Every cycle pays identically — nothing is first-cycle-exclusive (`11` §5.3). |
+| Scaling | Crown and Merge Dust values are Chapter-1 base and scale by `chapterScalar = 1 + 0.35 × highestChapterCleared`, matching Part F and `12` §5. |
+| Claiming | One tap on S25; auto-highlighted when unclaimed. Never a popup. |
+| Luck classes | Pet Eggs are `EGG_PET`; the day-14/28 S-tier chests are **`CHEST_PREMIUM`**; any other gear chest is `CHEST_STANDARD` (`24` §3, amended accordingly). |
+
+| Day | Reward | Day | Reward |
+|---|---|---|---|
+| 1 | 300 Crowns | 15 | 800 Crowns |
+| 2 | 20 Enhance Stones | 16 | 40 Enhance Stones |
+| 3 | 40 Beast Feed | 17 | 90 Beast Feed |
+| 4 | 100 Soul Shards | 18 | 200 Soul Shards |
+| 5 | +30 Energy | 19 | +60 Energy |
+| 6 | 200 Merge Dust | 20 | 400 Merge Dust |
+| **7** | **1 Pet Egg** | **21** | **1 Pet Egg + 200 Soul Shards** |
+| 8 | 500 Crowns | 22 | 1,200 Crowns |
+| 9 | 30 Enhance Stones | 23 | 60 Enhance Stones |
+| 10 | 60 Beast Feed | 24 | 120 Beast Feed |
+| 11 | 150 Soul Shards | 25 | 300 Soul Shards |
+| 12 | +40 Energy | 26 | Full Energy refill |
+| 13 | 300 Merge Dust | 27 | 600 Merge Dust |
+| **14** | **1 S-tier Gear Chest** | **28** | **1 S-tier Gear Chest + 1 Pet Egg** |
+
+📐 TUNABLE — all values, in `data/tuning/currencies.json`. The simulator models the calendar at each profile's `LoginCalendar` engagement rate (`21` §5.2).

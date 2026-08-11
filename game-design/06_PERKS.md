@@ -205,6 +205,11 @@ Additional rules:
 - **Owned-upgrade bias:** each option has a 30% chance of being drawn from the player's owned-but-not-maxed perks instead of the fresh pool. This makes "going tall" reachable without feeling forced.
 - **Legendary pity:** if no Legendary has appeared by draft #14 of a run, force one into draft #15.
 - **Anti-brick:** if the player has no Sustain perk by the end of Stage 2, force one Sustain option into the next draft.
+- **Quality floor:** 3 consecutive drafts with no option above Common force a Rare-or-better option into the next draft.
+- **Codex bias:** never-drafted perks carry a `×1.35` weight in the fresh-pool draw, capped at 1 bias-selected option per draft.
+- **Upgrade famine:** 5 consecutive drafts with no owned-perk upgrade offered (while a non-maxed owned perk exists) force one.
+
+🔒 All five rules above are the `DRAFT` source class and are specified in full in **`24_LUCK_PROTECTION.md` §4.7**, which is the authority. They resolve through `LuckService`, not in the draft code.
 
 📐 TUNABLE: all weights above.
 
@@ -240,3 +245,19 @@ The `effects` array is interpreted by a single generic effect resolver. **Do not
 ## 6. Perk Codex
 
 All perks the player has ever drafted are recorded in a Codex. Discovering a perk for the first time grants a small permanent bonus (+0.1% all stats per unique perk discovered, max +9.8% at full completion). This gives long-term value to variety and rewards experimentation over always taking the safe pick.
+
+### 6.1 Codex mastery — all sections 🔒
+
+Previously only the perk bonus was specified. The full Codex has five sections; each entry discovered grants a permanent all-stats bonus, and overall completion pays the 10 Talent Points referenced in `09` §2.
+
+| Section | Entries | Bonus per entry | Section max |
+|---|---|---|---|
+| Perks | 98 | +0.10% | +9.8% |
+| Enemies (bestiary — visual variants catalogued by defeating one) | 64 | +0.05% | +3.2% |
+| Gear (base item × rarity discovered) | 120 | +0.02% | +2.4% |
+| Pets | 24 | +0.05% | +1.2% |
+| Mounts | 12 | +0.05% | +0.6% |
+
+**Full-Codex total: +17.2% all stats.** 📐 TUNABLE. The passive stat bonuses **activate at Legend Level 100** (`07` §1.1 — "Codex mastery bonuses" is that unlock); entries and completion percentages are tracked and visible from the start.
+
+**Talent Point milestones (the 10 TP in `09` §2):** +2 TP at **25% / 50% / 75% / 90% / 100%** overall Codex completion. Claimable at any level — only the passive stat bonuses are gated behind Legend 100.
