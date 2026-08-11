@@ -16,6 +16,11 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// </remarks>
 public sealed class SchemaValidationTests
 {
+    /// <summary>The one schema object in the fixture that is small enough to restate whole.</summary>
+    private const string Limits =
+        "\"limits\": { \"type\": \"object\", \"maxProperties\": 2, " +
+        "\"additionalProperties\": { \"type\": \"integer\" } }";
+
     private static IReadOnlyList<ContentIssue> Issues(Adapters.InMemory.InMemoryContentSource source) =>
         ContentLoader.Load(source).Issues;
 
@@ -241,6 +246,63 @@ public sealed class SchemaValidationTests
                 StringComparison.Ordinal)));
 
         issues.Should().Contain(i => i.Code == ContentIssueCode.UnsupportedSchemaKeyword);
+    }
+
+    /// <summary>
+    /// 🔒 A <em>known</em> keyword written in the wrong shape. Every one of these degrades to a
+    /// silent no-op without the eager shape check, and the worst of them —
+    /// <c>"properties": []</c> — leaves the whole object unvalidated while the file reports clean.
+    /// </summary>
+    [Theory]
+    // properties — an array applies no sub-schema at all.
+    [InlineData(Limits, "\"limits\": { \"type\": \"object\", \"properties\": [] }")]
+    // propertyNames — a boolean schema, which this validator does not implement.
+    [InlineData(Limits, "\"limits\": { \"type\": \"object\", \"propertyNames\": true }")]
+    // additionalProperties — neither a boolean nor a schema.
+    [InlineData(Limits, "\"limits\": { \"type\": \"object\", \"additionalProperties\": \"integer\" }")]
+    // required — a bare string iterates nothing.
+    [InlineData("\"required\": [\"id\", \"rarity\", \"displayName\", \"requires\"]", "\"required\": \"id\"")]
+    // items — draft-07's tuple form, skipped entirely by the walk.
+    [InlineData("\"maxItems\": 3, \"items\": { \"type\": \"integer\" }",
+                "\"maxItems\": 3, \"items\": [{ \"type\": \"integer\" }]")]
+    // oneOf — an empty branch list can never match exactly one.
+    [InlineData("\"oneOf\": [{ \"type\": \"integer\" }, { \"const\": \"FULL\" }]", "\"oneOf\": []")]
+    // enum — a bare string enumerates nothing.
+    [InlineData("\"enum\": [\"transcribed\", \"partial\", \"skeleton\"]", "\"enum\": \"partial\"")]
+    // type — neither a type name nor an array of them.
+    [InlineData("\"type\": \"integer\", \"multipleOf\": 5", "\"type\": 7, \"multipleOf\": 5")]
+    // uniqueItems — the string "true" is not a boolean.
+    [InlineData("\"uniqueItems\": true", "\"uniqueItems\": \"true\"")]
+    // minimum — a quoted bound used to throw out of AsNumber at validation time.
+    [InlineData("\"minimum\": 2", "\"minimum\": \"2\"")]
+    // maxItems — a fractional count used to throw out of AsInt32.
+    [InlineData("\"maxItems\": 3", "\"maxItems\": 3.5")]
+    // maxProperties — a negative count.
+    [InlineData("\"maxProperties\": 2", "\"maxProperties\": -1")]
+    // pattern — a number is not a regular expression.
+    [InlineData("\"pattern\": \"^WID_[A-Z0-9_]+$\"", "\"pattern\": 5")]
+    public void Load_rejects_a_known_keyword_whose_value_is_the_wrong_shape(string find, string replaceWith)
+    {
+        var issues = Issues(ContentTestData.WithSchemaEdit(find, replaceWith));
+
+        issues.Should().Contain(i => i.Code == ContentIssueCode.UnsupportedSchemaKeyword);
+    }
+
+    /// <summary>
+    /// 🔒 The specific catastrophe, located. <c>"properties": []</c> on an object that declares no
+    /// <c>additionalProperties</c> means <b>nothing under that object is validated at all</b>, and
+    /// the file reports clean. The finding has to name the schema pointer, or the author is told
+    /// only that something, somewhere, is unsupported.
+    /// </summary>
+    [Fact]
+    public void A_properties_keyword_that_is_an_array_does_not_leave_its_object_silently_unvalidated()
+    {
+        var source = ContentTestData.WithSchemaEdit(
+            Limits, "\"limits\": { \"type\": \"object\", \"properties\": [] }");
+
+        Issues(source).Should().Contain(i =>
+            i.Code == ContentIssueCode.UnsupportedSchemaKeyword &&
+            i.Location == "schema/widgets.schema.json#/properties/merge/properties/limits/properties");
     }
 
     /// <summary>

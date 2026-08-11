@@ -36,11 +36,13 @@ public sealed record PatternBinding(string Pattern, string MemberName, string Va
 /// manufactures confidence."</em>
 /// </para>
 /// <para>
-/// The same principle governs the assertion keywords: where a keyword's <em>value</em> has a shape
-/// this validator cannot act on (<c>"uniqueItems": "true"</c>, <c>"multipleOf": 0</c>, an
-/// <c>additionalProperties</c> that is neither a boolean nor a schema), it reports
-/// <see cref="ContentIssueCode.UnsupportedSchemaKeyword"/> rather than skipping the check. Silently
-/// skipping is how a bound stops biting without anybody noticing.
+/// The same principle governs a known keyword's <em>value</em>. The sweep knows the shape each
+/// keyword position must have and reports <see cref="ContentIssueCode.UnsupportedSchemaKeyword"/>
+/// when it does not hold. Without that, a <em>known</em> keyword written wrong degrades to a no-op
+/// and the file reports clean: <c>"properties": []</c> applies no sub-schema at all,
+/// <c>"required": "id"</c> checks nothing, and draft-07's tuple <c>"items": [ … ]</c> is skipped.
+/// Silently skipping is how a bound stops biting without anybody noticing — and a permissive schema
+/// is worse than no schema, because it manufactures confidence.
 /// </para>
 /// </remarks>
 public static class JsonSchemaValidator
@@ -68,6 +70,70 @@ public static class JsonSchemaValidator
 
     /// <summary>The keyword positions whose value is an <em>array</em> of schemas.</summary>
     private static readonly string[] SchemaListKeywords = ["oneOf"];
+
+    /// <summary>
+    /// 🔒 The shape each keyword's <em>value</em> must have. A keyword whose name is known but whose
+    /// value is the wrong shape is the exact failure the eager sweep exists to close.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every one of these degrades to a no-op rather than an error without the check, because the
+    /// value tree answers "not an object" and "not an array" by returning nothing rather than by
+    /// complaining. <c>"properties": []</c> applies no sub-schema and, with
+    /// <c>additionalProperties</c> absent, leaves the whole object unvalidated — the file passes
+    /// clean. <c>"required": "id"</c> iterates an empty <c>Items</c>. <c>"items": [ … ]</c>,
+    /// draft-07's tuple form, is skipped and only errors if the instance array happens to be
+    /// non-empty.
+    /// </para>
+    /// <para>
+    /// The numeric ones used to surface at <em>validation</em> time, as a
+    /// <c>ContentTypeMismatchException</c> out of <c>AsInt32</c>/<c>AsNumber</c> — a stack trace
+    /// instead of a located <see cref="ContentIssue"/>, and only if an instance walked that far.
+    /// Checking the shape here fixes both.
+    /// </para>
+    /// </remarks>
+    private static readonly (string Keyword, KeywordShape Shape)[] KeywordShapes =
+    [
+        ("properties", KeywordShape.Object),
+        ("patternProperties", KeywordShape.Object),
+        ("$defs", KeywordShape.Object),
+        ("items", KeywordShape.Object),
+        ("propertyNames", KeywordShape.Object),
+        ("additionalProperties", KeywordShape.ObjectOrBoolean),
+        ("oneOf", KeywordShape.NonEmptyArray),
+        ("required", KeywordShape.TextArray),
+        ("enum", KeywordShape.Array),
+        ("type", KeywordShape.TextOrTextArray),
+        ("uniqueItems", KeywordShape.Boolean),
+        ("pattern", KeywordShape.Text),
+        ("format", KeywordShape.Text),
+        ("$ref", KeywordShape.Text),
+        ("minimum", KeywordShape.Number),
+        ("maximum", KeywordShape.Number),
+        ("exclusiveMinimum", KeywordShape.Number),
+        ("exclusiveMaximum", KeywordShape.Number),
+        ("multipleOf", KeywordShape.Number),
+        ("minLength", KeywordShape.Count),
+        ("maxLength", KeywordShape.Count),
+        ("minItems", KeywordShape.Count),
+        ("maxItems", KeywordShape.Count),
+        ("minProperties", KeywordShape.Count),
+        ("maxProperties", KeywordShape.Count),
+    ];
+
+    private enum KeywordShape
+    {
+        Object,
+        ObjectOrBoolean,
+        Array,
+        NonEmptyArray,
+        TextArray,
+        Text,
+        TextOrTextArray,
+        Boolean,
+        Number,
+        Count,
+    }
 
     /// <summary>
     /// Every keyword this validator understands. Annotations are accepted and ignored; assertions
@@ -159,14 +225,16 @@ public static class JsonSchemaValidator
                 continue;
             }
 
+            // 🔒 Shape before recursion. A keyword whose value is the wrong shape is not something
+            // to walk into — and walking into it is what silently produced a no-op.
+            if (!ShapeHolds(name, value!, schemaPath, childPointer, issues))
+            {
+                continue;
+            }
+
             if (SchemaMapKeywords.Contains(name, StringComparer.Ordinal))
             {
-                if (value!.Kind != ContentValueKind.Object)
-                {
-                    continue;
-                }
-
-                foreach (var member in value.MemberNames)
+                foreach (var member in value!.MemberNames)
                 {
                     value.TryGetMember(member, out var subschema);
                     Sweep(subschema!, schemaPath, $"{childPointer}/{member}", issues);
@@ -193,6 +261,72 @@ public static class JsonSchemaValidator
             }
         }
     }
+
+    /// <summary>
+    /// True when a known keyword's value has the shape this validator can act on. Reports
+    /// <see cref="ContentIssueCode.UnsupportedSchemaKeyword"/> and returns false when it does not.
+    /// </summary>
+    private static bool ShapeHolds(
+        string keyword, ContentValue value, string schemaPath, string pointer, List<ContentIssue> issues)
+    {
+        var declared = Array.FindIndex(KeywordShapes, k => string.Equals(k.Keyword, keyword, StringComparison.Ordinal));
+        if (declared < 0)
+        {
+            // const, default, examples, title, description, $comment, $schema, $id, deprecated —
+            // annotations and literal values, which may legitimately be anything.
+            return true;
+        }
+
+        var shape = KeywordShapes[declared].Shape;
+        if (Holds(shape, value))
+        {
+            return true;
+        }
+
+        issues.Add(new ContentIssue(
+            ContentIssueCode.UnsupportedSchemaKeyword, $"{schemaPath}#{pointer}",
+            $"the keyword '{keyword}' holds {value.Kind}, but draft 2020-12 requires {Describe(shape)}. " +
+            "This validator will not guess at another shape: a keyword it skipped would leave the " +
+            "values under it unvalidated while the file reported clean, which is worse than no " +
+            "schema at all."));
+
+        return false;
+    }
+
+    private static bool Holds(KeywordShape shape, ContentValue value) => shape switch
+    {
+        KeywordShape.Object => value.Kind == ContentValueKind.Object,
+        KeywordShape.ObjectOrBoolean => value.Kind is ContentValueKind.Object or ContentValueKind.Boolean,
+        KeywordShape.Array => value.Kind == ContentValueKind.Array,
+        KeywordShape.NonEmptyArray => value.Kind == ContentValueKind.Array && value.Items.Count > 0,
+        KeywordShape.TextArray => value.Kind == ContentValueKind.Array &&
+                                  value.Items.All(i => i.Kind == ContentValueKind.Text),
+        KeywordShape.Text => value.Kind == ContentValueKind.Text,
+        KeywordShape.TextOrTextArray => value.Kind == ContentValueKind.Text ||
+                                        (value.Kind == ContentValueKind.Array && value.Items.Count > 0 &&
+                                         value.Items.All(i => i.Kind == ContentValueKind.Text)),
+        KeywordShape.Boolean => value.Kind == ContentValueKind.Boolean,
+        KeywordShape.Number => value.Kind == ContentValueKind.Number,
+        KeywordShape.Count => value.Kind == ContentValueKind.Number && IsCount(value.AsNumber()),
+        _ => false,
+    };
+
+    private static bool IsCount(decimal value) =>
+        value >= 0m && decimal.Truncate(value) == value && value <= int.MaxValue;
+
+    private static string Describe(KeywordShape shape) => shape switch
+    {
+        KeywordShape.Object => "a schema object",
+        KeywordShape.ObjectOrBoolean => "a schema object or a boolean",
+        KeywordShape.Array => "an array",
+        KeywordShape.NonEmptyArray => "a non-empty array of schemas",
+        KeywordShape.TextArray => "an array of strings",
+        KeywordShape.Text => "a string",
+        KeywordShape.TextOrTextArray => "a type name or a non-empty array of type names",
+        KeywordShape.Boolean => "a boolean",
+        KeywordShape.Number => "a number",
+        _ => "a non-negative integer",
+    };
 
     /// <remarks>
     /// 🔒 <c>\z</c> rather than <c>$</c>: .NET's <c>$</c> also matches immediately before a trailing

@@ -182,4 +182,17 @@ internal static class ContentTestData
 
         return With(TuningPath, WidgetTuning.Replace(find, replaceWith, StringComparison.Ordinal));
     }
+
+    /// <summary>The same single-edit mutation, against the <em>schema</em> rather than the data.</summary>
+    internal static InMemoryContentSource WithSchemaEdit(string find, string replaceWith)
+    {
+        if (!WidgetSchema.Contains(find, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"The mutation anchor '{find}' is not in the canonical test schema, so this " +
+                "negative case would silently test nothing.");
+        }
+
+        return With(SchemaPath, WidgetSchema.Replace(find, replaceWith, StringComparison.Ordinal));
+    }
 }

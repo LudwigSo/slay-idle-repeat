@@ -108,18 +108,31 @@ public static class ContentLoader
                 "holds no schema files, so no data file can be validated against anything (14 §6)."));
         }
 
-        // 🔒 Sweep each schema for keywords this validator does not implement ONCE, before any
-        // instance is validated — not once per data file, and not only where an instance happens to
-        // walk. A keyword in a branch no document reaches is still a keyword nobody is enforcing.
+        // 🔒 Sweep each schema for keywords this validator does not implement, and for known
+        // keywords whose value is the wrong shape, ONCE — before any instance is validated, not
+        // once per data file, and not only where an instance happens to walk. A keyword in a branch
+        // no document reaches is still a keyword nobody is enforcing.
+        var unusable = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var (schemaPath, schema) in schemas.OrderBy(s => s.Key, StringComparer.Ordinal))
         {
-            issues.AddRange(JsonSchemaValidator.CheckSchemaKeywords(schema, schemaPath));
+            var found = JsonSchemaValidator.CheckSchemaKeywords(schema, schemaPath);
+            if (found.Count > 0)
+            {
+                // A schema that failed its own sweep is not a schema to validate against. Walking
+                // an instance through `"minimum": "2"` reaches an AsNumber() and throws, replacing a
+                // located finding that names the schema pointer with a stack trace that names
+                // neither. The sweep's finding is the honest one and it has already been recorded.
+                unusable.Add(schemaPath);
+            }
+
+            issues.AddRange(found);
         }
 
         ApplyOverrides(parsed, data, options, issues);
 
         var pairing = Pair(data, schemas, issues);
-        var bindings = ValidateAgainstSchemas(data, schemas, pairing, issues);
+        var bindings = ValidateAgainstSchemas(data, schemas, pairing, unusable, issues);
 
         // The cross-file rules read schema-validated shapes: a `"chapter": 1.5` that the schema has
         // already rejected would reach an AsInt32() and throw, replacing a located, actionable
@@ -251,11 +264,14 @@ public static class ContentLoader
         IReadOnlyDictionary<string, ContentValue> data,
         IReadOnlyDictionary<string, ContentValue> schemas,
         IReadOnlyDictionary<string, string> pairing,
+        IReadOnlySet<string> unusableSchemas,
         List<ContentIssue> issues)
     {
         var bindings = new Dictionary<string, IReadOnlyList<PatternBinding>>(StringComparer.Ordinal);
 
-        foreach (var (path, schemaPath) in pairing.OrderBy(p => p.Key, StringComparer.Ordinal))
+        foreach (var (path, schemaPath) in pairing
+                     .Where(p => !unusableSchemas.Contains(p.Value))
+                     .OrderBy(p => p.Key, StringComparer.Ordinal))
         {
             issues.AddRange(JsonSchemaValidator.Validate(data[path], schemas[schemaPath], path, out var found));
             bindings[path] = found;
