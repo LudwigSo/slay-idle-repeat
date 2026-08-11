@@ -80,7 +80,7 @@ These live across the whole project; they start in M0 and grow with every milest
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | M0-01 | Solution skeleton per the authoritative layout: `Core`, `Contracts`, `Application`, `adapters/{client,server,fakes}`, `Server`, `Client` (placeholder), `SlayIdleRepeat.Data`, `tools/{BalanceHarness,EconomySim}` (empty), `tests/` (5 projects) | 23 §3 | 🔍 merged · `feature-M0-01-solution-skeleton` — 33 projects, all net8.0, clean build, dependency rule wired |
-| M0-02 | CI pipeline: build + test + content validation + server container image + compose boot; placeholder job for the Android custom-export-template build (real in M7) | 14 §14 | 🔄 `feature-M0-02-ci-pipeline` |
+| M0-02 | CI pipeline: build + test + content validation + server container image + compose boot; placeholder job for the Android custom-export-template build (real in M7) | 14 §14 | 🔍 merged · `feature-M0-02-ci-pipeline` — 9 CI jobs + nightly, 5 PowerShell gate scripts, server Dockerfile (non-root, 12-factor, digest-pinned). 6 jobs live, 2 gated (determinism → M5-12, android-export → M7-10). ⚠️ **Authored, never observed green — no git remote exists** |
 | M0-03 | Local dev stack: `docker compose up` brings API stub, Postgres, Redis, MinIO and observability containers up with no cloud account | 14 §1.1 | ⬜ |
 | M0-04 | **Spike O14:** AppLovin MAX Godot plugin — verify S2S rewarded callbacks and `setUserId` exist; write up the fallback (patch the MIT plugin vs signed-nonce client assertion) | 12 §3.3 | 🔍 merged · `feature-M0-04-spike-o14-applovin` → `docs/spikes/O14-applovin-max-s2s.md`. **Verdict: proceed as specified, no plugin patch** — `setUserId` is absent everywhere but `custom_data` is a better per-impression attribution channel. ⚠️ Two findings for M15: the no-fill grant is client-asserted *by construction*, and the plugin looks unmaintained (see kickoff record §6) |
 | M0-05a | **Spike O23 (Android, executed):** Godot 4 C#/.NET Android export through the full custom export-template path (Gradle/Java 17), run for real locally; findings + the Godot version pin | 14 §1, 12 §3.2 | 🔄 `feature-M0-05a-spike-o23-android` |
@@ -288,7 +288,7 @@ These live across the whole project; they start in M0 and grow with every milest
 | M7-07 | Run decision screens: draft S07 (never auto-picked), shop S08, event S09, 4 minigames S10, campfire/shrine S11 | 13 §4 | ⬜ |
 | M7-08 | Death/revive S13 + run results S14 (reward tally, mercy counters, session-floor line) | 13 §4 | ⬜ |
 | M7-09 | `Cache.LocalFile` adapter: read-only mirror for cold start + offline browsing | 14 §7.2 | ⬜ |
-| M7-10 | Client CI: Android debug APK through the custom export template (with the MAX plugin present but stubbed), iOS export smoke build | 14 §14 | 🔄 `feature-M0-02-ci-pipeline` |
+| M7-10 | Client CI: Android debug APK through the custom export template (with the MAX plugin present but stubbed), iOS export smoke build | 14 §14 | 🔍 merged · `feature-M0-02-ci-pipeline` — 9 CI jobs + nightly, 5 PowerShell gate scripts, server Dockerfile (non-root, 12-factor, digest-pinned). 6 jobs live, 2 gated (determinism → M5-12, android-export → M7-10). ⚠️ **Authored, never observed green — no git remote exists** |
 
 ---
 

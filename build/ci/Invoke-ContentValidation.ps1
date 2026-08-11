@@ -149,11 +149,29 @@ foreach ($file in $jsonFiles) {
 #
 # schema-map.json shape:
 #   { "map": { "<data path or glob>": "<schema path>" , ... } }
+#
+# schema-map.json may additionally declare "pendingData": schemas whose data has not been
+# authored yet, each naming the milestone task that authors it. C1 requires the full schema
+# to ship in the client, and 26 §2 names schema/event.schema.json explicitly, so a schema
+# written ahead of its content is correct — the orphan reading below ("outlived its content")
+# is the wrong one for those. A pendingData entry that HAS since gained data fails as stale,
+# so it cannot outlive its milestone. Same discipline as test-suites.json's knownEmpty.
 $schemaMapPath = Join-Path $schemaDir 'schema-map.json'
 $schemaMap = $null
+$pendingData = $null
 if (Test-Path -LiteralPath $schemaMapPath) {
-    Write-Host "Pairing   : schema-map.json (explicit)"
-    $schemaMap = (Get-Content -Raw -LiteralPath $schemaMapPath | ConvertFrom-Json).map
+    $schemaMapDoc = Get-Content -Raw -LiteralPath $schemaMapPath | ConvertFrom-Json
+    # Property-bag access, not dot access: both keys are optional and Set-StrictMode
+    # turns a missing property into a terminating error.
+    $mapProperty = $schemaMapDoc.PSObject.Properties['map']
+    $pendingProperty = $schemaMapDoc.PSObject.Properties['pendingData']
+    $schemaMap = if ($mapProperty) { $mapProperty.Value } else { $null }
+    $pendingData = if ($pendingProperty) { $pendingProperty.Value } else { $null }
+    $pairingMode = if ($schemaMap) { 'schema-map.json (explicit)' } else { 'convention (schema-map.json declares no overrides)' }
+    Write-Host "Pairing   : $pairingMode"
+    if ($pendingData) {
+        Write-Host "Pending   : $(@($pendingData.PSObject.Properties).Count) schema(s) awaiting their data — see schema/schema-map.json"
+    }
 } else {
     Write-Host "Pairing   : convention (no schema/schema-map.json present)"
 }
@@ -206,8 +224,16 @@ foreach ($dataFile in $dataFiles) {
 }
 
 foreach ($schemaRelative in $schemaUsage.Keys) {
+    $pending = if ($pendingData) { $pendingData.PSObject.Properties[$schemaRelative] } else { $null }
+
     if ($schemaUsage[$schemaRelative] -eq 0) {
-        $failures.Add("C3 ORPHAN SCHEMA: '$schemaRelative' governs no data file. Either the data it describes is missing, or the schema outlived its content and should be deleted.")
+        if ($pending) {
+            Write-Host "  pending  $schemaRelative -> data authored by $($pending.Value.authoredBy)"
+        } else {
+            $failures.Add("C3 ORPHAN SCHEMA: '$schemaRelative' governs no data file. Either the data it describes is missing — in which case declare it under 'pendingData' in schema/schema-map.json with the milestone task that authors it — or the schema outlived its content and should be deleted.")
+        }
+    } elseif ($pending) {
+        $failures.Add("C3 STALE EXEMPTION: '$schemaRelative' is declared pendingData (authored by $($pending.Value.authoredBy)) but now governs $($schemaUsage[$schemaRelative]) data file(s). Remove the entry from schema/schema-map.json — an exemption that has been satisfied must not outlive its milestone.")
     }
 }
 
