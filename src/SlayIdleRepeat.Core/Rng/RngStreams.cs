@@ -78,8 +78,13 @@ public static class RngStreams
     /// Ordinal and case-sensitive, and the minigame index must be canonical — <c>minigame:03</c>
     /// is rejected. It is a different string from <c>minigame:3</c> and would therefore be a
     /// different sequence for what every human reading it would call the same minigame.
+    /// <para>
+    /// Null is not a row, so it answers false rather than throwing: this is a membership
+    /// question. A caller for whom null is a bug says so itself — <see cref="DeterministicRng"/>
+    /// rejects it before ever asking.
+    /// </para>
     /// </remarks>
-    public static bool IsRegistered(string streamName)
+    public static bool IsRegistered(string? streamName)
     {
         if (streamName is null)
         {

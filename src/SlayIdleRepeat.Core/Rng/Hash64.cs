@@ -92,8 +92,10 @@ public static class Hash64
         var nameBytes = Utf8.GetByteCount(streamName);
         var total = IntegerBytes + LengthPrefixBytes + nameBytes + IntegerBytes;
 
-        Span<byte> stack = stackalloc byte[StackBufferBytes];
-        var buffer = total <= StackBufferBytes ? stack[..total] : new byte[total];
+        // Sized to `total`, not to StackBufferBytes: a stackalloc is zeroed before it is handed
+        // over, and this method runs once per draw. Zeroing the whole 256-byte ceiling to fill
+        // the ~24 bytes a draw actually uses would be per-draw work for nothing.
+        Span<byte> buffer = total <= StackBufferBytes ? stackalloc byte[total] : new byte[total];
 
         BinaryPrimitives.WriteUInt64LittleEndian(buffer, seed);
         BinaryPrimitives.WriteInt32LittleEndian(buffer[IntegerBytes..], nameBytes);
@@ -232,8 +234,7 @@ public static class Hash64
     {
         var total = CanonicalByteCount(arguments);
 
-        Span<byte> stack = stackalloc byte[StackBufferBytes];
-        var buffer = total <= StackBufferBytes ? stack[..total] : new byte[total];
+        Span<byte> buffer = total <= StackBufferBytes ? stackalloc byte[total] : new byte[total];
 
         WriteCanonical(arguments, buffer);
 

@@ -180,6 +180,17 @@ public sealed class DeterministicRng
         // rather than one: should a future edit sum the table differently, this turns a run-time
         // exception in the middle of a battle into the last weighted row, which is the answer the
         // specification's own wording gives at the top of the range.
+        if (lastWeighted < 0)
+        {
+            // TotalWeight has already proved a positive weight exists, so the only way to get
+            // here is a table that answered differently on the two passes. Named explicitly
+            // because table[-1] would surface it as an index exception from whichever list the
+            // caller happened to pass, which says nothing about what actually went wrong.
+            throw new InvalidOperationException(
+                "The weighted table reported no positive weight on the walk after reporting one " +
+                "on the sum. A table must not change while a pick is being taken.");
+        }
+
         return table[lastWeighted].item;
     }
 

@@ -41,8 +41,16 @@ public readonly struct Hash64Argument : IEquatable<Hash64Argument>
     /// <summary>True when this argument encodes as a length-prefixed string rather than as 8 bytes.</summary>
     internal bool IsText => _text is not null;
 
-    /// <summary>The string payload. Only meaningful when <see cref="IsText"/>.</summary>
-    internal string Text => _text ?? string.Empty;
+    /// <summary>The string payload. Readable only when <see cref="IsText"/>.</summary>
+    /// <remarks>
+    /// It throws rather than falling back to the empty string. An integer argument read as text
+    /// would encode as a four-byte zero count — a shorter buffer and a different hash that is
+    /// perfectly stable and silently wrong, which is the one failure mode this file exists to
+    /// prevent. Loud beats plausible.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">This argument encodes as an integer.</exception>
+    internal string Text => _text ?? throw new InvalidOperationException(
+        "This argument encodes as an integer, not as text. Check IsText before reading Text.");
 
     /// <summary>The value widened to 64 bits. Only meaningful when <see cref="IsText"/> is false.</summary>
     internal long Integer => _integer;
@@ -74,7 +82,16 @@ public readonly struct Hash64Argument : IEquatable<Hash64Argument>
         return new Hash64Argument(Widen(value));
     }
 
-    /// <summary>Two arguments are equal when they encode to the same bytes.</summary>
+    /// <summary>
+    /// Two arguments are equal when they are the same shape — both integral or both text — and
+    /// the same value, strings compared ordinally.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately <b>not</b> "equal when they encode to the same bytes": the canonical encoding
+    /// carries no type tag, so the four-byte string <c>"abcd"</c> and the integer
+    /// <c>0x6463626100000004</c> produce the same eight bytes while being different arguments.
+    /// Equality here is about the argument, and the encoding's ambiguity is `14` §8.0's to own.
+    /// </remarks>
     public bool Equals(Hash64Argument other) =>
         _text is null
             ? other._text is null && _integer == other._integer
@@ -101,6 +118,16 @@ public readonly struct Hash64Argument : IEquatable<Hash64Argument>
     /// Widens an enum through its underlying type. An enum boxes to its own type but unboxes to
     /// its underlying one, which is what makes the casts below legal and exact.
     /// </summary>
+    /// <remarks>
+    /// The unboxing costs one boxed value per enum argument. That is affordable because enums
+    /// only ever reach <see cref="Hash64"/> through seed derivation — a handful of calls per run.
+    /// The hot path, a draw, goes through <c>Hash64.Of(ulong, string, ulong)</c> and builds no
+    /// <see cref="Hash64Argument"/> at all.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// The enum's underlying type is not one the canonical encoding covers. Unreachable from C#,
+    /// which admits only the eight integral bases below, but reachable from IL.
+    /// </exception>
     private static long Widen(Enum value) => Type.GetTypeCode(value.GetType()) switch
     {
         TypeCode.SByte => (sbyte)(object)value,
@@ -111,8 +138,8 @@ public readonly struct Hash64Argument : IEquatable<Hash64Argument>
         TypeCode.UInt32 => (uint)(object)value,
         TypeCode.Int64 => (long)(object)value,
         TypeCode.UInt64 => unchecked((long)(ulong)(object)value),
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(value),
-            $"{value.GetType()} has an underlying type the canonical encoding of 14 §8.0 does not cover."),
+        _ => throw new ArgumentException(
+            $"{value.GetType()} has an underlying type the canonical encoding of 14 §8.0 does not cover.",
+            nameof(value)),
     };
 }
