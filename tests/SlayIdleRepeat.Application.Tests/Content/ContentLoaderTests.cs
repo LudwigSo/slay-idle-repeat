@@ -1,0 +1,167 @@
+using FluentAssertions;
+using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Core.Content;
+using Xunit;
+
+namespace SlayIdleRepeat.Application.Tests.Content;
+
+/// <summary>
+/// `14` §6 — the load path end to end: parse → layer overrides → validate → stamp.
+/// </summary>
+public sealed class ContentLoaderTests
+{
+    [Fact]
+    public void Load_produces_a_snapshot_for_a_valid_data_set()
+    {
+        var result = ContentLoader.Load(ContentTestData.Valid());
+
+        result.Issues.Should().BeEmpty();
+        result.Succeeded.Should().BeTrue();
+        result.Snapshot.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Load_does_not_put_the_schema_files_into_the_snapshot()
+    {
+        var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        snapshot.DocumentPaths.Should().NotContain(p => p.StartsWith("schema/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Load_puts_every_data_document_into_the_snapshot()
+    {
+        var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        snapshot.DocumentPaths.Should().Equal(
+            ContentTestData.EnglishPath, ContentTestData.GermanPath, ContentTestData.TuningPath);
+    }
+
+    [Fact]
+    public void Load_keeps_an_unauthorised_leaf_unauthorised_all_the_way_into_the_snapshot()
+    {
+        var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        snapshot.IsAuthorised($"{ContentTestData.TuningPath}#/merge/perLevelSuccessRate").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Load_produces_a_snapshot_whose_unauthorised_leaf_throws_rather_than_reading_as_zero()
+    {
+        var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        var act = () => snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost");
+
+        act.Should().Throw<UnauthorisedTunableException>();
+    }
+
+    [Fact]
+    public void Load_is_deterministic_the_same_bytes_produce_the_same_stamp()
+    {
+        var first = ContentLoader.Load(ContentTestData.Valid()).Require();
+        var second = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        second.Version.Should().Be(first.Version);
+    }
+
+    [Fact]
+    public void Load_is_deterministic_regardless_of_the_order_documents_were_written_to_the_source()
+    {
+        var forwards = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        var backwards = ContentLoader.Load(
+            new Adapters.InMemory.InMemoryContentSource()
+                .Set(ContentTestData.GermanPath, ContentTestData.German)
+                .Set(ContentTestData.EnglishPath, ContentTestData.English)
+                .Set(ContentTestData.LocSchemaPath, ContentTestData.LocSchema)
+                .Set(ContentTestData.TuningPath, ContentTestData.WidgetTuning)
+                .Set(ContentTestData.SchemaPath, ContentTestData.WidgetSchema)).Require();
+
+        backwards.Version.Should().Be(forwards.Version);
+    }
+
+    [Fact]
+    public void Load_produces_a_different_stamp_when_one_byte_of_one_value_changes()
+    {
+        var before = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        var after = ContentLoader.Load(ContentTestData.WithTuningEdit(
+            "\"inputCount\": 3", "\"inputCount\": 4")).Require();
+
+        after.Version.Should().NotBe(before.Version);
+    }
+
+    [Fact]
+    public void Load_produces_a_different_stamp_when_a_key_is_renamed()
+    {
+        var before = ContentLoader.Load(ContentTestData.Valid()).Require();
+
+        var after = ContentLoader.Load(ContentTestData.With(ContentTestData.EnglishPath, """
+        {
+          "$schema": "../schema/loc.schema.json",
+          "_locale": "en",
+          "strings": {
+            "loc.widget.anvil.title": "Anvil",
+            "loc.widget.bellows.name": "Bellows"
+          }
+        }
+        """)).Require();
+
+        after.Version.Should().NotBe(before.Version);
+    }
+
+    [Fact]
+    public void Load_reports_a_data_document_that_no_schema_governs()
+    {
+        var source = ContentTestData.Valid().Set("tuning/ungoverned.json", """{ "a": 1 }""");
+
+        var result = ContentLoader.Load(source);
+
+        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.MissingSchema);
+    }
+
+    [Fact]
+    public void Load_reports_a_schema_that_governs_no_data_document()
+    {
+        var source = ContentTestData.Valid().Set("schema/ghosts.schema.json", """
+        { "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object" }
+        """);
+
+        var result = ContentLoader.Load(source);
+
+        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OrphanSchema);
+    }
+
+    [Fact]
+    public void Load_fails_when_the_source_holds_nothing_because_a_validator_that_validated_nothing_did_not_pass()
+    {
+        var result = ContentLoader.Load(new Adapters.InMemory.InMemoryContentSource());
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Load_never_puts_an_experiment_override_into_the_snapshot()
+    {
+        var source = ContentTestData.Valid().Set("tuning/experiments/cheaper_merges.json", """
+        { "widgets.json": { "merge": { "inputCount": 2 } } }
+        """);
+
+        var snapshot = ContentLoader.Load(source).Require();
+
+        snapshot.DocumentPaths.Should().NotContain("tuning/experiments/cheaper_merges.json");
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
+    }
+
+    [Fact]
+    public void Require_throws_a_ContentLoadException_naming_every_issue()
+    {
+        var result = ContentLoader.Load(ContentTestData.WithTuningEdit(
+            "\"inputCount\": 3", "\"inputCount\": 99"));
+
+        var act = () => result.Require();
+
+        act.Should().Throw<ContentLoadException>()
+           .Which.Issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+    }
+}

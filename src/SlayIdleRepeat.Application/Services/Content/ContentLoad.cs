@@ -1,0 +1,59 @@
+using SlayIdleRepeat.Core.Content;
+
+namespace SlayIdleRepeat.Application.Services.Content;
+
+/// <summary>How a load should treat the source it was handed.</summary>
+/// <remarks>
+/// The one knob that matters is <see cref="OverrideDocuments"/>. `21` §3.3: <em>"An override file
+/// is a sparse JSON patch applied on top of the canonical data at load time. Sweeps, experiments
+/// and what-ifs all run as overrides, so the canonical data is only ever edited when a change is
+/// adopted."</em> Overrides are named explicitly and layered in the order given — never
+/// auto-discovered, because an experiment that applies itself just by existing on disk is an
+/// experiment nobody knows is running.
+/// </remarks>
+public sealed record ContentLoadOptions
+{
+    /// <summary>A plain load of the canonical data, with no overrides.</summary>
+    public static ContentLoadOptions Canonical { get; } = new();
+
+    /// <summary>
+    /// Override document paths, applied in order. Each must be listed by the source and must be a
+    /// sparse patch keyed by canonical file name (`21` §3.3).
+    /// </summary>
+    public IReadOnlyList<string> OverrideDocuments { get; init; } = [];
+}
+
+/// <summary>The outcome of a load: a snapshot, or the reasons there isn't one.</summary>
+public sealed class ContentLoadResult
+{
+    /// <summary>Creates a result.</summary>
+    public ContentLoadResult(ContentSnapshot? snapshot, IReadOnlyList<ContentIssue> issues) =>
+        throw new NotImplementedException();
+
+    /// <summary>True when the content validated cleanly and a snapshot was produced.</summary>
+    public bool Succeeded => throw new NotImplementedException();
+
+    /// <summary>The snapshot, or null when validation failed.</summary>
+    public ContentSnapshot? Snapshot => throw new NotImplementedException();
+
+    /// <summary>Every finding, ordered by location then code so the report is stable.</summary>
+    public IReadOnlyList<ContentIssue> Issues => throw new NotImplementedException();
+
+    /// <summary>The snapshot, or a <see cref="ContentLoadException"/> naming every issue.</summary>
+    public ContentSnapshot Require() => throw new NotImplementedException();
+}
+
+/// <summary>Raised when content that must be valid is not.</summary>
+public sealed class ContentLoadException : Exception
+{
+    /// <summary>Creates the exception from the issues that caused it.</summary>
+    public ContentLoadException(IReadOnlyList<ContentIssue> issues)
+        : base(Describe(issues)) => Issues = issues;
+
+    /// <summary>The findings that stopped the load.</summary>
+    public IReadOnlyList<ContentIssue> Issues { get; }
+
+    private static string Describe(IReadOnlyList<ContentIssue> issues) =>
+        $"Content validation failed with {issues.Count} issue(s):{Environment.NewLine}" +
+        string.Join(Environment.NewLine, issues.Select(i => "  " + i));
+}
