@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IStoreReceiptVerifierPort over the App Store Server API.
+    No package reference in M0: there is no official Apple .NET client; the JWS/JWT
+    library choice is made when this adapter is implemented.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

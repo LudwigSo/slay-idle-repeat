@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The build-time content check (14 §6). Invoked by build/ci/Invoke-ContentValidation.ps1,
+    which is what .github/workflows/ci.yml's content-validation job runs.
+
+    It is a thin I/O shell on purpose: every rule it enforces lives in
+    SlayIdleRepeat.Application/Services/Content/, where SlayIdleRepeat.Application.Tests
+    exercises it against the in-memory fake. A CI-only validator nobody unit-tests is a
+    validator that drifts from the one the game actually loads.
+
+    It sits under tools/ rather than src/ because it ships to nobody: BalanceHarness and
+    EconomySim are its neighbours, not the game.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>SlayIdleRepeat.ContentValidator</RootNamespace>
+    <AssemblyName>SlayIdleRepeat.ContentValidator</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+    <ProjectReference Include="..\..\src\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj" />
+  </ItemGroup>
+
+</Project>

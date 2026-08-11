@@ -1,0 +1,135 @@
+{
+  "$schema": "../schema/luck.schema.json",
+  "_doc": "24 — every pity N, soft-pity slope and source-class map. 24 §3: adding a new grant source must assign it a class; the content schema validator fails the build if a grant source has no class.",
+  "_status": "transcribed",
+  "sourceClasses": [
+    { "id": "CHEST_STANDARD", "counterKey": "chest.standard", "counterScope": "PLAYER" },
+    { "id": "CHEST_PREMIUM", "counterKey": "chest.premium", "counterScope": "PLAYER" },
+    { "id": "CHEST_APEX", "counterKey": "chest.apex", "counterScope": "PLAYER" },
+    { "id": "DROP_RUN", "counterKey": "drop.run", "counterScope": "PLAYER" },
+    { "id": "EGG_PET", "counterKey": "egg.pet", "counterScope": "PLAYER" },
+    { "id": "CRATE_MOUNT", "counterKey": "crate.mount", "counterScope": "PLAYER" },
+    { "id": "ENHANCE", "counterKey": null, "counterScope": "GEAR_INSTANCE" },
+    { "id": "DRAFT", "counterKey": null, "counterScope": "RUN" },
+    { "id": "WHEEL", "counterKey": "wheel", "counterScope": "PLAYER" },
+    { "id": "MINIGAME", "counterKey": "minigame.chestpick", "counterScope": "PLAYER" }
+  ],
+  "chestStandard": {
+    "_doc": "24 §4.1 — the ten-chest ladder. The three counters run independently and simultaneously.",
+    "hardPity": [
+      { "everyNth": 10, "guaranteeRarityAtLeast": "A" },
+      { "everyNth": 40, "guaranteeRarityAtLeast": "S" },
+      { "everyNth": 160, "guaranteeRarityAtLeast": "SS" }
+    ],
+    "softPity": { "target": "SS", "missThreshold": 100, "slope": 0.05 }
+  },
+  "chestPremium": {
+    "_doc": "24 §4.2",
+    "hardPity": [
+      { "everyNth": 5, "guaranteeRarityAtLeast": "S" },
+      { "everyNth": 25, "guaranteeRarityAtLeast": "SS" }
+    ],
+    "softPity": { "target": "SS", "missThreshold": 15, "slope": 0.08 }
+  },
+  "chestApex": {
+    "_doc": "24 §4.2 — no soft pity needed at that density.",
+    "hardPity": [
+      { "everyNth": 3, "guaranteeRarityAtLeast": "SS" }
+    ],
+    "softPity": null
+  },
+  "dropRun": {
+    "_doc": "24 §4.3",
+    "eliteMercy": { "consecutiveMissesBeforeForce": 6, "belowRarity": "A", "forceRarityAtLeast": "A" },
+    "bossMercy": { "consecutiveMissesBeforeForce": 4, "belowRarity": "S", "forceRarityAtLeast": "S" },
+    "sessionFloor": { "grantRarity": "B", "grantCount": 1, "maxPerDay": 2, "requiresVictoryOrStage3Death": true }
+  },
+  "eggPet": {
+    "_doc": "24 §4.4 — supersedes 07 §2.2",
+    "hardPity": [
+      { "everyNth": 30, "guaranteeRarityAtLeast": "S" },
+      { "everyNth": 150, "guaranteeRarityAtLeast": "SS" }
+    ],
+    "softPity": null,
+    "duplicateProtectionOnPity": true,
+    "newcomerFloorDistinctPets": 3,
+    "beastMarkPerDuplicateAtMaxStar": 1,
+    "beastMarkExchange": [
+      { "marks": 60, "grantRarityAnyOf": ["B", "A"] },
+      { "marks": 200, "grantRarityAnyOf": ["S"] },
+      { "marks": 600, "grantRarityAnyOf": ["SS"] }
+    ]
+  },
+  "crateMount": {
+    "_doc": "24 §4.5",
+    "odds": { "A": 70, "S": 26, "SS": 4 },
+    "hardPity": [
+      { "everyNth": 8, "guaranteeRarityAtLeast": "S" },
+      { "everyNth": 30, "guaranteeRarityAtLeast": "SS" }
+    ],
+    "softPity": { "target": "SS", "missThreshold": 20, "slope": 0.1 },
+    "duplicateProtectionOnPity": true,
+    "duplicateBeastFeed": 300,
+    "duplicateBeastMarks": 1
+  },
+  "enhance": {
+    "_doc": "24 §4.6 — failure mercy, supersedes 08 §4.2. Counter lives on the gear instance and is inherited by merge outputs.",
+    "mercySlopePerConsecutiveFailure": 0.08,
+    "effectiveRateCap": 1.0,
+    "adEnhanceLuckStacksAdditively": true,
+    "adEnhanceLuckAdvancesCounter": false
+  },
+  "draft": {
+    "_doc": "24 §4.7 — supersedes 06 §4",
+    "legendaryPityDraftNumber": 15,
+    "qualityFloor": { "consecutiveDraftsWithoutAboveCommon": 3, "forceRarityAtLeast": "RARE" },
+    "codexBias": { "neverDraftedWeightMultiplier": 1.35, "maxBiasSelectedOptions": 1 },
+    "upgradeFamine": { "ownedUpgradeBias": 0.3, "consecutiveDraftsWithoutOwnedUpgrade": 5 }
+  },
+  "wheel": {
+    "_doc": "24 §4.8 — supersedes 19 Part F. 24 §4.8 is the authority.",
+    "jackpotHardPitySpins": 60,
+    "softPity": { "target": "JACKPOT", "missThreshold": 40, "slope": 0.06 },
+    "noTripleRepeat": true
+  },
+  "minigame": {
+    "_doc": "24 §4.9 — MG_CHEST_PICK. The other three minigames are skill-scaled and carry no counter.",
+    "chestPick": { "chestCount": 3, "goldTierChests": 1, "guaranteeAfterConsecutiveMisses": 4 }
+  },
+  "boardAndEncounterVariance": {
+    "_doc": "24 §4.10",
+    "minTreasureTilesPerRun": 2,
+    "minCacheTilesPerRun": 1,
+    "noRepeatEliteModifierConsecutive": true,
+    "pvpCandidatesBelowPlayerMin": 1,
+    "pvpCandidateCount": 3,
+    "noWorstEventOutcomeTwiceConsecutive": true
+  },
+  "focus": {
+    "_doc": "24 §5 — targeted acquisition. Free, one slot + one family.",
+    "weightMultiplier": 2.5,
+    "changeCooldownHours": 12,
+    "cost": 0,
+    "appliesToClasses": ["CHEST_STANDARD", "CHEST_PREMIUM", "CHEST_APEX", "DROP_RUN"]
+  },
+  "setTokens": {
+    "_doc": "24 §5.1 — the SS set endgame",
+    "grantPerSsSalvage": 1,
+    "grantPerSsDuplicate": 1,
+    "costForChosenSsItem": 12
+  },
+  "reforge": {
+    "_doc": "24 §6.1 — quality re-roll, keep-best. Unlimited attempts.",
+    "currency": "MERGE_DUST",
+    "costByRarity": { "C": 100, "B": 300, "A": 1000, "S": 4000, "SS": 12000 },
+    "keepBest": true
+  },
+  "retune": {
+    "_doc": "24 §6.2 — affix re-roll with lockable affixes and a wishlist.",
+    "currency": "ENHANCE_STONES",
+    "costByRarity": { "B": 20, "A": 60, "S": 200, "SS": 600 },
+    "lockCostMultiplier": { "1": 2, "2": 5, "3": 12 },
+    "wishlistMaxAffixes": 3,
+    "wishlistMissWeightBonus": 0.1
+  }
+}

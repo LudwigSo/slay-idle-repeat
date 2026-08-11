@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/progression.schema.json",
+  "title": "progression.json",
+  "description": "07 §1.1 (Legend XP curve, unlock ladder), 02 §5.1a (Legend XP income), 10 §3 (Energy), 10 §8 (catch-up / frontier curve).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "legendLevel", "unlocks", "runXp", "completionMultiplier", "energy", "chapterGating", "catchUp"],
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiresClear", "requiresLegendLevel"],
+      "properties": {
+        "requiresClear": { "type": ["string", "null"], "minLength": 1 },
+        "requiresLegendLevel": { "type": ["integer", "null"], "minimum": 1, "maximum": 200 }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "legendLevel": {
+      "description": "07 §1.1 — LegendXpForLevel(L) = xpCoefficient * L^xpExponent. 21 §12: the exponent controls everything downstream and is the first number to sweep.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max", "xpCoefficient", "xpExponent", "talentPointsPerLevel"],
+      "properties": {
+        "min": { "type": "integer", "minimum": 1 },
+        "max": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "xpCoefficient": { "type": "number", "exclusiveMinimum": 0 },
+        "xpExponent": { "type": "number", "exclusiveMinimum": 0 },
+        "xpExponentSweepRange": {
+          "description": "07 §1.1 — the range the doc discusses: 0.95 roughly halves the total, 1.15 roughly doubles it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "number", "exclusiveMinimum": 0 },
+            "max": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "talentPointsPerLevel": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "unlocks": {
+      "description": "07 §1.1 plus the later docs' additions (25 §5 dungeons, 26 §5 events, 27 §2 guilds) — the Legend Level unlock ladder. Every key is a system id; every value a level in range.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc"],
+      "properties": { "_doc": { "type": "string", "minLength": 1 } },
+      "patternProperties": { "^[A-Z][A-Z0-9_]*$": { "type": "integer", "minimum": 1, "maximum": 200 } }
+    },
+    "runXp": {
+      "description": "02 §5.1a — BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1), times TierXpMult, times the per-source multiplier. XP is a banked reward subject to CompletionMultiplier and AD_DOUBLE_LEGEND_XP.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "baseXpCoefficient", "baseXpGrowth", "tierMultiplier", "sourceMultiplier"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "baseXpCoefficient": { "type": "number", "exclusiveMinimum": 0 },
+        "baseXpGrowth": { "type": "number", "exclusiveMinimum": 1 },
+        "tierMultiplier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["NORMAL", "HEROIC", "MYTHIC"],
+          "patternProperties": { "^(NORMAL|HEROIC|MYTHIC)$": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        "sourceMultiplier": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": { "^[A-Z][A-Z0-9_]*$": { "type": "number", "exclusiveMinimum": 0 } }
+        }
+      }
+    },
+    "completionMultiplier": {
+      "description": "02 §5.2 — FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "VICTORY", "STAGE_3_DEATH"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "VICTORY": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "STAGE_3_DEATH": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "energy": {
+      "description": "10 §3 — Energy is a soft pacing tool, not a hard wall. Overflow is never discarded: it banks into the Energy Reserve (28 Part C is the authority). There is no mechanism to buy Energy with money, directly or indirectly.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "baseMax", "perLegendLevel", "maxCap", "regenMinutesPerPoint", "runCost", "dungeonCost", "reserveMultipleOfMax", "reserveReceivesOverflowOnly", "reserveRegeneratesOnItsOwn", "regenWhileOffline", "sources", "medianSessionEnergyExhaustionAlarmShare"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "baseMax": { "type": "integer", "exclusiveMinimum": 0 },
+        "perLegendLevel": { "type": "number", "minimum": 0 },
+        "maxCap": { "type": "integer", "exclusiveMinimum": 0 },
+        "regenMinutesPerPoint": { "type": "number", "exclusiveMinimum": 0 },
+        "runCost": { "type": "integer", "exclusiveMinimum": 0 },
+        "dungeonCost": { "type": "integer", "exclusiveMinimum": 0 },
+        "reserveMultipleOfMax": { "type": "number", "minimum": 0 },
+        "reserveReceivesOverflowOnly": { "const": true },
+        "reserveRegeneratesOnItsOwn": { "const": false },
+        "regenWhileOffline": { "type": "boolean" },
+        "sources": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": {
+            "^[A-Z][A-Z0-9_]*$": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["amount", "capPerDay"],
+              "properties": {
+                "amount": { "oneOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "const": "FULL" }] },
+                "capPerDay": { "type": ["integer", "null"], "exclusiveMinimum": 0 }
+              }
+            }
+          }
+        },
+        "medianSessionEnergyExhaustionAlarmShare": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "chapterGating": {
+      "description": "10 §7 — there is no level gate on Normal chapters. Under-levelled players fail and are pushed back to grinding naturally; that is a better teacher than a locked door.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "NORMAL", "HEROIC", "MYTHIC"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "NORMAL": { "$ref": "#/$defs/gate" },
+        "HEROIC": { "$ref": "#/$defs/gate" },
+        "MYTHIC": { "$ref": "#/$defs/gate" }
+      }
+    },
+    "catchUp": {
+      "description": "10 §8 — NEEDS DETAIL. The frontier-bonus / catch-up curve is sketched, not specified: it cannot be authored by hand and deriving it is the economy simulator's first job (O1, 21 §12). curve must stay null until the simulator has derived it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "belowHighestChapterRewardReduction", "frontierChapterBonus", "curve", "rawTimeToChapterCoefficientHours", "rawTimeToChapterGrowth"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "belowHighestChapterRewardReduction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "frontierChapterBonus": { "type": "number", "minimum": 0 },
+        "curve": { "type": ["array", "object", "null"] },
+        "rawTimeToChapterCoefficientHours": { "type": "number", "exclusiveMinimum": 0 },
+        "rawTimeToChapterGrowth": { "type": "number", "exclusiveMinimum": 1 }
+      }
+    }
+  }
+}

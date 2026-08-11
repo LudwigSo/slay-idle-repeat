@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Godot is an adapter, not a foundation (23 §5 A10): audio, haptics, locale,
+    device info, filesystem paths.
+    The GodotSharp package reference is deliberately NOT added in M0 — Godot must
+    not become a build prerequisite for the solution. It lands in M7 together with
+    the Godot SDK conversion of SlayIdleRepeat.Client.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

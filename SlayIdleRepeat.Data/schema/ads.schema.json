@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/ads.schema.json",
+  "title": "ads.json",
+  "description": "12 §4-6 — placement caps and bundle scaling. 12 §1: no ad reward may be uncapped, so every placement carries an integer cap and a cap window.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "fairnessContract", "plus", "inRunPlacements", "metaPlacements", "globalCaps", "rewardScaling", "interstitials", "banners", "preload"],
+  "$defs": {
+    "placement": {
+      "description": "12 §4 — a rewarded placement. cap is mandatory and must be a positive integer: 12 §1 forbids an uncapped ad reward outright.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "cap", "capWindow"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^AD_[A-Z0-9_]+$" },
+        "cap": { "type": "integer", "minimum": 1 },
+        "capWindow": { "enum": ["RUN", "DAY"] }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "fairnessContract": {
+      "description": "12 §1 / 21 A3 — the simulator enforces that the free-vs-Plus power gap never exceeds this at the measured day.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxFreeVsPlusPowerGap", "measuredAtDay"],
+      "properties": {
+        "maxFreeVsPlusPowerGap": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "measuredAtDay": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "plus": {
+      "description": "12 §2 — the only paid product in the game. Price is locked at EUR/USD 4.99 monthly and is not a tunable; it does not live here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productId", "freeTrialDays", "freePresets", "offerHiddenBeforeLegendLevel", "gracePeriodDaysGoogle", "gracePeriodDaysApple"],
+      "properties": {
+        "productId": { "type": "string", "minLength": 1 },
+        "freeTrialDays": { "type": "integer", "minimum": 0 },
+        "freePresets": { "type": "integer", "minimum": 0 },
+        "offerHiddenBeforeLegendLevel": { "type": "integer", "minimum": 0, "maximum": 200 },
+        "gracePeriodDaysGoogle": { "type": "integer", "minimum": 0 },
+        "gracePeriodDaysApple": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "inRunPlacements": {
+      "description": "12 §4.1 — 13 in-run placements, all capped per run.",
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/placement" }
+    },
+    "metaPlacements": {
+      "description": "12 §4.2 (plus 25 §6's AD_EXTRA_DUNGEON) — 16 meta placements, all capped per day. Total catalogue: 29 placements.",
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/placement" }
+    },
+    "placementRewardValues": {
+      "description": "12 §4.1-4.2 — the numeric magnitudes embedded in the placement tables, keyed by placement id. Every key must be a placement that exists above.",
+      "type": "object",
+      "required": ["_doc"],
+      "properties": { "_doc": { "type": "string", "minLength": 1 } },
+      "patternProperties": {
+        "^AD_[A-Z0-9_]+$": { "type": "object", "minProperties": 1, "additionalProperties": { "type": ["number", "string"] } }
+      },
+      "additionalProperties": false
+    },
+    "globalCaps": {
+      "description": "12 §4.3 — remotely configurable. The soft cap sits above the meta total so a player who exhausts the meta layer can still take in-run rewards.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalRewardedPerDaySoftCap", "maxInRunImpressionsPerRun", "maxMetaImpressionsPerDay", "minSecondsBetweenRewarded", "grantRewardOnLoadFailure", "consumeCapSlotOnLoadFailure"],
+      "properties": {
+        "totalRewardedPerDaySoftCap": { "type": "integer", "minimum": 1 },
+        "maxInRunImpressionsPerRun": { "type": "integer", "minimum": 1 },
+        "maxMetaImpressionsPerDay": { "type": "integer", "minimum": 1 },
+        "minSecondsBetweenRewarded": { "type": "number", "minimum": 0 },
+        "grantRewardOnLoadFailure": {
+          "description": "12 §4.3 — on ad load failure or no fill, grant the reward anyway. This must be true: the player is never punished for the network.",
+          "const": true
+        },
+        "consumeCapSlotOnLoadFailure": { "const": true }
+      }
+    },
+    "rewardScaling": {
+      "description": "12 §5 — AdBundleValue(currency) = baseValue * (1 + chapterScalar * highestChapterCleared). The three material bundles are each worth exactly crownEquivalenceInvariant Crowns at the 10 §5.2 Materials-tab rates; if those rates move, these move with them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "chapterScalar", "baseValue", "crownEquivalenceInvariant"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "chapterScalar": { "type": "number", "exclusiveMinimum": 0 },
+        "baseValue": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["AD_CROWNS", "AD_ENHANCE_STONES", "AD_MERGE_DUST", "AD_FEED_BUNDLE"],
+          "patternProperties": { "^AD_[A-Z0-9_]+$": { "type": "integer", "exclusiveMinimum": 0 } }
+        },
+        "crownEquivalenceInvariant": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "interstitials": {
+      "description": "12 §6 — never mid-battle, mid-draft, during FTUE, in the grace window, after a death, while a rewarded reward is being granted, or during a reconnect.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shippedInV1", "everyNthStageGate", "stageGateCountedAcrossRuns", "maxPerRun", "everyNthHomeReturn", "perSessionCap", "perDayCap", "minSecondsBetween", "graceHoursAfterInstall"],
+      "properties": {
+        "shippedInV1": { "type": "boolean" },
+        "everyNthStageGate": { "type": "integer", "minimum": 1 },
+        "stageGateCountedAcrossRuns": { "type": "boolean" },
+        "maxPerRun": { "type": "integer", "minimum": 0 },
+        "everyNthHomeReturn": { "type": "integer", "minimum": 1 },
+        "perSessionCap": { "type": "integer", "minimum": 0 },
+        "perDayCap": { "type": "integer", "minimum": 0 },
+        "minSecondsBetween": { "type": "number", "minimum": 0 },
+        "graceHoursAfterInstall": { "type": "number", "minimum": 0 }
+      }
+    },
+    "banners": {
+      "description": "12 §6 — banner ads are not shipped in v1. Locked.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shippedInV1"],
+      "properties": { "shippedInV1": { "const": false } }
+    },
+    "preload": {
+      "description": "12 §3.3 — keep this many preloaded at all times; reload immediately on show.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rewarded", "interstitial", "reloadImmediatelyOnShow"],
+      "properties": {
+        "rewarded": { "type": "integer", "minimum": 0 },
+        "interstitial": { "type": "integer", "minimum": 0 },
+        "reloadImmediatelyOnShow": { "type": "boolean" }
+      }
+    }
+  }
+}

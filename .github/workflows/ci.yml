@@ -1,0 +1,504 @@
+# Slay Idle Repeat — continuous integration.
+#
+# Requirement: 14 §14, verbatim —
+#   "CI on every push: build Core/Server/Client, run unit + determinism + parity
+#    tests, validate content, build the server container image, build an Android
+#    debug APK through the custom export template with the MAX plugin included,
+#    boot the Docker Compose stack."
+#
+# Every job below either does real work today or is gated OFF with the milestone
+# that turns it on. Nothing here echoes TODO and exits 0 — a green tick nobody
+# earned is worse than a missing job, because it is believed.
+#
+# See .github/workflows/README.md for the job-by-job map of what each one
+# enforces, which design-doc rule it comes from, and its current state.
+#
+# ⚠️ Authored against a repository that has no remote yet (kickoff decision 5).
+# Nothing in this file has been observed running on a GitHub runner. The logic of
+# every live job lives in build/ci/*.ps1 and HAS been executed locally.
+
+name: CI
+
+on:
+  push:
+    branches: [main, 'milestone/**', 'feature-**']
+  pull_request:
+    branches: [main, 'milestone/**']
+  workflow_dispatch:
+
+# Least privilege. Note there is no `id-token: write` — CI federates to no cloud
+# provider, and build/ci/Test-NoCloudCredentials.ps1 fails the build if that
+# changes (14 §1.1).
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Never a hardcoded SDK version: global.json pins the 8.0 band with
+  # rollForward latestFeature and is the single source of truth.
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  SOLUTION: SlayIdleRepeat.sln
+
+jobs:
+
+  # ===========================================================================
+  # build — 14 §14 "build Core/Server/Client"
+  # ===========================================================================
+  build:
+    name: build (Release)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          # Reads global.json rather than naming a version, so the SDK can never
+          # drift away from what developers use locally.
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          # No lock files in the repo, so the project files are the key.
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: dotnet restore
+        run: dotnet restore "$SOLUTION"
+
+      - name: dotnet build
+        # TreatWarningsAsErrors is already true in Directory.Build.props — a new
+        # warning fails here, which is the intent. Do not add -warnaserror or
+        # -p:TreatWarningsAsErrors: it would duplicate a setting that must have
+        # exactly one home.
+        run: dotnet build "$SOLUTION" --configuration Release --no-restore
+
+  # ===========================================================================
+  # test — 14 §13 unit / contract suites
+  #
+  # Deliberately NOT including the architecture suite: 23 §6 says it fails the
+  # build, so it gets its own job where an unrelated flake here cannot mask it.
+  #
+  # The suite list is discovered by glob, so SlayIdleRepeat.Client.Tests and the
+  # 14 §16.6 SchemaVersion field-list pin (M0-07, lands in Core.Tests) are picked
+  # up with no edit to this file.
+  # ===========================================================================
+  test:
+    name: test (unit + contract)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: dotnet build
+        run: dotnet build "$SOLUTION" --configuration Release
+
+      - name: Run unit + contract suites
+        # `dotnet test` exits 0 on an assembly containing ZERO tests (verified on
+        # this repo, 2026-08-11). The script reads the real count out of the TRX
+        # and fails on any suite that is empty without a declared, milestone-
+        # tagged exemption in build/ci/test-suites.json — and equally on an
+        # exemption that has outlived its suite.
+        shell: pwsh
+        run: ./build/ci/Invoke-UnitTests.ps1 -Group unit -Configuration Release -NoBuild
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit
+          path: artifacts/testresults/*.trx
+          if-no-files-found: warn
+
+  # ===========================================================================
+  # architecture-tests — 23 §6, 30 §9. "Fails the build on violation."
+  # ===========================================================================
+  architecture-tests:
+    name: architecture rules (23 §6)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: dotnet build
+        run: dotnet build "$SOLUTION" --configuration Release
+
+      - name: Run SlayIdleRepeat.Architecture.Tests
+        shell: pwsh
+        run: ./build/ci/Invoke-UnitTests.ps1 -Group architecture -Configuration Release -NoBuild
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-architecture
+          path: artifacts/testresults/*.trx
+          if-no-files-found: warn
+
+  # ===========================================================================
+  # content-validation — 14 §6 🔒, 14 §13 "build-time schema validation of all JSON"
+  #
+  # M0-09 swapped the body of Invoke-ContentValidation.ps1 for the real harness:
+  # JSON Schema enforcement, cross-file reference resolution and the 📐-marker
+  # check, all running the SAME code the game loads content with
+  # (SlayIdleRepeat.Application/Services/Content/, unit-tested against the
+  # in-memory fake). Same script path, same parameters, same exit codes.
+  #
+  # The one change M0-09 needed here: the check is .NET now rather than pure
+  # PowerShell, so the job needs the SDK. Everything else is untouched.
+  # ===========================================================================
+  content-validation:
+    name: content validation (14 §6)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Validate SlayIdleRepeat.Data
+        shell: pwsh
+        run: ./build/ci/Invoke-ContentValidation.ps1
+
+  # ===========================================================================
+  # vendor-package-uniqueness — 14 §1.1 🔒 / A9
+  #
+  # "a CI check that fails if a vendor PackageReference appears in more than one
+  #  .csproj."
+  #
+  # ⚠️ Deliberate belt-and-braces: M0-08's architecture suite may assert the same
+  # rule by reflection. Keep both — the test sees what an assembly binds, this
+  # sees what the build was told to fetch, and it still runs when the solution
+  # does not compile.
+  # ===========================================================================
+  vendor-package-uniqueness:
+    name: no vendor lock-in (14 §1.1)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check vendor package uniqueness and location
+        shell: pwsh
+        run: ./build/ci/Test-VendorPackageUniqueness.ps1
+
+  # ===========================================================================
+  # server-image — 14 §14 "build the server container image"
+  #
+  # Build and smoke only. NO registry login, NO push: publishing an image is the
+  # server-release workflow's job (14 §14 "Server release"), and CI must stay
+  # runnable with no cloud account (14 §1.1).
+  # ===========================================================================
+  server-image:
+    name: server container image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        # Context is the repository root — the Server project needs global.json,
+        # Directory.Build.props and its whole src/ project graph. Base images are
+        # pinned by tag AND digest inside the Dockerfile.
+        run: |
+          docker build \
+            --file src/SlayIdleRepeat.Server/Dockerfile \
+            --tag slayidlerepeat/server:${{ github.sha }} \
+            --tag slayidlerepeat/server:ci \
+            .
+
+      - name: Start container
+        run: docker run --detach --name sir-server --publish 8080:8080 slayidlerepeat/server:ci
+
+      - name: Assert the process is not root
+        # 12-factor / hardening: the runtime stage runs as APP_UID (1654).
+        run: |
+          uid="$(docker exec sir-server id -u)"
+          echo "container uid: $uid"
+          if [ "$uid" = "0" ]; then echo "::error::server container is running as root"; exit 1; fi
+
+      - name: Wait for GET /health
+        shell: pwsh
+        run: ./build/ci/Wait-ForHttpOk.ps1 -Url http://127.0.0.1:8080/health -ExpectedBodyPattern '"status"\s*:\s*"ok"' -TimeoutSeconds 90
+
+      - name: Container logs
+        if: always()
+        run: docker logs sir-server || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm --force sir-server || true
+
+  # ===========================================================================
+  # compose-boot — 14 §14 "boot the Docker Compose stack",
+  #                14 §13 Portability + Integration,
+  #                14 §1.1 🔒 "up on a laptop with no cloud account"
+  #
+  # ✅ M0-03 has landed. docker-compose.yml at the repository root brings up the
+  # API, Postgres, Redis, MinIO, the OTel Collector, Jaeger, Prometheus and
+  # Grafana — every image pinned by tag AND digest, every service health-checked,
+  # no credential of any kind. See infra/README.md.
+  #
+  # The whole sequence below was walked locally against Docker 28.4.0 before this
+  # comment was written; the outputs are in the M0-03 completion report. The
+  # existence check is kept: it costs one `[ -f ]` and it is the difference
+  # between a readable failure and Docker's bare `no configuration file provided`
+  # if the file is ever moved or renamed.
+  #
+  # The assertion that matters is not that the stack boots — it is that it boots
+  # with NO credentials of any kind. That is what Test-NoCloudCredentials.ps1
+  # checks, and it is why it runs first: a stack that only comes up after a cloud
+  # login has failed the portability test while reporting success.
+  # ===========================================================================
+  compose-boot:
+    name: compose boot (no cloud account)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Assert CI holds no cloud credentials
+        shell: pwsh
+        run: ./build/ci/Test-NoCloudCredentials.ps1
+
+      - name: Assert docker-compose.yml exists
+        run: |
+          if [ ! -f docker-compose.yml ]; then
+            echo "::error file=docker-compose.yml::docker-compose.yml is missing from the repository root. It is the local dev stack (M0-03: API, Postgres, Redis, MinIO, OTel Collector, Jaeger, Prometheus, Grafana) and this job cannot run without it — see infra/README.md."
+            exit 1
+          fi
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+      - name: docker compose up
+        run: docker compose up --detach --wait
+
+      - name: Wait for GET /health
+        shell: pwsh
+        run: ./build/ci/Wait-ForHttpOk.ps1 -Url http://127.0.0.1:8080/health -ExpectedBodyPattern '"status"\s*:\s*"ok"' -TimeoutSeconds 180
+
+      - name: Run integration suite against the live stack
+        # 14 §13: "Full run played end-to-end against a Docker Compose stack in CI."
+        #
+        # No longer a green tick over nothing: M0-03 removed this suite's
+        # knownEmpty exemption in build/ci/test-suites.json and filled it with its
+        # own acceptance criteria (API /health, object store reachable, every
+        # telemetry scrape target up). The full end-to-end run arrives with the
+        # adapters from M5-05 and is added alongside those, not instead of them.
+        shell: pwsh
+        run: ./build/ci/Invoke-UnitTests.ps1 -Group integration -Configuration Release
+
+      # Everything below runs on failure too, and the ORDER matters: the two
+      # capture steps must both come before `down --volumes`. A red integration
+      # suite against a live stack is the one failure in this workflow whose
+      # post-mortem data cannot be reproduced from the repository — it depends on
+      # the state of eight containers at that moment — and `down --volumes`
+      # deletes it. The `test` and `architecture-tests` jobs have uploaded their
+      # TRX since M0-05; this job was collecting the same TRX and then throwing
+      # it away.
+      - name: Stack logs
+        if: always()
+        # tee, not `>`: the log stays readable inline in the job output (which is
+        # how you triage a red run in thirty seconds) and is also kept as a file
+        # for the artifact below (which is how you triage one a week later).
+        run: docker compose logs --no-color 2>&1 | tee compose-logs.txt || true
+
+      - name: Upload integration results and stack logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration
+          path: |
+            artifacts/testresults/*.trx
+            compose-logs.txt
+          if-no-files-found: warn
+
+      - name: docker compose down
+        if: always()
+        run: docker compose down --volumes --remove-orphans || true
+
+  # ===========================================================================
+  # determinism — 14 §8.2 🔒
+  #
+  #   "CI runs a determinism test on every commit: simulate 10,000 fixed
+  #    (seed, build, enemy) triples on Linux x64 (server), Android ARM64, and
+  #    iOS ARM64, compare LogHash values, fail on any divergence."
+  #
+  # ⛔ GATED OFF. Nothing it needs exists yet:
+  #      M0-06  Core/Rng — Hash64 (xxHash64, pinned encoding) + reference vectors
+  #      M0-07  CanonicalStateWriter — the one serialiser LogHash is taken over
+  #      M5-12  the cross-platform determinism harness and the parity test
+  #
+  # The matrix below is the shape from 14 §8.2, recorded now so M5-12 fills it in
+  # rather than reinventing it. It is `if: false`, so it reports SKIPPED — it does
+  # not run, and it must never be made to report success by running nothing.
+  #
+  # To turn on: delete the `if: false`, and replace the placeholder step. The
+  # ARM64 legs need either self-hosted hardware or an emulator on the runner —
+  # M5-12 decides which. Do not weaken this to "Linux only" and call it done:
+  # 8.2 exists because ARM and x64 disagree about floating point, and a
+  # single-architecture determinism test proves nothing at all.
+  determinism:
+    name: determinism ${{ matrix.platform }} (14 §8.2)
+    if: false  # ⛔ gated: turns on with M5-12 (needs M0-06 Hash64 + M0-07 CanonicalStateWriter)
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: android-arm64
+            runner: ubuntu-24.04
+          - platform: ios-arm64
+            # macos-15, not macos-14 and never macos-latest — the same pin, for
+            # the same reasons, as the ios-export job below (see its note 2:
+            # macos-14 is deprecated and unsupported from 2026-11-02; macos-26
+            # ships no Xcode 16). This leg is gated off, but a dormant job that
+            # is wrong is worse than one that is right: whoever turns it on is
+            # doing so for the determinism work, not to audit the runner image.
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: 10,000 (seed, build, enemy) triples -> LogHash
+        run: |
+          echo "::error::determinism harness not implemented (M5-12)"
+          exit 1
+
+  # ===========================================================================
+  # android-export — 14 §14, 12 §3.2
+  #
+  #   "build an Android debug APK through the custom export template with the MAX
+  #    plugin included (see 12 §3.2 — a plain export will not produce a working
+  #    ad build)"
+  #
+  # ⛔ GATED OFF — PLACEHOLDER. The real job is M7-10 (client CI), and it cannot
+  # exist before M7-01 turns SlayIdleRepeat.Client into an actual Godot project;
+  # today that project is a plain net8.0 class library so the solution builds on a
+  # machine with no Godot installed.
+  #
+  # The recipe this job will implement — Godot version pin, Gradle/Java 17 setup,
+  # the custom export template build, where the MAX plugin goes — is the output of
+  # spike O23, written up at docs/spikes/O23-godot-android-export.md (M0-05a).
+  # M7-10 implements that document; it does not re-research it.
+  #
+  # Left `if: false` on purpose. A `echo TODO && exit 0` here would put a green
+  # tick next to "Android build" while shipping nothing, and 12 §3.2 is explicit
+  # that a plain export produces an APK that does not work — so a fake pass here
+  # would hide exactly the failure the job exists to catch.
+  android-export:
+    name: Android debug APK (custom export template)
+    if: false  # ⛔ gated: turns on with M7-10, after M7-01 makes the client a real Godot project
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export debug APK through the custom template
+        run: |
+          echo "::error::Android export not implemented (M7-10). Recipe: docs/spikes/O23-godot-android-export.md"
+          exit 1
+
+  # ===========================================================================
+  # ios-export — 14 §14, 12 §3.2
+  #
+  #   "iOS | Export project -> author a Podfile -> pod install --repo-update ->
+  #    build in Xcode. App Store Team ID and Bundle Identifier required at
+  #    export time."
+  #
+  # ⛔ GATED OFF — PLACEHOLDER, and the sibling of android-export above. The real
+  # job is M7-10, and it cannot exist before M7-01 turns SlayIdleRepeat.Client
+  # into an actual Godot project.
+  #
+  # The recipe is spike O23's iOS leg, written up at
+  # docs/spikes/O23-godot-ios-export.md (M0-05b). M7-10 implements that document;
+  # it does not re-research it. Five things from it constrain this job's shape
+  # and are why it looks the way it does:
+  #
+  #   1. runs-on MUST be macOS. Not a preference — Godot 4.7.1's Apple-embedded
+  #      exporter contains an unconditional `return false` for .NET builds off
+  #      macOS ("Exporting to an Apple Embedded platform when using C#/.NET is
+  #      experimental and requires macOS"). No flag gets around it.
+  #   2. Pinned to macos-15, and NEVER macos-latest. macos-14 is deprecated
+  #      (unsupported from 2026-11-02) and macos-26 ships no Xcode 16 at all,
+  #      while Xcode 26 has already broken Godot's iOS export twice (engine
+  #      issues #118543, #111213). macos-15 is the last image with an Xcode 16
+  #      line, so the real job must also `xcode-select --switch` explicitly
+  #      rather than inherit the runner default.
+  #   3. This job must assert on ARTEFACTS AND ON STDOUT, not on the exit code.
+  #      A missing .sln makes Godot skip the .NET publish entirely and still emit
+  #      a buildable Xcode project with zero managed code in it — the same
+  #      failure the Android leg hit, with a different tell, because iOS is
+  #      NativeAOT and has no managed .dll to look for. The gates are:
+  #      <Assembly>_aot.xcframework under dylibs/, a godot-publish-dotnet
+  #      directory for the ios-arm64 rid, and the presence of the engine's own
+  #      "...C#/.NET is experimental" warning in the log (its ABSENCE means the
+  #      mono module was never engaged).
+  #   4. Set application/export_project_only=true in the preset. It defaults to
+  #      FALSE, and with the default Godot runs xcodebuild archive +
+  #      -exportArchive itself and needs working code signing at export time.
+  #   5. macOS runners bill at a 10x minute multiplier. When M7-10 turns this on,
+  #      decide the trigger deliberately (main / milestone branches / dispatch),
+  #      rather than inheriting this workflow's every-push default.
+  #
+  # ⚠️ NOTHING BELOW HAS BEEN EXECUTED, and unlike android-export the recipe it
+  # points at was not executed either — M0-05b had no Mac and no Apple Developer
+  # account (M0 kickoff decision 3). O23 REMAINS OPEN on the iOS side. Do not
+  # read the existence of this job as evidence that iOS export works.
+  #
+  # ⚠️ In particular, M7-10 must not assume a headless CLI iOS export works on a
+  # hosted runner at all. Engine issue #76749 ("Cannot build in headless mode for
+  # iOS") has been open since 2023 with the export succeeding locally and failing
+  # on CI, and #104118 is a headless-export defect that reproduces ONLY on GitHub
+  # Actions macOS runners. Prove the recipe on a local Mac and on a runner
+  # separately — one does not imply the other.
+  #
+  # Left `if: false` on purpose, for the same reason as android-export: an
+  # `echo TODO && exit 0` would put a green tick next to "iOS build" while
+  # shipping nothing, and iOS is the half of O23 that was flagged as the risky
+  # one. A fake pass here would hide exactly the failure the job exists to catch.
+  ios-export:
+    name: iOS Xcode project + .NET AOT payload
+    if: false  # ⛔ gated: turns on with M7-10, after M7-01 makes the client a real Godot project
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the iOS Xcode project and assert it contains .NET
+        run: |
+          echo "::error::iOS export not implemented (M7-10). Recipe: docs/spikes/O23-godot-ios-export.md — and note O23 is still OPEN for iOS: that recipe has never been executed."
+          exit 1

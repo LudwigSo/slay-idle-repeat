@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Enforces 23 §6 and 30 §9. Fails the build on violation.
+
+    It reflects over EVERY production assembly, which is why it — uniquely among
+    the test projects — references all of them.
+
+    M0-08 authors the rules; M0-01 only seeds the project.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+
+    <!--
+      Every rule in this suite must name the doc section it enforces, and
+      SuiteIntegrityTests reads those XML summaries back at run time to prove it
+      (acceptance criterion 4 of M0-08). That only works if the compiler emits
+      the doc file, and with TreatWarningsAsErrors the CS1591 that comes with it
+      turns "a rule with no citation" into a build error rather than a habit.
+    -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- 🔒 FluentAssertions stays on 7.x — v8+ is a paid commercial licence, v7 is Apache-2.0. -->
+    <PackageReference Include="FluentAssertions" Version="7.2.0" />
+    <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
+    <!--
+      Mono.Cecil arrives transitively with NetArchTest; named explicitly because
+      this suite scans IL directly for the rules NetArchTest cannot express
+      (field writes, banned member references, async state machines).
+    -->
+    <PackageReference Include="Mono.Cecil" Version="0.11.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Core\SlayIdleRepeat.Core.csproj" />
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Contracts\SlayIdleRepeat.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Ads.AppLovin\SlayIdleRepeat.Adapters.Ads.AppLovin.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Ads.AutoGrant\SlayIdleRepeat.Adapters.Ads.AutoGrant.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Billing.GooglePlay\SlayIdleRepeat.Adapters.Billing.GooglePlay.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Billing.StoreKit\SlayIdleRepeat.Adapters.Billing.StoreKit.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Api.Http\SlayIdleRepeat.Adapters.Api.Http.csproj" />
+    <ProjectReference Include="..\..\src\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Push.Firebase\SlayIdleRepeat.Adapters.Push.Firebase.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Consent.AppLovinCmp\SlayIdleRepeat.Adapters.Consent.AppLovinCmp.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Platform.Godot\SlayIdleRepeat.Adapters.Platform.Godot.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Persistence.Postgres\SlayIdleRepeat.Adapters.Persistence.Postgres.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Cache.Redis\SlayIdleRepeat.Adapters.Cache.Redis.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.ObjectStore.S3\SlayIdleRepeat.Adapters.ObjectStore.S3.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Store.GooglePlayServer\SlayIdleRepeat.Adapters.Store.GooglePlayServer.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Store.AppStoreServer\SlayIdleRepeat.Adapters.Store.AppStoreServer.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.AdVerify.AppLovinS2S\SlayIdleRepeat.Adapters.AdVerify.AppLovinS2S.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Push.FcmApns\SlayIdleRepeat.Adapters.Push.FcmApns.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Analytics.PostHog\SlayIdleRepeat.Adapters.Analytics.PostHog.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.csproj" />
+    <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Config.HttpJson\SlayIdleRepeat.Adapters.Config.HttpJson.csproj" />
+    <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Server\SlayIdleRepeat.Server.csproj" />
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Client\SlayIdleRepeat.Client.csproj" />
+
+    <!--
+      tools/. These are here because ProductionProjectFiles now covers tools/ as well as
+      src/, so ProductionAssemblies.AllNames names them — and every rule that loads an
+      assembly by name would throw FileNotFoundException on a project the suite governs but
+      does not reference. Four projects with no dependency-rule coverage was the gap; the
+      remedy is to reference them, not to narrow the rules back to src/.
+    -->
+    <ProjectReference Include="..\..\tools\EconomySim\SlayIdleRepeat.EconomySim.csproj" />
+    <ProjectReference Include="..\..\tools\BalanceHarness\SlayIdleRepeat.BalanceHarness.csproj" />
+    <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
+  </ItemGroup>
+
+</Project>

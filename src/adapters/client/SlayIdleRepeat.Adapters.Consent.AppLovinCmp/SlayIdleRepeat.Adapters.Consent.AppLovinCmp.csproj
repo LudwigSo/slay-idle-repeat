@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IConsentPort over the AppLovin CMP (GDPR/ATT flows).
+    No NuGet package: the CMP ships inside the MAX Godot plugin.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

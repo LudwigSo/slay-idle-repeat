@@ -1,0 +1,61 @@
+# Build context exclusions for every image built from the repository root.
+#
+# The server image (src/SlayIdleRepeat.Server/Dockerfile) is built with the REPO
+# ROOT as its context, because the Server project needs global.json,
+# Directory.Build.props and the whole src/ project graph. Docker reads the
+# .dockerignore next to the context, which is why this file lives at the root
+# rather than beside the Dockerfile.
+#
+# Keep this list conservative: anything excluded here that a future image needs
+# fails as a confusing "file not found" inside the build, not at COPY time.
+
+# --------------------------------------------------------------- build output
+**/bin/
+**/obj/
+artifacts/
+*.binlog
+
+# ------------------------------------------------------------------ test runs
+**/TestResults/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# ------------------------------------------------------------ vcs and agents
+.git/
+.gitignore
+.github/
+.claude/
+
+# ------------------------------------------------------------- docs, not code
+docs/
+game-design/
+*.md
+
+# ------------------------------------------------- local dev stack (M0-03)
+# The compose stack CONFIGURES the server image; it is never inside it. These are
+# mounted into the Postgres/MinIO/collector/Prometheus/Grafana containers at run
+# time and have no business in the .NET build context.
+infra/
+docker-compose.yml
+docker-compose.*.yml
+.env
+.env.example
+
+# ----------------------------------------------------------- IDE and tooling
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln.docstates
+
+# ------------------------------------------------------------- Godot artefacts
+.godot/
+mono_crash.*.json
+
+# --------------------------------------------------------------------- NuGet
+*.nupkg
+*.snupkg

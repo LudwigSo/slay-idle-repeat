@@ -1,0 +1,74 @@
+# Slay Idle Repeat — Prometheus scrape configuration.
+#
+# 14 §10: "Metrics & tracing | OpenTelemetry → Prometheus + Grafana".
+#
+# ⚠️ NOTE WHAT IS *NOT* SCRAPED: the API. That is deliberate and it is the whole
+# architecture in one decision. The server pushes OTLP to the collector; the
+# collector re-exposes it here. If Prometheus scraped the API directly, the app
+# would have a Prometheus-shaped dependency baked into it and 14 §10's "Vendor-
+# neutral instrumentation. Swap the backend freely." would stop being true — you
+# could no longer swap Prometheus out without touching the server.
+#
+# Adding a scrape job for a NEW backend service (a background worker container,
+# say) is right. Adding one that points at SlayIdleRepeat.Server is not.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: slayidlerepeat-local
+
+scrape_configs:
+
+  # -------------------------------------------------------------------------
+  # Prometheus itself. The cheapest possible answer to "is scraping working at
+  # all, or is the target down?".
+  # -------------------------------------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+        labels:
+          component: prometheus
+
+  # -------------------------------------------------------------------------
+  # The collector's OWN telemetry (:8888).
+  #
+  # This is the job that makes the pipeline observable before the application
+  # emits a single metric — otelcol_receiver_accepted_spans_total,
+  # otelcol_exporter_sent_spans_total, otelcol_process_uptime_seconds and friends.
+  # Until M5-11 registers the OTel SDK in the server, this and `up` are the only
+  # live series in this Prometheus, and they are what infra/README.md's
+  # "what is proven" section rests on.
+  # -------------------------------------------------------------------------
+  - job_name: otel-collector-internal
+    static_configs:
+      - targets: ['otel-collector:8888']
+        labels:
+          component: otel-collector
+
+  # -------------------------------------------------------------------------
+  # APPLICATION metrics, forwarded by the collector's `prometheus` exporter
+  # (:8889). Empty until M5-11 — an empty scrape target is healthy (`up == 1`)
+  # and simply returns no series, which is the correct representation of
+  # "instrumented, emitting nothing yet".
+  # -------------------------------------------------------------------------
+  - job_name: otel-collector-app
+    honor_labels: true    # keep the service.name the app set, do not overwrite it
+    static_configs:
+      - targets: ['otel-collector:8889']
+        labels:
+          component: application
+
+  # -------------------------------------------------------------------------
+  # Jaeger's admin/metrics port. Tells you whether the trace backend is dropping
+  # spans, which otherwise looks identical to "the app is not tracing".
+  # -------------------------------------------------------------------------
+  - job_name: jaeger
+    static_configs:
+      - targets: ['jaeger:14269']
+        labels:
+          component: jaeger
+
+# No alerting rules and no Alertmanager. On a laptop there is nobody to page,
+# and a rule file that only ever runs locally rots into fiction. Alerting is a
+# deployment concern (14 §10) and belongs with whatever runs the deployed stack.

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SlayIdleRepeat.Contracts — WIRE ENVELOPES ONLY (23 §3, 30 §11.6).
+
+    commandId, sequence, stateHash, rejection/error shapes, protocolVersion.
+    It NEVER re-declares a command, an event or a domain type — those live in
+    SlayIdleRepeat.Core and are the wire vocabulary directly (14 §2.3).
+
+    References nothing.
+  -->
+
+</Project>

@@ -161,7 +161,7 @@ What remains genuinely non-trivial is the **build pipeline**, not the code:
 | Platform | Requirement |
 |---|---|
 | Android | Custom Godot build template, Gradle, **Java 17** (Godot 4.3+), manual AAR copy and `build.gradle` edit |
-| iOS | Export project → author a `Podfile` → `pod install --repo-update` → build in Xcode. App Store Team ID and Bundle Identifier required at export time. |
+| iOS *(post-launch — `16` D34)* | Export project → author a `Podfile` → `pod install --repo-update` → build in Xcode. App Store Team ID and Bundle Identifier required at export time. ⚠️ **Corrected by the O23 spike:** Godot never emits a `Podfile` — that step is AppLovin's alone — and iOS C# is **NativeAOT + trimming**, not Mono. 🔴 The MAX Godot plugin has unfixed iOS build (#61) *and* runtime-init (#60) failures and is 3 minors behind the 4.7.1 pin. See `docs/spikes/O23-godot-ios-export.md`. |
 
 Both mean **the ad build cannot be produced by a plain one-click Godot export.** CI must run the full custom-template path from day one, or ads will only ever work on one developer's machine.
 

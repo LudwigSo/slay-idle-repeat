@@ -1,0 +1,26 @@
+# Slay Idle Repeat — dashboard provisioning.
+#
+# 🔒 Dashboards are committed JSON under infra/grafana/dashboards/, loaded from
+# disk at boot and kept read-only in the UI. A dashboard built by hand in a
+# browser is not reviewable, not shared, and gone the moment someone runs
+# `docker compose down -v`.
+#
+# To change a dashboard: edit it in the UI, use "Export -> Save to file" (JSON,
+# "export for sharing externally" OFF so the datasource uid is kept), and commit
+# the result over the file in infra/grafana/dashboards/.
+
+apiVersion: 1
+
+providers:
+  - name: slayidlerepeat
+    orgId: 1
+    folder: 'Slay Idle Repeat'
+    type: file
+    # A dashboard deleted from the repo disappears from Grafana on next boot,
+    # rather than lingering as an orphan nobody dares remove.
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

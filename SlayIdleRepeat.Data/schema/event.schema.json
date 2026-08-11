@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/event.schema.json",
+  "title": "content/liveops_events/*.json",
+  "description": "26 §2, §2.1 — one live-ops event package, the path named in 26 §2. CONTENT schema, not a tuning schema: the packages themselves belong to M11. Not to be confused with schema/events.schema.json, which validates the framework-wide tuning file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "displayName", "unlock", "windowUtc", "board", "currency", "earn", "track", "shop", "leaderboard", "featureFlag"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^EVT_[A-Z0-9_]+$" },
+    "type": {
+      "description": "26 §2.1 — one of the three archetypes in 26 §3. A fourth archetype is a new feature, not a new event.",
+      "enum": ["EVENT_CHAPTER", "EVENT_SCORE_RUSH", "EVENT_COLLECTION"]
+    },
+    "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+    "unlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legendLevel"],
+      "properties": { "legendLevel": { "type": "integer", "minimum": 1, "maximum": 200 } }
+    },
+    "windowUtc": {
+      "description": "26 §8 — all windows are UTC and start and end at 05:00 UTC.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
+      }
+    },
+    "board": {
+      "description": "26 §2.1 — baseChapter must reference an existing chapter; modifiers are drawn from the 14 weekly modifiers in 19 Part C, obeying the same combination rules.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseChapter", "stageLengths", "tileWeightOverrides", "powerScalar"],
+      "properties": {
+        "baseChapter": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "stageLengths": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "integer", "exclusiveMinimum": 0 } },
+        "tileWeightOverrides": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": { "^TILE_[A-Z0-9_]+$": { "type": "number", "minimum": 0 } }
+          }
+        },
+        "powerScalar": { "type": "number", "exclusiveMinimum": 0 },
+        "modifiers": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^MOD_[A-Z0-9_]+$" } },
+        "tierLadder": { "type": "string", "minLength": 1 }
+      }
+    },
+    "currency": {
+      "description": "26 §2.1 — conversionAtEnd is REQUIRED. An event currency with no exit is a currency players are left holding (E15 models the leakage).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "conversionAtEnd"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^EVC_[A-Z0-9_]+$" },
+        "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+        "conversionAtEnd": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["to", "rate"],
+          "properties": {
+            "to": { "enum": ["GOLD", "CROWNS", "SOUL_SHARDS", "ENERGY", "ENHANCE_STONES", "MERGE_DUST", "BEAST_FEED", "HONOR"] },
+            "rate": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
+    "earn": {
+      "description": "26 §2 — every source must be one of the earn sources enumerated in tuning/events.json.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "amount"],
+        "properties": {
+          "source": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "amount": { "type": "integer", "exclusiveMinimum": 0 },
+          "cap": { "type": ["string", "null"], "pattern": "^[0-9]+/(day|week|event)$" }
+        }
+      }
+    },
+    "track": {
+      "description": "26 §2.1 — strictly ascending, at most 12 milestones (maxTrackMilestones in tuning/events.json). The final milestone must be reachable by a player of average engagement in ~70% of the window.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["points", "reward"],
+        "properties": {
+          "points": { "type": "integer", "exclusiveMinimum": 0 },
+          "reward": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+              "crowns": { "type": "integer", "exclusiveMinimum": 0 },
+              "enhanceStones": { "type": "integer", "exclusiveMinimum": 0 },
+              "soulShards": { "type": "integer", "exclusiveMinimum": 0 },
+              "talentPoints": { "type": "integer", "exclusiveMinimum": 0 },
+              "setTokens": { "type": "integer", "exclusiveMinimum": 0 },
+              "chest": { "enum": ["CHEST_STANDARD", "CHEST_PREMIUM", "CHEST_APEX"] }
+            }
+          }
+        }
+      }
+    },
+    "shop": {
+      "description": "26 §2.1 — stock is per-player, not global. Every item must resolve to an item ID that exists in a permanent source.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item", "cost", "stock"],
+        "properties": {
+          "item": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "cost": { "type": "integer", "exclusiveMinimum": 0 },
+          "stock": { "type": "integer", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "leaderboard": {
+      "description": "26 §2.1 — null or a scoring config. Rewards are paid by percentile band, never by absolute rank.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["formula"],
+      "properties": {
+        "formula": { "type": "string", "minLength": 1 },
+        "rewardBands": { "type": "array" }
+      }
+    },
+    "featureFlag": {
+      "description": "26 §2.1 — REQUIRED. Every event must be switchable off without a client patch.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

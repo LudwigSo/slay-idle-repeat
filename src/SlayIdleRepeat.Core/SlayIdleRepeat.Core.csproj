@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SlayIdleRepeat.Core — THE WHOLE GAME. Zero dependencies (23 §6, 30 §11).
+
+    This project references NOTHING: no ProjectReference, no PackageReference,
+    not even a logging abstraction. The whole game must be playable from this
+    assembly alone (30 §6 InMemoryGame), and its assembly closure must stay
+    exactly { SlayIdleRepeat.Core, System.* }.
+
+    InternalsVisibleTo is permitted for SlayIdleRepeat.Core.Tests ONLY (30 §11.3).
+  -->
+
+  <!--
+    The one sanctioned opening (30 §11.3): handlers and rule calculators are internal by
+    design, so the domain test suite is the only assembly that can drive them directly.
+    InternalsVisibleTo_names_only_the_Core_test_assembly asserts nothing else appears here.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SlayIdleRepeat.Core.Tests" />
+  </ItemGroup>
+
+</Project>

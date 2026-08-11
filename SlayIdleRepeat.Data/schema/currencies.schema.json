@@ -1,0 +1,441 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/currencies.schema.json",
+  "title": "currencies.json",
+  "description": "03 §7a (in-run income, the single source of truth), 03 §6.1 (minigame rewards), 03 §7 (shop tile prices), 10 §2-§6 (Soul Shards, Crowns, the Shop, daily quests), 19 Part G (the 28-day login calendar). 10 §1: no currency in this game can be bought with money.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "wallet", "nonWalletCounters", "chapterScalars", "inRunIncome", "minigameRewards", "shopTile", "soulShards", "crowns", "shop", "dailyQuests", "loginCalendar"],
+  "$defs": {
+    "currencyId": { "enum": ["GOLD", "CROWNS", "SOUL_SHARDS", "ENERGY", "ENHANCE_STONES", "MERGE_DUST", "BEAST_FEED", "HONOR"] },
+    "locKey": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "wallet": {
+      "description": "10 §1 — eight currencies, none purchasable. A ninth entry is a design decision, not a data edit.",
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "displayName", "scope", "purchasable"],
+        "properties": {
+          "id": { "$ref": "#/$defs/currencyId" },
+          "displayName": { "$ref": "#/$defs/locKey" },
+          "scope": { "enum": ["RUN", "META", "GATE"] },
+          "purchasable": {
+            "description": "10 §1 — the founding constraint: no currency in this game can be bought with money. Must be false.",
+            "const": false
+          }
+        }
+      }
+    },
+    "nonWalletCounters": {
+      "description": "10 §1.1 — mercy-accrual counters deliberately kept out of the wallet: single-sink, single-screen, never in the global currency header.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "displayName"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "displayName": { "$ref": "#/$defs/locKey" }
+        }
+      }
+    },
+    "chapterScalars": {
+      "description": "03 §7a — metaGrowth is deliberately slower than the x2/chapter power curve so material income never outruns the merge bottleneck (10 §4). adBundleScalar is the linear form shared by ad bundles (12 §5), minigames (03 §6.1) and the login calendar (19 Part G).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "goldGrowth", "metaGrowth", "adBundleScalar", "roundingMode"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "goldGrowth": { "type": "number", "exclusiveMinimum": 1 },
+        "metaGrowth": { "type": "number", "exclusiveMinimum": 1 },
+        "adBundleScalar": { "type": "number", "exclusiveMinimum": 0 },
+        "roundingMode": { "enum": ["NEAREST_INTEGER", "FLOOR", "CEIL"] }
+      }
+    },
+    "inRunIncome": {
+      "description": "03 §7a — the single source of truth for every in-run payout. 02 §5.1 and 10 §4 point here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goldPerKill", "runCompletionCrowns", "treasureProfiles", "cache", "shrineBuffPool"],
+      "properties": {
+        "goldPerKill": {
+          "description": "03 §7a.1 — GoldPerKill(c) = base * G(c). No Gold is paid for run victory: Gold is run-local and vanishes at run end.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "base", "eliteMultiplier", "bossMultiplier"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "base": { "type": "number", "exclusiveMinimum": 0 },
+            "eliteMultiplier": { "type": "number", "minimum": 1 },
+            "bossMultiplier": { "type": "number", "minimum": 1 }
+          }
+        },
+        "runCompletionCrowns": {
+          "description": "03 §7a.2 — RunCrowns(c) = base * M(c).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "base"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "base": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "treasureProfiles": {
+          "description": "03 §7a.3 — each treasure tile rolls one payout profile, seeded. Amounts are multiples of M(c). Weights must be positive; profile ids unique.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "seedStream", "profiles"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "seedStream": { "type": "string", "minLength": 1 },
+            "profiles": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "weight", "crowns", "enhanceStones", "mergeDust"],
+                "properties": {
+                  "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+                  "weight": { "type": "number", "exclusiveMinimum": 0 },
+                  "crowns": { "type": "number", "minimum": 0 },
+                  "enhanceStones": { "type": "number", "minimum": 0 },
+                  "mergeDust": { "type": "number", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "cache": {
+          "description": "03 §7a.4 — CacheFeed(c) = beastFeedBase * M(c). On an egg hit the cache pays one Pet Egg instead of the Feed; the egg rate is flat across chapters and is what makes the 24 §4.4 pity arithmetic reachable from play.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "beastFeedBase", "eggChance"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "beastFeedBase": { "type": "number", "exclusiveMinimum": 0 },
+            "eggChance": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "shrineBuffPool": {
+          "description": "03 §7a.5 — a pool of 10; a shrine offers 2 distinct options drawn seeded with equal weights. Buffs are permanent for the run and stack additively.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "seedStream", "optionsOffered", "equalWeights", "buffs"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "seedStream": { "type": "string", "minLength": 1 },
+            "optionsOffered": { "type": "integer", "exclusiveMinimum": 0 },
+            "equalWeights": { "type": "boolean" },
+            "buffs": {
+              "type": "array",
+              "minItems": 10,
+              "maxItems": 10,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "displayName", "stat", "magnitude"],
+                "properties": {
+                  "id": { "type": "string", "pattern": "^SHR_[A-Z0-9_]+$" },
+                  "displayName": { "$ref": "#/$defs/locKey" },
+                  "stat": { "type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9_]*$" },
+                  "magnitude": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+                  "immediateHealPctMaxHp": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "minigameRewards": {
+      "description": "03 §6.1 — Chapter 1 base values, multiplied by (1 + adBundleScalar * (chapter - 1)). One entry per outcome tier per minigame.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc"],
+      "properties": { "_doc": { "type": "string", "minLength": 1 } },
+      "patternProperties": {
+        "^MG_[A-Z0-9_]+$": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["outcome", "gold", "crowns", "beastFeed", "enhanceStones", "rerollCharges"],
+            "properties": {
+              "outcome": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+              "gold": { "type": "integer", "minimum": 0 },
+              "crowns": { "type": "integer", "minimum": 0 },
+              "beastFeed": { "type": "integer", "minimum": 0 },
+              "enhanceStones": { "type": "integer", "minimum": 0 },
+              "rerollCharges": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "shopTile": {
+      "description": "03 §7 — Price = BasePrice * (1 + stagePriceStep * stageIndex) * chapterPriceScalar[c-1]. Gold income and shop prices are both tier-invariant: a Heroic shop is neither cheaper nor richer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "slots", "freeRefreshesPerVisit", "stagePriceStep", "chapterPriceScalar", "basePrice", "healPctMaxHp", "runBuffs", "leftoverGoldAlarmShare"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "slots": { "type": "integer", "exclusiveMinimum": 0 },
+        "freeRefreshesPerVisit": { "type": "integer", "minimum": 0 },
+        "stagePriceStep": { "type": "number", "minimum": 0 },
+        "chapterPriceScalar": {
+          "description": "03 §7 — one entry per chapter, ascending; the same growth as Gold income so affordability is chapter-invariant.",
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "basePrice": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["PERK", "CONSUMABLE", "RUN_BUFF", "HEAL"],
+          "properties": {
+            "PERK": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["COMMON", "RARE", "EPIC", "LEGENDARY"],
+              "patternProperties": { "^(COMMON|RARE|EPIC|LEGENDARY)$": { "type": "integer", "exclusiveMinimum": 0 } }
+            },
+            "CONSUMABLE": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "patternProperties": { "^CON_[A-Z0-9_]+$": { "type": "integer", "exclusiveMinimum": 0 } }
+            },
+            "RUN_BUFF": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "patternProperties": { "^[A-Z][A-Z0-9_]*$": { "type": "integer", "exclusiveMinimum": 0 } }
+            },
+            "HEAL": { "type": "integer", "exclusiveMinimum": 0 }
+          }
+        },
+        "healPctMaxHp": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "runBuffs": {
+          "description": "03 §7 — flat, permanent for the run, applied as FlatAdd. Flat amounts double per chapter to track the x2 chapter power curve; the Crit buff feeds a capped stat and does not scale (chapterGrowth 1.0).",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "displayName", "stat", "base", "chapterGrowth"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+              "displayName": { "$ref": "#/$defs/locKey" },
+              "stat": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+              "base": { "type": "number", "exclusiveMinimum": 0 },
+              "chapterGrowth": { "type": "number", "minimum": 1 }
+            }
+          }
+        },
+        "leftoverGoldAlarmShare": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "soulShards": {
+      "description": "10 §2 — the premium currency that isn't. Because it cannot be bought, it is a pacing valve, not a revenue lever.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "sources", "sinks", "dailyTargetMin", "dailyTargetMax"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "sources": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": { "^[A-Z][A-Z0-9_]*$": { "type": "number", "minimum": 0 } }
+        },
+        "sinks": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": { "^[A-Z][A-Z0-9_]*$": { "type": "number", "minimum": 0 } }
+        },
+        "dailyTargetMin": { "type": "number", "exclusiveMinimum": 0 },
+        "dailyTargetMax": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "crowns": {
+      "description": "10 §4 — the workhorse soft currency. Merging is the intended bottleneck because it is the most exciting sink.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "inventoryExpansionLadder", "inventoryExpansionMaxPurchases", "inventoryExpansionSlotsPerPurchase"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "inventoryExpansionLadder": {
+          "description": "10 §4 — one price per purchase step, ascending. The flat 400 Soul Shard alternative (10 §2) is deliberately the better deal from step ~4 on, so the scarcer currency buys convenience, never power.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "exclusiveMinimum": 0 }
+        },
+        "inventoryExpansionMaxPurchases": { "type": "integer", "exclusiveMinimum": 0 },
+        "inventoryExpansionSlotsPerPurchase": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "shop": {
+      "description": "10 §5 — the Shop screen has four tabs; only the Plus tab involves real money and it is not modelled here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "dailyTab", "materialsTab"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "dailyTab": {
+          "description": "10 §5.1 — staples are permanent fixtures, never rotated out, so nobody ever waits to spend. Rotating offers are drawn without replacement subject to the Soul-Shard cap.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rotatingOffersPerDay", "alwaysIncluded", "maxSoulShardPricedOffersPerDay", "seededFrom", "staples", "rotatingPool"],
+          "properties": {
+            "rotatingOffersPerDay": { "type": "integer", "exclusiveMinimum": 0 },
+            "alwaysIncluded": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^DLY_[A-Z0-9_]+$" } },
+            "maxSoulShardPricedOffersPerDay": { "type": "integer", "minimum": 0 },
+            "seededFrom": { "type": "string", "minLength": 1 },
+            "staples": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "displayName", "currency", "price"],
+                "properties": {
+                  "id": { "type": "string", "pattern": "^STP_[A-Z0-9_]+$" },
+                  "displayName": { "$ref": "#/$defs/locKey" },
+                  "currency": { "$ref": "#/$defs/currencyId" },
+                  "price": { "type": "integer", "exclusiveMinimum": 0 }
+                }
+              }
+            },
+            "rotatingPool": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "displayName", "currency", "price", "limitPerDay", "amount", "scaled"],
+                "properties": {
+                  "id": { "type": "string", "pattern": "^DLY_[A-Z0-9_]+$" },
+                  "displayName": { "$ref": "#/$defs/locKey" },
+                  "currency": { "$ref": "#/$defs/currencyId" },
+                  "price": { "type": "integer", "exclusiveMinimum": 0 },
+                  "limitPerDay": { "type": "integer", "exclusiveMinimum": 0 },
+                  "amount": { "type": "integer", "exclusiveMinimum": 0 },
+                  "scaled": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "materialsTab": {
+          "description": "10 §5.2 — fixed rates, always available, priced so the tab is the expensive certainty against the Daily tab's cheap luck. The daily caps keep Crowns from becoming a universal material converter.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "ENHANCE_STONES", "MERGE_DUST", "BEAST_FEED"],
+          "properties": { "_doc": { "type": "string", "minLength": 1 } },
+          "patternProperties": {
+            "^(ENHANCE_STONES|MERGE_DUST|BEAST_FEED)$": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["crownsPerUnit", "dailyCap"],
+              "properties": {
+                "crownsPerUnit": { "type": "integer", "exclusiveMinimum": 0 },
+                "dailyCap": { "type": "integer", "exclusiveMinimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dailyQuests": {
+      "description": "10 §6 — 3 per day from a pool of 20 authored quests (19 Part B), one free reroll.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "perDay", "poolSize", "freeRerolls", "hardQuestRewardMultiplier", "rewardPerQuest", "rewardOneOf", "allThreeBonusChest"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "perDay": { "type": "integer", "exclusiveMinimum": 0 },
+        "poolSize": { "type": "integer", "exclusiveMinimum": 0 },
+        "freeRerolls": { "type": "integer", "minimum": 0 },
+        "hardQuestRewardMultiplier": { "type": "number", "minimum": 1 },
+        "rewardPerQuest": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": { "^[a-z][A-Za-z0-9]*$": { "type": "integer", "minimum": 0 } }
+        },
+        "rewardOneOf": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "maxProperties": 1,
+            "patternProperties": { "^[a-z][A-Za-z0-9]*$": { "type": "integer", "exclusiveMinimum": 0 } }
+          }
+        },
+        "allThreeBonusChest": { "type": "boolean" }
+      }
+    },
+    "loginCalendar": {
+      "description": "19 Part G — the 28-day cycle. It advances at BEGIN_SESSION, not by date, at most once per game day and only when the currently open day has been claimed; a missed or unclaimed day pauses it. Nothing is skipped or lost. Every cycle pays identically.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "cycleDays", "everyCyclePaysIdentically", "days"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "cycleDays": { "type": "integer", "exclusiveMinimum": 0 },
+        "everyCyclePaysIdentically": {
+          "description": "19 Part G / 11 §5.3 — nothing is first-cycle-exclusive.",
+          "const": true
+        },
+        "days": {
+          "description": "19 Part G — exactly one entry per day of the cycle, each paying at least one reward.",
+          "type": "array",
+          "minItems": 28,
+          "maxItems": 28,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["day"],
+            "minProperties": 2,
+            "properties": {
+              "day": { "type": "integer", "minimum": 1, "maximum": 28 },
+              "crowns": { "type": "integer", "exclusiveMinimum": 0 },
+              "enhanceStones": { "type": "integer", "exclusiveMinimum": 0 },
+              "beastFeed": { "type": "integer", "exclusiveMinimum": 0 },
+              "soulShards": { "type": "integer", "exclusiveMinimum": 0 },
+              "mergeDust": { "type": "integer", "exclusiveMinimum": 0 },
+              "energy": { "type": "integer", "exclusiveMinimum": 0 },
+              "energyRefillFull": { "const": true },
+              "petEggs": { "type": "integer", "exclusiveMinimum": 0 },
+              "chest": { "enum": ["CHEST_STANDARD", "CHEST_PREMIUM", "CHEST_APEX"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

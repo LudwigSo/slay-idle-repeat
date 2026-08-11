@@ -1,0 +1,57 @@
+{
+  "$schema": "../schema/events.schema.json",
+  "_doc": "26 — the live-ops framework's global tuning: calendar cadence, package field limits, the Score Rush scoring default. 26 §1: the framework is the deliverable, events are data. Per-event earn rates, track thresholds and shop prices belong to an event package in content/events/, validated against schema/event.schema.json — they are NOT global defaults and are deliberately absent here.",
+  "_status": "partial",
+  "calendar": {
+    "majorEventLengthDays": 14,
+    "gapBetweenMajorEventsDays": 0,
+    "offsetFromPvpSeasonsDays": 7,
+    "scoreRushLengthDays": 7,
+    "scoreRushAlwaysOn": true,
+    "announcementLeadDays": 3,
+    "startEndUtc": "05:00",
+    "maxConcurrentMajorEvents": 1,
+    "chapterEventShare": 0.75,
+    "collectionEventShare": 0.25
+  },
+  "archetypes": ["EVENT_CHAPTER", "EVENT_SCORE_RUSH", "EVENT_COLLECTION"],
+  "packageLimits": {
+    "_doc": "26 §2.1 — the field rules every event package is validated against.",
+    "maxTrackMilestones": 12,
+    "trackStrictlyAscending": true,
+    "finalMilestoneReachableByWindowShare": 0.7,
+    "conversionAtEndRequired": true,
+    "featureFlagRequired": true,
+    "stageCount": 3,
+    "shopStockIsPerPlayer": true,
+    "weeklyModifierPoolSize": 14
+  },
+  "earnSources": ["EVENT_RUN_CLEAR", "EVENT_ELITE_KILL", "EVENT_BOSS_KILL", "DAILY_FIRST_CLEAR"],
+  "trackRewardKeys": ["crowns", "chest", "enhanceStones", "soulShards", "talentPoints", "setTokens"],
+  "scoreRush": {
+    "_doc": "26 §3.2 — the default scoring formula, stored per event at leaderboard.formula and tunable per event and per week. Rewards are paid by percentile band, not absolute rank; the band boundaries and reward values are not authored in the design docs.",
+    "defaultFormulaWeights": {
+      "tilesCleared": 100,
+      "enemiesKilled": 25,
+      "bossKilled": 2000,
+      "secondsElapsed": -1
+    },
+    "rewardsByPercentileBand": true,
+    "percentileBands": null
+  },
+  "collection": {
+    "_doc": "26 §3.3 — 'collect N to fill a card album'. The album size, row count and row payouts are entirely unspecified in the design docs.",
+    "albumSize": null,
+    "rowCount": null,
+    "rowPayouts": null
+  },
+  "presentation": {
+    "minCountdownDisplayHours": 24,
+    "configCacheHours": 6,
+    "pushNotificationsPerEvent": 1,
+    "pushAtEventEnd": false
+  },
+  "defaultEarnRates": null,
+  "defaultTrackThresholds": null,
+  "defaultShopPrices": null
+}

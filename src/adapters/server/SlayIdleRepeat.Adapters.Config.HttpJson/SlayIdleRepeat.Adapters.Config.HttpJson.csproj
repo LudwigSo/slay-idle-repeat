@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IRemoteConfigPort over a plain JSON-over-HTTPS endpoint (14 §14 kill switches).
+    BCL HttpClient only — no vendor package.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

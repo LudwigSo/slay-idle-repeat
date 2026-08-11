@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/calibration_builds.schema.json",
+  "title": "calibration_builds.json",
+  "description": "29 §2.5 — the reference par build, the standard dummy and the five build-archetype loadouts. The harness loads these; it never synthesises its own.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "referenceParBuild", "standardDummy", "measurementProtocol", "scalingRule", "archetypes"],
+  "$defs": {
+    "statBlock": {
+      "description": "05 §1.1 — the aggregated stat block. Ratio stats are fractions, not percentages.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxHp", "atk", "def", "aspd", "crit", "critDamage", "lifesteal", "dodge", "block", "pen", "dmgPct", "drPct", "healPct", "thorns"],
+      "properties": {
+        "maxHp": { "type": "number", "exclusiveMinimum": 0 },
+        "atk": { "type": "number", "exclusiveMinimum": 0 },
+        "def": { "type": "number", "minimum": 0 },
+        "aspd": { "type": "number", "exclusiveMinimum": 0 },
+        "crit": { "type": "number", "minimum": 0, "maximum": 1 },
+        "critDamage": { "type": "number", "minimum": 0 },
+        "lifesteal": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dodge": { "type": "number", "minimum": 0, "maximum": 1 },
+        "block": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pen": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dmgPct": { "type": "number", "minimum": 0 },
+        "drPct": { "type": "number", "minimum": 0, "maximum": 1 },
+        "healPct": { "type": "number", "minimum": 0 },
+        "thorns": { "type": "number", "minimum": 0 }
+      }
+    },
+    "petIdList": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^PET_[A-Z0-9_]+$" }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "referenceParBuild": {
+      "description": "29 §2.5.1 — a Legend-Level-10 hero in solid blue-quality Chapter-1 gear. Defines K_POWER by PlayerPower(this) := targetPower.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["comment", "level", "stats", "pets", "mount", "targetPower"],
+      "properties": {
+        "comment": { "type": "string", "minLength": 1 },
+        "level": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "stats": { "$ref": "#/$defs/statBlock" },
+        "pets": { "$ref": "#/$defs/petIdList" },
+        "mount": { "type": ["string", "null"], "pattern": "^MNT_[A-Z0-9_]+$" },
+        "targetPower": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "standardDummy": {
+      "description": "29 §2.5.2 — the §2.2 reference opponent promoted to a live actor. INVULNERABLE means its HP pool never empties; it is deliberately NOT status-immune.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "maxHp", "atk", "def", "aspd", "crit", "critDamage", "lifesteal", "dodge", "block", "pen", "dmgPct", "drPct", "healPct", "thorns", "flags"],
+      "properties": {
+        "level": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "maxHp": { "type": "number", "exclusiveMinimum": 0 },
+        "atk": { "type": "number", "minimum": 0 },
+        "def": { "type": "number", "minimum": 0 },
+        "aspd": { "type": "number", "exclusiveMinimum": 0 },
+        "crit": { "type": "number", "minimum": 0, "maximum": 1 },
+        "critDamage": { "type": "number", "minimum": 0 },
+        "lifesteal": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dodge": { "type": "number", "minimum": 0, "maximum": 1 },
+        "block": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pen": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dmgPct": { "type": "number", "minimum": 0 },
+        "drPct": { "type": "number", "minimum": 0, "maximum": 1 },
+        "healPct": { "type": "number", "minimum": 0 },
+        "thorns": { "type": "number", "minimum": 0 },
+        "flags": { "type": "array", "uniqueItems": true, "items": { "enum": ["INVULNERABLE"] } }
+      }
+    },
+    "measurementProtocol": {
+      "description": "29 §2.5.2 — the two-pass EmpiricalPower measurement. dummyOutputPerSecond is the dummy's pre-mitigation output per second, so TTD * this is raw damage absorbed before death.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seeds", "seedStream", "aggregate", "dummyOutputPerSecond", "offensePass", "defensePass"],
+      "properties": {
+        "seeds": { "type": "integer", "minimum": 1 },
+        "seedStream": { "type": "string", "minLength": 1 },
+        "aggregate": { "enum": ["median", "mean"] },
+        "dummyOutputPerSecond": { "type": "number", "exclusiveMinimum": 0 },
+        "offensePass": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dummyAtk", "windowSeconds", "measures"],
+          "properties": {
+            "dummyAtk": { "type": "number", "minimum": 0 },
+            "windowSeconds": { "type": "number", "exclusiveMinimum": 0 },
+            "measures": { "type": "string", "minLength": 1 }
+          }
+        },
+        "defensePass": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dummyAtFullAtk", "clampSeconds", "measures"],
+          "properties": {
+            "dummyAtFullAtk": { "type": "boolean" },
+            "clampSeconds": { "type": "number", "exclusiveMinimum": 0 },
+            "measures": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "scalingRule": {
+      "description": "29 §2.5.3 — to place a loadout at power P, multiply the scaledStats by a single scalar s (ratio stats unchanged), solving by bisection.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scaledStats", "bisectionTolerance", "scalarDecimalPlaces", "defaultLevel", "levelWhenTargetingContent"],
+      "properties": {
+        "scaledStats": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "bisectionTolerance": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "scalarDecimalPlaces": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "defaultLevel": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "levelWhenTargetingContent": { "type": "string", "minLength": 1 }
+      }
+    },
+    "archetypes": {
+      "description": "29 §2.5.3 — the five build archetypes named in 17 §1 and 11 §8.1, as concrete harness-reproducible loadouts. Exactly five; IDs unique.",
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "stats", "pets", "frozenPerks", "draftPriority"],
+        "properties": {
+          "id": { "enum": ["ARCH_CRIT", "ARCH_TANK_THORNS", "ARCH_DOT", "ARCH_LIFESTEAL", "ARCH_PET"] },
+          "stats": { "$ref": "#/$defs/statBlock" },
+          "pets": { "$ref": "#/$defs/petIdList" },
+          "frozenPerks": {
+            "description": "29 §2.5.3 — 12 perks at fixed tiers, used for single-fight sweeps and EmpiricalPower per archetype. Roman numeral is the tier.",
+            "type": "array",
+            "minItems": 12,
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^PK_[A-Z0-9_]+ (I|II|III)$" }
+          },
+          "draftPriority": {
+            "description": "29 §2.5.3 — 15 perks, first-available wins, used by full-run simulations.",
+            "type": "array",
+            "minItems": 15,
+            "maxItems": 15,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^PK_[A-Z0-9_]+$" }
+          }
+        }
+      }
+    }
+  }
+}

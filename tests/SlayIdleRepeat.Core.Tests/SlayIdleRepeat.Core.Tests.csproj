@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The domain test suite. References SlayIdleRepeat.Core and nothing else — it is
+    the assembly Core grants InternalsVisibleTo (30 §11.3).
+
+    Seeded empty by M0-01, and no longer empty: 799 tests as of the M0 review,
+    covering Rng (M0-06), CanonicalStateWriter and the 14 §16.6 field-order pin
+    (M0-07) and the Content value tree (M0-09). The rest arrive with their
+    milestones.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="FluentAssertions" Version="7.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Core\SlayIdleRepeat.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    The Hash64 / DeterministicRng determinism pin (14 §8.0, §8.2). Embedded rather than
+    copied to the output directory so the cross-platform determinism job (M5-12) finds it
+    on Android/iOS ARM64 regardless of the working directory the runner happens to use.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Rng\Hash64ReferenceVectors.json" />
+  </ItemGroup>
+
+  <!--
+    The CanonicalStateWriter determinism pin (14 §16.6) and the field-order pin it is
+    keyed to, embedded for the same reason as the file above: M5-12 re-asserts both on
+    Android/iOS ARM64, where the working directory is not ours to predict.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Model\Snapshots\CanonicalStateWriterReferenceVectors.json" />
+    <EmbeddedResource Include="Model\Snapshots\SnapshotFieldOrder.json" />
+  </ItemGroup>
+
+</Project>

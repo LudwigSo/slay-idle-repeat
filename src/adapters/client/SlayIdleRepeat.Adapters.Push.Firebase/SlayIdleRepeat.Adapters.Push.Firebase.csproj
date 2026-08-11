@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IPushRegistrationPort on the device (FCM token registration).
+    No NuGet package: the client side of Firebase arrives as a Godot plugin (M7).
+    The SERVER side of push lives in SlayIdleRepeat.Adapters.Push.FcmApns.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

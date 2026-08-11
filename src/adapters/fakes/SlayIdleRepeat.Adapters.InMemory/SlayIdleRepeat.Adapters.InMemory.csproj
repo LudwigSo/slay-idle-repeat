@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A fake for EVERY port (23 §5 A5). Ships in tests only.
+
+    Referenced by the test projects and by nothing else: neither
+    SlayIdleRepeat.Server nor SlayIdleRepeat.Client may reference it.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

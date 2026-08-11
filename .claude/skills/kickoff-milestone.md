@@ -40,7 +40,8 @@ Take the Phase 1 answers and walk the task table once more:
 
 1. Re-check each task against the answers: did an answer change a task's scope, split it, or make it obsolete? Edit the tracker's task rows accordingly (add/split/reword — keep IDs stable, suffix new splits `a`/`b`).
 2. Surface the input gaps found in Phase 0 step 4 that the kickoff answers did **not** cover. If any remain that an autonomous agent would have to guess at, ask the user now — this is the "quick review, is more input required?" gate. Batch these too.
-3. If nothing remains, say so in one line and move on. Do not manufacture questions to seem thorough; the bar is "would an unattended agent have to invent a product decision?" — style-level choices don't qualify.
+3. 🔒 **Ask what is in scope, not only how far to verify it.** M0's kickoff asked how deep the iOS spike should go and never asked whether iOS ships at all. The design set said it did; the product owner did not think so; five milestones of scope hung on the difference. Whenever a milestone touches a platform, store, surface or feature that *later* milestones also carry, confirm it is in v1 — a scoping answer is far cheaper than a verification answer, and this window is the only place to ask it.
+4. If nothing remains, say so in one line and move on. Do not manufacture questions to seem thorough; the bar is "would an unattended agent have to invent a product decision?" — style-level choices don't qualify.
 
 When Phase 2 closes, the interactive window is over. From here on, make every remaining call yourself and record it as an assumption.
 
@@ -69,8 +70,11 @@ Then group tasks into **waves**:
 | Task depends on another task in this milestone | Later wave — dispatch only after the prerequisite's branch is integrated (Phase 5) |
 | Two tasks would edit the same files/data schemas | Same worktree is not an option (one agent per task); serialize them instead |
 | Shared foundational task everything else builds on (e.g. a schema, a registry, `LuckService`) | Its own wave **first**, alone |
+| Task A **authors** data/schemas/config that task B **validates or consumes** | 🔒 A lands in an **earlier wave** than B — never the same wave, even when their file footprints are disjoint. Footprint disjointness prevents merge *conflicts*; it does nothing about a consumer built against data that does not exist yet. M0 put a CI content-validation job and the data it validates in one wave, and their composition went red on merge. |
 
-Practical caps: at most **3 agents in flight** at once (merge-integration effort grows faster than wall-clock savings beyond that), and prefer fewer, larger waves over many small ones. Sequential-only is a perfectly good plan when the milestone is a dependency chain — say so and don't force parallelism.
+🔒 **Do not patch a component an in-flight agent is scheduled to replace.** Queue the fix until that agent lands, or both mechanisms will exist. In M0 the conductor patched a CI script an in-flight agent was already replacing; the duplicate mechanism broke 30 tests at merge.
+
+Practical caps: at most **3 agents in flight** at once (merge-integration effort grows faster than wall-clock savings beyond that) — **raise it only when the footprints are provably disjoint, and record that reasoning in the kickoff record at dispatch time**, and prefer fewer, larger waves over many small ones. Sequential-only is a perfectly good plan when the milestone is a dependency chain — say so and don't force parallelism.
 
 Record the wave plan in the kickoff record and echo it to the user in one compact block (wave → tasks → parallel/sequential + why) before dispatching. This is informational; do not wait for approval.
 
@@ -86,6 +90,8 @@ Record the wave plan in the kickoff record and echo it to the user in one compac
 4. The current steering rules from `.claude/retros/STEERING.md` (if the file exists), pasted verbatim — these are lessons from previous milestones' retros and override default habits where they conflict.
 5. Branch/worktree instructions: base off `milestone/M<N>`; branch name `feature-M<N>-<nn>-<slug>`. Worktree'd agents work entirely inside their worktree; main-checkout agents must confirm the tree is clean first.
 6. What to return: the feature-oneshot completion report, verbatim, plus the branch name.
+
+🔒 **Never key a tracker edit on a spec reference.** Spec refs are not unique — in M0, `| 14 §1.1 | ⬜ |` matched both a task row and an overarching X-row, and `| 14 §14 | ⬜ |` matched two task rows. Both times a status landed on an unrelated row, and one survived undetected until the milestone review. Address rows by **task id** or line number, and re-read the row after editing.
 
 On dispatch, set the task 🔄 in the tracker (you, the conductor, own the tracker — agents never edit it; parallel edits from worktrees would conflict and worktree copies diverge anyway).
 

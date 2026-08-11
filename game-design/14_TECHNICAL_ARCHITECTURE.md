@@ -1,7 +1,7 @@
 # 14 — Technical Architecture
 
 🔒 LOCKED DECISIONS
-1. **Client: Godot 4.3+ with C#** (.NET 8 / "Godot .NET" export templates). No web export — Android and iOS only.
+1. **Client: Godot 4.7.1-stable with C#** (`net8.0` / "Godot .NET" export templates — engine pinned by the M0-05a spike). No web export. ⚠️ **Android at v1; iOS post-launch** (`16` D34). The iOS export path is specified and CI-ready but unverified — `docs/spikes/O23-godot-ios-export.md`.
 2. **Backend: fully server-authoritative, for PvE as well as PvP.**
 3. **Backend is a containerised ASP.NET Core application**, deployed initially to **Azure App Service for Containers**, but with **no hard vendor lock-in** — it must run unchanged on AWS ECS/Fargate, Google Cloud Run, Kubernetes, or a single self-hosted Docker host.
 4. **Disconnection is handled by pausing and reconnecting gracefully**, never by kicking the player out.
@@ -500,7 +500,7 @@ Game randomness is deliberately **not** a port — the stream algebra lives in `
 - All combat math uses `double`.
 - Avoid `Math.Pow` in hot paths; use explicit multiplication.
 - **Round to 4 decimal places (`Math.Round(x, 4)`) at every accumulation point** — after each damage calculation, each heal, each stat aggregation step.
-- CI runs a determinism test on every commit: simulate 10,000 fixed `(seed, build, enemy)` triples on **Linux x64 (server), Android ARM64, and iOS ARM64**, compare `LogHash` values, fail on any divergence.
+- CI runs a determinism test on every commit: simulate 10,000 fixed `(seed, build, enemy)` triples on **Linux x64 (server) and Android ARM64**, compare `LogHash` values, fail on any divergence. ⚠️ The **iOS ARM64** leg is authored and gated off with iOS itself (`16` D34); it is the first thing to re-enable if iOS returns, because NativeAOT is a *different runtime* from the Mono/CoreCLR path the other two legs exercise.
 - If that test ever fails and cannot be fixed by additional rounding, escalate to fixed-point Q32.32 in `Core/Combat` only. Do not pre-emptively pay that cost.
 
 ---
@@ -596,7 +596,7 @@ Server techniques: hot run state cached in Redis (Postgres-authoritative per com
 - **CI on every push:** build Core/Server/Client, run unit + determinism + parity tests, validate content, build the server container image, build an Android debug APK **through the custom export template with the MAX plugin included** (see `12` §3.2 — a plain export will not produce a working ad build), boot the Docker Compose stack.
 - **Nightly:** balance harness + economy simulator.
 - **Server release:** container image to a registry, rolling deploy, database migrations run as a pre-deploy job. The server must tolerate one version of client skew in both directions — enforced on the wire by the `protocolVersion` field (§16.1).
-- **Client release:** Android AAB and iOS IPA, staged rollout starting at 5%.
+- **Client release:** **Android AAB**, staged rollout starting at 5%. ⚠️ **iOS IPA is post-launch** (`16` D34) — the `ios-export` CI job stays authored and gated off so a reopen is a one-line change, not a rebuild.
 - **Kill switches:** remote config flags for PvP, each ad placement, the Plus offer, and each chapter — so a bad content change is a config edit, not a client patch.
 
 ---

@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/dungeons.schema.json",
+  "title": "dungeons.json",
+  "description": "25 — tier yields, entry caps, energy cost. 25 §2: three dungeons, and only three. 25 §4.5: a dungeon advances no counter in 24.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "structure", "tiers", "payoutDistribution", "partialClears", "legendXpScalar", "neverPays", "advancesLuckCounters", "entries", "dungeons"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "structure": {
+      "description": "25 §3 — one stage, no forks, no interstitial. Duration target 2-4 minutes (25 §1 C2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodesBeforeGuardian", "guardianNodes", "stages", "forks", "tileComposition", "shrineForbiddenNodes", "guardianPowerMultiplier", "guardianEliteModifiers", "perkDrafts", "rerollCharges", "rerollRefresh", "energyCost", "reviveOffered", "abandonRefund"],
+      "properties": {
+        "nodesBeforeGuardian": { "type": "integer", "minimum": 1 },
+        "guardianNodes": { "type": "integer", "minimum": 1, "maximum": 1 },
+        "stages": { "type": "integer", "minimum": 1, "maximum": 1 },
+        "forks": { "type": "integer", "minimum": 0, "maximum": 0 },
+        "tileComposition": {
+          "description": "25 §3 — must total nodesBeforeGuardian.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["TILE_ENEMY", "TILE_CACHE_DUNGEON", "TILE_SHRINE"],
+          "patternProperties": { "^TILE_[A-Z_]+$": { "type": "integer", "minimum": 0 } }
+        },
+        "shrineForbiddenNodes": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+        "guardianPowerMultiplier": { "type": "number", "exclusiveMinimum": 1 },
+        "guardianEliteModifiers": { "type": "integer", "minimum": 0 },
+        "perkDrafts": { "type": "boolean" },
+        "rerollCharges": { "type": "integer", "minimum": 0 },
+        "rerollRefresh": { "type": "boolean" },
+        "energyCost": { "type": "integer", "minimum": 1 },
+        "reviveOffered": {
+          "description": "25 §3 — AD_REVIVE does not apply to dungeons. This must be false.",
+          "const": false
+        },
+        "abandonRefund": { "const": 0 }
+      }
+    },
+    "tiers": {
+      "description": "25 §4.1 — 8 tiers, unlocked one-to-one by chapter clears. DungeonYield(t) = tierYield[0] * yieldGrowthPerTier^(t-1).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "unlockRule", "powerScalar", "yieldGrowthPerTier", "defaultEntryIsHighestUnlocked"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "unlockRule": { "type": "string", "minLength": 1 },
+        "powerScalar": { "type": "number", "exclusiveMinimum": 0 },
+        "yieldGrowthPerTier": { "type": "number", "exclusiveMinimum": 1 },
+        "defaultEntryIsHighestUnlocked": { "type": "boolean" }
+      }
+    },
+    "payoutDistribution": {
+      "description": "25 §4.2 — shares of DungeonYield(t). perEnemyKill*enemyKills + perCache*caches + guardianKill must equal 1.0. A player who dies to the Guardian banks the rest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "perEnemyKill", "enemyKills", "perCache", "caches", "guardianKill"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "perEnemyKill": { "type": "number", "minimum": 0, "maximum": 1 },
+        "enemyKills": { "type": "integer", "minimum": 0 },
+        "perCache": { "type": "number", "minimum": 0, "maximum": 1 },
+        "caches": { "type": "integer", "minimum": 0 },
+        "guardianKill": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "partialClears": {
+      "description": "25 §4.3 — payout is the sum of yield already collected. There is no completion multiplier and no penalty.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "completionMultiplier", "deathPenalty"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "completionMultiplier": { "const": 1.0 },
+        "deathPenalty": { "const": 0.0 }
+      }
+    },
+    "legendXpScalar": {
+      "description": "25 §4.4 — DungeonLegendXp(t) = ChapterLegendXp(t) * this. Deliberately poor: constraint C4 requires a dungeon-only player to fall behind on Legend Level (assertion E8).",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "neverPays": {
+      "description": "25 §4.5 — the exclusion list. A dungeon that pays any of these has broken the firewall that keeps them a material tap and not a second game.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+    },
+    "advancesLuckCounters": {
+      "description": "25 §4.5 — a dungeon advances no counter in 24. This must be false.",
+      "const": false
+    },
+    "entries": {
+      "description": "25 §5 — entries and gating. No carry-over.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["perDungeonPerDay", "totalPerDay", "refreshUtc", "carryOver", "adPlacementId", "adEntriesPerDay", "plusTotalPerDay", "unlockLegendLevel"],
+      "properties": {
+        "perDungeonPerDay": { "type": "integer", "minimum": 1 },
+        "totalPerDay": { "type": "integer", "minimum": 1 },
+        "refreshUtc": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+        "carryOver": { "const": false },
+        "adPlacementId": { "type": "string", "pattern": "^AD_[A-Z0-9_]+$" },
+        "adEntriesPerDay": { "type": "integer", "minimum": 0 },
+        "plusTotalPerDay": { "type": "integer", "minimum": 1 },
+        "unlockLegendLevel": { "type": "integer", "minimum": 1, "maximum": 200 }
+      }
+    },
+    "dungeons": {
+      "description": "25 §2 — exactly three, each paying exactly one material. Soul Shards are deliberately not farmable.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "displayName", "currency", "paletteId", "tierYield"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^DGN_[A-Z0-9_]+$" },
+          "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+          "currency": { "enum": ["ENHANCE_STONES", "BEAST_FEED", "CROWNS", "MERGE_DUST"] },
+          "paletteId": { "type": "string", "pattern": "^pal_[a-z0-9_]+$" },
+          "tierYield": {
+            "description": "25 §4.1 — one entry per tier, ascending. Placeholders shaped to the x2 chapter curve; they must go through the simulator before they are treated as real.",
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "items": { "type": "integer", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

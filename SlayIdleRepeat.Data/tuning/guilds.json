@@ -1,0 +1,108 @@
+{
+  "$schema": "../schema/guilds.schema.json",
+  "_doc": "27 §2-5 — quest targets, boss HP, perk values. 27 §3.1: quest targets are authored for 30 active members and scale linearly with the active count.",
+  "_status": "partial",
+  "structure": {
+    "baseMemberCap": 30,
+    "maxMemberCap": 50,
+    "unlockLegendLevel": 15,
+    "creationCostCrowns": 20000,
+    "joinPolicies": ["OPEN", "REQUEST", "INVITE_ONLY"],
+    "nameMaxChars": 16,
+    "tagChars": 4,
+    "descriptionMaxChars": 80,
+    "descriptionPhraseCount": 40,
+    "descriptionPhrasesPerGuild": 2,
+    "leaderCount": 1,
+    "maxOfficers": 4,
+    "joinCooldownHours": 24,
+    "inactivityFlagDays": 14,
+    "inactivityRemovalDays": 30,
+    "leaderInactivityDemotionDays": 21
+  },
+  "quests": {
+    "_doc": "27 §3, §3.1 — 3 drawn per day at 05:00 UTC from a pool of 15. Never the same quest twice in one day; at least one of the three must be from runsOnlySatisfiable.",
+    "perDay": 3,
+    "drawUtc": "05:00",
+    "activeMemberWindowDays": 7,
+    "targetsAuthoredForActiveMembers": 30,
+    "targetScaling": "LINEAR_IN_ACTIVE_MEMBERS",
+    "memberContributionCapShare": 0.15,
+    "streakDays": 7,
+    "runsOnlySatisfiable": ["GQ_ENEMIES", "GQ_RUNS", "GQ_VICTORIES", "GQ_PERKS", "GQ_TILES", "GQ_TREASURE"],
+    "pool": [
+      { "id": "GQ_ENEMIES", "displayName": "loc.guildquest.enemies.name", "targetAt30Actives": 3000, "gatedOn": null },
+      { "id": "GQ_ELITES", "displayName": "loc.guildquest.elites.name", "targetAt30Actives": 200, "gatedOn": null },
+      { "id": "GQ_BOSSES", "displayName": "loc.guildquest.bosses.name", "targetAt30Actives": 40, "gatedOn": null },
+      { "id": "GQ_RUNS", "displayName": "loc.guildquest.runs.name", "targetAt30Actives": 60, "gatedOn": null },
+      { "id": "GQ_VICTORIES", "displayName": "loc.guildquest.victories.name", "targetAt30Actives": 35, "gatedOn": null },
+      { "id": "GQ_DUNGEONS", "displayName": "loc.guildquest.dungeons.name", "targetAt30Actives": 40, "gatedOn": "DUNGEONS" },
+      { "id": "GQ_DUELS", "displayName": "loc.guildquest.duels.name", "targetAt30Actives": 60, "gatedOn": "PVP" },
+      { "id": "GQ_PERKS", "displayName": "loc.guildquest.perks.name", "targetAt30Actives": 700, "gatedOn": null },
+      { "id": "GQ_TILES", "displayName": "loc.guildquest.tiles.name", "targetAt30Actives": 2500, "gatedOn": null },
+      { "id": "GQ_TREASURE", "displayName": "loc.guildquest.treasure.name", "targetAt30Actives": 150, "gatedOn": null },
+      { "id": "GQ_MERGES", "displayName": "loc.guildquest.merges.name", "targetAt30Actives": 50, "gatedOn": null },
+      { "id": "GQ_ENHANCE", "displayName": "loc.guildquest.enhance.name", "targetAt30Actives": 150, "gatedOn": null },
+      { "id": "GQ_PETS", "displayName": "loc.guildquest.pets.name", "targetAt30Actives": 80, "gatedOn": null },
+      { "id": "GQ_MINIGAMES", "displayName": "loc.guildquest.minigames.name", "targetAt30Actives": 100, "gatedOn": null },
+      { "id": "GQ_STARS", "displayName": "loc.guildquest.stars.name", "targetAt30Actives": 120, "gatedOn": null }
+    ]
+  },
+  "guildChest": {
+    "_doc": "27 §3 — contents are 'Crowns + Enhance Stones + Beast Feed, scaled by guild level and the member's own highest chapter'. No amounts and no scaling formula are given in the design docs, so they are left unauthored.",
+    "sourceClass": "CHEST_NONE",
+    "currencies": ["CROWNS", "ENHANCE_STONES", "BEAST_FEED"],
+    "amounts": null,
+    "scaling": null,
+    "streakBonusChestContents": null
+  },
+  "boss": {
+    "_doc": "27 §4 — GuildBossHp = baseHp * activeMembers * difficultyTierMultiplier. Neither baseHp nor the tier multipliers are given in the design docs.",
+    "cadence": "WEEKLY",
+    "weekStartUtc": "Monday 05:00",
+    "bossPool": "the 8 chapter bosses, rotating weekly",
+    "baseHp": null,
+    "difficultyTiers": 8,
+    "difficultyTierMultiplier": null,
+    "difficultyTierUnlockedBy": "MEDIAN_MEMBER_HIGHEST_CHAPTER_CLEARED",
+    "attemptsPerMemberPerWeek": 3,
+    "adAttemptsAvailable": false,
+    "energyCost": 0,
+    "universalEnrageRemoved": true,
+    "simulatedTimeCapSeconds": 120,
+    "leaderboardTopN": 100,
+    "globalGuildLadder": false,
+    "rewardBrackets": null
+  },
+  "level": {
+    "_doc": "27 §5 — guild levels 1..20. Guild XP comes from completed quests and boss damage, never from currency spent. The per-level ramps for member cap, officer slots, boss tier access and perk values are not authored in the design docs — only the endpoints.",
+    "min": 1,
+    "max": 20,
+    "xpPerQuestCompletion": null,
+    "xpPerBossDamage": null,
+    "memberCapLadder": null,
+    "officerSlotLadder": null,
+    "bossTierAccessLadder": null
+  },
+  "perks": {
+    "_doc": "27 §5 — all guild perks are non-combat (locked rule R1). The complete list; there are no others. The design docs give display names but no machine IDs, and only the value at guild level 20 — the per-level ramp is unauthored.",
+    "allNonCombat": true,
+    "list": [
+      { "id": null, "displayName": "loc.guildperk.full_coffers.name", "effect": "CROWNS_GAIN", "maxValueAtLevel20": 0.08, "perLevelRamp": null },
+      { "id": null, "displayName": "loc.guildperk.well_fed.name", "effect": "BEAST_FEED_GAIN", "maxValueAtLevel20": 0.08, "perLevelRamp": null },
+      { "id": null, "displayName": "loc.guildperk.second_wind.name", "effect": "ENERGY_REGEN_RATE", "maxValueAtLevel20": 0.06, "perLevelRamp": null },
+      { "id": null, "displayName": "loc.guildperk.quarried.name", "effect": "ENHANCE_STONES_GAIN", "maxValueAtLevel20": 0.06, "perLevelRamp": null }
+    ]
+  },
+  "communication": {
+    "_doc": "27 §6 — the phrase board. The 60 phrases and 40 description phrases are localisation strings, not tuning numbers; they belong in loc/ and content/, not here.",
+    "phraseCount": 60,
+    "phraseCategories": ["GREETING", "RALLY", "THANKS", "APOLOGY", "COORDINATION", "CONGRATULATION"],
+    "phrasesPerCategory": 10,
+    "postsPerMemberPerDay": 5,
+    "boardRetainedPosts": 50,
+    "boardTtlDays": 7,
+    "logRetentionDays": 30,
+    "leaderRoleActionsPerDay": 10
+  }
+}
