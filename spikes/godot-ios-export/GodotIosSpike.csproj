@@ -1,0 +1,34 @@
+<Project Sdk="Godot.NET.Sdk/4.7.1">
+  <PropertyGroup>
+    <!-- net8.0 is the locked project-wide target framework, and it is the right
+         one for iOS: Godot 4.7.1's project generator emits net8.0 and overrides
+         to net9.0 for ANDROID ONLY (GodotTools.ProjectEditor/ProjectGenerator.cs,
+         GodotMinimumRequiredTfm => "net8.0"). The 4.7 docs prose about "exporting
+         to Android requires .NET 9 or later" is stale wording; it does not apply
+         to iOS. See docs/spikes/O23-godot-ios-export.md §2. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SlayIdleRepeat.Spike</RootNamespace>
+  </PropertyGroup>
+
+  <!-- The Android leg needed <Compile Remove="android/**" /> because the
+       install-android-build-template step unpacks the Gradle tree INSIDE the
+       Godot project and the SDK's **/*.cs glob then compiled duplicate copies of
+       every script (CS0101/CS0111).
+
+       iOS has no equivalent generated tree inside the project, because the export
+       destination is OURS to choose in the preset — and export_presets.cfg points
+       it at ../../artifacts/ios/, outside this directory. That is the mitigation,
+       and it is stronger than Android's. bin/ is still excluded for the same
+       reason as the Android spike.
+
+       Do NOT "fix" this by pointing the export at a path inside the project. And
+       do NOT use the docs' "Active development considerations" workflow of
+       dragging the Godot project folder into Xcode: engine issue #86019 says it
+       breaks .NET builds. -->
+  <ItemGroup>
+    <Compile Remove="bin/**" />
+  </ItemGroup>
+</Project>

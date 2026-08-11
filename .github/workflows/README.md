@@ -32,6 +32,7 @@ the gate is still there, that is a bug in the milestone, not a detail.
 | `compose-boot` | 🟢 live *(since M0-03)* | Asserts CI holds **no cloud credentials at all**, then `docker compose config` → `up --detach --wait` → wait for `/health` → integration suite → `down`. The stack it boots is `docker-compose.yml` + `infra/` — see [`infra/README.md`](../../infra/README.md). | `14` §14, `14` §13, `14` §1.1 🔒 |
 | `determinism` | ⛔ gated off | Matrix shape from `14` §8.2: **Linux x64 / Android ARM64 / iOS ARM64**, 10,000 fixed `(seed, build, enemy)` triples, compare `LogHash`, fail on divergence. | `14` §8.2 🔒 |
 | `android-export` | ⛔ gated off | Android debug APK **through the custom export template with the MAX plugin included** — a plain export does not produce a working ad build. | `14` §14, `12` §3.2 |
+| `ios-export` | ⛔ gated off | iOS Xcode project export on a **`macos-15`** runner, asserting the build actually contains .NET (`<Assembly>_aot.xcframework` + `godot-publish-dotnet/`). macOS is not a preference: Godot 4.7.1's exporter hard-refuses .NET iOS builds off macOS. | `14` §14, `12` §3.2 |
 
 ### `nightly.yml` — 03:17 UTC daily, plus manual dispatch
 
@@ -48,8 +49,22 @@ the gate is still there, that is a bug in the milestone, not a detail.
 |---|---|---|---|
 | `determinism` | `if: false` | **M5-12** (cross-platform `LogHash` harness + parity test), which needs **M0-06** (`Hash64`, xxHash64 with pinned encoding) and **M0-07** (`CanonicalStateWriter`) first. | A determinism job that passes without comparing hashes across architectures asserts the exact opposite of `14` §8.2. Note for M5-12: do **not** narrow this to Linux only — §8.2 exists because ARM and x64 disagree about floating point, and a single-architecture run proves nothing. |
 | `android-export` | `if: false` | **M7-10** (client CI), which needs **M7-01** to turn `SlayIdleRepeat.Client` into a real Godot project. It is a plain `net8.0` class library today so the solution builds without Godot installed. The recipe is spike **O23**, written up in `docs/spikes/O23-godot-android-export.md` (M0-05a) — M7-10 implements that document rather than re-researching it. | `12` §3.2 is explicit that a plain export yields an APK where ads do not work. A green tick over a fake export would hide precisely the failure the job exists to catch. |
+| `ios-export` | `if: false` | **M7-10**, same gate as `android-export`. The recipe is `docs/spikes/O23-godot-ios-export.md` (M0-05b) — but ⚠️ **unlike the Android one, that recipe has never been run.** M0-05b had no Mac and no Apple Developer account, so **O23 is still open on the iOS side**. M7-10 must expect to debug it, not just transcribe it. | Same argument, sharper: iOS is the half of O23 that `16` flagged as *especially* risky. It also fails vacuously in a second way the others do not — a missing `.sln` makes Godot skip the .NET publish and still emit a buildable Xcode project with **zero managed code**, so the job must assert on `<Assembly>_aot.xcframework` and `godot-publish-dotnet/`, never on the exit code. |
 
-Both report **skipped**, not success. Neither runs `exit 0` over an empty step.
+All three report **skipped**, not success. None runs `exit 0` over an empty step.
+
+Two notes for whoever turns the macOS jobs on:
+
+- **`macos-15` is the pin, deliberately.** `macos-14` is marked *deprecated* in
+  [`actions/runner-images`](https://github.com/actions/runner-images) as of the
+  2026-07 image manifest. The `determinism` job's `ios-arm64` leg still names
+  `macos-14`; **M5-12 should move it to `macos-15`** rather than inherit a
+  deprecated label.
+- **macOS runners bill at a 10× minute multiplier** on private repositories, and
+  the Godot mono export templates are ~1.1 GB to fetch. Neither macOS job should
+  inherit this workflow's every-push trigger without someone deciding to pay for
+  it. Cache the templates and NuGet, and consider restricting to `main` /
+  `milestone/**` / `workflow_dispatch`.
 
 ## Jobs that are red today, on purpose
 
@@ -219,7 +234,7 @@ relaxed to let CI itself log in.
 | ~~The real content-validation harness~~ | ✅ landed with M0-09 — `tools/ContentValidator` over `SlayIdleRepeat.Application/Services/Content/`, so CI runs the same code the game loads content with |
 | The `SchemaVersion` snapshot field-list pin (`14` §16.6) | M0-07 — it lands as a test and the `test` job picks it up automatically via glob discovery |
 | The determinism + parity harness | M5-12 |
-| The real Android/iOS client CI | M7-10; the iOS recipe is M0-05b |
+| The real Android/iOS client CI | M7-10. Android recipe: `docs/spikes/O23-godot-android-export.md` (executed). iOS recipe: `docs/spikes/O23-godot-ios-export.md` (**written, not executed — O23 still open**) |
 | Server release: registry push, rolling deploy, pre-deploy migrations | Not yet scheduled — `14` §14 |
 | Client release: AAB / IPA, 5 % staged rollout | Not yet scheduled — `14` §14 |
 | Kill switches (remote config flags) | Runtime config, not CI — `14` §14 |
@@ -236,7 +251,7 @@ Run locally against this checkout on 2026-08-11 (Windows 10, Docker 28.4.0,
 | `dotnet restore` + `dotnet build -c Release` — 33 projects, 0 warnings, 0 errors | Every `actions/*` step (`checkout`, `setup-dotnet`, `cache`, `upload-artifact`) |
 | All three test groups via `Invoke-UnitTests.ps1`, plus **both** failure modes of the empty-suite rule (undeclared-empty, and stale-exemption) proven against a throwaway suite | `global-json-file: global.json` actually selecting the 8.0 SDK on a runner |
 | `Test-VendorPackageUniqueness.ps1` — passes on the real tree; A9-UNIQUE and A9-LOCATION both proven to fire | NuGet cache hit/miss behaviour |
-| `Invoke-ContentValidation.ps1` — pass, bad-parse, duplicate-key and both orphan directions proven on fixtures. **Superseded by M0-09**: the body now calls `tools/ContentValidator`, and the schema-awaiting-content declaration moved from `schema-map.json` into `ContentLoader.SchemasAwaitingContent` | Runner-label availability (`ubuntu-24.04`, `macos-14`) |
+| `Invoke-ContentValidation.ps1` — pass, bad-parse, duplicate-key and both orphan directions proven on fixtures. **Superseded by M0-09**: the body now calls `tools/ContentValidator`, and the schema-awaiting-content declaration moved from `schema-map.json` into `ContentLoader.SchemasAwaitingContent` | Runner-label availability (`ubuntu-24.04`, `macos-14`, `macos-15`). ⚠️ `macos-14` is deprecated and unsupported from **2026-11-02** — the `determinism` job's `ios-arm64` leg still names it; **M5-12 must move it to `macos-15`** |
 | `Test-NoCloudCredentials.ps1` — passes on the real workflows; all seven bans proven to fire on a fixture | `schedule:` firing, and GitHub's 60-day disable of scheduled workflows on an inactive repo |
 | `docker build` of the server image, non-root uid **1654**, `GET /health` → 200 `{"status":"ok"}`, and `ASPNETCORE_HTTP_PORTS` override proving 12-factor config | Concurrency cancellation, artifact upload |
 | The whole `compose-boot` command sequence (`config` → `up --wait` → health poll → `down`) against a throwaway stack in a scratch directory | |

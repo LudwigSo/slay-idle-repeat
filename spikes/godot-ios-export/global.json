@@ -1,0 +1,7 @@
+{
+  "//": "Pins the spike to a .NET 8 SDK, for the same reason as spikes/godot-android-export/global.json: without it the machine's newest SDK wins, which on the M0-05a machine was a 10.0.4xx PREVIEW (warning NETSDK1057). Godot 4.7.1 generates net8.0 for iOS (net9.0 is Android-only), so .NET 8 is the matching, non-preview toolchain. A GitHub macos-15 runner ships 8.0.423, which satisfies this pin under rollForward latestFeature. Scoped to spikes/godot-ios-export/ and does not affect SlayIdleRepeat.sln.",
+  "sdk": {
+    "version": "8.0.319",
+    "rollForward": "latestFeature"
+  }
+}

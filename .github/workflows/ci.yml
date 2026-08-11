@@ -406,3 +406,72 @@ jobs:
         run: |
           echo "::error::Android export not implemented (M7-10). Recipe: docs/spikes/O23-godot-android-export.md"
           exit 1
+
+  # ===========================================================================
+  # ios-export — 14 §14, 12 §3.2
+  #
+  #   "iOS | Export project -> author a Podfile -> pod install --repo-update ->
+  #    build in Xcode. App Store Team ID and Bundle Identifier required at
+  #    export time."
+  #
+  # ⛔ GATED OFF — PLACEHOLDER, and the sibling of android-export above. The real
+  # job is M7-10, and it cannot exist before M7-01 turns SlayIdleRepeat.Client
+  # into an actual Godot project.
+  #
+  # The recipe is spike O23's iOS leg, written up at
+  # docs/spikes/O23-godot-ios-export.md (M0-05b). M7-10 implements that document;
+  # it does not re-research it. Five things from it constrain this job's shape
+  # and are why it looks the way it does:
+  #
+  #   1. runs-on MUST be macOS. Not a preference — Godot 4.7.1's Apple-embedded
+  #      exporter contains an unconditional `return false` for .NET builds off
+  #      macOS ("Exporting to an Apple Embedded platform when using C#/.NET is
+  #      experimental and requires macOS"). No flag gets around it.
+  #   2. Pinned to macos-15, and NEVER macos-latest. macos-14 is deprecated
+  #      (unsupported from 2026-11-02) and macos-26 ships no Xcode 16 at all,
+  #      while Xcode 26 has already broken Godot's iOS export twice (engine
+  #      issues #118543, #111213). macos-15 is the last image with an Xcode 16
+  #      line, so the real job must also `xcode-select --switch` explicitly
+  #      rather than inherit the runner default.
+  #   3. This job must assert on ARTEFACTS AND ON STDOUT, not on the exit code.
+  #      A missing .sln makes Godot skip the .NET publish entirely and still emit
+  #      a buildable Xcode project with zero managed code in it — the same
+  #      failure the Android leg hit, with a different tell, because iOS is
+  #      NativeAOT and has no managed .dll to look for. The gates are:
+  #      <Assembly>_aot.xcframework under dylibs/, a godot-publish-dotnet
+  #      directory for the ios-arm64 rid, and the presence of the engine's own
+  #      "...C#/.NET is experimental" warning in the log (its ABSENCE means the
+  #      mono module was never engaged).
+  #   4. Set application/export_project_only=true in the preset. It defaults to
+  #      FALSE, and with the default Godot runs xcodebuild archive +
+  #      -exportArchive itself and needs working code signing at export time.
+  #   5. macOS runners bill at a 10x minute multiplier. When M7-10 turns this on,
+  #      decide the trigger deliberately (main / milestone branches / dispatch),
+  #      rather than inheriting this workflow's every-push default.
+  #
+  # ⚠️ NOTHING BELOW HAS BEEN EXECUTED, and unlike android-export the recipe it
+  # points at was not executed either — M0-05b had no Mac and no Apple Developer
+  # account (M0 kickoff decision 3). O23 REMAINS OPEN on the iOS side. Do not
+  # read the existence of this job as evidence that iOS export works.
+  #
+  # ⚠️ In particular, M7-10 must not assume a headless CLI iOS export works on a
+  # hosted runner at all. Engine issue #76749 ("Cannot build in headless mode for
+  # iOS") has been open since 2023 with the export succeeding locally and failing
+  # on CI, and #104118 is a headless-export defect that reproduces ONLY on GitHub
+  # Actions macOS runners. Prove the recipe on a local Mac and on a runner
+  # separately — one does not imply the other.
+  #
+  # Left `if: false` on purpose, for the same reason as android-export: an
+  # `echo TODO && exit 0` would put a green tick next to "iOS build" while
+  # shipping nothing, and iOS is the half of O23 that was flagged as the risky
+  # one. A fake pass here would hide exactly the failure the job exists to catch.
+  ios-export:
+    name: iOS Xcode project + .NET AOT payload
+    if: false  # ⛔ gated: turns on with M7-10, after M7-01 makes the client a real Godot project
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the iOS Xcode project and assert it contains .NET
+        run: |
+          echo "::error::iOS export not implemented (M7-10). Recipe: docs/spikes/O23-godot-ios-export.md — and note O23 is still OPEN for iOS: that recipe has never been executed."
+          exit 1
