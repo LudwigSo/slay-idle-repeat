@@ -12,6 +12,8 @@ This skill holds the TDD principles, the workflow, and the overarching test-qual
 
 Read it before writing tests — this skill deliberately does not repeat its mechanics.
 
+Design-doc authority: `game-design/30_DOMAIN_MODEL.md` governs `Core`'s shape (the `GameRules.Apply` seam, rejection-not-exception, `InternalsVisibleTo` for `Core.Tests` only), and `game-design/16_DECISION_LOG.md` §A7's gap-review rulings override contradicting text in the other docs until the amendments land — check them before trusting a convention cited from 14/18/23.
+
 **This project's full CI additionally has `SlayIdleRepeat.Integration.Tests` (a Docker Compose-backed ASP.NET host + Postgres/Redis run) and `SlayIdleRepeat.Contract.Tests` (each port's suite run against every real implementation). Neither is part of this workflow.** Unit tests against `SlayIdleRepeat.Core` and `SlayIdleRepeat.Application` (the latter run against `SlayIdleRepeat.Adapters.InMemory`, never a real adapter) are the centerpiece and the only tier you write here — never propose, scaffold, or extend an integration or end-to-end test as part of this workflow, even if the feature has an HTTP surface or touches persistence. An HTTP endpoint or a repository call is still tested at the unit tier: the use case against an in-memory fake, exactly like every other use case.
 
 ## Workflow
@@ -21,13 +23,14 @@ Read it before writing tests — this skill deliberately does not repeat its mec
    For every feature request, actively probe all of these angles and ask about any that are unresolved:
    - **Happy path** — What exact inputs produce what exact observable outputs?
    - **Edge cases** — What happens at zero, at a stat cap, on the first roll vs. the second, with an empty board/inventory/perk pool?
-   - **Invalid / error cases** — What should the system do when input is invalid or a precondition is not met (e.g. drafting a perk not in the offered pool, merging items of different rarities, rolling with zero reroll charges)? Silent ignore, throw a domain exception, return a null/failure result, or a specific server response?
+   - **Invalid / error cases** — What should the system do when input is invalid or a precondition is not met (e.g. drafting a perk not in the offered pool, merging items of different rarities, rolling with zero reroll charges)? For a `Core` command the shape of the answer is fixed — a `CommandResult` with `Accepted == false` and a `RejectionReason`; domain rules never throw (30 §2.1) — so the real questions are *which* rejection reason, and what the caller/UI does with it.
    - **Scope** — Which layer(s) are in scope: `SlayIdleRepeat.Core` (pure rules), `SlayIdleRepeat.Application` (a use case + its ports), a client presenter, an adapter? Are there related systems that should *not* change?
-   - **Determinism** — Does this touch `DeterministicRng`, the combat simulator, or board generation? If so, which seed stream (`board`, `dice`, `draft`, `drops`, `combat:{battleIndex}`, `events`, `minigame:{index}`), and is a fixed-seed byte-identical outcome part of "done"?
+   - **Determinism** — Does this touch the deterministic draw streams (counter-based: `Hash64(runSeed, streamName, drawIndex)` — 16 §A7 ruling 13), the combat simulator, or board generation? If so, which stream (`board`, `dice`, `draft`, `drops`, `combat:{battleIndex}`, `events`, `minigame:{index}`), and is a fixed-seed byte-identical outcome part of "done"?
+   - **Luck protection** — Does this grant a randomised item (gear, pet, mount, draft option)? Every such grant routes through `LuckService` with a declared source class (24 §3, §11 — the schema validator fails a grant source with no class). Does it read or advance a pity counter, and at which scope (player profile; per-gear-instance `ENHANCE`, inherited by merge outputs; per-run `DRAFT`)? A pity guarantee needs an exact-`N` unit test plus a 100,000-sequence property test (24 §11).
    - **Effect DSL** — Can this be expressed with existing ops/triggers/conditions (18), or does it need a new one? A new mechanic is never a special case in code — if the DSL can't express it yet, extending the DSL is itself part of the feature (and needs its own test, see [unit-testing](unit-testing.md)).
-   - **Economy/balance impact** — Does this change a `SlayIdleRepeat.Data/*.json` balance number, add a new tunable, or affect Energy/currency math? Balance numbers are data, not code — confirm whether exact values are specified or a placeholder is acceptable (flag it for the balance harness / economy simulator to catch later; this workflow does not run those).
+   - **Economy/balance impact** — Does this change a `SlayIdleRepeat.Data/tuning/*.json` balance number, add a new tunable, or affect Energy/currency math? (Every currency mutation must emit a `CurrencyChanged` event — 30 §9 — so a currency-touching feature has a ready-made assertion surface.) Balance numbers are data, not code — confirm whether exact values are specified or a placeholder is acceptable (flag it for the balance harness / economy simulator to catch later; this workflow does not run those).
    - **Save/profile impact** — Does this change what's persisted on the authoritative server profile or run state? What happens to an existing player's data?
-   - **Success criteria** — What return value, thrown exception, persisted state (via the in-memory fake), or `SimulationResult`/`LogHash` constitutes "working"?
+   - **Success criteria** — What return value, `CommandResult`/emitted `DomainEvent`s (or `RejectionReason`), persisted state (via the in-memory fake, at the Application seam), or `SimulationResult`/`LogHash` constitutes "working"?
    - **Interactions** — Does this interact with an existing system (e.g. an existing perk category, the stat-aggregation pipeline, PvP loadout rules, the fairness contract for ads)? What are the expected effects on that system?
    - **Which suite(s)** — See the routing table below. There is no suite selection for integration/E2E in this workflow — everything routes to a unit-level suite.
 
@@ -39,8 +42,8 @@ Read it before writing tests — this skill deliberately does not repeat its mec
 
    | Feature touches | Suite |
    |---|---|
-   | Game rules — combat, dice, board, effect DSL, talents, gear/merging, economy math, progression | `tests/SlayIdleRepeat.Core.Tests/` |
-   | A use case and its ports (`RollDice`, `PickPerk`, `MergeGear`, `StartDuel`, an endpoint's driving-port call, a repository call) | `tests/SlayIdleRepeat.Application.Tests/`, always against `SlayIdleRepeat.Adapters.InMemory` |
+   | Game rules — combat, dice, board, effect DSL, talents, gear/merging, economy math, progression, luck protection/pity, and any command behaviour decided inside `GameRules.Apply` (that is most behaviour: construct a state, call `Apply`, assert on `CommandResult`/`DomainEvent`s via `Core/Testing/InMemoryGame` — see [unit-testing](unit-testing.md)) | `tests/SlayIdleRepeat.Core.Tests/` |
+   | A use case's *orchestration* (load slice → `Apply` → persist → dispatch; idempotency handling; an endpoint's driving-port call; a repository call) | `tests/SlayIdleRepeat.Application.Tests/`, always against `SlayIdleRepeat.Adapters.InMemory`. Use cases contain no game rules (23 §2.0a) — a rule outcome asserted through a fake-wired use case is the wrong seam (30 §10) |
    | A Godot client presenter (`res://game/presenters/`) | `tests/SlayIdleRepeat.Client.Tests/` |
    | An HTTP endpoint's request/response shape | Still `SlayIdleRepeat.Application.Tests/` — test the use case the endpoint calls against the in-memory fakes; the endpoint handler itself should be thin enough that its own correctness follows from the use case being correct plus a code review of the mapping (`review-code-quality`) |
 
@@ -57,7 +60,7 @@ Read it before writing tests — this skill deliberately does not repeat its mec
 [unit-testing](unit-testing.md) inherits these; they are not repeated there.
 
 **Test observable behaviour, not implementation details.**
-- Assert on public state, return values, thrown exceptions, persisted state (through the in-memory fake), `SimulationResult`/`LogHash`, and other side-effects visible through a port.
+- Assert on public state, return values, `CommandResult`s and emitted `DomainEvent`s, `RejectionReason`s (domain rules reject, they never throw — 30 §2.1), persisted state (through the in-memory fake, at the Application seam), `SimulationResult`/`LogHash`, and other side-effects visible through a port.
 - Never assert on internal implementation details a caller cannot observe (a private field, an internal method call, a presenter's internal field).
 - If a test would break when you refactor internals without changing behaviour, it is testing the wrong thing.
 

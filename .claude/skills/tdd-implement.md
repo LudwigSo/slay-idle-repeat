@@ -19,13 +19,13 @@ You are making the failing tests pass with production code that is **correct and
 Adapters ──▶ Application ──▶ Core ──▶ (nothing)
 ```
 
-- `SlayIdleRepeat.Core` references nothing but the .NET BCL. **No Godot, no ASP.NET, no vendor SDK, no clock (`DateTime.Now`/`UtcNow`), no ambient randomness (`System.Random`, `Random.Shared`, `GD.Randi()`, `Guid.NewGuid()`, `Environment.TickCount`).** These specific APIs are CI-grepped and banned inside `Core` and `Application` (14 §8.1) — if you reach for one, stop and use the injected `IClockPort` or the seeded `DeterministicRng` instead.
-- `SlayIdleRepeat.Application` defines every port (driving and driven) and references only `Core`. It never references an adapter.
+- `SlayIdleRepeat.Core` references nothing but the .NET BCL, and is **fully synchronous — no `Task`, `async`, or `CancellationToken` anywhere in it** (30 §2.1, architecture-tested). **No Godot, no ASP.NET, no vendor SDK, no clock (`DateTime.Now`/`UtcNow`), no ambient randomness (`System.Random`, `Random.Shared`, `GD.Randi()`, `Guid.NewGuid()`, `Environment.TickCount`).** These specific APIs are CI-grepped and banned inside `Core` and `Application` (14 §8.1) — if you reach for one, stop: time enters `Core` as `GameContext.NowUtc` (`IClockPort` is called by the composition root and must never appear in `Core` itself — 30 §3), and randomness is the counter-based deterministic draw `Hash64(runSeed, streamName, drawIndex)` (16 §A7 ruling 13).
+- `SlayIdleRepeat.Application` defines every port (driving and driven) and references only `Core` and `Contracts` (23 §2.1). It never references an adapter, and it contains **no game rules** — a use case loads a slice, calls `GameRules.Apply`, persists, and dispatches events (23 §2.0a).
 - Each `SlayIdleRepeat.Adapters.*` project implements the ports it needs, references `Application` plus its own vendor package, and never references another adapter project.
 - Only `SlayIdleRepeat.Server` and `SlayIdleRepeat.Client` (the two composition roots) may reference `Adapters.*`. Godot itself is an adapter (`SlayIdleRepeat.Adapters.Platform.Godot`), not a foundation — a Godot scene/node holds no rules and no port reference; it renders and forwards input to a presenter.
-- Balance/tunable numbers live in `SlayIdleRepeat.Data/*.json`, never hardcoded in `Core`/`Application` — a new perk/talent/boss value belongs in a content file, validated by schema at build time, not a constant in code.
+- Balance/tunable numbers live in `SlayIdleRepeat.Data/tuning/*.json` specifically (21 §3.1 — a 📐-marked tunable outside `tuning/` is a bug, and a build check enumerates 📐 markers against schema keys), never hardcoded in `Core`/`Application` — a new perk/talent/boss value belongs in a content file, validated by schema at build time, not a constant in code.
 
-Source of truth for all of the above: `game-design/14_TECHNICAL_ARCHITECTURE.md` and `game-design/23_PORTS_AND_ADAPTERS.md` (this repo has no separate `CONVENTIONS.md`/`ARCHITECTURE.md` yet).
+Source of truth for all of the above: `game-design/14_TECHNICAL_ARCHITECTURE.md`, `game-design/23_PORTS_AND_ADAPTERS.md`, and `game-design/30_DOMAIN_MODEL.md` (authoritative for `Core`'s internal shape: `GameRules.Apply` as the only public mutation, internal handlers/rules, the `Handlers → Rules → Model → Content → Primitives` layering). `game-design/16_DECISION_LOG.md` §A7's rulings override contradicting text in the other docs until amendments land. This repo has no separate `CONVENTIONS.md`/`ARCHITECTURE.md` yet.
 
 ## Workflow
 
@@ -33,7 +33,7 @@ Source of truth for all of the above: `game-design/14_TECHNICAL_ARCHITECTURE.md`
 Read all test files relevant to the feature. Identify:
 - Which types need to exist (classes, interfaces, enums, effect DSL ops).
 - Which public members are required (constructors, properties, methods).
-- What the observable postconditions are (return values, thrown exceptions, `SimulationResult`/`LogHash`, state visible through an in-memory fake).
+- What the observable postconditions are (return values, `CommandResult`s and emitted `DomainEvent`s, `RejectionReason`s — domain rules reject, they never throw (30 §2.1) — `SimulationResult`/`LogHash`, state visible through an in-memory fake).
 
 Do **not** infer internal design from test names or test double configuration. The tests define the public contract; you decide the internals.
 
@@ -44,14 +44,14 @@ First read the relevant sections of `game-design/14_TECHNICAL_ARCHITECTURE.md` (
 
 Place production code in the correct layer, mirroring the namespace used in the tests:
 
-- Game rules (combat, dice, board, effect DSL, talents, gear/merging, economy math, progression, `DeterministicRng` usage) → `src/SlayIdleRepeat.Core/` (references nothing but the BCL).
+- Game rules (combat, dice, board, effect DSL, talents, gear/merging, economy math, progression, luck protection, deterministic draws) → `src/SlayIdleRepeat.Core/` (references nothing but the BCL). New mutations are `internal` command handlers behind `GameRules.Apply` — the only public mutation in the game (30 §11; only `CombatSimulator` and `PowerCalculator` are public rules). Every currency mutation must emit a `CurrencyChanged` event (IL-scanned architecture test), and any code path granting a randomised item must route through `LuckService` (24 §11 — a drop table consulted directly is a bug).
 - DTOs shared client↔server, no behaviour → `src/SlayIdleRepeat.Contracts/`.
 - Use cases and every port interface (driving and driven) → `src/SlayIdleRepeat.Application/` (references `Core` only). Group ports under `Ports/{Client,Server,Shared}/` and use cases under `UseCases/`, matching the existing layout.
 - A driven-port implementation → the relevant `src/adapters/{client,server}/<Category>.<Vendor>/` project (e.g. `Adapters.Ads.AppLovin`, `Adapters.Persistence.Postgres`). One adapter project per external dependency — never add a second concrete adapter to an existing vendor's project, and never share an "Infrastructure" grab-bag project.
-- **Every new port needs an in-memory fake in `src/adapters/fakes/` (`SlayIdleRepeat.Adapters.InMemory`) in the same change** — this is what `SlayIdleRepeat.Application.Tests` will run against, and it's the project's own rule that every port has at least two implementations (23 §5, A8).
+- **Every new port needs an in-memory fake in `src/adapters/fakes/` (`SlayIdleRepeat.Adapters.InMemory`) in the same change** — this is what `SlayIdleRepeat.Application.Tests` will run against, and it's the project's own rule that every port has at least two implementations (23 §5, rule A5).
 - Concrete adapter selection is named **only** in the composition roots: `SlayIdleRepeat.Server` (DI registration, e.g. a `services.AddSingleton<IClockPort, SystemClockAdapter>()`-style call) and `res://Composition/` in `SlayIdleRepeat.Client` (platform-conditional `#if ANDROID`/`#if IOS`, and entitlement-conditional — e.g. a Plus subscriber gets `AutoGrantAdAdapter` instead of `AppLovinRewardedAdAdapter`, chosen from the server-issued entitlement, never a local receipt or an `if (isSubscriber)` branch anywhere else in the game).
 - Godot-facing code: scenes under `res://game/scenes/` render and forward input only — no rules, no port references. Presenters under `res://game/presenters/` are plain C# classes receiving ports as constructor arguments from the composition root; put orchestration logic here, not in a `Node` subclass, and never in `_Process`/`_PhysicsProcess`.
-- Content/balance changes (a new perk's numbers, a new boss's tunables) → `SlayIdleRepeat.Data/*.json`, matching the existing schema for that content type. If the change needs a new Effect DSL op/trigger/condition, add it to `Core/Effects/Ops` **and** the JSON schema **and** a unit test, in the same change — never special-case a perk/talent/boss ID in code (18 §1, §10).
+- Content/balance changes (a new perk's numbers, a new boss's tunables) → `SlayIdleRepeat.Data/tuning/*.json`, matching the existing schema for that content type. If the change needs a new Effect DSL op/trigger/condition, add it to `Core/Effects/Ops` **and** the JSON schema **and** `game-design/18_EFFECT_DSL.md` **and** the client/server parity test **and** a unit test, in the same change (18 §10) — never special-case a perk/talent/boss ID in code (18 preamble, §10). One sanctioned exception exists and must not be "fixed": `MODIFY_DIE_FACE`'s combat-context special case (16 §A7 ruling 9).
 
 Respect the dependency direction: dependencies point inward and toward composition roots only, never the reverse.
 
@@ -114,10 +114,11 @@ If any previously-passing test now fails, fix the implementation — never the t
 
 ## Determinism checklist before declaring done
 
-If the feature touches `DeterministicRng`, the combat simulator, or board generation:
+If the feature touches the deterministic draw streams, the combat simulator, or board generation:
 - Confirm no new code path reaches for `System.Random`/`Random.Shared`/`GD.Randi()`/`DateTime.Now`/`Guid.NewGuid()`/`Environment.TickCount` inside `Core` or `Application`.
+- Confirm randomness is a counter-based draw from a named stream with the draw counter persisted as state — never a stateful generator with save/restore semantics (16 §A7 ruling 13).
 - Confirm accumulating `double` values are rounded to 4 decimal places at each accumulation point, matching the project's own rule (14 §8.2).
-- If the feature added a new effect, confirm it composes correctly with the resolution order (flat → percent → convert → multiplicative → set → cap → round, effect-ID ascending order) rather than being applied out of band.
+- If the feature added a new effect, confirm it composes correctly with the resolution order (18 §8: flat → percent → convert → multiplicative → set → cap → round; effect-ID ascending order for the convert/multiplicative/set stages) rather than being applied out of band.
 
 ## Hardcoding detection
 

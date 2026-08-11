@@ -26,7 +26,7 @@ No test maxes out all four; keep resistance to refactoring non-negotiable and tr
 
 ## What to audit
 
-First read the relevant sections of `game-design/14_TECHNICAL_ARCHITECTURE.md` (dependency rule, determinism rules, banned ambient time/randomness APIs) and `game-design/23_PORTS_AND_ADAPTERS.md` (the ports/fakes convention) so you judge test choices against how this project's testing strategy actually works — this repo has no separate `CONVENTIONS.md`/`ARCHITECTURE.md` yet; those game-design docs are the source of truth. Then read the test files in scope (docs-first, then the touched tests + the code they exercise; explore wider only when the docs are silent) — under `tests/SlayIdleRepeat.Core.Tests/`, `tests/SlayIdleRepeat.Application.Tests/`, and `tests/SlayIdleRepeat.Client.Tests/`. For each finding, record:
+First read the relevant sections of `game-design/14_TECHNICAL_ARCHITECTURE.md` (dependency rule, determinism rules, banned ambient time/randomness APIs), `game-design/23_PORTS_AND_ADAPTERS.md` (the ports/fakes convention), and `game-design/30_DOMAIN_MODEL.md` (the `GameRules.Apply` seam, rejection-not-exception, the `InternalsVisibleTo` grant) so you judge test choices against how this project's testing strategy actually works — and check `game-design/16_DECISION_LOG.md` §A7, whose gap-review rulings override contradicting text in the other docs until amendments land. This repo has no separate `CONVENTIONS.md`/`ARCHITECTURE.md` yet; those game-design docs are the source of truth. Then read the test files in scope (docs-first, then the touched tests + the code they exercise; explore wider only when the docs are silent) — under `tests/SlayIdleRepeat.Core.Tests/`, `tests/SlayIdleRepeat.Application.Tests/`, and `tests/SlayIdleRepeat.Client.Tests/`. For each finding, record:
 
 - **File and test name** — exact location.
 - **Category** — which quality rule is violated (see below).
@@ -41,7 +41,7 @@ First read the relevant sections of `game-design/14_TECHNICAL_ARCHITECTURE.md` (
 A test should break only when observable behaviour changes, not when internals are refactored.
 
 Red flags:
-- Assertions on private or internal fields (via reflection, `InternalsVisibleTo`, or exposed-for-testing properties).
+- Assertions on private fields (via reflection or exposed-for-testing properties), or on internal *state* a caller can't observe. Nuance: `SlayIdleRepeat.Core.Tests` is deliberately granted `InternalsVisibleTo` (30 §11.3) because handlers and rule calculators are `internal` — driving an internal calculator's behaviour there is sanctioned, not a flag; any *other* test project using `InternalsVisibleTo` is Critical.
 - Verifying that a specific method on a mock was called when the caller's public output already proves correctness.
 - Asserting the exact concrete type of a returned object when the caller only cares about the interface/port.
 - Test doubles that encode a specific concrete adapter's internals instead of using the project's own `SlayIdleRepeat.Adapters.InMemory` fake for that port.
@@ -72,7 +72,7 @@ Red flags:
 ### 5. Shared mutable state
 Red flags:
 - Instance fields mutated in one test that can affect another (`[Collection]` without isolation, shared `static` state).
-- A `DeterministicRng` instance or in-memory fake reused across tests without being reseeded/reset — a classic source of order-dependent flakiness in exactly this kind of codebase.
+- An in-memory fake, or shared `WorldSlice`/draw-counter state, reused across tests without being reset — a classic source of order-dependent flakiness in exactly this kind of codebase (draws are counter-based, so a leaked draw index shifts every later outcome).
 - Constructor setup that is required for every test even when it is only relevant to some.
 
 ### 6. Conditional or looping test logic
@@ -93,12 +93,13 @@ Flag scenarios that are conspicuously absent given the feature's nature:
 - Stat/rarity/tier/level boundaries (a stat cap, gear rarity C→SS, talent rank 5, Legend Level 200).
 - Repeated application of the same operation (drafting an owned perk twice, merging past SS).
 - Invalid / unexpected inputs that should be rejected or produce a defined outcome (a perk not in the offered draft pool, a command replayed with a duplicate `commandId`).
-- For anything touching `DeterministicRng` or the combat simulator: a fixed-seed determinism case — same seed and snapshot must produce an identical result/`LogHash`. Its absence on a feature that clearly needs it is itself a finding.
+- For anything touching the deterministic draw streams or the combat simulator: a fixed-seed determinism case — same seed and snapshot must produce an identical result/`LogHash`. Its absence on a feature that clearly needs it is itself a finding.
+- For a feature that adds or alters a pity guarantee: 24 §11 mandates an explicit unit test that the guarantee fires at exactly `N` **and** a property test that it never fires later than `N` across 100,000 seeded sequences — the absence of either is a finding.
 
 ### 9. Test doubles hygiene (mocks / stubs / fakes)
 Prefer assertion styles in this order: **output-based** (assert on the return value of a function with no side effects) > **state-based** (assert on the resulting state of the SUT, or of an in-memory fake) > **communication-based** (verify calls on a double). Flag communication-based tests that could have been written output- or state-based.
 
-Every port in this project already has an in-memory fake (`SlayIdleRepeat.Adapters.InMemory`) built for exactly this purpose (23 §5, rule A8) — there is essentially never a reason to reach for a mocking library here.
+Every port in this project already has an in-memory fake (`SlayIdleRepeat.Adapters.InMemory`) built for exactly this purpose (23 §5, rule A5) — there is essentially never a reason to reach for a mocking library here.
 
 Red flags:
 - Verifying calls on a mock when the output or the in-memory fake's resulting state already proves the behaviour.
@@ -121,9 +122,11 @@ Red flags:
 
 ### 12. Effect DSL / determinism specific
 Red flags:
-- A new perk/talent/boss mechanic tested via a hand-written special case in production code (`if (perkId == "PK_X")`) instead of as data through the generic `EffectResolver` — flag as Critical; this is exactly the pattern the project's own design explicitly forbids (18 §1, §10).
-- A test for a new Effect DSL op/trigger/condition that doesn't also pin the resolution order (flat → percent → convert → multiplicative → set → cap → round, ascending effect-ID order) when the feature's correctness depends on that order.
+- A new perk/talent/boss mechanic tested via a hand-written special case in production code (`if (perkId == "PK_X")` — or a `CP_`/`BOSS_`-prefixed equivalent) instead of as data through the generic `EffectResolver` — flag as Critical; this is exactly the pattern the project's own design explicitly forbids (18 preamble, §10). The one sanctioned exception is `MODIFY_DIE_FACE`'s combat-context special case (16 §A7 ruling 9) — do not flag it.
+- A test for a new Effect DSL op/trigger/condition that doesn't also pin the resolution order (18 §8: flat → percent → convert → multiplicative → set → cap → round; ascending effect-ID order for the convert/multiplicative/set stages) when the feature's correctness depends on that order — or a DSL extension shipped without all four required artifacts (op, JSON schema, doc update, client/server parity test — 18 §10).
 - A determinism-sensitive test (combat, board generation, drafting) that doesn't fix its seed, or that asserts loosely enough to pass even if determinism were broken.
+- A `Core` command test asserting `Assert.Throws` for an illegal move — domain rules return `Rejection` data, never throw (30 §2.1); the test should pin `Accepted == false` and the specific `RejectionReason`.
+- A game-rule outcome asserted through a fake-wired use-case test instead of through `GameRules.Apply` in `Core.Tests` (30 §10) — the Application tier covers orchestration only; flag the wrong seam.
 
 ### 13. Scope discipline — this workflow's tier boundary
 Read this section with the strictest scrutiny in the audit: this project's full CI has `SlayIdleRepeat.Integration.Tests` and `SlayIdleRepeat.Contract.Tests`, but **this workflow does not**, and a test that quietly reaches for one of those tiers defeats the whole point of keeping this pipeline fast and dependency-free.

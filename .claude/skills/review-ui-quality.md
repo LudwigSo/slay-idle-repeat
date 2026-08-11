@@ -18,9 +18,9 @@ You review the **implementation and visual design of the UI**. In scope:
 
 - Scene structure: `.tscn` node composition, `Control` anchor/container usage, scene instancing and reuse for presentation, conditional visibility of visual states.
 - Theme/resource usage: the project's theme resource and its type variations, `.tres` styleboxes, hard-coded per-node style overrides that should be shared, duplicated visual patterns that should be a reusable scene/component.
-- Visual design consistency: spacing, the Baloo 2 (headings/numbers/buttons) + Nunito Sans (body) type scale, the fixed rarity colour palette (C/B/A/S/SS), the panel/button visual language (rounded 24dp corners, 3dp dark outline, soft drop shadow; buttons chunky/high-contrast with a 4dp pressed offset), and consistency with the rest of the app's look.
-- Responsiveness: the changed views hold up across the supported aspect-ratio range (portrait 9:16 to 9:20, base canvas 1080×1920/1080×2340), with safe-area padding respected.
-- Accessibility *implementation*: the project's own required v1 accessibility features — reduced motion, no-timer mode, colourblind support (rarity conveyed by frame shape + gem symbol, not colour alone, across 3 palettes), text-size scaling with reflow, haptics toggle, separate audio sliders, always-available battle skip, left-handed mode (mirrors the roll button and bottom nav).
+- Visual design consistency: spacing, the Baloo 2 (headings/numbers/buttons) + Nunito Sans (body) type scale, the fixed rarity colour palette (C/B/A/S/SS), the panel/button visual language (rounded 24dp corners, 3dp dark outline, subtle inner gradient, soft drop shadow; buttons chunky/high-contrast with a 4dp pressed offset + darker fill), and consistency with the rest of the app's look.
+- Responsiveness: the changed views hold up across the supported aspect-ratio range (portrait 9:16 to 9:20; the design canvas is 1080×1920, scaled — 1080×2340 is the tallest reference device, not a second canvas), with safe-area padding respected.
+- Accessibility *implementation*: the project's own required v1 accessibility features — reduced motion, no-timer mode, colourblind support (rarity conveyed by frame shape + gem symbol, not colour alone, across 3 palettes), text-size scaling with reflow, haptics toggle, separate audio sliders (music/SFX/UI, with ducking around ads), always-available battle skip, left-handed mode (mirrors the roll button and bottom nav).
 
 **Explicitly out of scope — do not comment on these:**
 
@@ -33,7 +33,7 @@ If you notice an out-of-scope problem, note it in a single line under "Out of sc
 
 ## How to review
 
-1. Determine the target. If the user named scenes, screens (by their S01–S27 name — see `game-design/13_UI_UX_SCREENS.md`), or a diff, review exactly those. Otherwise ask which changes to review rather than scanning every screen.
+1. Determine the target. If the user named scenes, screens (by their S01–S38 name — see `game-design/13_UI_UX_SCREENS.md` §1; the second pass added S28–S29 Dungeons, S30–S32 Events, S33–S36 Guilds, S37 Inbox, S38 Feats, plus required new surfaces on *existing* screens in §1.1, e.g. the Settings "Odds & Guarantees" page and the board HUD consumable slot), or a diff, review exactly those. Otherwise ask which changes to review rather than scanning every screen.
 2. Read each target `.tscn` and its attached script fully, plus the theme resource(s) it draws from and any shared scene it instances, so you can reason about the real rendered result: node tree, anchors/margins/containers, exported theme overrides, and which states the script shows/hides.
 3. **There is no automated visual-preview tool available in this environment for a Godot scene** (unlike a web frontend's browser preview). Do the review by reasoning precisely from the `.tscn`/theme/script content against the checklist below — anchors and container nesting tell you the actual layout at different sizes; theme resource references tell you visual consistency. If you are running interactively and need to see the literal rendered result, ask the user to open the scene in the Godot editor and share a screenshot, or to describe what they see — don't guess where the reasoning is genuinely ambiguous.
 4. Check every item against the checklist below.
@@ -51,8 +51,8 @@ If you notice an out-of-scope problem, note it in a single line under "Out of sc
 - New visual elements draw from the project's existing theme resource and its named type variations rather than one-off per-node `StyleBoxFlat` overrides — a new naming/override scheme introduced by one feature is a finding.
 - No duplicated stylebox resources that differ only in one property — consolidate into a theme variation.
 - Rarity colours match the fixed palette exactly (C `#9AA5B1` · B `#4CAF50` · A `#3B82F6` · S `#F5A623` · SS `#C13BE8`) — a near-miss hex value is a finding, not a nitpick, since rarity colour is a signal the whole game trains players to read.
-- Panels follow the established visual language: rounded 24dp corners, 3dp dark outline, soft drop shadow. Buttons: chunky, high-contrast, 3dp outline, pressed state = 4dp downward offset — a new button/panel style that doesn't match is a finding.
-- Currency/PvP-tier/Plus indicators are **text labels in the tier colour**, not a frame, badge, or icon asset — the project explicitly has no cosmetic frame/badge assets in v1; a new badge-style treatment is a finding, not a nice addition.
+- Panels follow the established visual language: rounded 24dp corners, 3dp dark outline, subtle inner gradient, soft drop shadow. Buttons: chunky, high-contrast, 3dp outline, pressed state = 4dp downward offset + darker fill — a new button/panel style that doesn't match is a finding.
+- PvP-tier/Plus indicators are **text labels in the tier colour**, not a frame, badge, or icon asset — the project explicitly has no *cosmetic* frame/badge assets in v1 (item rarity frames for item slots and portraits do exist, 15 E17 — the ban is on rank/cosmetic treatments); a new badge-style treatment is a finding, not a nice addition.
 
 ### Visual design
 - Spacing is consistent within the view and with sibling screens — uneven gaps between equivalent elements are a finding.
@@ -60,6 +60,7 @@ If you notice an out-of-scope problem, note it in a single line under "Out of sc
 - Alignment: cards, stat rows, and buttons line up on a common grid; ragged edges without reason are a finding.
 - Large numbers (gold, XP, damage) above 10k are abbreviated (`12.4k`, `3.1M`) with the full value available on long-press, and a currency icon sits adjacent to every currency number — a raw unabbreviated number in a place that can realistically exceed 10k is a finding.
 - Screen transitions are ≤300ms and skippable — a longer or unskippable transition is a finding.
+- Any surface granting a randomised reward shows its pity/guarantee counter as a plain sentence with a real number, and the Shop states chest class and current pity **before** purchase — counter visibility is a store-policy requirement for randomised rewards, not a nicety (24 §1.1, §9).
 
 ### Responsiveness & safe area
 - The view holds up across the supported portrait range (9:16 through 9:20) — check anchors/containers resize sensibly rather than clipping or leaving dead space at the narrower or taller extreme.
