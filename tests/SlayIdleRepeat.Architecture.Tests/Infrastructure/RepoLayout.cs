@@ -18,11 +18,32 @@ internal static class RepoLayout
     /// <summary><c>src/</c> — the production tree.</summary>
     internal static string SrcRoot { get; } = Path.Combine(RepoRoot, "src");
 
-    /// <summary>Every production <c>.csproj</c> under <c>src/</c>, ordered.</summary>
+    /// <summary><c>tools/</c> — <c>EconomySim</c>, <c>BalanceHarness</c>, <c>ContentValidator</c>.</summary>
+    internal static string ToolsRoot { get; } = Path.Combine(RepoRoot, "tools");
+
+    /// <summary>
+    /// The roots holding hand-written, non-test C# that the dependency rules govern.
+    /// </summary>
+    /// <remarks>
+    /// <c>tools/</c> is in here, and it was not before. Every <c>.csproj</c> rule in
+    /// <see cref="ProjectFileTests"/> reads <see cref="ProductionProjectFiles"/>, so while
+    /// that list was <c>src/</c>-only, four projects — <c>EconomySim</c>,
+    /// <c>BalanceHarness</c>, <c>ContentValidator</c> and anything added beside them — had
+    /// no dependency-rule coverage at all. <c>tools/ContentValidator</c> already
+    /// project-references an adapter from outside a composition root, and <c>30</c> §6 pins
+    /// <c>EconomySim</c> and <c>BalanceHarness</c> to <c>Core</c> only: correct today,
+    /// enforced by nothing. A future agent could point <c>EconomySim</c> at
+    /// <c>Application</c> and break <c>21</c> §2 / <c>30</c> §13 with a green suite.
+    /// </remarks>
+    internal static IReadOnlyList<string> ProductionSourceRoots { get; } = new[] { SrcRoot, ToolsRoot };
+
+    /// <summary>Every production <c>.csproj</c> under <c>src/</c> and <c>tools/</c>, ordered.</summary>
     internal static IReadOnlyList<string> ProductionProjectFiles { get; } =
-        Directory.GetFiles(SrcRoot, "*.csproj", SearchOption.AllDirectories)
-                 .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-                 .ToArray();
+        ProductionSourceRoots
+            .Where(Directory.Exists)
+            .SelectMany(root => Directory.GetFiles(root, "*.csproj", SearchOption.AllDirectories))
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     /// <summary>Assembly/project name of a <c>.csproj</c> path.</summary>
     internal static string ProjectName(string projectFile) => Path.GetFileNameWithoutExtension(projectFile);
@@ -48,11 +69,21 @@ internal static class RepoLayout
             .ToArray();
 
     /// <summary>Hand-written <c>.cs</c> files under a directory, excluding <c>bin/</c> and <c>obj/</c>.</summary>
+    /// <remarks>
+    /// 🔒 Throws on a missing directory rather than returning an empty list. Every caller
+    /// passes a path it believes exists, and every caller is a rule that greps the returned
+    /// files: silently returning nothing turns "this directory moved" into "this rule holds
+    /// over zero files, forever". That is precisely how a renamed test suite would stop the
+    /// placeholder meta-rule from ever seeing a <c>#if false</c> again.
+    /// </remarks>
     internal static IReadOnlyList<string> SourceFiles(string directory)
     {
         if (!Directory.Exists(directory))
         {
-            return Array.Empty<string>();
+            throw new DirectoryNotFoundException(
+                $"'{Relative(directory)}' does not exist, so a rule that greps it would pass over zero " +
+                "files instead of failing. Whatever moved or was renamed, point the rule at the new " +
+                "location — do not let it grep nothing.");
         }
 
         return Directory.GetFiles(directory, "*.cs", SearchOption.AllDirectories)

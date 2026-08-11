@@ -27,6 +27,32 @@ internal static class ProductionAssemblies
     /// <summary>The two composition roots — the only projects allowed to name a concrete adapter (<c>23</c> §7).</summary>
     internal static IReadOnlyList<string> CompositionRootNames { get; } = new[] { ServerName, ClientName };
 
+    /// <summary>
+    /// The build-time tools under <c>tools/</c> that <c>30</c> §6 pins to <c>Core</c> alone:
+    /// the economy simulator (<c>21</c>) and the balance harness.
+    /// </summary>
+    /// <remarks>
+    /// <c>21</c> §2: 180 days × 14 profiles run headless with no adapters at all. Reaching
+    /// <c>Application</c> from either would break <c>30</c> §13 as well, and until this list
+    /// existed nothing enforced it.
+    /// </remarks>
+    internal static IReadOnlyList<string> CoreOnlyToolNames { get; } =
+        new[] { "SlayIdleRepeat.EconomySim", "SlayIdleRepeat.BalanceHarness" };
+
+    /// <summary>
+    /// Tools that compose an adapter themselves, and are therefore composition roots in the
+    /// sense <c>23</c> §7 means, despite not being <c>Server</c> or <c>Client</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>ContentValidator</c> wires <c>Adapters.Content.LocalFile</c> to the content services
+    /// in <c>Application</c> so that CI validates content through the same loader the game
+    /// uses. That is a composition root doing its job. It is named here so
+    /// <c>Only_composition_roots_reference_adapter_projects</c> passes for a stated reason,
+    /// rather than — as it did while the rule was scoped to <c>src/</c> — by never looking.
+    /// </remarks>
+    internal static IReadOnlyList<string> ToolCompositionRootNames { get; } =
+        new[] { "SlayIdleRepeat.ContentValidator" };
+
     private static readonly Dictionary<string, ModuleDefinition> ModuleCache = new(StringComparer.Ordinal);
     private static readonly DefaultAssemblyResolver Resolver = CreateResolver();
 

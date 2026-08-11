@@ -28,6 +28,31 @@ internal static class Domain
 
     internal const string PortsNamespace = "SlayIdleRepeat.Application.Ports";
 
+    /// <summary>
+    /// Every namespace <c>30</c> §11.4 enumerates for <c>SlayIdleRepeat.Core</c>, plus the
+    /// <c>SlayIdleRepeat.Core</c> root itself, which is where <c>GameRules</c> lives.
+    /// </summary>
+    /// <remarks>
+    /// This is the closed list. <c>Core_internal_layering_holds</c> forbids specific pairs
+    /// out of a fixed five-row table, so a type under a namespace that is in no row of that
+    /// table is matched by nothing at all — a new <c>Core/Foo/</c> would be an ungoverned
+    /// region with the layering rule still green. Naming the permitted set instead makes the
+    /// next unlisted namespace a build failure rather than a silent gap.
+    /// </remarks>
+    internal static IReadOnlyList<string> PermittedCoreNamespaces { get; } = new[]
+    {
+        CoreNamespace,
+        PrimitivesNamespace,
+        ContentNamespace,
+        RngNamespace,
+        ModelNamespace,
+        RulesNamespace,
+        CommandsNamespace,
+        EventsNamespace,
+        HandlersNamespace,
+        TestingNamespace,
+    };
+
     // Type names the rules key on. Looked up, never assumed to exist.
     internal const string GameRulesType = "GameRules";
     internal const string ApplyMethod = "Apply";
@@ -47,6 +72,20 @@ internal static class Domain
     /// Hero screen's power readout (<c>29</c> §1).
     /// </summary>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[] { "CombatSimulator", "PowerCalculator" };
+
+    /// <summary>
+    /// True when a namespace is one <c>30</c> §11.4 enumerates, or a namespace beneath one.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The <c>SlayIdleRepeat.Core</c> root is matched EXACTLY, everything else by prefix.
+    /// Prefix-matching the root would make every namespace in the assembly permitted and the
+    /// rule that uses this trivially true — the precise failure it was written to close.
+    /// </remarks>
+    internal static bool IsPermittedCoreNamespace(string ns) =>
+        ns.Equals(CoreNamespace, StringComparison.Ordinal) ||
+        PermittedCoreNamespaces
+            .Where(p => !p.Equals(CoreNamespace, StringComparison.Ordinal))
+            .Any(p => Il.IsUnder(ns, p));
 
     /// <summary>Every type in <c>SlayIdleRepeat.Core</c>.</summary>
     internal static IReadOnlyList<TypeDefinition> CoreTypes { get; } =
