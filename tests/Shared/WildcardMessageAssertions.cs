@@ -10,9 +10,8 @@ namespace SlayIdleRepeat.TestSupport;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The assertion library this repository used before M1-00 — named in the M1-00 row of
-/// <c>IMPLEMENTATION_TRACKER.md</c>, and removed because its next major went to a paid commercial
-/// licence — matched an exception message against a <b>wildcard pattern</b>, spelled
+/// FluentAssertions — removed from this repository by M1-00 because its next major went to a paid
+/// commercial licence — matched an exception message against a <b>wildcard pattern</b>, spelled
 /// <c>WithMessage("*16.6*")</c>. Shouldly offers <c>ShouldContain</c> (substring) and
 /// <c>ShouldMatch</c> (regex), and <b>neither is that assertion</b>:
 /// </para>
@@ -28,8 +27,8 @@ namespace SlayIdleRepeat.TestSupport;
 ///   would silently become "any character".</item>
 /// </list>
 /// <para>
-/// The semantics below were established empirically — by running the old assertion against
-/// crafted inputs before it was removed — not assumed from documentation:
+/// The semantics below were established empirically — by running FluentAssertions 7.2.0's
+/// <c>WithMessage</c> against crafted inputs before it was removed — not assumed from documentation:
 /// </para>
 /// <list type="bullet">
 ///   <item><b>Case-insensitive.</b> <c>"*hello*"</c> matches <c>"Hello World"</c>.</item>
@@ -50,7 +49,7 @@ namespace SlayIdleRepeat.TestSupport;
 /// 🔒 <b>The sibling trap, for anyone writing assertions in this repository.</b> Shouldly's
 /// <b>string</b> overloads of <c>ShouldContain</c>, <c>ShouldNotContain</c>, <c>ShouldStartWith</c>
 /// and <c>ShouldEndWith</c> take a <c>Case caseSensitivity</c> parameter that defaults to
-/// <c>Case.Insensitive</c>. The library M1-00 replaced compared those case-<b>sensitively</b>. So
+/// <c>Case.Insensitive</c>. FluentAssertions compared those case-<b>sensitively</b>. So
 /// <c>message.ShouldContain("SERIALISATION CHANGE")</c> silently also accepts
 /// <c>"serialisation change"</c> unless you pass <c>Case.Sensitive</c> — which is a weaker
 /// assertion than the one it replaced, and weaker than it looks. Pass <c>Case.Sensitive</c>

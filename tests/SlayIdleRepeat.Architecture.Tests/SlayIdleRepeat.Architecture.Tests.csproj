@@ -29,13 +29,12 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <!--
       🔒 Shouldly (BSD-3-Clause), the assertion library for all four test suites. M1-00
-      swapped it in for a predecessor whose next major moved to a paid commercial licence,
-      which a version pin was the only thing holding this repo back from. Do not reintroduce
-      that one — the M1-00 row in IMPLEMENTATION_TRACKER.md names it. Version lives in
-      Directory.Packages.props.
+      swapped it in for FluentAssertions, whose v8 moved to a paid commercial licence — a
+      version pin at 7.2.0 was the only thing holding this repo back from it. Do not
+      reintroduce FluentAssertions. Version lives in Directory.Packages.props.
 
-      ⚠️ Referenced but NOT USED here today, and that was equally true of the package it
-      replaced. The rules in this suite assert through NetArchTest's own fluent API — whose
+      ⚠️ Referenced but NOT USED here today, and that was equally true of FluentAssertions.
+      The rules in this suite assert through NetArchTest's own fluent API — whose
       `ShouldNot()` is NetArchTest's, not Shouldly's — plus a couple of bare `Assert` calls.
       It is kept so a new rule can assert like every other suite in the repo without a
       packaging decision first, and because build/ci/non-vendor-packages.json allow-lists it
