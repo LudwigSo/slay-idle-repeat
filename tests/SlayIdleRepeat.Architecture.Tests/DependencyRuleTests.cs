@@ -103,8 +103,15 @@ public sealed class DependencyRuleTests
     /// <summary>
     /// `23` §5 A5 / §6 — every port has at least two implementations: the real adapter
     /// and an in-memory fake. Two implementations is the cheapest proof the abstraction
-    /// is real. Vacuous until M1/M2 declare the first port under `Application/Ports/`.
+    /// is real.
     /// </summary>
+    /// <remarks>
+    /// LIVE since M0-09, which landed `IContentSourcePort` under `Application/Ports/Shared/`
+    /// with both implementations. The comment here used to say "vacuous until M1/M2 declare
+    /// the first port"; leaving that in place is the exact form of documentation
+    /// `SuiteIntegrityTests` exists to prevent, because the next reader takes it at its word
+    /// and assumes the rule is not watching.
+    /// </remarks>
     [Fact]
     public void Every_port_has_at_least_two_implementations()
     {
@@ -138,8 +145,12 @@ public sealed class DependencyRuleTests
     /// <summary>
     /// `23` §5 A2 / §6 — no port signature exposes a vendor type, in a parameter, a return
     /// type, a generic argument or a property. A port may speak only BCL, `Core`,
-    /// `Contracts` and `Application` types. Vacuous until the first port exists.
+    /// `Contracts` and `Application` types.
     /// </summary>
+    /// <remarks>
+    /// LIVE since M0-09 — see the note on <see cref="Every_port_has_at_least_two_implementations"/>.
+    /// `IContentSourcePort` is a real subject, and this rule asserts over it today.
+    /// </remarks>
     [Fact]
     public void No_port_signature_exposes_a_vendor_type()
     {

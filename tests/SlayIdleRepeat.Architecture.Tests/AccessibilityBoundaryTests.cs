@@ -46,11 +46,32 @@ public sealed class AccessibilityBoundaryTests
         }
 
         // The single documented public mutation must itself be public and static (30 §11.2).
+        //
+        // Every overload, not the first one: a `public CommandResult Apply(WorldSlice,
+        // GameCommand)` convenience overload added for tests would have slipped past a
+        // FirstOrDefault entirely. And GameRules existing WITHOUT an Apply is a violation in
+        // its own right — a rule named Apply_is_the_only_public_mutation that stays silent
+        // when Apply is renamed to Handle promises an invariant it is no longer checking,
+        // and so does `30` §11.2.
         var gameRules = Domain.FindInCore(Domain.GameRulesType);
-        var apply = gameRules?.Methods.FirstOrDefault(m => m.Name.Equals(Domain.ApplyMethod, StringComparison.Ordinal));
-        if (apply is not null && !(apply.IsPublic && apply.IsStatic))
+        if (gameRules is not null)
         {
-            offenders.Add($"{Il.Describe(apply)} must be public static — it is the single mutation entry point");
+            var applies = gameRules.Methods
+                .Where(m => m.Name.Equals(Domain.ApplyMethod, StringComparison.Ordinal))
+                .ToArray();
+
+            if (applies.Length == 0)
+            {
+                offenders.Add(
+                    $"{gameRules.FullName} declares no method named '{Domain.ApplyMethod}' — the single mutation " +
+                    "entry point of 30 §11.2 either was renamed or never existed, and this rule was about to " +
+                    "report success over its absence");
+            }
+
+            offenders.AddRange(
+                applies
+                    .Where(apply => !(apply.IsPublic && apply.IsStatic))
+                    .Select(apply => $"{Il.Describe(apply)} must be public static — it is the single mutation entry point"));
         }
 
         ArchRule.Empty(
@@ -122,20 +143,71 @@ public sealed class AccessibilityBoundaryTests
     }
 
     /// <summary>
-    /// `30` §11.3 — 🔒 `InternalsVisibleTo` is permitted for `SlayIdleRepeat.Core.Tests`
-    /// alone. Aggregates are rehydrated through the public `ToSnapshot()`/`Rehydrate()`
-    /// pair, never by opening the assembly to an adapter.
+    /// `30` §11.3 — 🔒 `InternalsVisibleTo` names exactly one assembly,
+    /// `SlayIdleRepeat.Core.Tests`. Aggregates are rehydrated through the public
+    /// `ToSnapshot()`/`Rehydrate()` pair, never by opening the assembly to an adapter.
     /// </summary>
+    /// <remarks>
+    /// EXACTLY one, not "none that are wrong". Written as a filter over the grants, the rule
+    /// passed just as happily when `Core` granted internals to nobody — and `Core.Tests`
+    /// reaches `Hash64` and `CanonicalStateWriter` through that grant (`14` §16.6), so
+    /// losing it would break real tests while this rule, whose name promises to be watching
+    /// the grant, said nothing.
+    /// </remarks>
     [Fact]
     public void InternalsVisibleTo_names_only_the_Core_test_assembly()
     {
-        var offenders = InternalsVisibleTo(ProductionAssemblies.CoreModule)
+        var granted = InternalsVisibleTo(ProductionAssemblies.CoreModule)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        var offenders = granted
             .Where(name => !name.Equals(ProductionAssemblies.CoreTestsName, StringComparison.Ordinal))
-            .Select(name => $"SlayIdleRepeat.Core opens its internals to '{name}'");
+            .Select(name => $"SlayIdleRepeat.Core opens its internals to '{name}'")
+            .ToList();
+
+        if (!granted.Contains(ProductionAssemblies.CoreTestsName, StringComparer.Ordinal))
+        {
+            offenders.Add(
+                $"SlayIdleRepeat.Core grants InternalsVisibleTo to [{string.Join(", ", granted)}] — " +
+                $"'{ProductionAssemblies.CoreTestsName}' is not among them. 30 §11.3 sanctions exactly that one " +
+                "grant, and the domain suite reaches Hash64 and CanonicalStateWriter through it.");
+        }
 
         ArchRule.Empty(
             offenders,
-            $"InternalsVisibleTo on SlayIdleRepeat.Core names only {ProductionAssemblies.CoreTestsName} (30 §11.3).");
+            $"InternalsVisibleTo on SlayIdleRepeat.Core names exactly {ProductionAssemblies.CoreTestsName} (30 §11.3).");
+    }
+
+    /// <summary>
+    /// `30` §11.4 — every type in `Core` lives under one of the namespaces the document
+    /// enumerates: `Primitives`, `Content`, `Rng`, `Model`, `Rules`, `Commands`, `Events`,
+    /// `Handlers`, `Testing`, or the `SlayIdleRepeat.Core` root that holds `GameRules`.
+    /// </summary>
+    /// <remarks>
+    /// <c>Core_internal_layering_holds</c> works from a fixed five-row table of forbidden
+    /// pairs, so a type under a namespace that appears in no row is matched by nothing at
+    /// all — not permitted, not forbidden, simply ungoverned, with the layering rule still
+    /// green. (This is the hole M0-07 reasoned about when it placed
+    /// <c>CanonicalStateWriter</c> under <c>Model/Snapshots/</c>; the judgement was right and
+    /// the hole stayed open.) Vacuously true today, which is the point: it costs nothing now
+    /// and makes the next <c>Core/Foo/</c> a build failure rather than a silent new region.
+    /// </remarks>
+    [Fact]
+    public void Every_Core_type_lives_under_a_documented_namespace()
+    {
+        var offenders = Domain.CoreTypes
+            .Where(t => !Domain.IsCompilerGenerated(t))
+            .Select(t => (Type: t, Namespace: Il.NamespaceOf(t)))
+            .Where(x => !Domain.IsPermittedCoreNamespace(x.Namespace))
+            .Select(x =>
+                $"{x.Type.FullName} is in namespace '{x.Namespace}', which 30 §11.4 does not enumerate. " +
+                $"Permitted: {string.Join(", ", Domain.PermittedCoreNamespaces)}. Core_internal_layering_holds " +
+                "has no row for it, so nothing governs what it may reference.");
+
+        ArchRule.Empty(
+            offenders,
+            "Every type in SlayIdleRepeat.Core lives under a namespace 30 §11.4 enumerates (30 §11.4).");
     }
 
     /// <summary>

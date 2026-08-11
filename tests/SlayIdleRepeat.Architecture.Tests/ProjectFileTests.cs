@@ -17,9 +17,11 @@ public sealed class ProjectFileTests
     /// one of them is wrong.
     /// </summary>
     /// <remarks>
-    /// Scoped to <c>src/</c>. Test projects legitimately share xUnit, FluentAssertions and
-    /// the test SDK — `23` §3 has `Contract.Tests` running one suite against every adapter,
-    /// so a solution-wide uniqueness rule would contradict the document it enforces.
+    /// Scoped to <c>src/</c> and <c>tools/</c>. Test projects legitimately share xUnit,
+    /// FluentAssertions and the test SDK — `23` §3 has `Contract.Tests` running one suite
+    /// against every adapter, so a solution-wide uniqueness rule would contradict the
+    /// document it enforces. <c>tools/</c> is in scope because nothing about "one adapter per
+    /// vendor SDK" stops applying to a project that happens not to ship.
     /// </remarks>
     [Fact]
     public void Vendor_package_is_referenced_by_exactly_one_project()
@@ -42,24 +44,84 @@ public sealed class ProjectFileTests
     /// `SlayIdleRepeat.Client` may reference `SlayIdleRepeat.Adapters.*`.
     /// </summary>
     /// <remarks>
-    /// Scoped to <c>src/</c> for the same reason as A9: `Contract.Tests` runs the shared
-    /// port suite against every adapter and `Application.Tests` uses the in-memory fakes
-    /// (`23` §3), both by design.
+    /// <para>
+    /// Not scoped to test projects: `Contract.Tests` runs the shared port suite against every
+    /// adapter and `Application.Tests` uses the in-memory fakes (`23` §3), both by design.
+    /// </para>
+    /// <para>
+    /// 🔒 <c>tools/</c> IS in scope, and <c>tools/ContentValidator</c> is exempted BY NAME
+    /// rather than by the rule not looking. It composes <c>Adapters.Content.LocalFile</c>
+    /// onto the content services in <c>Application</c> so that CI validates content through
+    /// the same loader the game uses — which makes it a composition root in the sense `23` §7
+    /// means, even though it is neither `Server` nor `Client`. While this rule was scoped to
+    /// <c>src/</c> it passed because it never read the file; that is not the same as passing.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Only_composition_roots_reference_adapter_projects()
     {
+        var allowed = ProductionAssemblies.CompositionRootNames
+            .Concat(ProductionAssemblies.ToolCompositionRootNames)
+            .ToArray();
+
         var offenders =
             from projectFile in RepoLayout.ProductionProjectFiles
             let project = RepoLayout.ProjectName(projectFile)
-            where !ProductionAssemblies.CompositionRootNames.Contains(project, StringComparer.Ordinal)
+            where !allowed.Contains(project, StringComparer.Ordinal)
             from referenced in RepoLayout.ProjectReferences(projectFile)
             where ProductionAssemblies.IsAdapter(referenced)
-            select $"{project} references the adapter {referenced}";
+            select $"{project} references the adapter {referenced} — only {string.Join(", ", allowed)} may (23 §6, §7)";
 
         ArchRule.Empty(
             offenders,
-            "Only SlayIdleRepeat.Server and SlayIdleRepeat.Client reference SlayIdleRepeat.Adapters.* (23 §6, §7).");
+            "Only the composition roots reference SlayIdleRepeat.Adapters.* (23 §6, §7).");
+    }
+
+    /// <summary>
+    /// `30` §6 / `21` §2 — 🔒 the economy simulator and the balance harness reference
+    /// `SlayIdleRepeat.Core` and nothing else: 180 days × 14 profiles run headless, with no
+    /// Application, no ports and no adapters at all.
+    /// </summary>
+    /// <remarks>
+    /// This is the project-file counterpart of
+    /// <c>The_whole_game_is_playable_from_Core_alone</c>, and it is the reason that rule is
+    /// worth having: if the simulator needed a port to run, "the whole game is playable from
+    /// Core alone" would be false in the one place it is supposed to be demonstrated. Until
+    /// <c>tools/</c> came into scope nothing enforced it, and a future agent could point
+    /// <c>EconomySim</c> at <c>Application</c> and break `21` §2 and `30` §13 with a green
+    /// suite.
+    /// </remarks>
+    [Fact]
+    public void The_simulation_tools_reference_Core_only()
+    {
+        var offenders = new List<string>();
+
+        foreach (var tool in ProductionAssemblies.CoreOnlyToolNames)
+        {
+            var projectFile = RepoLayout.ProductionProjectFiles.SingleOrDefault(
+                p => RepoLayout.ProjectName(p).Equals(tool, StringComparison.Ordinal));
+
+            if (projectFile is null)
+            {
+                offenders.Add(
+                    $"'{tool}' has no .csproj under src/ or tools/. 30 §6 pins it to Core; a rule keyed on a " +
+                    "project that is not there governs nothing.");
+                continue;
+            }
+
+            offenders.AddRange(
+                RepoLayout.ProjectReferences(projectFile)
+                    .Where(r => !r.Equals(ProductionAssemblies.CoreName, StringComparison.Ordinal))
+                    .Select(r => $"{tool} project-references '{r}' — 30 §6 pins it to {ProductionAssemblies.CoreName} only"));
+
+            offenders.AddRange(
+                RepoLayout.PackageReferences(projectFile)
+                    .Select(p => $"{tool} references the package '{p}' — 21 §2 runs it headless with no dependencies"));
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "EconomySim and BalanceHarness reference SlayIdleRepeat.Core and nothing else (30 §6, 21 §2).");
     }
 
     /// <summary>`23` §5 A7 — adapters never project-reference each other; composition happens only at the root.</summary>

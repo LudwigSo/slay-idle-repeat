@@ -65,6 +65,17 @@
     <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Server\SlayIdleRepeat.Server.csproj" />
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Client\SlayIdleRepeat.Client.csproj" />
+
+    <!--
+      tools/. These are here because ProductionProjectFiles now covers tools/ as well as
+      src/, so ProductionAssemblies.AllNames names them — and every rule that loads an
+      assembly by name would throw FileNotFoundException on a project the suite governs but
+      does not reference. Four projects with no dependency-rule coverage was the gap; the
+      remedy is to reference them, not to narrow the rules back to src/.
+    -->
+    <ProjectReference Include="..\..\tools\EconomySim\SlayIdleRepeat.EconomySim.csproj" />
+    <ProjectReference Include="..\..\tools\BalanceHarness\SlayIdleRepeat.BalanceHarness.csproj" />
+    <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
   </ItemGroup>
 
 </Project>
