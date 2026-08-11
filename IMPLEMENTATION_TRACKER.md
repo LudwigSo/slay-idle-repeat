@@ -16,7 +16,7 @@ This is the single tracking document for turning the design set in [`game-design
 | # | Milestone | Build-order steps (16 Part D) | Status |
 |---|---|---|---|
 | M0 | Foundations, CI & week-1 spikes | pre-1, 2 (partial), spikes O14/O23 | ✅ **done — merged to `main` 2026-08-11** (95 commits). All 4 exit criteria met; CI is authored-not-observed — see X-07 |
-| M1 | Core domain skeleton & `InMemoryGame` | 1 | ⬜ |
+| M1 | Core domain skeleton & `InMemoryGame` | 1 | 🔄 kicked off 2026-08-11 · 13 tasks on `milestone/M1` |
 | M2 | Effect DSL & combat simulation | 1 | ⬜ |
 | M3 | Board, dice & the run loop | 1 | ⬜ |
 | M4 | Meta systems in Core (LuckService, gear, talents, beasts, economy, FTUE) | 1, 8 (Core half) | ⬜ |
@@ -118,34 +118,41 @@ These live across the whole project; they start in M0 and grow with every milest
 
 ## M1 — Core domain skeleton & `InMemoryGame`
 
-⚠️ **Inherited from the M0 review — resolve at kickoff, before dispatch:**
-1. 🔴 **`30` §6 vs `14` §6 collide at M1-11.** `30` §6 shows `ContentSnapshot.LoadFromDisk(…)` on the Core type; `14` §6 says loading is I/O and belongs in an adapter, which is what M0-09 built. But `30` §6 also requires `InMemoryGame` to depend on `Core` **alone**, enforced mechanically by `The_whole_game_is_playable_from_Core_alone` — so `InMemoryGame` cannot construct a `ContentSnapshot`, and the obvious escape hatch puts filesystem I/O back inside `Core`. Recommended: the harness takes a **pre-built** `ContentSnapshot`, and `EconomySim` becomes a small composition root over `{Core, Application, Adapters.Content.LocalFile}`.
-2. 🔴 **The RNG `Position` write-back needs one choke point.** It is authoritative run state and nothing persists it yet. A handler that draws and forgets to persist its counter breaks determinism *silently and unreproducibly*. Decide the mechanism before any handler draws.
-3. **M1-12 is already delivered** — all ten Core architecture rules exist and are live from M0-08. Restate it as *verify the vacuous rules woke up now that M1 populated their subjects, and delete the now-false "vacuous until M1" comments*.
-4. **`SchemaVersion` must be the first field of every `*Snapshot` record** (`30` §11.3), and `CanonicalStateWriter` **refuses** a record with any public property outside its primary constructor — such a property would hash as zero bytes. Both are pinned by live tests that wake on M1's first snapshot type.
-5. **FluentAssertions is pinned at 7.2.0** (v8 moved to a paid commercial licence). If that trajectory is unwelcome, swapping to Shouldly is cheap now and expensive after M1–M4 write thousands of assertions.
-
 **Goal:** `GameRules.Apply` exists, the aggregates exist, and a full (rules-light) game session runs in memory from `Core` alone.
 **Exit:** `InMemoryGame` drives a multi-day player through commands with the day cycle, energy and currencies working; all ten Core architecture tests green.
 
-**Kickoff decisions**
-1. Confirm the canonical command registry (19 run + 29 meta commands) is frozen as the vocabulary — additions afterwards are logged decisions in `16`.
-2. Confirm snapshot `SchemaVersion` / migration policy from day one.
+**Kickoff decisions** — ✅ resolved 2026-08-11 (record: `.claude/.milestone-runs/M1/kickoff.md`)
+
+1. **The command vocabulary is frozen at 49 commands — 19 run + 30 meta — as the `14` §2.3 *table* stands.** 🔴 The table has always had 30 meta rows; its own header ("Meta commands (29)") and this tracker's "48 commands" were both miscounts. Errata, not a scope change. M1-02 declares all 49 types and registers every one in the dispatch table. Additions afterwards are logged decisions in `16`. ⚠️ **Guild actions have no commands in the registry at all** — an exhaustiveness hole `14` §2.3 must close at the **M14 kickoff** if guilds ship.
+2. **Snapshot `SchemaVersion`: one global integer** (as M0 shipped it), **no migration code before soft launch.** `Rehydrate` hard-fails loudly on an unknown version; pre-launch dev data is disposable. Written migrations become mandatory from the first production build (**M18**). Every bump still adds a new field-order pin entry and never edits an old one.
+3. **v1 surface scope confirmed** (steering S15): **PvP/Ghost Duel (M12), Resource Dungeons (M10), Live-ops events (M13) and Guilds (M14) are all in v1.** M14 remains the designated schedule-relief valve. Only PvP touches M1 — its 3 commands stay in the frozen vocabulary.
+4. **`ContentSnapshot` × `InMemoryGame` (M0-review 🔴 resolved):** the harness takes a **pre-built** `ContentSnapshot` — `InMemoryGame(ContentSnapshot, ulong seed, VirtualClock)`. It never loads. `ContentSnapshot`'s existing public constructor over in-memory documents lets `Core.Tests` build hermetic snapshots with no I/O. Anything wanting the real `game-data` is a composition root over `{Core, Application, Adapters.Content.LocalFile}` — `EconomySim` (M6), the balance harness, and one real-data smoke test in `Application.Tests`. **`30` §6's `ContentSnapshot.LoadFromDisk(…)` example is a documented erratum.**
+5. **RNG `Position` write-back (M0-review 🔴 resolved): `Apply` owns it.** Handlers never construct a `DeterministicRng`; `Apply` hands each run handler a `RunRngScope` built from `runSeed` + the committed positions, folds the scope's final positions into the new `Run` itself, and rejects a handler that hand-wrote a position. Enforced by a new architecture rule making `DeterministicRng`'s constructor unreachable outside `Core/Rng` and the scope, with a red-then-green demonstration (S1). Built in **M1-06** even though no M1 handler draws, so M3 inherits it instead of inventing it under pressure.
+6. **FluentAssertions is removed from the repository entirely; Shouldly replaces it.** 561 call sites across 28 files. Lands as **M1-00, alone in wave 1**, so every later agent writes Shouldly from its first line.
+
+**Assumptions recorded after the interactive window** (full reasoning in the kickoff record)
+- **Energy accrual never loses a fraction to call frequency.** Whole units only; the accrual anchor advances by `wholeUnits × 4 min`, never to `NowUtc`. Property test: N small `AdvanceTime` steps ≡ one big step.
+- **The game week starts Monday 05:00 UTC** — derived from `27` §4's guild-boss cadence, consistent with the 05:00 UTC game day. No doc states it generally.
+- **`GOLD` is run-scoped** (`tuning/currencies.json`), so the "8 currencies" of M1-04 are 7 on `Player` + `GOLD` on `Run`. Both aggregates' currency fields are subject to `Every_currency_mutation_emits_CurrencyChanged`.
+- **`WorldSlice` is declared `(Player, Run?)` in M1.** `GuildView`/`GhostSnapshot` arrive with M14/M12 — `WorldSlice` is not persisted, so a later nullable field costs no `SchemaVersion` bump, and an empty placeholder type is the plausible-looking hole S6 forbids. Deliberate divergence from `30` §4.1's four-field sketch.
+- **One M1 gap register**, not one per task (S4): a single self-expiring list covering the not-yet-implemented commands, the `AdvanceTime` boundaries whose state does not exist yet, and M1-09's deferred draws. Each entry names its owning milestone **and** a type or member that must not yet exist; the build fails as a stale exemption the moment that member appears.
+- **`SchemaVersion` is the first field of every `*Snapshot`** (`30` §11.3) and `CanonicalStateWriter` refuses any public property outside a record's primary constructor. Both live from M0-07; M1-04/M1-05 must add their records to `SnapshotFieldOrder.json` under SchemaVersion 1 in the same change (the pin file's README authorises exactly this first population).
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
+| M1-00 | **Remove FluentAssertions from the repository; migrate every assertion to Shouldly** (561 sites, 28 files, 4 `.csproj`), add central version pinning so no project can drift. Runs alone and first — every later M1 agent writes Shouldly from the start | kickoff §6 | ⬜ |
 | M1-01 | `Primitives/`: ids, `Result<T>`, value objects, the domain-tier `RejectionReason` values | 30 §11.4, 14 §16.2 | ⬜ |
-| M1-02 | Public `GameCommand` hierarchy — all 48 commands (19 run, 29 meta) as the one wire+domain vocabulary | 14 §2.3 | ⬜ |
+| M1-02 | Public `GameCommand` hierarchy — **all 49 commands (19 run, 30 meta)** as the one wire+domain vocabulary, each registered in M1-06's dispatch table in the same change (the live `Every_command_type_is_handled_by_Apply` rule goes red otherwise) | 14 §2.3 | ⬜ |
 | M1-03 | Public `DomainEvent` hierarchy + the `CurrencyChanged`-with-reason invariant (IL-scan test) | 30 §7 | ⬜ |
-| M1-04 | `Player` aggregate: profile, 8 currencies, inventory & unopened-container shelf, pity-counter storage, daily/weekly counters, FTUE progress, lifetime feat counters; public getters / internal ctors; `PlayerSnapshot` + `Rehydrate` | 30 §4, §11 | ⬜ |
+| M1-04 | `Player` aggregate: profile, 7 meta currencies (+ `GOLD` on `Run`), inventory & unopened-container shelf, pity-counter storage, daily/weekly counters, FTUE progress, lifetime feat counters; public getters / internal ctors; `PlayerSnapshot` + `Rehydrate` | 30 §4, §11 | ⬜ |
 | M1-05 | `Run` aggregate as child of `Player`: board, position, HP, run gold, perks, consumables, pending fork, RNG stream counters, per-run ad uses, curses; `RunSnapshot` | 30 §4 | ⬜ |
-| M1-06 | `GameRules.Apply` façade: dispatch table, `CommandResult`, `WorldSlice`, total/pure/synchronous/immutable properties | 30 §2 | ⬜ |
+| M1-06 | `GameRules.Apply` façade: dispatch table, `CommandResult`, `WorldSlice`, total/pure/synchronous/immutable properties; **plus the `RunRngScope` write-back choke point and its architecture rule (kickoff §5), and the single M1 gap register** | 30 §2 | ⬜ |
 | M1-07 | `GameContext` record (NowUtc, CommandSeed, ContentSnapshot, Entitlements, Flags); entitlement readable only for ad-grant caps (architecture test) | 30 §3 | ⬜ |
-| M1-08 | `AdvanceTime` lazy catch-up: energy regen accrual, 05:00 UTC daily resets, weekly boundaries, Plus expiry, event-window state — first step of every handler | 30 §2.3 | ⬜ |
-| M1-09 | `BEGIN_SESSION` handler: calendar advance, daily free refill, quest-slate draw, Daily-shop block draw — all from the command seed; idempotent per game day | 30 §2.3, 19 B/G | ⬜ |
-| M1-10 | Energy + Energy Reserve math: max/regen/costs, overflow routing, automatic spend order | 10 §3, 28 C | ⬜ |
-| M1-11 | `InMemoryGame` + `VirtualClock` harness; perf target: 180-day player < 200 ms | 30 §6 | ⬜ |
-| M1-12 | The ten Core architecture tests (synchronous, no ports, no clock, every command handled, currency events, playable-from-Core-alone, Apply-only mutation, internal handlers, internal layering, `InternalsVisibleTo` pin) | 30 §9 | ⬜ |
+| M1-08 | `AdvanceTime` lazy catch-up: energy regen accrual, 05:00 UTC daily resets, weekly boundaries, Plus expiry — first step of every handler. Boundaries whose state does not exist yet (event windows, ad caps, dungeon entries, quest expiry, daily-shop stock) go in the gap register, not into invented state | 30 §2.3 | ⬜ |
+| M1-09 | `BEGIN_SESSION` handler: calendar advance, daily free refill, per-game-day idempotence, and the `CommandSeed`-driven **draw seam** itself, fully tested for determinism. 🔒 **The quest-slate and Daily-shop draws are deferred to M4-09** — `content/quests/` is empty, no quest schema exists, and the Daily-shop model is M4-09's. Both are gap-register entries, not invented data | 30 §2.3, 19 B/G | ⬜ |
+| M1-10 | Energy + Energy Reserve math: max/regen/costs, overflow routing, automatic spend order. Pure static functions over primitives in `Rules/Economy/` — `Model` never references `Rules` (`30` §11.5), so handlers call these and write the result | 10 §3, 28 C | ⬜ |
+| M1-11 | `InMemoryGame(ContentSnapshot, seed, VirtualClock)` + `VirtualClock` harness; perf target: 180-day player < 200 ms | 30 §6 | ⬜ |
+| M1-12 | **Verify the ten Core architecture rules woke up** now that M1 populated their subject sets, and delete the now-false "vacuous until M1" comments. The rules themselves already exist and are live from M0-08 — this task adds no new rule, it proves each one now bites on real subjects | 30 §9 | ⬜ |
 
 ---
 
