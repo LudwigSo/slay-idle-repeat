@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
 
@@ -16,8 +16,8 @@ public sealed class ContentReferenceTests
     {
         var reference = ContentReference.Parse("tuning/forge.json#/merge/inputCount");
 
-        reference.DocumentPath.Should().Be("tuning/forge.json");
-        reference.Segments.Should().Equal("merge", "inputCount");
+        reference.DocumentPath.ShouldBe("tuning/forge.json");
+        reference.Segments.ShouldBe(new[] { "merge", "inputCount" });
     }
 
     [Fact]
@@ -25,8 +25,8 @@ public sealed class ContentReferenceTests
     {
         var reference = ContentReference.Parse("tuning/forge.json");
 
-        reference.DocumentPath.Should().Be("tuning/forge.json");
-        reference.Segments.Should().BeEmpty();
+        reference.DocumentPath.ShouldBe("tuning/forge.json");
+        reference.Segments.ShouldBeEmpty();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class ContentReferenceTests
     {
         var reference = ContentReference.Parse("loc/en.json#/strings/loc.a~1b");
 
-        reference.Segments.Should().Equal("strings", "loc.a/b");
+        reference.Segments.ShouldBe(new[] { "strings", "loc.a/b" });
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class ContentReferenceTests
     {
         var reference = ContentReference.Parse("loc/en.json#/strings/loc.a~0b");
 
-        reference.Segments.Should().Equal("strings", "loc.a~b");
+        reference.Segments.ShouldBe(new[] { "strings", "loc.a~b" });
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class ContentReferenceTests
     {
         var reference = ContentReference.Parse("loc/en.json#/strings/loc.a~1b");
 
-        reference.Canonical.Should().Be("loc/en.json#/strings/loc.a~1b");
+        reference.Canonical.ShouldBe("loc/en.json#/strings/loc.a~1b");
     }
 
     [Theory]
@@ -61,7 +61,7 @@ public sealed class ContentReferenceTests
     {
         var act = () => ContentReference.Parse(candidate);
 
-        act.Should().Throw<FormatException>();
+        Should.Throw<FormatException>(act);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class ContentReferenceTests
     {
         var parsed = ContentReference.TryParse("tuning/forge.json#merge", out var reference);
 
-        parsed.Should().BeFalse();
-        reference.Should().BeNull();
+        parsed.ShouldBeFalse();
+        reference.ShouldBeNull();
     }
 }

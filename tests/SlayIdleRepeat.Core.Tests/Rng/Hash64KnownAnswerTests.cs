@@ -1,5 +1,5 @@
 using System.Text;
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
@@ -27,7 +27,7 @@ public sealed class Hash64KnownAnswerTests
     {
         var hash = Hash64.XxHash64(ReadOnlySpan<byte>.Empty);
 
-        hash.Should().Be(0xEF46DB3751D8E999UL);
+        hash.ShouldBe(0xEF46DB3751D8E999UL);
     }
 
     /// <summary>
@@ -43,7 +43,7 @@ public sealed class Hash64KnownAnswerTests
 
         var hash = Hash64.XxHash64(buffer, seed);
 
-        hash.Should().Be(expected);
+        hash.ShouldBe(expected);
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ public sealed class Hash64KnownAnswerTests
     {
         var buffer = ReferenceVectors.SanityBuffer(16);
 
-        Convert.ToHexString(buffer).Should().Be("0052929BB732A3242D00AF950EECB893");
+        Convert.ToHexString(buffer).ShouldBe("0052929BB732A3242D00AF950EECB893");
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public sealed class Hash64KnownAnswerTests
     {
         var hash = Hash64.XxHash64(new UTF8Encoding(false).GetBytes(input));
 
-        hash.Should().Be(expected);
+        hash.ShouldBe(expected);
     }
 
     /// <summary>
@@ -90,8 +90,8 @@ public sealed class Hash64KnownAnswerTests
     {
         var row = ReferenceVectors.Row(rowId);
 
-        row.EncodedByteLength.Should().Be(expectedLength);
-        Hash64.Of(row.Arguments.ToArray()).Should().Be(row.Hash);
+        row.EncodedByteLength.ShouldBe(expectedLength);
+        Hash64.Of(row.Arguments.ToArray()).ShouldBe(row.Hash);
     }
 
     public static TheoryData<int, ulong, ulong> PublishedRows() => ReferenceVectors.PublishedRows();

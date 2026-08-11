@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using Xunit;
 
@@ -42,9 +42,9 @@ public sealed class RealDataNegativeCaseTests
     {
         var issues = ContentLoader.Load(RepoData.SourceWithEdit(document, find, replaceWith)).Issues;
 
-        issues.Should().Contain(i => i.Code == code && i.Location == location,
-            "the rule this case names reports at {0}; another rule reporting {1} elsewhere is a " +
-            "different rule, and would leave this one free to stop biting", location, code);
+        issues.ShouldContain(i => i.Code == code && i.Location == location,
+            $"the rule this case names reports at {location}; another rule reporting {code} elsewhere "
+            + "is a different rule, and would leave this one free to stop biting");
     }
 
     // ═══════════════════════════════════════════════════════ 14 §6 · unknown IDs (1-6)
@@ -438,7 +438,7 @@ public sealed class RealDataNegativeCaseTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).Should().Be(96,
+        CountUnauthorised(snapshot).ShouldBe(96,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -476,7 +476,7 @@ public sealed class RealDataNegativeCaseTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        Count(snapshot.GetDocument(documentPath).Root).Should().Be(expected);
+        Count(snapshot.GetDocument(documentPath).Root).ShouldBe(expected);
     }
 
     private static int CountUnauthorised(Core.Content.ContentSnapshot snapshot) =>
@@ -503,7 +503,7 @@ public sealed class RealDataNegativeCaseTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        snapshot.Read(reference).IsUnauthorised.Should().BeTrue(
+        snapshot.Read(reference).IsUnauthorised.ShouldBeTrue(
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. A validator that rejected these would be 'fixed' by filling 96 holes with " +
             "plausible zeroes, which is the worst outcome this pipeline can have");

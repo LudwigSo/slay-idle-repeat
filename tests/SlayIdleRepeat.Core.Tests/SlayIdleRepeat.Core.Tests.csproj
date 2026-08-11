@@ -27,6 +27,16 @@
   </ItemGroup>
 
   <!--
+    Shared test vocabulary, linked rather than project-referenced. tests/Shared/ holds no
+    .csproj on purpose: build/ci/test-suites.json discovers suites with the glob
+    tests/*/*.csproj and fails any it finds containing zero tests, so a helper project here
+    would be a permanently red empty suite. See tests/Shared/WildcardMessageAssertions.cs.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+  <!--
     The Hash64 / DeterministicRng determinism pin (14 §8.0, §8.2). Embedded rather than
     copied to the output directory so the cross-platform determinism job (M5-12) finds it
     on Android/iOS ARM64 regardless of the working directory the runner happens to use.

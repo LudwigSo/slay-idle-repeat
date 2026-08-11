@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Adapters.InMemory;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
@@ -46,7 +46,7 @@ internal static class RepoData
     /// <summary>A source over the real data set.</summary>
     internal static InMemoryContentSource Source()
     {
-        Directory.Exists(DataRoot).Should().BeTrue(
+        Directory.Exists(DataRoot).ShouldBeTrue(
             $"these cases read the real game-data; searched upward from {AppContext.BaseDirectory}");
 
         var source = new InMemoryContentSource();

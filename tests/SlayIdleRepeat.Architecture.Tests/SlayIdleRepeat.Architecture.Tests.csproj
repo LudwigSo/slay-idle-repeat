@@ -28,9 +28,10 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <!--
-      🔒 Shouldly, not FluentAssertions. FluentAssertions v8 went to a paid
-      commercial licence and this repo was pinned at 7.2.0 to avoid it; M1-00 left the
-      library instead. The version lives in Directory.Packages.props (BSD-3-Clause).
+      🔒 Shouldly (BSD-3-Clause). The assertion library this suite used before M1-00
+      moved to a paid commercial licence at its next major, and a version pin was the only
+      thing holding it back; M1-00 left it rather than carry that pin. Do not reintroduce it
+      — see the M1-00 row in IMPLEMENTATION_TRACKER.md. Version: Directory.Packages.props.
     -->
     <PackageReference Include="Shouldly" />
     <PackageReference Include="NetArchTest.Rules" />

@@ -30,4 +30,14 @@
     <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
   </ItemGroup>
 
+  <!--
+    Shared test vocabulary, linked rather than project-referenced. tests/Shared/ holds no
+    .csproj on purpose: build/ci/test-suites.json discovers suites with the glob
+    tests/*/*.csproj and fails any it finds containing zero tests, so a helper project here
+    would be a permanently red empty suite. See tests/Shared/WildcardMessageAssertions.cs.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
 </Project>

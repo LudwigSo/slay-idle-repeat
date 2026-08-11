@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using Xunit;
 
@@ -28,7 +28,7 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(2);
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(2);
     }
 
     [Fact]
@@ -40,8 +40,8 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.ReadDouble($"{ContentTestData.TuningPath}#/merge/statBonusPerLevel").Should().Be(0.07d);
-        snapshot.ReadText($"{ContentTestData.TuningPath}#/merge/topRarity").Should().Be("SS");
+        snapshot.ReadDouble($"{ContentTestData.TuningPath}#/merge/statBonusPerLevel").ShouldBe(0.07d);
+        snapshot.ReadText($"{ContentTestData.TuningPath}#/merge/topRarity").ShouldBe("SS");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.ReadText($"{ContentTestData.EnglishPath}#/strings/loc.widget.anvil.name").Should().Be("Anvil");
+        snapshot.ReadText($"{ContentTestData.EnglishPath}#/strings/loc.widget.anvil.name").ShouldBe("Anvil");
     }
 
     [Fact]
@@ -65,9 +65,9 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.ReadDouble($"{ContentTestData.TuningPath}#/merge/statBonusPerLevel").Should().Be(0.09d);
-        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
-        snapshot.ReadText($"{ContentTestData.TuningPath}#/merge/topRarity").Should().Be("SS");
+        snapshot.ReadDouble($"{ContentTestData.TuningPath}#/merge/statBonusPerLevel").ShouldBe(0.09d);
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(3);
+        snapshot.ReadText($"{ContentTestData.TuningPath}#/merge/topRarity").ShouldBe("SS");
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost").Should().Be(4200);
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost").ShouldBe(4200);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class OverridePatchTests
 
         ContentLoader.Load(source, With(OverridePath)).Require();
 
-        source.ReadDocument(ContentTestData.TuningPath).ToArray().Should().Equal(before);
+        source.ReadDocument(ContentTestData.TuningPath).ToArray().ShouldBe(before);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source).Require();
 
-        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(3);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class OverridePatchTests
         var canonical = ContentLoader.Load(source).Require();
         var overridden = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        overridden.Version.Should().NotBe(canonical.Version);
+        overridden.Version.ShouldNotBe(canonical.Version);
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public sealed class OverridePatchTests
 
         var result = ContentLoader.Load(source, With(OverridePath));
 
-        result.Succeeded.Should().BeFalse();
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        result.Succeeded.ShouldBeFalse();
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 
     [Fact]
@@ -145,8 +145,8 @@ public sealed class OverridePatchTests
 
         var result = ContentLoader.Load(source, With(OverridePath));
 
-        result.Succeeded.Should().BeFalse();
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.SchemaViolation);
+        result.Succeeded.ShouldBeFalse();
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.SchemaViolation);
     }
 
     [Fact]
@@ -158,10 +158,10 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.Read($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost").IsUnauthorised.Should().BeTrue();
+        snapshot.Read($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost").IsUnauthorised.ShouldBeTrue();
 
-        var act = () => snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost");
-        act.Should().Throw<Core.Content.UnauthorisedTunableException>("a de-authorised leaf is never 0");
+        Action act = () => _ = snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost");
+        Should.Throw<Core.Content.UnauthorisedTunableException>(act, "a de-authorised leaf is never 0");
     }
 
     [Fact]
@@ -169,8 +169,8 @@ public sealed class OverridePatchTests
     {
         var result = ContentLoader.Load(SourceWithOverride("[1, 2]"), With(OverridePath));
 
-        result.Succeeded.Should().BeFalse();
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
+        result.Succeeded.ShouldBeFalse();
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
     }
 
     [Fact]
@@ -186,8 +186,8 @@ public sealed class OverridePatchTests
 
         var result = ContentLoader.Load(source, With(OverridePath));
 
-        result.Succeeded.Should().BeFalse();
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
+        result.Succeeded.ShouldBeFalse();
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
     }
 
     [Fact]
@@ -199,8 +199,8 @@ public sealed class OverridePatchTests
 
         var result = ContentLoader.Load(source, With(OverridePath));
 
-        result.Succeeded.Should().BeFalse();
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
+        result.Succeeded.ShouldBeFalse();
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
     }
 
     [Fact]
@@ -212,8 +212,8 @@ public sealed class OverridePatchTests
 
         var result = ContentLoader.Load(source, With(OverridePath));
 
-        result.Succeeded.Should().BeFalse();
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
+        result.Succeeded.ShouldBeFalse();
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.OverrideTargetMissing);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public sealed class OverridePatchTests
             .Load(source, With("tuning/experiments/first.json", "tuning/experiments/second.json"))
             .Require();
 
-        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(4);
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(4);
     }
 
     [Fact]
@@ -250,8 +250,8 @@ public sealed class OverridePatchTests
 
         var snapshot = ContentLoader.Load(source, With(OverridePath)).Require();
 
-        snapshot.ReadText($"{ContentTestData.TuningPath}#/widgets/0/id").Should().Be("WID_BELLOWS");
-        snapshot.ReadText($"{ContentTestData.TuningPath}#/widgets/0/rarity").Should().Be("S");
+        snapshot.ReadText($"{ContentTestData.TuningPath}#/widgets/0/id").ShouldBe("WID_BELLOWS");
+        snapshot.ReadText($"{ContentTestData.TuningPath}#/widgets/0/rarity").ShouldBe("S");
     }
 
     [Fact]
@@ -259,8 +259,10 @@ public sealed class OverridePatchTests
     {
         // An exact set, not a hunt for verbs: a substring test for Write/Save/Set cannot fail today
         // and would not fail for Persist, Put, Store or Apply tomorrow.
-        typeof(Ports.Shared.IContentSourcePort).GetMembers().Select(m => m.Name).Should().BeEquivalentTo(
+        typeof(Ports.Shared.IContentSourcePort).GetMembers().Select(m => m.Name).ShouldBe(
             ["get_Revision", "Revision", "ListDocuments", "ReadDocument"],
+            ignoreOrder: true,
+            customMessage:
             "21 §3.3's 'never as edits to them' is structural here, not a convention the loader is " +
             "trusted to keep — any new member on this port is a decision somebody must argue for");
     }

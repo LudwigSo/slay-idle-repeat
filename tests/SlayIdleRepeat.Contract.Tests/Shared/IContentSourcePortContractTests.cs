@@ -1,5 +1,5 @@
 using System.Text;
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
@@ -60,7 +60,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
     {
         var source = Create(Three);
 
-        source.ListDocuments().Should().BeEquivalentTo(Three.Keys);
+        source.ListDocuments().ShouldBe(Three.Keys, ignoreOrder: true);
     }
 
     /// <summary>
@@ -87,15 +87,32 @@ public abstract class IContentSourcePortContractTests : IDisposable
 
         var listed = source.ListDocuments();
 
-        listed.Should().BeInAscendingOrder(StringComparer.Ordinal);
-        listed.Should().ContainInOrder(
-            "loc/en.json", "schema/a.schema.json", "tuning/a-b.json", "tuning/ab.json");
+        listed.ShouldBeInOrder(SortDirection.Ascending, StringComparer.Ordinal);
+
+        // An ordered SUBSEQUENCE, which is what ContainInOrder asserted: every expected path
+        // appears, and each one after the previous. Not equality — the source may list more.
+        var expectedInOrder = new[]
+        {
+            "loc/en.json", "schema/a.schema.json", "tuning/a-b.json", "tuning/ab.json",
+        };
+        var remaining = new Queue<string>(expectedInOrder);
+        foreach (var path in listed)
+        {
+            if (remaining.Count > 0 && string.Equals(path, remaining.Peek(), StringComparison.Ordinal))
+            {
+                remaining.Dequeue();
+            }
+        }
+
+        remaining.ShouldBeEmpty(
+            $"[{string.Join(", ", listed)}] does not contain "
+            + $"[{string.Join(", ", expectedInOrder)}] in that order");
     }
 
     [Fact]
     public void ListDocuments_over_an_empty_source_is_empty_rather_than_null()
     {
-        Create(new Dictionary<string, string>(StringComparer.Ordinal)).ListDocuments().Should().BeEmpty();
+        Create(new Dictionary<string, string>(StringComparer.Ordinal)).ListDocuments().ShouldBeEmpty();
     }
 
     // ---------------------------------------------------------------------------- reading
@@ -106,7 +123,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
         var source = Create(Three);
 
         Encoding.UTF8.GetString(source.ReadDocument("tuning/a.json").Span)
-                .Should().Be(Three["tuning/a.json"]);
+                .ShouldBe(Three["tuning/a.json"]);
     }
 
     [Fact]
@@ -116,7 +133,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
 
         foreach (var path in source.ListDocuments())
         {
-            source.ReadDocument(path).Length.Should().BeGreaterThan(0, $"'{path}' was listed");
+            source.ReadDocument(path).Length.ShouldBeGreaterThan(0, $"'{path}' was listed");
         }
     }
 
@@ -130,10 +147,10 @@ public abstract class IContentSourcePortContractTests : IDisposable
     {
         var source = Create(Three);
 
-        var act = () => source.ReadDocument("tuning/nope.json");
+        Action act = () => _ = source.ReadDocument("tuning/nope.json");
 
-        act.Should().Throw<MissingContentException>()
-           .Which.Reference.Should().Be("tuning/nope.json");
+        Should.Throw<MissingContentException>(act)
+            .Reference.ShouldBe("tuning/nope.json");
     }
 
     /// <summary>
@@ -148,9 +165,9 @@ public abstract class IContentSourcePortContractTests : IDisposable
     {
         var source = Create(Three);
 
-        var act = () => source.ReadDocument(path);
+        Action act = () => _ = source.ReadDocument(path);
 
-        act.Should().Throw<MissingContentException>();
+        Should.Throw<MissingContentException>(act);
     }
 
     [Fact]
@@ -158,9 +175,9 @@ public abstract class IContentSourcePortContractTests : IDisposable
     {
         var source = Create(Three);
 
-        var act = () => source.ReadDocument(string.Empty);
+        Action act = () => _ = source.ReadDocument(string.Empty);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     // --------------------------------------------------------------------------- revision
@@ -171,11 +188,11 @@ public abstract class IContentSourcePortContractTests : IDisposable
         var source = Create(Three);
         var before = source.Revision;
 
-        source.Revision.Should().Be(before);
+        source.Revision.ShouldBe(before);
         source.ListDocuments();
         source.ReadDocument("tuning/a.json");
 
-        source.Revision.Should().Be(before, "reading content is not changing it");
+        source.Revision.ShouldBe(before, "reading content is not changing it");
     }
 
     [Fact]
@@ -186,7 +203,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
 
         Write(source, "tuning/a.json", """{ "a": 2, "padding": "so the length moves too" }""");
 
-        source.Revision.Should().NotBe(before);
+        source.Revision.ShouldNotBe(before);
     }
 
     [Fact]
@@ -197,7 +214,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
 
         Write(source, "tuning/d.json", """{ "d": 4 }""");
 
-        source.Revision.Should().NotBe(before);
+        source.Revision.ShouldNotBe(before);
     }
 
     /// <summary>Three documents spanning the three directories the layout distinguishes.</summary>

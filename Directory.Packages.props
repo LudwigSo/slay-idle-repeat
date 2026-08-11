@@ -10,9 +10,9 @@
     Why it exists: M1-00 needed Shouldly at one version across four test
     projects, and "four csproj files that each happen to say 4.3.0 today" is not
     a pin — it is four opportunities to drift, silently, in four different
-    milestones. The same argument had already been made for FluentAssertions
-    7.2.0, which was held back from a licence-changing v8 by nothing but four
-    copies of the same string.
+    milestones. The same argument had already been made for the assertion
+    library it replaced, which was held back from a licence-changing major
+    version by nothing but four copies of the same string.
 
     🔒 This does NOT weaken build/ci/Test-VendorPackageUniqueness.ps1 or
     SlayIdleRepeat.Architecture.Tests' ProjectFileTests. Both read the
@@ -50,12 +50,12 @@
     <!--
       The assertion library, in all four test suites.
 
-      🔒 It is Shouldly, and it is not FluentAssertions. FluentAssertions v8
-      moved to a paid commercial licence; this repository sat pinned at 7.2.0
-      (Apache-2.0) to stay off it, which is a pin that has to hold for the life
-      of the project and buys nothing. M1-00 left the library instead, while the
+      🔒 Shouldly, 4.3.0, BSD-3-Clause. The library it replaced moved to a paid
+      commercial licence at its next major, and this repository sat pinned below
+      that version to stay off it — a pin that would have had to hold for the
+      life of the project and bought nothing. M1-00 left it instead, while the
       exposure was 561 assertions rather than the several thousand M1-M4 add.
-      Shouldly 4.3.0 is BSD-3-Clause. Do not reintroduce FluentAssertions.
+      Do not reintroduce it; the M1-00 row in IMPLEMENTATION_TRACKER.md names it.
     -->
     <PackageVersion Include="Shouldly" Version="4.3.0" />
   </ItemGroup>

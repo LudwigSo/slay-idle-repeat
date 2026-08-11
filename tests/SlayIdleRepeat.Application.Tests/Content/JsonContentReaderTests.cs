@@ -1,5 +1,5 @@
 using System.Text;
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
@@ -21,8 +21,8 @@ public sealed class JsonContentReaderTests
     {
         Read("""{ "perLevelSuccessRate": null }""", out var root, out _);
 
-        root!.TryGetMember("perLevelSuccessRate", out var member).Should().BeTrue();
-        member!.Kind.Should().Be(ContentValueKind.Unauthorised);
+        root!.TryGetMember("perLevelSuccessRate", out var member).ShouldBeTrue();
+        member!.Kind.ShouldBe(ContentValueKind.Unauthorised);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class JsonContentReaderTests
         Read("""{ "perLevelSuccessRate": null }""", out var root, out _);
 
         root!.TryGetMember("perLevelSuccessRate", out var member);
-        member!.Should().NotBe(ContentValue.Number(0m));
+        member!.ShouldNotBe(ContentValue.Number(0m));
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class JsonContentReaderTests
         Read("""{ "legendXpExponent": 1.0750 }""", out var root, out _);
 
         root!.TryGetMember("legendXpExponent", out var member);
-        member!.AsNumber().ToString(System.Globalization.CultureInfo.InvariantCulture).Should().Be("1.0750");
+        member!.AsNumber().ToString(System.Globalization.CultureInfo.InvariantCulture).ShouldBe("1.0750");
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class JsonContentReaderTests
         Read("""{ "quality": 0.1234567890123456789 }""", out var root, out _);
 
         root!.TryGetMember("quality", out var member);
-        member!.AsNumber().Should().Be(0.1234567890123456789m);
+        member!.AsNumber().ShouldBe(0.1234567890123456789m);
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public sealed class JsonContentReaderTests
     {
         var ok = Read("""{ "inputCount": 3, "inputCount": 4 }""", out _, out var issues);
 
-        ok.Should().BeFalse();
-        issues.Should().ContainSingle().Which.Code.Should().Be(ContentIssueCode.DuplicateKey);
+        ok.ShouldBeFalse();
+        issues.ShouldHaveSingleItem().Code.ShouldBe(ContentIssueCode.DuplicateKey);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public sealed class JsonContentReaderTests
     {
         var ok = Read("""{ "widgets": [ { "id": "WID_A", "id": "WID_B" } ] }""", out _, out var issues);
 
-        ok.Should().BeFalse();
-        issues.Should().ContainSingle().Which.Code.Should().Be(ContentIssueCode.DuplicateKey);
+        ok.ShouldBeFalse();
+        issues.ShouldHaveSingleItem().Code.ShouldBe(ContentIssueCode.DuplicateKey);
     }
 
     [Theory]
@@ -82,9 +82,9 @@ public sealed class JsonContentReaderTests
     {
         var ok = Read(json, out var root, out var issues);
 
-        ok.Should().BeFalse();
-        root.Should().BeNull();
-        issues.Should().Contain(i => i.Code == ContentIssueCode.MalformedJson);
+        ok.ShouldBeFalse();
+        root.ShouldBeNull();
+        issues.ShouldContain(i => i.Code == ContentIssueCode.MalformedJson);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class JsonContentReaderTests
         Read("""{ "b": 1, "a": 2 }""", out var first, out _);
         Read("""{ "a": 2, "b": 1 }""", out var second, out _);
 
-        first.Should().Be(second);
+        first.ShouldBe(second);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class JsonContentReaderTests
     {
         var ok = Read("[1, 2, 3]", out var root, out _);
 
-        ok.Should().BeTrue();
-        root!.Items.Should().HaveCount(3);
+        ok.ShouldBeTrue();
+        root!.Items.Count.ShouldBe(3);
     }
 }
