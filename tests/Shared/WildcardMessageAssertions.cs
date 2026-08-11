@@ -47,6 +47,18 @@ namespace SlayIdleRepeat.TestSupport;
 /// rule fired without pinning the whole sentence.
 /// </para>
 /// <para>
+/// 🔒 <b>The sibling trap, for anyone writing assertions in this repository.</b> Shouldly's
+/// <b>string</b> overloads of <c>ShouldContain</c>, <c>ShouldNotContain</c>, <c>ShouldStartWith</c>
+/// and <c>ShouldEndWith</c> take a <c>Case caseSensitivity</c> parameter that defaults to
+/// <c>Case.Insensitive</c>. The library M1-00 replaced compared those case-<b>sensitively</b>. So
+/// <c>message.ShouldContain("SERIALISATION CHANGE")</c> silently also accepts
+/// <c>"serialisation change"</c> unless you pass <c>Case.Sensitive</c> — which is a weaker
+/// assertion than the one it replaced, and weaker than it looks. Pass <c>Case.Sensitive</c>
+/// explicitly whenever the case is part of the claim. This does <b>not</b> apply to the
+/// collection overloads (<c>someList.ShouldContain(item)</c>), which compare with
+/// <c>EqualityComparer&lt;T&gt;</c> and are already exact.
+/// </para>
+/// <para>
 /// Compiled into <c>SlayIdleRepeat.Core.Tests</c> and <c>SlayIdleRepeat.Application.Tests</c> as a
 /// linked <c>&lt;Compile Include="..\Shared\*.cs" /&gt;</c>. It is deliberately <b>not</b> its own
 /// project: <c>build/ci/test-suites.json</c> discovers suites with the glob

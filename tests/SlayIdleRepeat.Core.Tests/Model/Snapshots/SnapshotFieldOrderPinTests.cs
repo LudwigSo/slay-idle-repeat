@@ -143,7 +143,7 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, withoutTheNewField, actual);
 
-        offenders.ShouldHaveSingleItem().ShouldContain("pinned <no field>");
+        offenders.ShouldHaveSingleItem().ShouldContain("pinned <no field>", Case.Sensitive);
     }
 
     /// <summary>🔒 `14` §16.6 — the pin bites on a <b>removed</b> field.</summary>
@@ -155,7 +155,7 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, withAnExtraField, actual);
 
-        offenders.ShouldHaveSingleItem().ShouldContain("found <no field>");
+        offenders.ShouldHaveSingleItem().ShouldContain("found <no field>", Case.Sensitive);
     }
 
     /// <summary>
@@ -187,10 +187,10 @@ public sealed class SnapshotFieldOrderPinTests
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, reordered, actual);
 
         offenders.ShouldNotBeEmpty();
-        offenders[0].ShouldContain("SERIALISATION CHANGE");
-        offenders[0].ShouldContain("SnapshotSchema.SchemaVersion");
-        offenders[0].ShouldContain("migration");
-        offenders[0].ShouldContain("never by editing the pinned list");
+        offenders[0].ShouldContain("SERIALISATION CHANGE", Case.Sensitive);
+        offenders[0].ShouldContain("SnapshotSchema.SchemaVersion", Case.Sensitive);
+        offenders[0].ShouldContain("migration", Case.Sensitive);
+        offenders[0].ShouldContain("never by editing the pinned list", Case.Sensitive);
     }
 
     /// <summary>

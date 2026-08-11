@@ -26,7 +26,7 @@ public sealed class CanonicalStateWriterTests
     {
         var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
 
-        hash.ShouldStartWith("fnv1a:");
+        hash.ShouldStartWith("fnv1a:", Case.Sensitive);
     }
 
     /// <summary>The wire form is the prefix plus exactly 16 hex characters — 22 in all.</summary>
@@ -72,7 +72,7 @@ public sealed class CanonicalStateWriterTests
 
         var hash = CanonicalStateWriter.HashMetaCommandState(snapshot);
 
-        hash.ShouldStartWith("fnv1a:00");
+        hash.ShouldStartWith("fnv1a:00", Case.Sensitive);
         WireForm.IsMatch(hash).ShouldBeTrue($"'{hash}' is not of the form {WireForm}");
     }
 
@@ -94,7 +94,7 @@ public sealed class CanonicalStateWriterTests
     {
         CanonicalStateWriter.AlgorithmPrefix.ShouldBe("fnv1a:");
         CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player)
-            .ShouldStartWith(CanonicalStateWriter.AlgorithmPrefix);
+            .ShouldStartWith(CanonicalStateWriter.AlgorithmPrefix, Case.Sensitive);
     }
 
     /// <summary>🔒 A run command hashes <c>PlayerSnapshot</c> then <c>RunSnapshot</c>, concatenated.</summary>

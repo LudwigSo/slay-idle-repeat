@@ -114,8 +114,8 @@ public sealed class WildcardMessageAssertionsTests
         var thrown = Should.Throw<ShouldAssertException>(
             () => "the actual text".ShouldMatchWildcard("*the expected pattern*"));
 
-        thrown.Message.ShouldContain("*the expected pattern*");
-        thrown.Message.ShouldContain("the actual text");
+        thrown.Message.ShouldContain("*the expected pattern*", Case.Sensitive);
+        thrown.Message.ShouldContain("the actual text", Case.Sensitive);
     }
 
     [Fact]
@@ -124,6 +124,6 @@ public sealed class WildcardMessageAssertionsTests
         var thrown = Should.Throw<ShouldAssertException>(
             () => "actual".ShouldMatchWildcard("*expected*", "16 §A7 ruling 13 pins this stream name"));
 
-        thrown.Message.ShouldContain("16 §A7 ruling 13 pins this stream name");
+        thrown.Message.ShouldContain("16 §A7 ruling 13 pins this stream name", Case.Sensitive);
     }
 }
