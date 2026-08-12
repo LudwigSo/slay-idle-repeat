@@ -66,13 +66,19 @@ public static partial class ManifestValidator
 
         var issues = new List<ManifestIssue>();
 
+        // Grouped once, not once per section/family. Every per-section and per-family rule below
+        // used to re-scan the whole 974-row (resp. 106-row) array, and several of them scanned it
+        // twice more to phrase their own message.
+        var bySection = manifest.Art.Assets.ToLookup(a => a.Section, StringComparer.Ordinal);
+        var byFamily = manifest.Audio.Assets.ToLookup(a => a.Family, StringComparer.Ordinal);
+
         CheckIdsAreUniqueAndWellFormed(manifest, issues);
-        CheckSectionCounts(manifest, issues);
+        CheckSectionCounts(manifest, bySection, issues);
         CheckArtTotals(manifest, issues);
         CheckAtlases(manifest, issues);
         CheckBiomeScoping(manifest, issues);
-        CheckCutRows(manifest, issues);
-        CheckAudioFamilies(manifest, issues);
+        CheckCutRows(manifest, bySection, issues);
+        CheckAudioFamilies(manifest, byFamily, issues);
         CheckAudioTotals(manifest, issues);
         CheckDiscrepancyRecords(manifest, issues);
 
@@ -85,21 +91,31 @@ public static partial class ManifestValidator
 
     private static void CheckIdsAreUniqueAndWellFormed(AssetManifestSet manifest, List<ManifestIssue> issues)
     {
-        foreach (var duplicate in manifest.Art.Assets.Select(a => a.Id)
-                     .Concat(manifest.Audio.Assets.Select(a => a.Id))
-                     .GroupBy(id => id, StringComparer.Ordinal)
-                     .Where(group => group.Count() > 1))
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var id in manifest.Art.Assets.Select(a => a.Id)
+                     .Concat(manifest.Audio.Assets.Select(a => a.Id)))
+        {
+            counts[id] = counts.GetValueOrDefault(id) + 1;
+        }
+
+        foreach (var (id, count) in counts.Where(entry => entry.Value > 1))
         {
             issues.Add(new ManifestIssue(
-                ManifestIssueCode.DuplicateId, duplicate.Key,
-                $"is declared {duplicate.Count()} times. Three later tasks key their records to this " +
+                ManifestIssueCode.DuplicateId, id,
+                $"is declared {count} times. Three later tasks key their records to this " +
                 "id, so a collision silently merges two asset slots."));
         }
 
         foreach (var asset in manifest.Art.Assets)
         {
-            var prefix = asset.Id.Split('_', 2)[0];
-            if (!IdPrefixes.Contains(prefix) || !ArtId().IsMatch(asset.Id))
+            // 🔒 IdPrefixes is the ONLY list of §D1 prefixes. It used to be checked alongside a
+            // regex that spelled the same twelve out again, so adding a prefix to this public set
+            // left every id carrying it still reported as malformed — by a message that named the
+            // prefix as accepted. SnakeCaseId() now governs shape alone.
+            var underscore = asset.Id.IndexOf('_', StringComparison.Ordinal);
+            var prefix = underscore > 0 ? asset.Id[..underscore] : asset.Id;
+
+            if (!IdPrefixes.Contains(prefix) || !SnakeCaseId().IsMatch(asset.Id))
             {
                 issues.Add(new ManifestIssue(
                     ManifestIssueCode.MalformedId, asset.Id,
@@ -127,7 +143,8 @@ public static partial class ManifestValidator
         }
     }
 
-    private static void CheckSectionCounts(AssetManifestSet manifest, List<ManifestIssue> issues)
+    private static void CheckSectionCounts(
+        AssetManifestSet manifest, ILookup<string, ArtAsset> bySection, List<ManifestIssue> issues)
     {
         var known = manifest.Art.Sections.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
 
@@ -140,14 +157,34 @@ public static partial class ManifestValidator
 
         foreach (var section in manifest.Art.Sections)
         {
-            var actual = manifest.ArtInSection(section.Id).ToArray();
+            // One pass per section over its own rows, from the lookup built once for the whole
+            // register. This loop used to call ArtInSection — a full 974-row scan — for each of
+            // the 20 sections, and then re-count derived and cut rows a second time each to build
+            // the message.
+            var rows = 0;
+            var derived = 0;
+            var cut = 0;
 
-            if (actual.Length != section.TranscribedCount)
+            foreach (var asset in bySection[section.Id])
+            {
+                rows++;
+                if (asset.Derived)
+                {
+                    derived++;
+                }
+
+                if (!asset.IsActive)
+                {
+                    cut++;
+                }
+            }
+
+            if (rows != section.TranscribedCount)
             {
                 issues.Add(new ManifestIssue(
                     ManifestIssueCode.CountMismatch, $"sections/{section.Id}",
                     $"records transcribedCount {section.TranscribedCount} but the assets array holds " +
-                    $"{actual.Length} rows for it. The stored count and the data have diverged."));
+                    $"{rows} rows for it. The stored count and the data have diverged."));
             }
 
             // 🔒 The FLAG must match the arithmetic. Not the same check as the one above: this is
@@ -162,19 +199,19 @@ public static partial class ManifestValidator
                     $"{section.ClaimedCount} and {section.TranscribedCount} rows are transcribed."));
             }
 
-            if (actual.Count(a => a.Derived) != section.DerivedCount)
+            if (derived != section.DerivedCount)
             {
                 issues.Add(new ManifestIssue(
                     ManifestIssueCode.CountMismatch, $"sections/{section.Id}",
-                    $"records derivedCount {section.DerivedCount} but {actual.Count(a => a.Derived)} " +
+                    $"records derivedCount {section.DerivedCount} but {derived} " +
                     "rows carry derived:true."));
             }
 
-            if (actual.Count(a => !a.IsActive) != section.CutCount)
+            if (cut != section.CutCount)
             {
                 issues.Add(new ManifestIssue(
                     ManifestIssueCode.CountMismatch, $"sections/{section.Id}",
-                    $"records cutCount {section.CutCount} but {actual.Count(a => !a.IsActive)} rows " +
+                    $"records cutCount {section.CutCount} but {cut} rows " +
                     "carry a cut ruling."));
             }
         }
@@ -183,10 +220,26 @@ public static partial class ManifestValidator
     private static void CheckArtTotals(AssetManifestSet manifest, List<ManifestIssue> issues)
     {
         var totals = manifest.Art.Totals;
+        // One pass, not three: CutArt, DerivedArt and ActiveArt each walk the whole register.
+        var cut = 0;
+        var derived = 0;
+        foreach (var asset in manifest.Art.Assets)
+        {
+            if (!asset.IsActive)
+            {
+                cut++;
+            }
+
+            if (asset.Derived)
+            {
+                derived++;
+            }
+        }
+
         Compare(issues, "totals/transcribed", totals.Transcribed, manifest.Art.Assets.Count);
-        Compare(issues, "totals/cut", totals.Cut, manifest.CutArt.Count());
-        Compare(issues, "totals/derived", totals.Derived, manifest.DerivedArt.Count());
-        Compare(issues, "totals/active", totals.Active, manifest.ActiveArt.Count());
+        Compare(issues, "totals/cut", totals.Cut, cut);
+        Compare(issues, "totals/derived", totals.Derived, derived);
+        Compare(issues, "totals/active", totals.Active, manifest.Art.Assets.Count - cut);
 
         if (totals.Active != totals.Transcribed - totals.Cut)
         {
@@ -212,12 +265,11 @@ public static partial class ManifestValidator
         foreach (var atlas in manifest.Art.Atlases)
         {
             // `atlas_biome_{n}` is a template in §D2, standing for the eight per-chapter atlases.
-            var members = atlas.Id.Contains('{', StringComparison.Ordinal)
-                ? manifest.Art.Assets.Where(a => a.Atlas is not null &&
-                      a.Atlas.StartsWith(atlas.Id[..atlas.Id.IndexOf('{', StringComparison.Ordinal)],
-                          StringComparison.Ordinal)).ToArray()
-                : manifest.Art.Assets.Where(a =>
-                      string.Equals(a.Atlas, atlas.Id, StringComparison.Ordinal)).ToArray();
+            // 🔒 Resolved by Atlas.Covers, which is the ONE place that rule lives — this loop and
+            // AssetManifestSet.AtlasMembers each used to carry their own copy, and they disagreed.
+            var members = manifest.Art.Assets
+                .Where(a => a.Atlas is not null && atlas.Covers(a.Atlas))
+                .ToArray();
 
             Compare(issues, $"atlases/{atlas.Id}/assetCount", atlas.AssetCount, members.Length);
             Compare(issues, $"atlases/{atlas.Id}/uncutAssetCount", atlas.UncutAssetCount,
@@ -227,8 +279,7 @@ public static partial class ManifestValidator
         foreach (var asset in manifest.Art.Assets.Where(a => a.Atlas is not null))
         {
             var atlas = asset.Atlas!;
-            var known = declared.Contains(atlas) ||
-                        (BiomeAtlas().IsMatch(atlas) && declared.Contains("atlas_biome_{n}"));
+            var known = declared.Contains(atlas) || manifest.Art.Atlases.Any(a => a.Covers(atlas));
 
             if (!known)
             {
@@ -241,7 +292,21 @@ public static partial class ManifestValidator
 
     private static void CheckBiomeScoping(AssetManifestSet manifest, List<ManifestIssue> issues)
     {
-        var byKey = manifest.Art.Biomes.ToDictionary(b => b.Key, StringComparer.Ordinal);
+        // 🔒 TryAdd, not ToDictionary: two biomes sharing a key is a data defect, and ToDictionary
+        // threw an ArgumentException out of a method whose entire contract is to RETURN findings.
+        // The schema's uniqueItems does not prevent it — two entries differing only in their
+        // palette are not identical items.
+        var byKey = new Dictionary<string, Biome>(StringComparer.Ordinal);
+        foreach (var biomeEntry in manifest.Art.Biomes)
+        {
+            if (!byKey.TryAdd(biomeEntry.Key, biomeEntry))
+            {
+                issues.Add(new ManifestIssue(
+                    ManifestIssueCode.InconsistentRow, $"biomes/{biomeEntry.Key}",
+                    "is declared more than once. 15 §A5 locks one palette per biome, and a second " +
+                    "declaration makes which palette a row must carry ambiguous."));
+            }
+        }
 
         foreach (var asset in manifest.Art.Assets)
         {
@@ -280,32 +345,43 @@ public static partial class ManifestValidator
         }
     }
 
-    private static void CheckCutRows(AssetManifestSet manifest, List<ManifestIssue> issues)
+    private static void CheckCutRows(
+        AssetManifestSet manifest, ILookup<string, ArtAsset> bySection, List<ManifestIssue> issues)
     {
         foreach (var section in manifest.Art.Sections)
         {
-            var rows = manifest.ArtInSection(section.Id).ToArray();
-            var cut = rows.Where(r => !r.IsActive).ToArray();
+            var rows = 0;
+            var cut = 0;
 
-            if (section.Cut is null && cut.Length > 0)
+            foreach (var asset in bySection[section.Id])
+            {
+                rows++;
+                if (!asset.IsActive)
+                {
+                    cut++;
+                }
+            }
+
+            if (section.Cut is null && cut > 0)
             {
                 issues.Add(new ManifestIssue(
                     ManifestIssueCode.InconsistentRow, $"sections/{section.Id}",
-                    $"declares no cut, but {cut.Length} of its rows carry one. A ruling that removed " +
+                    $"declares no cut, but {cut} of its rows carry one. A ruling that removed " +
                     "assets must be recorded on the section too, or the section reads as live."));
             }
 
-            if (section.Cut is not null && rows.Length > 0 && cut.Length != rows.Length)
+            if (section.Cut is not null && rows > 0 && cut != rows)
             {
                 issues.Add(new ManifestIssue(
                     ManifestIssueCode.InconsistentRow, $"sections/{section.Id}",
-                    $"is cut ('{section.Cut}') but only {cut.Length} of its {rows.Length} rows carry " +
+                    $"is cut ('{section.Cut}') but only {cut} of its {rows} rows carry " +
                     "the ruling. A partly-cut section is not what a section-level cut means."));
             }
         }
     }
 
-    private static void CheckAudioFamilies(AssetManifestSet manifest, List<ManifestIssue> issues)
+    private static void CheckAudioFamilies(
+        AssetManifestSet manifest, ILookup<string, AudioAsset> byFamily, List<ManifestIssue> issues)
     {
         var declared = manifest.Audio.Families.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
 
@@ -318,7 +394,7 @@ public static partial class ManifestValidator
 
         foreach (var family in manifest.Audio.Families)
         {
-            var actual = manifest.AudioInFamily(family.Id).Count();
+            var actual = byFamily[family.Id].Count();
             Compare(issues, $"families/{family.Id}/transcribedCount", family.TranscribedCount, actual);
 
             var agrees = family.ClaimedCount == family.TranscribedCount;
@@ -401,13 +477,15 @@ public static partial class ManifestValidator
             }
         }
 
-        CheckTotalRecord(manifest, recorded, issues, "DSC_E1_TOTAL",
+        CheckAudioFamilyRecords(manifest, recorded, issues);
+
+        CheckTotalRecord(recorded, issues, "DSC_E1_TOTAL",
             manifest.Art.Totals.ClaimedBySummaryTable != manifest.Art.Totals.Transcribed,
             $"15 §E1's TOTAL ({manifest.Art.Totals.ClaimedBySummaryTable}) and the transcribed row " +
             $"count ({manifest.Art.Totals.Transcribed})");
 
         var audio = manifest.Audio.Totals;
-        CheckTotalRecord(manifest, recorded, issues, "DSC_AUDIO_TOTALS",
+        CheckTotalRecord(recorded, issues, "DSC_AUDIO_TOTALS",
             audio.ClaimedSfx != audio.TranscribedSfx ||
             audio.ClaimedMusic != audio.TranscribedMusic ||
             audio.ClaimedCombined != audio.TranscribedCombined,
@@ -416,11 +494,61 @@ public static partial class ManifestValidator
             $"{audio.TranscribedMusic} / {audio.TranscribedCombined})");
     }
 
+    /// <summary>
+    /// 🔒 The same two-way rule, over `20` §3/§4's families. It was enforced for `15` §E's sections
+    /// and for both totals blocks, but NOT per audio family — so a regeneration that honestly set
+    /// <c>countsAgree: false</c> on a family passed silently, with no record demanded and nothing
+    /// red. Half the register was exempt from the contract this type exists to enforce.
+    /// </summary>
+    private static void CheckAudioFamilyRecords(
+        AssetManifestSet manifest, IReadOnlyList<Discrepancy> recorded, List<ManifestIssue> issues)
+    {
+        foreach (var family in manifest.Audio.Families.Where(f => !f.CountsAgree))
+        {
+            var expected = $"DSC_{family.Id.ToUpperInvariant()}_COUNT";
+            if (!recorded.Any(d => string.Equals(d.Id, expected, StringComparison.Ordinal)))
+            {
+                issues.Add(new ManifestIssue(
+                    ManifestIssueCode.UnrecordedDiscrepancy, $"families/{family.Id}",
+                    $"disagrees with doc 20 ({family.ClaimedCount} claimed, " +
+                    $"{family.TranscribedCount} transcribed) and no record '{expected}' exists. " +
+                    "A mismatch is evidence for O30 at M11-01; it must be written down, not left " +
+                    "for someone to rediscover."));
+            }
+        }
+
+        // And the self-expiry direction. A record naming a family whose counts now agree is
+        // describing something that stopped being true.
+        foreach (var record in recorded)
+        {
+            var match = FamilyCountRecord().Match(record.Id);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            // 🔒 Ordinal-ignore-case, and only for a token that resolves to a DECLARED family:
+            // `DSC_E20_COUNT` also matches this shape, and belongs to the section rule above.
+            var name = match.Groups["family"].Value;
+            var family = manifest.Audio.Families
+                .FirstOrDefault(f => string.Equals(f.Id, name, StringComparison.OrdinalIgnoreCase));
+
+            if (family is not null && family.CountsAgree)
+            {
+                issues.Add(new ManifestIssue(
+                    ManifestIssueCode.StaleDiscrepancy, record.Id,
+                    $"records a count disagreement for family '{family.Id}', but doc 20's claim " +
+                    $"({family.ClaimedCount}) and the transcription ({family.TranscribedCount}) now " +
+                    "agree. Delete the record — an exception that outlives the condition it " +
+                    "describes is worse than none."));
+            }
+        }
+    }
+
     private static void CheckTotalRecord(
-        AssetManifestSet manifest, IReadOnlyList<Discrepancy> recorded, List<ManifestIssue> issues,
+        IReadOnlyList<Discrepancy> recorded, List<ManifestIssue> issues,
         string recordId, bool disagrees, string subject)
     {
-        _ = manifest;
         var present = recorded.Any(d => string.Equals(d.Id, recordId, StringComparison.Ordinal));
 
         if (disagrees && !present)
@@ -447,15 +575,19 @@ public static partial class ManifestValidator
         }
     }
 
-    [GeneratedRegex("^(chr|pet|mnt|tile|board|bg|gear|icon|ui|die|vfx|store)_[a-z0-9_]+$")]
-    private static partial Regex ArtId();
+    /// <summary>
+    /// `15` §D1's SHAPE only — snake_case behind a lowercase prefix. Which prefixes are legal is
+    /// <see cref="IdPrefixes"/>'s job, and stating it in both places is how the two drift.
+    /// </summary>
+    [GeneratedRegex("^[a-z][a-z0-9]*_[a-z0-9_]+$")]
+    private static partial Regex SnakeCaseId();
 
     [GeneratedRegex("^(mus|sfx)_[a-z0-9_]+$")]
     private static partial Regex AudioId();
 
-    [GeneratedRegex("^atlas_biome_[1-8]$")]
-    private static partial Regex BiomeAtlas();
-
     [GeneratedRegex("^DSC_(?<section>E[0-9]{1,2})_COUNT$")]
     private static partial Regex SectionCountRecord();
+
+    [GeneratedRegex("^DSC_(?<family>[A-Z0-9_]+)_COUNT$")]
+    private static partial Regex FamilyCountRecord();
 }

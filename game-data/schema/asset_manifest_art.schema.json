@@ -45,6 +45,7 @@
     },
     "presentText": { "type": "string", "minLength": 1 },
     "discrepancy": {
+      "description": "🔒 `DSC_` is the one pattern in this file that ContentInvariants.IsIdNamespace accepts (four literal characters behind the `^`), and it governs an `id` member in BOTH asset manifests. That makes the discrepancy register ONE id space spanning the art and audio files — deliberately, because ManifestValidator.CheckDiscrepancyRecords reads the two together as a single set of records. The consequence to know: the same `DSC_*` id in both files is a build failure, reported by CheckIdSpaces as a duplicate id. Unlike `assetId`, this one is meant to be shared.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "sourceSection", "claim", "observed", "detail"],
@@ -141,7 +142,11 @@
         "additionalProperties": false,
         "required": ["id", "contents", "assetCount", "uncutAssetCount"],
         "properties": {
-          "id": { "type": "string", "pattern": "^atlas_[a-z_{}0-9]+$" },
+          "id": {
+            "description": "🔒 A §D2 declaration, and eight of the nine are literal ids. The ninth, `atlas_biome_{n}`, is a TEMPLATE — which is why this pattern admits braces and the reference pattern on `assets[].atlas` does not. Because ContentInvariants.CheckIdSpaces groups pattern bindings by the exact pattern STRING, the two patterns being different means it sees declarations here and no references there, and resolves nothing between them. That is deliberate: it could not resolve `atlas_biome_1` against a template anyway. The resolution is owned by ManifestValidator.CheckAtlases (via Atlas.Covers), which reports an asset packed into an atlas §D2 never declared, and by the stored assetCount/uncutAssetCount comparison beside it.",
+            "type": "string",
+            "pattern": "^atlas_[a-z_{}0-9]+$"
+          },
           "contents": { "type": "string", "minLength": 1 },
           "assetCount": { "type": "integer", "minimum": 0 },
           "uncutAssetCount": { "type": "integer", "minimum": 0 }
@@ -218,7 +223,7 @@
             "enum": ["bottom-center", "center"]
           },
           "atlas": {
-            "description": "15 §D2. null where §D2 assigns none — backgrounds explicitly, misc UI icons and store art by omission, tile icons pending DSC_TILE_ATLAS.",
+            "description": "15 §D2. null where §D2 assigns none — backgrounds explicitly, misc UI icons and store art by omission, tile icons pending DSC_TILE_ATLAS. 🔒 A REFERENCE, but deliberately not one ContentInvariants resolves: this pattern differs from the declaration pattern on `atlases[].id` (no braces), so CheckIdSpaces groups the two separately, finds no `id` member under this pattern, and treats it as a validated string shape rather than an id space. It has to — the eight per-chapter values `atlas_biome_1`…`atlas_biome_8` are covered by the template declaration `atlas_biome_{n}`, which no cross-file rule keyed on string equality can match. ManifestValidator.CheckAtlases owns the resolution instead, through Atlas.Covers.",
             "type": "string",
             "pattern": "^atlas_[a-z_0-9]+$"
           },

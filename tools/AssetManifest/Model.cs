@@ -26,7 +26,67 @@ public sealed record Rarity(string Code, string Colour);
 /// <see cref="UncutAssetCount"/> is carried separately so an atlas emptied by a ruling stays
 /// visible: after the O8 ruling <c>atlas_vfx</c> has 32 members and 0 of them uncut.
 /// </remarks>
-public sealed record Atlas(string Id, string Contents, int AssetCount, int UncutAssetCount);
+public sealed record Atlas(string Id, string Contents, int AssetCount, int UncutAssetCount)
+{
+    /// <summary>
+    /// 🔒 True when this declaration governs the atlas an asset row names.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Eight of the nine §D2 rows are literal ids and match by equality. The ninth,
+    /// <c>atlas_biome_{n}</c>, is a <em>template</em> standing for the eight per-chapter atlases —
+    /// the rows reference <c>atlas_biome_1</c>…<c>atlas_biome_8</c> and no literal
+    /// <c>atlas_biome_{n}</c> is ever referenced.
+    /// </para>
+    /// <para>
+    /// 🔒 The resolution lives here, on the declaration, rather than being re-derived by each
+    /// caller. It was written twice and divergently: <c>ManifestValidator</c> resolved the template
+    /// by prefix while <see cref="AssetManifestSet.AtlasMembers"/> compared by equality, so the
+    /// public lookup that M8-06 will call returned zero rows for the one atlas that needs care.
+    /// </para>
+    /// </remarks>
+    /// <param name="atlasReference">The value an asset row carries in its <c>atlas</c> member.</param>
+    public bool Covers(string atlasReference)
+    {
+        ArgumentNullException.ThrowIfNull(atlasReference);
+
+        var open = Id.IndexOf('{', StringComparison.Ordinal);
+        if (open < 0)
+        {
+            return string.Equals(Id, atlasReference, StringComparison.Ordinal);
+        }
+
+        var close = Id.IndexOf('}', StringComparison.Ordinal);
+        if (close < open)
+        {
+            return false;
+        }
+
+        var prefix = Id[..open];
+        var suffix = Id[(close + 1)..];
+
+        if (atlasReference.Length <= prefix.Length + suffix.Length ||
+            !atlasReference.StartsWith(prefix, StringComparison.Ordinal) ||
+            !atlasReference.EndsWith(suffix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // The placeholder stands for a chapter number. Digits only — a prefix match alone would
+        // read `atlas_biome_props` as a member of the per-chapter atlas. A digit that names no
+        // chapter (`atlas_biome_9`) is still caught, by the stored-count comparison it drifts.
+        var placeholder = atlasReference.AsSpan(prefix.Length, atlasReference.Length - prefix.Length - suffix.Length);
+        foreach (var character in placeholder)
+        {
+            if (!char.IsAsciiDigit(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
 
 /// <summary>
 /// One `15` §E-section, carrying §E1's claimed count beside the count actually transcribed.

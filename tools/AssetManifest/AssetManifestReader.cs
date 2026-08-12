@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 
 namespace SlayIdleRepeat.AssetManifest;
@@ -47,9 +46,27 @@ public static class AssetManifestReader
                 "M8-09 and three later tasks read it.");
         }
 
-        return LoadFrom(
-            File.ReadAllText(Path.Combine(directory, ArtFileName)),
-            File.ReadAllText(Path.Combine(directory, AudioFileName)));
+        return LoadFrom(ReadFile(directory, ArtFileName), ReadFile(directory, AudioFileName));
+    }
+
+    /// <summary>
+    /// 🔒 A missing manifest FILE is located the same way a missing directory is. A rename is the
+    /// likeliest way this breaks, and <c>ManifestLayoutTests</c> pins the stem pairing precisely
+    /// because of it — a bare <see cref="FileNotFoundException"/> would name no register at all.
+    /// </summary>
+    private static string ReadFile(string directory, string fileName)
+    {
+        var path = Path.Combine(directory, fileName);
+        if (!File.Exists(path))
+        {
+            throw new AssetManifestFormatException(
+                $"{AssetsDirectory}/{fileName}",
+                $"is missing: there is no file at '{path}'. It pairs with " +
+                $"game-data/schema/{Path.GetFileNameWithoutExtension(fileName)}.schema.json, and " +
+                "renaming one without the other drops the register out of build-time validation.");
+        }
+
+        return File.ReadAllText(path);
     }
 
     /// <summary>Loads both manifests from their JSON text — the seam the tests drive.</summary>
@@ -65,7 +82,7 @@ public static class AssetManifestReader
 
     private static ArtManifest ReadArt(JsonElement root)
     {
-        var biomes = Read(root, "biomes").EnumerateArray()
+        var biomes = Items(root, "biomes")
             .Select(b => new Biome(
                 Text(b, "key", "biomes"),
                 Int(b, "chapter", "biomes"),
@@ -73,32 +90,19 @@ public static class AssetManifestReader
                 ReadPalette(Read(b, "palette"), "biomes")))
             .ToArray();
 
-        var rarities = Read(root, "rarities").EnumerateArray()
+        var rarities = Items(root, "rarities")
             .Select(r => new Rarity(Text(r, "code", "rarities"), Text(r, "colour", "rarities")))
             .ToArray();
 
-        var atlases = Read(root, "atlases").EnumerateArray()
+        var atlases = Items(root, "atlases")
             .Select(a => new Atlas(
                 Text(a, "id", "atlases"), Text(a, "contents", "atlases"),
                 Int(a, "assetCount", "atlases"), Int(a, "uncutAssetCount", "atlases")))
             .ToArray();
 
-        var sections = Read(root, "sections").EnumerateArray()
-            .Select(s => new ManifestSection(
-                Text(s, "id", "sections"),
-                Text(s, "category", "sections"),
-                Int(s, "claimedCount", "sections"),
-                Int(s, "transcribedCount", "sections"),
-                Bool(s, "countsAgree", "sections"),
-                Int(s, "cutCount", "sections"),
-                Int(s, "derivedCount", "sections"),
-                NullableText(s, "pivotClass", "sections"),
-                NullableText(s, "cut", "sections"),
-                Text(s, "sourceSection", "sections"),
-                Read(s, "notes").EnumerateArray().Select(n => n.GetString()!).ToArray()))
-            .ToArray();
+        var sections = Items(root, "sections").Select(ReadSection).ToArray();
 
-        var assets = Read(root, "assets").EnumerateArray().Select(ReadArtAsset).ToArray();
+        var assets = Items(root, "assets").Select(ReadArtAsset).ToArray();
 
         var totals = Read(root, "totals");
         return new ArtManifest(
@@ -113,6 +117,25 @@ public static class AssetManifestReader
             ReadDiscrepancies(root), assets);
     }
 
+    private static ManifestSection ReadSection(JsonElement s)
+    {
+        var id = Text(s, "id", "sections");
+        var owner = $"sections/{id}";
+
+        return new ManifestSection(
+            id,
+            Text(s, "category", owner),
+            Int(s, "claimedCount", owner),
+            Int(s, "transcribedCount", owner),
+            Bool(s, "countsAgree", owner),
+            Int(s, "cutCount", owner),
+            Int(s, "derivedCount", owner),
+            NullableText(s, "pivotClass", owner),
+            NullableText(s, "cut", owner),
+            Text(s, "sourceSection", owner),
+            [.. Items(s, "notes", owner).Select(n => TextItem(n, $"{owner}/notes"))]);
+    }
+
     private static ArtAsset ReadArtAsset(JsonElement a)
     {
         var id = Text(a, "id", "assets");
@@ -124,13 +147,19 @@ public static class AssetManifestReader
                 continue;
             }
 
+            // 🔒 Scalars only, and a structured value is a loud failure rather than a raw-JSON
+            // blob stuffed into a string dictionary. The schema's additionalProperties:false plus
+            // its per-member types make an object or array here impossible — so if one arrives,
+            // schema and reader have drifted, which this type's remarks say must be reported.
             extra[member.Name] = member.Value.ValueKind switch
             {
                 JsonValueKind.String => member.Value.GetString()!,
                 JsonValueKind.True => "true",
                 JsonValueKind.False => "false",
                 JsonValueKind.Number => member.Value.GetRawText(),
-                _ => member.Value.GetRawText(),
+                _ => throw new AssetManifestFormatException(
+                    id, $"member '{member.Name}' is {member.Value.ValueKind}; the schema declares " +
+                        "every extra transcribed field as a scalar."),
             };
         }
 
@@ -172,14 +201,14 @@ public static class AssetManifestReader
 
     private static AudioManifest ReadAudio(JsonElement root)
     {
-        var families = Read(root, "families").EnumerateArray()
+        var families = Items(root, "families")
             .Select(f => new AudioFamily(
                 Text(f, "id", "families"), Text(f, "label", "families"),
                 Int(f, "claimedCount", "families"), Int(f, "transcribedCount", "families"),
                 Bool(f, "countsAgree", "families"), Text(f, "sourceSection", "families")))
             .ToArray();
 
-        var assets = Read(root, "assets").EnumerateArray().Select(a =>
+        var assets = Items(root, "assets").Select(a =>
         {
             var id = Text(a, "id", "assets");
             return new AudioAsset
@@ -194,9 +223,7 @@ public static class AssetManifestReader
                 LengthSeconds = NullableNumber(a, "lengthSeconds", id),
                 DurationSeconds = NullableNumber(a, "durationSeconds", id),
                 Format = Text(a, "format", id),
-                DucksMusic = a.TryGetProperty("ducksMusic", out var duck)
-                    ? duck.GetBoolean()
-                    : null,
+                DucksMusic = NullableBool(a, "ducksMusic", id),
                 Note = NullableText(a, "note", id),
             };
         }).ToArray();
@@ -216,7 +243,7 @@ public static class AssetManifestReader
     }
 
     private static IReadOnlyList<Discrepancy> ReadDiscrepancies(JsonElement root) =>
-        Read(root, "discrepancies").EnumerateArray()
+        Items(root, "discrepancies")
             .Select(d => new Discrepancy(
                 Text(d, "id", "discrepancies"), Text(d, "sourceSection", "discrepancies"),
                 Text(d, "claim", "discrepancies"), Text(d, "observed", "discrepancies"),
@@ -231,9 +258,36 @@ public static class AssetManifestReader
                 owner, $"has no member '{name}'. The schema requires it; a reader that defaulted it " +
                        "would hide the hole instead of reporting it.");
 
-    private static string Text(JsonElement parent, string name, string owner) =>
-        Read(parent, name, owner).GetString()
-        ?? throw new AssetManifestFormatException(owner, $"member '{name}' is null, but it is required.");
+    /// <summary>
+    /// A required array member. 🔒 Wrong-typed, not just absent: <c>EnumerateArray()</c> on a
+    /// non-array throws a <see cref="InvalidOperationException"/> that names no pointer, and this
+    /// type's whole contract is that a failure says where in the manifest it is.
+    /// </summary>
+    private static JsonElement.ArrayEnumerator Items(
+        JsonElement parent, string name, string owner = "(root)")
+    {
+        var value = Read(parent, name, owner);
+        return value.ValueKind == JsonValueKind.Array
+            ? value.EnumerateArray()
+            : throw WrongKind(owner, name, value.ValueKind, "an array");
+    }
+
+    private static string Text(JsonElement parent, string name, string owner)
+    {
+        var value = Read(parent, name, owner);
+        return value.ValueKind == JsonValueKind.String
+            ? value.GetString()!
+            : throw WrongKind(owner, name, value.ValueKind, "a string");
+    }
+
+    /// <summary>One element of a string array, named by the array it came from.</summary>
+    private static string TextItem(JsonElement item, string owner) =>
+        item.ValueKind == JsonValueKind.String
+            ? item.GetString()!
+            : throw new AssetManifestFormatException(
+                owner, $"has an entry of kind {item.ValueKind}; every entry must be a string. A " +
+                       "null slipped into a string list would surface as a null element the first " +
+                       "consumer dereferences.");
 
     /// <summary>
     /// An optional member: 🔒 <b>absent means the design docs authorise no value here</b>, and the
@@ -246,32 +300,78 @@ public static class AssetManifestReader
     /// pins the population of nulls across the whole snapshot at 96 — every one of them a tuning
     /// number somebody might fill with a plausible zero. Three thousand categorical absences from a
     /// register would swamp that guard. A literal <c>null</c> is still accepted here so the
-    /// distinction never becomes a parsing trap.
+    /// distinction never becomes a parsing trap. A member of the WRONG kind is not that, and throws.
     /// </remarks>
     private static string? NullableText(JsonElement parent, string name, string owner)
     {
-        _ = owner;
-        return parent.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
-            ? value.GetString()
-            : null;
+        if (Optional(parent, name) is not { } value)
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String
+            ? value.GetString()!
+            : throw WrongKind(owner, name, value.ValueKind, "a string or absent");
     }
 
+    /// <inheritdoc cref="NullableText"/>
     private static double? NullableNumber(JsonElement parent, string name, string owner)
     {
-        _ = owner;
-        return parent.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
+        if (Optional(parent, name) is not { } value)
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.Number
             ? value.GetDouble()
-            : null;
+            : throw WrongKind(owner, name, value.ValueKind, "a number or absent");
     }
 
-    private static int Int(JsonElement parent, string name, string owner) =>
-        Read(parent, name, owner).GetInt32();
+    /// <inheritdoc cref="NullableText"/>
+    private static bool? NullableBool(JsonElement parent, string name, string owner)
+    {
+        if (Optional(parent, name) is not { } value)
+        {
+            return null;
+        }
 
-    private static bool Bool(JsonElement parent, string name, string owner) =>
-        Read(parent, name, owner).GetBoolean();
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => throw WrongKind(owner, name, value.ValueKind, "a boolean or absent"),
+        };
+    }
 
-    internal static string Format(double value) =>
-        value.ToString(CultureInfo.InvariantCulture);
+    /// <summary>The member, or null where it is absent OR written as a literal JSON <c>null</c>.</summary>
+    private static JsonElement? Optional(JsonElement parent, string name) =>
+        parent.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
+            ? value
+            : null;
+
+    private static int Int(JsonElement parent, string name, string owner)
+    {
+        var value = Read(parent, name, owner);
+        return value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)
+            ? number
+            : throw WrongKind(owner, name, value.ValueKind, "a 32-bit integer");
+    }
+
+    private static bool Bool(JsonElement parent, string name, string owner)
+    {
+        var value = Read(parent, name, owner);
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => throw WrongKind(owner, name, value.ValueKind, "a boolean"),
+        };
+    }
+
+    private static AssetManifestFormatException WrongKind(
+        string owner, string name, JsonValueKind actual, string expected) =>
+        new(owner, $"member '{name}' is {actual}, but the schema declares it as {expected}. The " +
+                   "schema and the reader have drifted, and one of them is wrong.");
 }
 
 /// <summary>The manifest on disk does not have the shape the reader and schema agree on.</summary>

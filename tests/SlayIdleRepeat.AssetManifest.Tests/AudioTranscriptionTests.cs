@@ -55,12 +55,15 @@ public sealed class AudioTranscriptionTests
             .ShouldBe(94);
     }
 
+    /// <summary>S3 floor first: "no family disagrees" is true of an empty family list too.</summary>
     [Fact]
     public void No_audio_family_disagrees_with_doc_20()
     {
-        ManifestFiles.Shipped.Audio.Families
-            .Where(f => !f.CountsAgree)
-            .ShouldBeEmpty();
+        var families = ManifestFiles.Shipped.Audio.Families;
+
+        families.Count.ShouldBe(7, "20 §3 plus §4.1–§4.6");
+        families.Where(f => !f.CountsAgree).ShouldBeEmpty();
+        families.ShouldAllBe(f => f.ClaimedCount == f.TranscribedCount);
     }
 
     /// <summary>`20` §3's twelve tracks, with the loop length the table states for each.</summary>

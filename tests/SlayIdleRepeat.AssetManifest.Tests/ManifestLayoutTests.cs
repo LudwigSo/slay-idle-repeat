@@ -95,6 +95,11 @@ public sealed class ManifestLayoutTests
         (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
             .ShouldBeFalse("game-data/README.md: UTF-8, no BOM");
 
+        // S3 floor: the scan below asserts once per newline, so a file with no newline at all
+        // would satisfy the LF rule vacuously.
+        bytes.Count(b => b == (byte)'\n')
+            .ShouldBeGreaterThan(100, $"{relativePath} is a pretty-printed multi-line JSON file");
+
         for (var i = 1; i < bytes.Length; i++)
         {
             if (bytes[i] == (byte)'\n')

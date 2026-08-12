@@ -51,6 +51,41 @@ public sealed class ManifestValidatorTests
         manifest.Art.Assets.Count(a => a.Biome is not null).ShouldBeGreaterThan(300);
     }
 
+    /// <summary>
+    /// 🔒 S4, for the records the validator does NOT self-expire. Only <c>DSC_E&lt;n&gt;_COUNT</c>,
+    /// <c>DSC_E1_TOTAL</c> and <c>DSC_AUDIO_TOTALS</c> go stale on their own; the other eleven are
+    /// prose about a transcription decision and no rule can recompute them. With only a
+    /// <c>Count &gt; 5</c> floor guarding them, eight of the fourteen could be deleted and every
+    /// other case here would stay green — including <c>DSC_TILE_ATLAS</c> and
+    /// <c>DSC_UNASSIGNED_ATLASES</c>, which <see cref="ArtFieldTests"/> cites as the evidence for
+    /// its null-atlas rule. Pinning the identities makes adding or dropping one a deliberate act.
+    /// </summary>
+    [Fact]
+    public void The_recorded_discrepancies_are_exactly_the_ones_this_transcription_argued_for()
+    {
+        var art = ManifestFiles.Shipped.Art.Discrepancies;
+        var audio = ManifestFiles.Shipped.Audio.Discrepancies;
+
+        art.Select(d => d.Id).ShouldBe([
+            "DSC_E20_COUNT", "DSC_E1_TOTAL", "DSC_O8_TOTAL", "DSC_DIE_BODY",
+            "DSC_DIE_VARIANT_SUFFIX", "DSC_E4_POSES", "DSC_TILE_ATLAS", "DSC_UNASSIGNED_ATLASES",
+            "DSC_ATLAS_VFX_EMPTY", "DSC_MISSING_SIZES",
+        ], ignoreOrder: true);
+
+        audio.Select(d => d.Id).ShouldBe([
+            "DSC_STINGER_LENGTH", "DSC_SFX_BAND", "DSC_DUCKING_SET", "DSC_SHARED_DESCRIPTORS",
+        ], ignoreOrder: true);
+
+        // A record with an empty claim, observation or detail records nothing. The reader only
+        // rejects a null, so the emptiness has to be pinned here.
+        var all = art.Concat(audio).ToArray();
+        all.Length.ShouldBe(14);
+        all.ShouldAllBe(d => d.SourceSection.Length > 0);
+        all.ShouldAllBe(d => d.Claim.Length > 0);
+        all.ShouldAllBe(d => d.Observed.Length > 0);
+        all.ShouldAllBe(d => d.Detail.Length > 0);
+    }
+
     [Fact]
     public void A_duplicate_asset_id_is_reported()
     {
@@ -201,10 +236,14 @@ public sealed class ManifestValidatorTests
     {
         var mutated = ManifestFiles.WithArtEdit("\"atlas\": \"atlas_hero\"", "\"atlas\": \"atlas_heroes\"");
 
+        // 🔒 Located on the row that was mutated, not merely "some row somewhere": the same edit
+        // also drifts atlas_hero's stored count, and an unlocated assertion would not distinguish
+        // the undeclared-atlas rule from anything else that emits InconsistentRow.
         var issues = ManifestValidator.Validate(mutated);
 
         issues.ShouldContain(i =>
             i.Code == ManifestIssueCode.InconsistentRow &&
+            i.Location == "chr_hero_armor_leathers_a" &&
             i.Message.Contains("atlas_heroes", StringComparison.Ordinal) &&
             i.Message.Contains("15 §D2 does not declare", StringComparison.Ordinal));
     }
@@ -213,12 +252,19 @@ public sealed class ManifestValidatorTests
     [Fact]
     public void A_row_carrying_the_wrong_biome_palette_is_reported()
     {
-        var mutated = ManifestFiles.WithArtEdit("\"base\": \"#5FBF5F\"", "\"base\": \"#C4462A\"");
+        // 🔒 Anchored on the row's own `biome`/`palette` pair. The bare `"base": "#5FBF5F"` string
+        // first occurs in the BIOMES header block, so a naive mutation would redefine greenwood
+        // itself and fire this rule from all 112 of its rows at once — proving the header check,
+        // not the row check this case is named for.
+        var mutated = ManifestFiles.WithArtEdit(
+            "\"biome\": \"greenwood\",\n      \"palette\": {\n        \"base\": \"#5FBF5F\",",
+            "\"biome\": \"greenwood\",\n      \"palette\": {\n        \"base\": \"#C4462A\",");
 
         var issues = ManifestValidator.Validate(mutated);
 
         issues.ShouldContain(i =>
             i.Code == ManifestIssueCode.InconsistentRow &&
+            i.Location == "chr_enemy_greenwood_brute_attack" &&
             i.Message.Contains("locked six from 15 §A5", StringComparison.Ordinal));
     }
 
@@ -232,6 +278,7 @@ public sealed class ManifestValidatorTests
 
         issues.ShouldContain(i =>
             i.Code == ManifestIssueCode.InconsistentRow &&
+            i.Location == "chr_enemy_greenwood_brute_attack" &&
             i.Message.Contains("greenwoode", StringComparison.Ordinal) &&
             i.Message.Contains("biomes block does not declare", StringComparison.Ordinal));
     }
@@ -243,11 +290,16 @@ public sealed class ManifestValidatorTests
             "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 11,\n      \"transcribedCount\": 11",
             "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 11,\n      \"transcribedCount\": 10");
 
-        var issues = ManifestValidator.Validate(mutated)
-            .Where(i => i.Location.StartsWith("families/dice", StringComparison.Ordinal))
-            .ToArray();
+        // 🔒 Two distinct rules emit CountMismatch under `families/dice`: the stored-vs-actual
+        // compare at `families/dice/transcribedCount`, and the countsAgree-vs-arithmetic check at
+        // `families/dice`. A prefix filter plus a bare code assertion could not tell them apart, so
+        // this pins the exact location and message of the one the case is named for — and pins the
+        // second one too, since this edit is supposed to trip both.
+        Only(mutated, ManifestIssueCode.CountMismatch, "families/dice/transcribedCount")
+            .Message.ShouldContain("records 10 but the data holds 11", Case.Sensitive);
 
-        issues.ShouldContain(i => i.Code == ManifestIssueCode.CountMismatch);
+        Only(mutated, ManifestIssueCode.CountMismatch, "families/dice")
+            .Message.ShouldContain("stores countsAgree=True", Case.Sensitive);
     }
 
     /// <summary>

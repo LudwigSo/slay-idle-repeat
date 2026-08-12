@@ -20,7 +20,52 @@
       "exclusiveMinimum": 0,
       "maximum": 600
     },
+    "deliveryFormat": {
+      "description": "20 §5 fixes exactly two delivery formats, one per kind. It was `{ type: string, minLength: 1 }`, which accepted any prose at all — a typo, a third format nobody ruled, or an SFX row claiming the music format. `musicRow`/`sfxRow` bind each kind to its own.",
+      "enum": [
+        "OGG Vorbis, q6, 44.1 kHz stereo",
+        "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping"
+      ]
+    },
+    "musicRow": {
+      "description": "🔒 A `20` §3 music track. §3 gives every track a Use column and a loop length; §5's Ducking row is about what SFX do TO music, so a music row carries no `ducksMusic` at all.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "family", "sourceSection", "format", "use", "lengthSeconds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/audioId" },
+        "kind": { "const": "mus" },
+        "family": { "$ref": "#/$defs/familyId" },
+        "sourceSection": { "type": "string", "minLength": 1 },
+        "use": { "$ref": "#/$defs/presentText" },
+        "descriptor": { "$ref": "#/$defs/presentText" },
+        "groupDescriptor": { "$ref": "#/$defs/presentText" },
+        "lengthSeconds": { "$ref": "#/$defs/presentSeconds" },
+        "durationSeconds": { "$ref": "#/$defs/presentSeconds" },
+        "format": { "const": "OGG Vorbis, q6, 44.1 kHz stereo" },
+        "note": { "$ref": "#/$defs/presentText" }
+      }
+    },
+    "sfxRow": {
+      "description": "🔒 A `20` §4 sound effect. §4 gives SFX no Use column and no loop length, and §5's Ducking row states one for every SFX. Listing the two shapes separately is what makes those absences ASSERTED rather than merely described in prose: the flat property list accepted a music track carrying `ducksMusic`, or an SFX carrying a loop length, and AudioAsset documents both as impossible.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "family", "sourceSection", "format", "ducksMusic"],
+      "properties": {
+        "id": { "$ref": "#/$defs/audioId" },
+        "kind": { "const": "sfx" },
+        "family": { "$ref": "#/$defs/familyId" },
+        "sourceSection": { "type": "string", "minLength": 1 },
+        "descriptor": { "$ref": "#/$defs/presentText" },
+        "groupDescriptor": { "$ref": "#/$defs/presentText" },
+        "durationSeconds": { "$ref": "#/$defs/presentSeconds" },
+        "format": { "const": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping" },
+        "ducksMusic": { "type": "boolean" },
+        "note": { "$ref": "#/$defs/presentText" }
+      }
+    },
     "discrepancy": {
+      "description": "🔒 `DSC_` is the one pattern in this file that ContentInvariants.IsIdNamespace accepts (four literal characters behind the `^`), and asset_manifest_art.schema.json governs an `id` with the same pattern. The discrepancy register is therefore ONE id space spanning both manifests — deliberately, because ManifestValidator.CheckDiscrepancyRecords reads the two together as a single set of records. The consequence to know: the same `DSC_*` id in both files is a build failure, reported by CheckIdSpaces as a duplicate id. Unlike `assetId`, this one is meant to be shared.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "sourceSection", "claim", "observed", "detail"],
@@ -167,13 +212,17 @@
             "description": "A duration doc 20 states inline in the descriptor (e.g. 'rising fanfare, 1.2 s'). Null for the 86 SFX that state none.",
             "$ref": "#/$defs/presentSeconds"
           },
-          "format": { "type": "string", "minLength": 1 },
+          "format": { "$ref": "#/$defs/deliveryFormat" },
           "ducksMusic": {
             "description": "20 §5's Ducking row. Present on SFX only.",
             "type": "boolean"
           },
           "note": { "$ref": "#/$defs/presentText" }
-        }
+        },
+        "oneOf": [
+          { "$ref": "#/$defs/musicRow" },
+          { "$ref": "#/$defs/sfxRow" }
+        ]
       }
     }
   }

@@ -41,6 +41,7 @@ public sealed class AssetManifestSet
 {
     private readonly Dictionary<string, ArtAsset> _artById;
     private readonly Dictionary<string, AudioAsset> _audioById;
+    private readonly string[] _allIds;
 
     internal AssetManifestSet(ArtManifest art, AudioManifest audio)
     {
@@ -61,6 +62,11 @@ public sealed class AssetManifestSet
         {
             _audioById.TryAdd(asset.Id, asset);
         }
+
+        // Built once. M8-10 emits one placeholder per slot and M8-01a keys a provenance record to
+        // every id, so this list is walked repeatedly over 1,080 rows; recomputing it per access
+        // was allocating a fresh array each time.
+        _allIds = [.. art.Assets.Select(a => a.Id), .. audio.Assets.Select(a => a.Id)];
     }
 
     /// <summary>The art register.</summary>
@@ -70,8 +76,7 @@ public sealed class AssetManifestSet
     public AudioManifest Audio { get; }
 
     /// <summary>Every asset id in the register, art then audio, in manifest order.</summary>
-    public IReadOnlyList<string> AllIds =>
-        [.. Art.Assets.Select(a => a.Id), .. Audio.Assets.Select(a => a.Id)];
+    public IReadOnlyList<string> AllIds => _allIds;
 
     /// <summary>Every art asset a ruling has not cut.</summary>
     public IEnumerable<ArtAsset> ActiveArt => Art.Assets.Where(a => a.IsActive);
@@ -97,10 +102,22 @@ public sealed class AssetManifestSet
     }
 
     /// <summary>The uncut art assets packed into one atlas (`15` §D2).</summary>
+    /// <remarks>
+    /// 🔒 Accepts either a declared §D2 id or the concrete reference a row carries, and resolves
+    /// <c>atlas_biome_{n}</c> through <see cref="Atlas.Covers"/>. Comparing by equality alone
+    /// returned nothing for the template — so a caller enumerating <c>Art.Atlases</c> and asking
+    /// for each one's members saw eight per-chapter atlases as empty.
+    /// </remarks>
+    /// <param name="atlas">A §D2 atlas id, or the value an asset row carries in <c>atlas</c>.</param>
     public IEnumerable<ArtAsset> AtlasMembers(string atlas)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(atlas);
-        return Art.Assets.Where(a => a.IsActive && string.Equals(a.Atlas, atlas, StringComparison.Ordinal));
+
+        var declared = Art.Atlases.FirstOrDefault(a => string.Equals(a.Id, atlas, StringComparison.Ordinal));
+
+        return declared is null
+            ? Art.Assets.Where(a => a.IsActive && string.Equals(a.Atlas, atlas, StringComparison.Ordinal))
+            : Art.Assets.Where(a => a.IsActive && a.Atlas is not null && declared.Covers(a.Atlas));
     }
 
     /// <summary>An art asset by id, or null.</summary>

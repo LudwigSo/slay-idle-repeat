@@ -144,6 +144,8 @@ public sealed class ArtFieldTests
         var byKey = ManifestFiles.Shipped.Art.Biomes.ToDictionary(b => b.Key, StringComparer.Ordinal);
 
         rows.ShouldNotBeEmpty();
+        rows.ShouldAllBe(a => a.Biome != null, "a biome-scoped section with an unscoped row would " +
+            "make the atlas rule below throw rather than fail");
         rows.ShouldAllBe(a => a.Atlas == $"atlas_biome_{byKey[a.Biome!].Chapter}");
     }
 
@@ -188,25 +190,58 @@ public sealed class ArtFieldTests
         populated.ShouldAllBe(a => a.UncutAssetCount > 0);
     }
 
-    /// <summary>`15` §A5's eight biomes, their chapters and their locked base hue.</summary>
+    /// <summary>
+    /// `15` §A5's eight biomes, their chapters and all six of the hues it locks — in the
+    /// base · shadow · accent · glow · prop · sky order the §A5 table tabulates them.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 All six, not just the base. <see cref="Palette.Hues"/> is a six-element expression on the
+    /// record, so a count assertion over it is true of every possible palette and cannot fail; and
+    /// the only other check on a row's palette is <c>ManifestValidator</c>'s row-vs-header
+    /// comparison, which is pure self-consistency. With the base alone pinned, five wrong hues per
+    /// biome could ship green across the whole register.
+    /// </remarks>
     [Theory]
-    [InlineData(1, "greenwood", "Greenwood Vale", "#5FBF5F")]
-    [InlineData(2, "mire", "Ashen Mire", "#6B5A8E")]
-    [InlineData(3, "crypt", "Sunken Crypt", "#4A6E7A")]
-    [InlineData(4, "ember", "Emberpeak", "#C4462A")]
-    [InlineData(5, "frost", "Frostbound Reach", "#7EC8E8")]
-    [InlineData(6, "clockwork", "Clockwork Vaults", "#C89A4A")]
-    [InlineData(7, "bloom", "Bloom of Decay", "#D46BA8")]
-    [InlineData(8, "astral", "Astral Spire", "#7A5AD8")]
+    [InlineData(1, "greenwood", "Greenwood Vale",
+        "#5FBF5F", "#2F7A3F", "#F2D06B", "#FFF3A8", "#8B5E3C", "#9FE0F0")]
+    [InlineData(2, "mire", "Ashen Mire",
+        "#6B5A8E", "#3B2E52", "#8FBF5F", "#C7F26B", "#4A3B2E", "#8E7BA8")]
+    [InlineData(3, "crypt", "Sunken Crypt",
+        "#4A6E7A", "#233A45", "#E8E3C8", "#6BF2D6", "#5A5148", "#1E2A33")]
+    [InlineData(4, "ember", "Emberpeak",
+        "#C4462A", "#6E1E14", "#F2A03C", "#FFD86B", "#3A2A28", "#2A1A1E")]
+    [InlineData(5, "frost", "Frostbound Reach",
+        "#7EC8E8", "#3E6E96", "#E8F6FF", "#A8E8FF", "#5A6E8E", "#2E4A6E")]
+    [InlineData(6, "clockwork", "Clockwork Vaults",
+        "#C89A4A", "#7A5A28", "#4AC8B4", "#8FF2E0", "#5A4A3A", "#2E2A28")]
+    [InlineData(7, "bloom", "Bloom of Decay",
+        "#D46BA8", "#7A2E5A", "#8FE86B", "#D8FF8F", "#5A3A4A", "#3A2A38")]
+    [InlineData(8, "astral", "Astral Spire",
+        "#7A5AD8", "#3A2A7A", "#F2C86B", "#C8A8FF", "#2E2A4A", "#141028")]
     public void The_biome_palettes_match_15_section_A5(
-        int chapter, string key, string displayName, string baseHue)
+        int chapter, string key, string displayName,
+        string baseHue, string shadow, string accent, string glow, string prop, string sky)
     {
         var biome = ManifestFiles.Shipped.Art.Biomes.Single(b => b.Chapter == chapter);
 
         biome.Key.ShouldBe(key);
         biome.DisplayName.ShouldBe(displayName);
-        biome.Palette.Base.ShouldBe(baseHue);
-        biome.Palette.Hues.Count.ShouldBe(6, "15 §A5 locks six hues per biome");
+        biome.Palette.ShouldBe(new Palette(baseHue, shadow, accent, glow, prop, sky));
+        biome.Palette.Hues.ShouldBe([baseHue, shadow, accent, glow, prop, sky]);
+    }
+
+    /// <summary>
+    /// 🔒 And every biome-scoped row carries its biome's locked six verbatim — the register, not
+    /// only the header block, is pinned to `15` §A5.
+    /// </summary>
+    [Fact]
+    public void Every_biome_scoped_row_carries_its_biomes_locked_six_from_15_section_A5()
+    {
+        var byKey = ManifestFiles.Shipped.Art.Biomes.ToDictionary(b => b.Key, StringComparer.Ordinal);
+        var scoped = ManifestFiles.Shipped.Art.Assets.Where(a => a.Biome is not null).ToArray();
+
+        scoped.Length.ShouldBe(328);
+        scoped.ShouldAllBe(a => a.PaletteColours == byKey[a.Biome!].Palette);
     }
 
     /// <summary>`15` §A5's rarity colours, identical across all biomes.</summary>
@@ -272,7 +307,8 @@ public sealed class ArtFieldTests
 
         icons.Length.ShouldBe(49);
         icons.ShouldAllBe(a => a.Subject == null);
-        icons.ShouldAllBe(a => a.Extra.ContainsKey("displayName"));
+        icons.ShouldAllBe(a => a.Extra.ContainsKey("displayName") &&
+                               a.Extra["displayName"].Length > 0);
     }
 
     /// <summary>Every id is unique — three later tasks key their records to it.</summary>
