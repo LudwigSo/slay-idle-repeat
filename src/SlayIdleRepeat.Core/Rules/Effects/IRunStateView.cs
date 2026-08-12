@@ -94,6 +94,15 @@ internal interface IRunStateView
     /// <em>"0..1"</em> and <em>"bool"</em>; it is not a width declaration. A currency balance that
     /// silently wraps at 2,147,483,647 in a game with an uncapped gold-scaling perk is the kind of
     /// hole that surfaces once, in production, on somebody's best run.
+    /// <para>
+    /// ⚠️ <b>The real ceiling is the <c>double</c>, not the <c>long</c>.</b>
+    /// <c>ConditionEvaluator.Read</c> returns every reading as a <c>double</c>. The widening never
+    /// throws and never wraps, but it is exact only to about 1.4 × 10¹³ Gold — above that the 4 dp
+    /// round-trip can return a non-integer, and above 2⁵³ the conversion itself collapses adjacent
+    /// balances onto one reading. <c>PK_HOARD</c>'s <c>floor(gold / 100)</c> survives all of it; an
+    /// exact <c>{"fn":"GOLD_HELD","op":"eq"}</c> against a large literal does not. Lossy, but
+    /// identical on every platform, so it is a precision limit and not a determinism break.
+    /// </para>
     /// </remarks>
     long GoldHeld { get; }
 

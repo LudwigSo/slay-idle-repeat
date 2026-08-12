@@ -62,14 +62,24 @@ internal sealed record EffectEvaluationContext
     public IEffectActorView? Attacker { get; init; }
 
     /// <summary>
-    /// 🔒 Every actor in the battle, both sides, living and dead, in `05` §3.1's fixed index order.
+    /// 🔒 Every actor in the battle, both sides, living and dead.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The dead are included rather than pre-filtered because the filter is a rule, not a caller's
     /// choice: `05` §3.1 step 6 puts an actor out of play the moment its HP reaches 0, and every
     /// enemy token and <c>ENEMY_COUNT</c> apply that here, once. A caller handing in a pre-filtered
     /// roster would get the same answer; a caller handing in a roster filtered by a slightly
     /// different rule would get a silently different one.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The list need not be in `05` §3.1 index order — each actor carries its own index and
+    /// <see cref="BattleRoster"/> imposes the order.</b> Index order is a <em>postcondition of every
+    /// selection</em>, not a precondition on this property, and the difference is load-bearing:
+    /// `18` §5's <c>LOWEST_HP_ENEMY</c> tie-break and <c>RANDOM_ENEMY</c>'s candidate order both key
+    /// on it, so if the order came from the caller then a simulator that built its roster
+    /// differently would resolve a different target from the same seed.
+    /// </para>
     /// </remarks>
     public required IReadOnlyList<IEffectActorView> Actors { get; init; }
 

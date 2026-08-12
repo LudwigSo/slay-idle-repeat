@@ -67,8 +67,18 @@ internal static class EffectTestBattle
         };
 
     /// <summary>
-    /// The context for a PvE fight: the roster in `05` §3.1 index order, the 90 s horizon, no
-    /// enrage, and a run reading present.
+    /// A run at the start of a run: stage 1 of chapter 1, nothing held.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="RunStateReading.StageIndex"/> and <see cref="RunStateReading.Chapter"/> are
+    /// <c>required</c> — the type refuses to invent a position — so the fixture states them once,
+    /// here, where the choice is visible, rather than every call site restating them.
+    /// </remarks>
+    internal static RunStateReading Run() => new() { StageIndex = 1, Chapter = 1 };
+
+    /// <summary>
+    /// The context for a PvE fight: the roster, the 90 s horizon, no enrage, and a run reading
+    /// present.
     /// </summary>
     internal static EffectEvaluationContext Context(
         IEffectActorView holder,
@@ -78,7 +88,7 @@ internal static class EffectTestBattle
             Holder = holder,
             Actors = actors,
             FightHorizonSeconds = PveTimeoutSeconds,
-            Run = new RunStateReading(),
+            Run = Run(),
         };
 
     /// <summary>

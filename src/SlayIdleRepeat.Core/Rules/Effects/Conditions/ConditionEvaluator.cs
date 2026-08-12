@@ -64,17 +64,44 @@ internal static class ConditionEvaluator
                         "18 §4 writes a term as {\"fn\": …, \"op\": …, \"value\": …}."),
                     context);
 
-            // Enumerable.All and .Any stop at the first operand that decides the answer.
             case ConditionKind.ALL:
-                return condition.Operands.All(operand => IsSatisfied(operand, context));
+            {
+                var all = Combinator(condition);
+
+                for (var i = 0; i < all.Count; i++)
+                {
+                    // 🔒 Returns at the first operand that decides the answer. Not an optimisation:
+                    // `18` §9.3's skip idiom puts {"not":{"fn":"IS_PVP",…}} first precisely so the
+                    // run-state operands behind it are never read in a duel, which `05` §3.3 gives
+                    // no run at all.
+                    if (!IsSatisfied(Operand(all, i), context))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
 
             case ConditionKind.ANY:
-                return condition.Operands.Any(operand => IsSatisfied(operand, context));
+            {
+                var any = Combinator(condition);
+
+                for (var i = 0; i < any.Count; i++)
+                {
+                    if (IsSatisfied(Operand(any, i), context))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
 
             case ConditionKind.NOT:
-                var operands = condition.Operands;
+                var operands = Combinator(condition);
                 return operands.Count == 1
-                    ? !IsSatisfied(operands[0], context)
+                    ? !IsSatisfied(Operand(operands, 0), context)
                     : throw Malformed(
                         nameof(ConditionKind.NOT),
                         $"it carries {operands.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} operands rather than one",
@@ -107,6 +134,44 @@ internal static class ConditionEvaluator
         // different bit patterns and would produce two stateHashes for one state.
         return Math.Round(Reading(function, arguments, context), 4) + 0.0;
     }
+
+    /// <summary>
+    /// 🔒 A combinator's operands, rejected when there are none.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This duplicates <see cref="EffectCondition.All"/>'s guard on purpose, and the duplication
+    /// is the point.</b> That guard lives in a <em>factory</em>, and
+    /// <see cref="EffectCondition.Operands"/> is an <c>init</c> property defaulting to an empty list —
+    /// so <c>new EffectCondition { Kind = ConditionKind.ALL }</c> bypasses it, and so will every JSON
+    /// deserialiser M2-02 wires up, since those bind init properties directly. An empty <c>all</c> is
+    /// vacuously true and an empty <c>any</c> vacuously false, which means an effect would fire (or
+    /// never fire) with its condition still plainly visible in the data. The evaluator is the thing
+    /// that actually decides, so the check has to exist here too.
+    /// </remarks>
+    private static IReadOnlyList<EffectCondition> Combinator(EffectCondition condition) =>
+        condition.Operands.Count > 0
+            ? condition.Operands
+            : throw Malformed(
+                condition.Kind.ToString(),
+                "it carries no operands",
+                "18 §4's combinators gate on their operands: an empty 'all' is vacuously true and an " +
+                "empty 'any' vacuously false, so the effect would fire — or never fire — with its " +
+                "condition still present in the data.");
+
+    /// <summary>One operand of a combinator, rejected when it is <c>null</c>.</summary>
+    /// <remarks>
+    /// ⚠️ <see cref="IsSatisfied"/> reads a <c>null</c> condition as an ungated effect, which is `18`
+    /// §1's <c>"condition": null</c> — a rule about an effect's <b>top-level</b> condition, not about
+    /// a hole inside a combinator. Without this check a missing operand would make an <c>any</c>
+    /// vacuously true, which is the same silent ungating <see cref="Combinator"/> exists to stop, one
+    /// level down.
+    /// </remarks>
+    private static EffectCondition Operand(IReadOnlyList<EffectCondition> operands, int index) =>
+        operands[index] ?? throw Malformed(
+            "operand",
+            $"operand {index.ToString(System.Globalization.CultureInfo.InvariantCulture)} of the combinator is null",
+            "18 §1's \"condition\": null means an UNGATED EFFECT. A null inside a combinator is a " +
+            "hole in the tree, and reading it as 'true' would ungate the effect silently.");
 
     // ------------------------------------------------------------------ the twenty-three functions
 
@@ -164,9 +229,23 @@ internal static class ConditionEvaluator
 
     private static double Flag(bool value) => value ? 1 : 0;
 
+    /// <summary>
+    /// An actor's HP as the <c>0..1</c> fraction `18` §4 declares.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Clamped to the range the document types, which is not the same as inventing a bound.</b>
+    /// `18` §4 states the range; two live paths break it. `05` §4 step 9 applies no floor at zero and
+    /// `05` §3.1 step 6 defers <em>removal</em> to the death slot, so an overkilled holder firing its
+    /// <c>ON_DEATH</c> effect reads a negative fraction. And a Max HP <em>decrease</em> — a buff
+    /// expiring, `18` §9.1's <c>CP_GLASS_HEART</c> re-base — leaves <c>CurrentHp &gt; MaxHp</c>.
+    /// Unclamped, <c>SELF_MISSING_HP_PCT</c> then reads <c>-0.2</c> and <c>PK_BERSERK</c> applies
+    /// <b>-20% ATK</b> from a perk that only ever adds; <see cref="ValueScale.StepsFor"/>'s own
+    /// remarks record that it imposes no lower bound because <em>"every §4 function that drives a
+    /// documented scale is non-negative by construction"</em> — this is what makes that true.
+    /// </remarks>
     private static double HpFraction(IEffectActorView actor, ConditionFunction function) =>
         actor.MaxHp > 0
-            ? actor.CurrentHp / actor.MaxHp
+            ? Math.Clamp(actor.CurrentHp / actor.MaxHp, 0.0, 1.0)
             : throw new EffectContextException(
                 function.ToString(),
                 $"'{actor.Id}' has a Max HP of {actor.MaxHp.ToString(System.Globalization.CultureInfo.InvariantCulture)}, so it has no HP fraction",
@@ -197,27 +276,11 @@ internal static class ConditionEvaluator
         Math.Max(0.0, (context.EnrageAtSeconds ?? context.FightHorizonSeconds) - context.BattleTimeSeconds);
 
     /// <summary>
-    /// 🔒 Holder-relative, exactly as `18` §5's target tokens are: the living non-pets on the side
-    /// opposite the holder's. On a boss that is the hero side (`18` §7.10's Volatile reading).
+    /// 🔒 Holder-relative, exactly as `18` §5's target tokens are — and through the <b>same</b>
+    /// predicate, so <c>ENEMY_COUNT</c> can never disagree with <c>ALL_ENEMIES</c> about one battle.
     /// </summary>
-    private static int LivingEnemyCount(EffectEvaluationContext context)
-    {
-        var count = 0;
-
-        for (var i = 0; i < context.Actors.Count; i++)
-        {
-            var actor = context.Actors[i];
-
-            // 05 §3.1 step 6 puts an actor out of play at 0 HP; 05 §3.2 keeps pets out of every
-            // enemy set — "Pets cannot be targeted or killed."
-            if (actor.IsAlive && actor.Kind != EffectActorKind.PET && actor.Side != context.Holder.Side)
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
+    private static int LivingEnemyCount(EffectEvaluationContext context) =>
+        BattleRoster.LivingEnemies(context).Count;
 
     // ------------------------------------------------------------------ subjects the context may lack
 
@@ -265,12 +328,27 @@ internal static class ConditionEvaluator
         // 🔒 The term's SHAPE is validated before its function is read. A malformed term is malformed
         // whatever the state is, and validating first means the failure names the term rather than
         // whichever subject the context happened to be missing as well.
+        RejectAmbiguousOperand(term);
+
         if (term.Comparator == ConditionComparator.BETWEEN)
         {
             RejectFlag(term);
 
             var low = term.RangeLow ?? throw MissingBound(term);
             var high = term.RangeHigh ?? throw MissingBound(term);
+
+            if (low > high)
+            {
+                // An inverted range never fires and never complains — a content authoring error that
+                // could never go red, which is exactly what steering S6 calls silently defaulting
+                // where the code should fail loudly.
+                throw Malformed(
+                    term.Comparator.ToString(),
+                    $"the {term.Fn} term's range is inverted — its low bound is above its high bound",
+                    "18 §4's 'between' is an inclusive range. An inverted one is satisfied by no " +
+                    "reading at all, so the effect it gates could never fire.");
+            }
+
             var reading = Read(term.Fn, ConditionArguments.Of(term), context);
 
             // Inclusive at both ends, per ConditionTerm.RangeLow/RangeHigh's declarations.
@@ -288,7 +366,7 @@ internal static class ConditionEvaluator
 
         var value = term.Value ?? throw Malformed(
             term.Comparator.ToString(),
-            "the term carries nothing to compare against — neither a value nor a flag",
+            $"the {term.Fn} term carries nothing to compare against — neither a value nor a flag",
             "18 §4 writes every comparison as {\"fn\": …, \"op\": …, \"value\": …}.");
 
         var actual = Read(term.Fn, ConditionArguments.Of(term), context);
@@ -329,10 +407,31 @@ internal static class ConditionEvaluator
         }
     }
 
+    /// <summary>
+    /// Rejects a term carrying both a numeric value and a boolean one.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Without this the flag branch simply wins and the number is discarded in silence:
+    /// <c>{"fn":"SELF_HP_PCT","op":"eq","value":0.5,"flag":true}</c> would then hold at <b>any</b>
+    /// non-zero HP, because a boolean comparison asks only whether the reading is non-zero. The data
+    /// asked for exactly 50%.
+    /// </remarks>
+    private static void RejectAmbiguousOperand(ConditionTerm term)
+    {
+        if (term is { Flag: not null, Value: not null })
+        {
+            throw Malformed(
+                term.Fn.ToString(),
+                "the term carries both a numeric value and a boolean one",
+                "18 §4 writes one 'value' per comparison. Answering on the flag and discarding the " +
+                "number would make an exact numeric comparison true at any non-zero reading.");
+        }
+    }
+
     private static EffectContextException MissingBound(ConditionTerm term) =>
         Malformed(
             term.Comparator.ToString(),
-            "it is a range and one of its two bounds is absent",
+            $"the {term.Fn} term is a range and one of its two bounds is absent",
             "18 §4 lists 'between' and writes no example, so the encoding is ConditionTerm's " +
             "two-element one — and half a range is not a range.");
 

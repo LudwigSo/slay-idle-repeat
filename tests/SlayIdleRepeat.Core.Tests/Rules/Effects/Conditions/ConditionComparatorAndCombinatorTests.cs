@@ -255,12 +255,12 @@ public sealed class ConditionComparatorAndCombinatorTests
         var hero = EffectTestBattle.Hero();
         var inARun = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1)) with
         {
-            Run = new RunStateReading { GoldHeld = 500 },
+            Run = EffectTestBattle.Run() with { GoldHeld = 500 },
         };
 
         ConditionEvaluator.IsSatisfied(goldAffix, inARun).ShouldBeTrue();
 
-        var brokeButInARun = inARun with { Run = new RunStateReading { GoldHeld = 99 } };
+        var brokeButInARun = inARun with { Run = EffectTestBattle.Run() with { GoldHeld = 99 } };
         ConditionEvaluator.IsSatisfied(goldAffix, brokeButInARun).ShouldBeFalse();
 
         ConditionEvaluator.IsSatisfied(goldAffix, inARun with { IsPvp = true })

@@ -86,6 +86,48 @@ public sealed class ConditionFunctionTests
             .Token.ShouldBe(function.ToString());
     }
 
+    /// <summary>
+    /// 🔒 `18` §4 types the HP functions <c>0..1</c>, and the reading is clamped to that range.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two live paths break the range. `05` §4 step 9 applies no floor at zero and `05` §3.1 step 6
+    /// defers <em>removal</em> to the death slot, so an overkilled holder firing its <c>ON_DEATH</c>
+    /// effect (`18` §7.10's Volatile) sits at negative HP. And a Max HP <b>decrease</b> — a buff
+    /// expiring, `18` §9.1's <c>CP_GLASS_HEART</c> re-base — leaves current above maximum.
+    /// </para>
+    /// <para>
+    /// ⚠️ Unclamped, the second case is the damaging one: <c>SELF_MISSING_HP_PCT</c> reads
+    /// <c>-0.2</c>, and <c>PK_BERSERK</c>'s scale floors that to <b>-20 steps</b> — a perk that only
+    /// ever adds ATK subtracting 20% of it. <see cref="ValueScale.StepsFor"/> imposes no lower bound
+    /// precisely because it is told every §4 function is non-negative by construction; this is what
+    /// makes that true.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void An_HP_fraction_is_clamped_to_the_zero_to_one_range_18_declares()
+    {
+        // Overkilled: 05 §4 applies no HP floor, and ON_DEATH fires before removal.
+        var overkilled = EffectTestBattle.Hero(currentHp: -40, maxHp: 100);
+        var dying = EffectTestBattle.Context(overkilled, overkilled, EffectTestBattle.Enemy("GRUNT_A", 1));
+
+        Read(ConditionFunction.SELF_HP_PCT, dying).ShouldBe(0.0);
+        Read(ConditionFunction.SELF_MISSING_HP_PCT, dying).ShouldBe(1.0);
+
+        // Max HP fell below current — a +20% Max HP buff expiring at full health.
+        var overfull = EffectTestBattle.Hero(currentHp: 900, maxHp: 750);
+        var rebased = EffectTestBattle.Context(overfull, overfull, EffectTestBattle.Enemy("GRUNT_A", 1));
+
+        Read(ConditionFunction.SELF_HP_PCT, rebased).ShouldBe(1.0);
+
+        var missing = Read(ConditionFunction.SELF_MISSING_HP_PCT, rebased);
+        missing.ShouldBe(0.0);
+
+        new ValueScale { Fn = ConditionFunction.SELF_MISSING_HP_PCT, Per = 0.01, Cap = 45 }
+            .StepsFor(missing)
+            .ShouldBe(0, "unclamped this reads -0.2 and PK_BERSERK applies -20% ATK");
+    }
+
     // ------------------------------------------------------------------ the roster
 
     /// <summary>
@@ -283,7 +325,7 @@ public sealed class ConditionFunctionTests
     [Fact]
     public void The_run_state_functions_read_the_run_view()
     {
-        var run = new RunStateReading
+        var run = EffectTestBattle.Run() with
         {
             PerksByCategory = new Dictionary<string, int>(StringComparer.Ordinal)
             {
@@ -512,7 +554,7 @@ public sealed class ConditionFunctionTests
         var hero = EffectTestBattle.Hero();
         var battle = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1)) with
         {
-            Run = new RunStateReading { GoldHeld = 1_450 },
+            Run = EffectTestBattle.Run() with { GoldHeld = 1_450 },
         };
 
         hoard.StepsFor(Read(ConditionFunction.GOLD_HELD, battle)).ShouldBe(14);

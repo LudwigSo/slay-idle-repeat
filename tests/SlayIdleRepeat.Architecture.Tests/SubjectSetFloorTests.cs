@@ -62,6 +62,17 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
+        // 🔒 Not a rule subject — a DEFERRAL, recorded in the one register the repo has so that it
+        // expires by itself (steering S4). `18` §4 types the TIER condition "enum" and no tier enum
+        // exists anywhere in the repository; `02` §2's runSeed derivation is the only place tierId is
+        // even named. Steering S6 forbids inventing the members, so M2-05's IRunStateView.Tier ships
+        // as the tier's ORDINAL, which is what a numeric ConditionTerm can actually compare against.
+        // The milestone that declares the enum is not yet assigned; when it does, this entry fails
+        // and whoever added the type has to decide whether IRunStateView.Tier should become it.
+        new("Tier", SubjectKind.CoreType, "unassigned — difficulty tiers",
+            "SlayIdleRepeat.Core.Rules.Effects.IRunStateView.Tier, which ships as an int ordinal " +
+            "because 18 §4's 'enum' has no declared type to name"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -103,6 +114,24 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, AccessibilityBoundaryTests." +
             "Core_internal_layering_holds, IsolationTests.Entitlements_are_unreachable_from_the_rules_" +
             "and_the_power_computation"),
+
+        // 🔒 The two evaluators, tracked by NAME as well as by namespace. The count floors below are
+        // not enough on their own: ConditionEvaluationTypeFloor is 1, and moving ConditionEvaluator
+        // one directory up would leave ConditionArguments — a three-field record struct — satisfying
+        // it while both purity rules quantified over nothing but that. These entries are what turn
+        // the move into a build failure instead of two permanently green rules.
+        new("ConditionEvaluator", SubjectKind.CoreType, "M2-05",
+            "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
+            "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
+        new("TargetResolver", SubjectKind.CoreType, "M2-05",
+            "ConditionPurityRuleTests.The_18_5_target_resolver_holds_no_writable_static_state"),
+
+        // Governed by ConditionPurityRuleTests.ReachedByAConditionByName, which is a hard-coded full
+        // name: rename this type and the condition rules stop covering the shared roster predicate
+        // that ENEMY_COUNT and every 18 §5 enemy token read through, with nothing going red.
+        new("BattleRoster", SubjectKind.CoreType, "M2-05",
+            "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
+            "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

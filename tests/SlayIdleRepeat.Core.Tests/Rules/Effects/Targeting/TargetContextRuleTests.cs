@@ -114,6 +114,37 @@ public sealed class TargetContextRuleTests
     }
 
     /// <summary>
+    /// 🔒 A summon that records no summoner is a malformed actor view, <b>not</b> `18` §5's authored
+    /// skip.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The two are one condition away from being spelled identically, and collapsing them would
+    /// hide a roster-construction bug behind a documented no-op (S2/S6):
+    /// <see cref="IEffectActorView.OwnerId"/> documents <c>null</c> as <em>"an actor that was not
+    /// summoned"</em>, which an actor flagged <c>IsSummon</c> claims not to be. The genuinely skipped
+    /// cases — not a summon at all, and a summoner that has left the roster — are pinned in
+    /// <see cref="TargetResolverTests"/>.
+    /// </remarks>
+    [Fact]
+    public void OWNER_on_a_summon_that_records_no_summoner_fails_loudly()
+    {
+        var hero = EffectTestBattle.Hero();
+        var malformed = EffectTestBattle.Enemy("SUMMON_SPORELING", 1) with
+        {
+            IsSummon = true,
+            OwnerId = null,
+        };
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => TargetResolver.Resolve(
+                EffectTarget.OWNER,
+                EffectTestBattle.Context(malformed, hero, malformed)));
+
+        thrown.Token.ShouldBe(nameof(EffectTarget.OWNER));
+        thrown.Message.ShouldContain("records no summoner", Case.Sensitive);
+    }
+
+    /// <summary>
     /// 🔒 `18` §5 declares <c>RUN</c> — <em>"the run itself, for board ops"</em> — and `18` §2.5 rules
     /// that run and board ops <em>"are resolved by the run controller, never by the combat
     /// simulator"</em>: the simulator appends <c>RunEffectQueued</c> and the controller applies the
@@ -180,7 +211,7 @@ public sealed class TargetContextRuleTests
             BattleTimeSeconds = 12.0,
             EnrageAtSeconds = EffectTestBattle.EnrageSeconds,
             FightHorizonSeconds = EffectTestBattle.PveTimeoutSeconds,
-            Run = new RunStateReading(),
+            Run = EffectTestBattle.Run(),
             Rng = EffectTestBattle.CombatRng(3),
         };
 

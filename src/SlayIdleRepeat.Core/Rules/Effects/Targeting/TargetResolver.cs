@@ -14,9 +14,9 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Targeting;
 /// <para>
 /// 🔒 <b>The liveness filter governs selection, not naming.</b> `05` §3.1 step 6 — <em>"An actor
 /// whose HP reaches 0 stops acting and being <b>targetable</b> at that moment"</em> — is a rule about
-/// who may be picked out of a set. The five <b>set</b> tokens (<c>ALL_ENEMIES</c>,
-/// <c>OTHER_ENEMIES</c>, <c>LOWEST_HP_ENEMY</c>, <c>HIGHEST_HP_ENEMY</c>, <c>RANDOM_ENEMY</c>,
-/// and <c>ALL_PETS</c> with them) pick, and therefore filter. The four <b>naming</b> tokens
+/// who may be picked out of a set. The six <b>set</b> tokens — the five enemy tokens
+/// (<c>ALL_ENEMIES</c>, <c>OTHER_ENEMIES</c>, <c>LOWEST_HP_ENEMY</c>, <c>HIGHEST_HP_ENEMY</c>,
+/// <c>RANDOM_ENEMY</c>) and <c>ALL_PETS</c> — pick, and therefore filter. The four <b>naming</b> tokens
 /// (<c>SELF</c>, <c>CURRENT_TARGET</c>, <c>ATTACKER</c>, <c>OWNER</c>) pick nothing: each names one
 /// actor the caller already holds. Filtering those would break the cases that matter most — an
 /// <c>ON_DEATH</c> effect targeting <c>SELF</c> (`18` §7.10's Volatile explodes <em>because</em> it
@@ -100,43 +100,34 @@ internal static class TargetResolver
     }
 
     /// <summary>
-    /// 🔒 The living non-pets on the side opposite the holder's, in `05` §3.1 index order — the R10
-    /// reading of `18` §7.10's Volatile elite.
+    /// 🔒 The living non-pets on the side opposite the holder's — `18` §7.10's R10 reading, read
+    /// through the one predicate <see cref="BattleRoster"/> states for the whole DSL.
     /// </summary>
-    private static List<IEffectActorView> LivingEnemies(EffectEvaluationContext context)
-    {
-        var side = context.Holder.Side;
-
-        return context.Actors
-            .Where(a => a.IsAlive && a.Kind != EffectActorKind.PET && a.Side != side)
-            .OrderBy(a => a.Index)
-            .ToList();
-    }
+    private static IReadOnlyList<IEffectActorView> LivingEnemies(EffectEvaluationContext context) =>
+        BattleRoster.LivingEnemies(context);
 
     /// <summary>
     /// `18` §5 — <em>"all enemies except the attack's primary target … Valid only inside an attack
     /// context; elsewhere it degrades to <c>ALL_ENEMIES</c>."</em>
     /// </summary>
     /// <remarks>
+    /// <para>
     /// One of the two degradations the document actually authors, and the reason no primary target
     /// means <c>ALL_ENEMIES</c> rather than a failure: with no primary there is nothing to except.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The primary is excluded by <see cref="IEffectActorView.Index"/>, not by
+    /// <see cref="IEffectActorView.Id"/>.</b> `05` §3.1 authorises the index as the actor's position
+    /// in a fixed per-battle order, so it is unique by construction; nothing in `05` or `18` promises
+    /// the same of an id, and `05` §6.4 spawns several units from one archetype draw. If a roster
+    /// ever mints ids from content ids, an id-based exclusion would silently drop <b>every</b> swarm
+    /// unit from <c>PK_CLEAVE</c>'s splash instead of only the primary. (Reference equality is not an
+    /// option either: an actor view may be a record, whose <c>==</c> is value equality, so two
+    /// identical-looking enemies would compare equal.)
+    /// </para>
     /// </remarks>
-    private static List<IEffectActorView> OtherEnemies(EffectEvaluationContext context)
-    {
-        var enemies = LivingEnemies(context);
-
-        if (context.CurrentTarget is not { } primary)
-        {
-            return enemies;
-        }
-
-        // 🔒 Compared by id, ordinally — not by reference and not by `==`. Every actor view in this
-        // layer may be a record, whose `==` is VALUE equality: two distinct enemies with the same
-        // HP and flags would compare equal and the splash would drop an enemy it should have hit.
-        return enemies
-            .Where(a => !string.Equals(a.Id, primary.Id, StringComparison.Ordinal))
-            .ToList();
-    }
+    private static IReadOnlyList<IEffectActorView> OtherEnemies(EffectEvaluationContext context) =>
+        BattleRoster.LivingEnemies(context, context.CurrentTarget?.Index);
 
     /// <summary>
     /// The living enemy with the lowest or highest <b>current HP</b> — `05` §3.2: <em>"a pet's
@@ -227,15 +218,8 @@ internal static class TargetResolver
     /// all. Steering S6 forbids filling that hole, and the throw would crash a battle over any boss
     /// effect authored with this target.
     /// </remarks>
-    private static List<IEffectActorView> Pets(EffectEvaluationContext context)
-    {
-        var side = context.Holder.Side;
-
-        return context.Actors
-            .Where(a => a.IsAlive && a.Kind == EffectActorKind.PET && a.Side == side)
-            .OrderBy(a => a.Index)
-            .ToList();
-    }
+    private static IReadOnlyList<IEffectActorView> Pets(EffectEvaluationContext context) =>
+        BattleRoster.Pets(context);
 
     /// <summary>
     /// `18` §5 — <em>"the summoner of the source actor (a sporeling's owner is Sporequeen). On an
@@ -249,10 +233,19 @@ internal static class TargetResolver
     /// </remarks>
     private static IReadOnlyList<IEffectActorView> Owner(EffectEvaluationContext context)
     {
-        if (!context.Holder.IsSummon || context.Holder.OwnerId is not { } ownerId)
+        if (!context.Holder.IsSummon)
         {
             return Array.Empty<IEffectActorView>();
         }
+
+        // 🔒 A summon that records no summoner is a malformed actor view, not `18` §5's authored
+        // skip: IEffectActorView.OwnerId documents null as "an actor that was not summoned", which
+        // this actor claims not to be. Folding the two into one empty set would spell a roster-
+        // construction bug exactly like a documented no-op (steering S2/S6).
+        var ownerId = context.Holder.OwnerId ?? throw new EffectContextException(
+            nameof(EffectTarget.OWNER),
+            $"'{context.Holder.Id}' is flagged a summon and records no summoner",
+            "18 §5's skip is authored for an actor that is NOT a summon.");
 
         foreach (var actor in context.Actors)
         {
@@ -274,7 +267,7 @@ internal static class TargetResolver
     /// <c>AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace</c> — which
     /// filters on that attribute — then reports it as an undocumented `30` §11.4 namespace. M2-01 hit
     /// this in <see cref="Content.Effects.EffectCondition"/> and recorded the same note there; this
-    /// helper is why five call sites do not each have to remember it. An array allocation is the same
+    /// helper is why six call sites do not each have to remember it. An array allocation is the same
     /// cost and leaves no type behind.
     /// </remarks>
     private static IReadOnlyList<IEffectActorView> Only(IEffectActorView actor) => new[] { actor };

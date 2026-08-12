@@ -61,6 +61,30 @@ public sealed class ConditionPurityRuleTests
         ("SlayIdleRepeat.Core.GameContext",
             "time enters Core as GameContext.NowUtc (30 §3), and 18 §4's clock is the battle's " +
             "elapsed seconds on the evaluation context, handed in by the caller."),
+
+        // 🔒 The one-hop hole, closed. Il.ReferencedTypeNames is a DIRECT-reference scan, not a
+        // transitive closure, so a condition that called TargetResolver.Resolve would name only
+        // TargetResolver, EffectTarget and IEffectActorView — none of them banned — while
+        // TargetResolver.RandomEnemy draws, and the Targeting namespace is deliberately exempt from
+        // this rule. Both purity rules would have stayed green over a condition that draws.
+        ("SlayIdleRepeat.Core.Rules.Effects.Targeting.TargetResolver",
+            "a condition that resolves a target reaches RANDOM_ENEMY's draw stream one hop away — " +
+            "18 §4 conditions read state, they do not select actors."),
+    };
+
+    /// <summary>
+    /// Types outside <see cref="ConditionsNamespace"/> that a condition reaches and that must
+    /// therefore meet a condition's standard of purity.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A namespace filter alone is defeated by one hop into a helper. <c>BattleRoster</c> is the
+    /// shared "living enemies hostile to the holder" predicate behind <c>ENEMY_COUNT</c> and every
+    /// `18` §5 enemy token; it lives in <c>Rules/Effects/</c> because the target resolver needs it
+    /// too, and it is governed here by name because <c>ConditionEvaluator</c> calls it.
+    /// </remarks>
+    private static readonly string[] ReachedByAConditionByName =
+    {
+        "SlayIdleRepeat.Core.Rules.Effects.BattleRoster",
     };
 
     /// <summary>
@@ -121,17 +145,8 @@ public sealed class ConditionPurityRuleTests
 
         foreach (var type in Subjects())
         {
-            foreach (var field in type.Fields.Where(f => f.IsStatic && !f.IsInitOnly && !f.IsLiteral))
-            {
-                if (Domain.IsCompilerGenerated(field) || Domain.IsCompilerGenerated(field.DeclaringType))
-                {
-                    continue;
-                }
-
-                offenders.Add(
-                    $"{Il.Describe(field)} is a writable static field — a memoised reading is a " +
-                    "determinism break the moment the state it summarised moves (18 §4).");
-            }
+            offenders.AddRange(MutableStaticState(type, "a memoised reading is a determinism break " +
+                                                        "the moment the state it summarised moves (18 §4)"));
 
             foreach (var method in type.Methods)
             {
@@ -187,13 +202,11 @@ public sealed class ConditionPurityRuleTests
     [Fact]
     public void The_18_5_target_resolver_holds_no_writable_static_state()
     {
-        var offenders =
-            from type in Targets()
-            from field in type.Fields
-            where field.IsStatic && !field.IsInitOnly && !field.IsLiteral
-            where !Domain.IsCompilerGenerated(field) && !Domain.IsCompilerGenerated(field.DeclaringType)
-            select $"{Il.Describe(field)} is a writable static field — a memoised candidate list is " +
-                   "wrong on the next death, and wrong identically on client and server (18 §5).";
+        var offenders = Targets().SelectMany(
+            type => MutableStaticState(
+                type,
+                "a memoised candidate list is wrong on the next death, and wrong identically on " +
+                "client and server, so 14 §8.2's determinism job would not catch it either (18 §5)"));
 
         ArchRule.Empty(
             offenders,
@@ -211,8 +224,15 @@ public sealed class ConditionPurityRuleTests
     /// <summary>How many types the targeting rule examined. Floored by <c>SubjectSetFloorTests</c> too.</summary>
     internal static int TargetSubjectCount => Targets().Count;
 
+    /// <summary>
+    /// The types the condition rules govern: everything under <see cref="ConditionsNamespace"/>, plus
+    /// the named helpers a condition reaches.
+    /// </summary>
     private static IReadOnlyList<TypeDefinition> Subjects() =>
-        Il.TypesUnder(ProductionAssemblies.CoreModule, ConditionsNamespace).ToArray();
+        Il.TypesUnder(ProductionAssemblies.CoreModule, ConditionsNamespace)
+          .Concat(Domain.CoreTypes.Where(
+              t => ReachedByAConditionByName.Contains(t.FullName, StringComparer.Ordinal)))
+          .ToArray();
 
     private static IReadOnlyList<TypeDefinition> Targets() =>
         Il.TypesUnder(ProductionAssemblies.CoreModule, TargetingNamespace).ToArray();
@@ -222,6 +242,82 @@ public sealed class ConditionPurityRuleTests
         instruction.OpCode.Code is Code.Stfld or Code.Stsfld
             ? instruction.Operand as FieldReference
             : null;
+
+    /// <summary>
+    /// Every piece of static state a type holds that could carry a cache from one evaluation to the
+    /// next.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Not "writable" — <em>mutable</em>, which is not the same thing and was the hole.</b> The
+    /// first version of both rules filtered <c>IsStatic &amp;&amp; !IsInitOnly &amp;&amp; !IsLiteral</c>, so
+    /// <c>private static readonly Dictionary&lt;string, double&gt; _memo</c> was <b>skipped</b> — the
+    /// field is <c>initonly</c>, only the object it points at changes. That is precisely the
+    /// "memoised reading" and "memoised candidate list" each rule names as its reason for existing,
+    /// and the IL scan could not see it either: <c>_memo[key] = value</c> is a <c>callvirt
+    /// set_Item</c>, not a <c>stsfld</c>. Both rules passed over the one defect they were written to
+    /// catch.
+    /// </para>
+    /// <para>
+    /// The test is therefore on the field's <b>type</b>: a static field is acceptable only when it
+    /// cannot hold mutable state at all — a primitive, a string or an enum. A static array, list,
+    /// dictionary, or object of any other kind is reported whether or not the field itself can be
+    /// reassigned.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> MutableStaticState(TypeDefinition type, string consequence)
+    {
+        foreach (var field in type.Fields)
+        {
+            if (!field.IsStatic || field.IsLiteral)
+            {
+                continue;
+            }
+
+            if (Domain.IsCompilerGenerated(field) || Domain.IsCompilerGenerated(field.DeclaringType))
+            {
+                continue;
+            }
+
+            if (IsImmutableScalar(field.FieldType))
+            {
+                // A `static readonly int` carries nothing from one evaluation to the next. A
+                // reassignable one still does, so the initonly check stays — for scalars only.
+                if (field.IsInitOnly)
+                {
+                    continue;
+                }
+
+                yield return $"{Il.Describe(field)} is a reassignable static field — {consequence}.";
+                continue;
+            }
+
+            yield return
+                $"{Il.Describe(field)} is static and of the mutable type {field.FieldType.FullName} — " +
+                $"{consequence}. `readonly` does not help: it pins the reference, not the contents.";
+        }
+    }
+
+    /// <summary>True for a type that cannot hold mutable state: a primitive, a string, or an enum.</summary>
+    private static bool IsImmutableScalar(TypeReference type) =>
+        type.IsPrimitive ||
+        type.FullName.Equals("System.String", StringComparison.Ordinal) ||
+        SafeResolve(type)?.IsEnum == true;
+
+    /// <summary>Resolves a type reference, answering <c>null</c> rather than throwing when it cannot.</summary>
+    private static TypeDefinition? SafeResolve(TypeReference type)
+    {
+        try
+        {
+            return type.Resolve();
+        }
+        catch (AssemblyResolutionException)
+        {
+            // An unresolvable type is not a scalar as far as this rule is concerned — failing open
+            // here would be the same hole the remarks above describe, one level down.
+            return null;
+        }
+    }
 
     /// <summary>
     /// True for a write the compiler emitted on its own behalf — the lambda cache, a closure's

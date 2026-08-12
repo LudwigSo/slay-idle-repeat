@@ -1,8 +1,9 @@
 namespace SlayIdleRepeat.Core.Rules.Effects;
 
 /// <summary>
-/// 🔒 The one failure of the `18` §4/§5 evaluation layer: a token was asked to resolve against a
-/// context that does not carry its subject.
+/// 🔒 The one failure type of the `18` §4/§5 evaluation layer, covering three classes: a token asked
+/// to resolve against a context that does not carry its subject; a term or tree that is malformed
+/// whatever the state is; and the one token that is declared but deliberately not resolved here.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,9 +33,30 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// red.
 /// </para>
 /// <para>
+/// 🔒 <b>The second class: malformed content.</b> A comparison with nothing to compare against, a
+/// <c>not</c> carrying two operands, an <c>all</c> carrying none, an inverted range, an ordering
+/// comparator applied to a boolean, a token outside `18` §11's counts — none of these depends on the
+/// state at all. <see cref="Token"/> then names the comparator or the node kind that ruled the term
+/// malformed rather than a `18` §4 function, which is still the rule that fired (steering S2).
+/// </para>
+/// <para>
+/// 🔒 <b>The third: <c>EffectTarget.RUN</c>.</b> `18` §5 declares it and `18` §2.5 gives its resolver
+/// to the run controller, which is M3's. Neither an absent subject nor malformed content — a token
+/// that is somebody else's to answer, saying so rather than resolving to nobody.
+/// </para>
+/// <para>
 /// Every message begins with <see cref="Marker"/> and names <see cref="Token"/>, so a test can pin
 /// <em>which</em> token failed rather than merely that something did (steering S2), and so the whole
 /// class of decision is greppable from one string.
+/// </para>
+/// <para>
+/// ⚠️ <b>Deliberately outside <c>Content.ContentException</c>'s hierarchy.</b> That root is scoped by
+/// its own summary to <em>"every fault raised while READING a <c>ContentSnapshot</c>"</em>, and only
+/// one of the three classes above is a content fault at all — an absent attacker and an unwired
+/// <c>RUN</c> are facts about the evaluation context, not about the data. Widening
+/// <c>ContentException</c> to cover them would cost it the precision that makes it useful. M2-02's
+/// resolver wanting one <c>catch</c> at the effect boundary is served by this type being the
+/// layer's only one.
 /// </para>
 /// </remarks>
 internal sealed class EffectContextException : InvalidOperationException

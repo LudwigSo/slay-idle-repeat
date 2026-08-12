@@ -189,6 +189,118 @@ public sealed class ConditionContextRuleTests
         thrown.Message.ShouldContain("orders a boolean", Case.Sensitive);
     }
 
+    /// <summary>
+    /// 🔒 A combinator with no operands is rejected by the <b>evaluator</b>, not only by
+    /// <see cref="EffectCondition.All"/>'s factory.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The factory guard is bypassable and will be bypassed: <see cref="EffectCondition.Operands"/>
+    /// is an <c>init</c> property defaulting to an empty list, so an object initialiser skips it — and
+    /// so will M2-02's JSON deserialiser, which binds init properties directly. An empty <c>all</c>
+    /// is vacuously true, so the effect would fire with its condition still plainly visible in the
+    /// data; an empty <c>any</c> is vacuously false and it would never fire again. Both are silent.
+    /// </remarks>
+    [Theory]
+    [InlineData(ConditionKind.ALL)]
+    [InlineData(ConditionKind.ANY)]
+    [InlineData(ConditionKind.NOT)]
+    public void A_combinator_with_no_operands_fails_loudly(ConditionKind kind)
+    {
+        var hero = EffectTestBattle.Hero();
+
+        // Built by object initialiser precisely because that is the route around the factory.
+        var emptied = new EffectCondition { Kind = kind };
+        emptied.Operands.ShouldBeEmpty("the premise: the init property defaults to an empty list");
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => ConditionEvaluator.IsSatisfied(
+                emptied,
+                EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1))));
+
+        thrown.Token.ShouldBe(kind.ToString());
+        thrown.Message.ShouldContain("no operands", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// A <c>null</c> operand inside a combinator is a hole in the tree, not `18` §1's ungated effect.
+    /// </summary>
+    /// <remarks>
+    /// <c>IsSatisfied(null, …)</c> answers <c>true</c> — correctly, for an effect whose top-level
+    /// <c>"condition"</c> is <c>null</c>. Letting that reach inside a combinator would make an
+    /// <c>any</c> vacuously true, which is the same silent ungating one level down.
+    /// </remarks>
+    [Fact]
+    public void A_null_operand_inside_a_combinator_fails_loudly()
+    {
+        var hero = EffectTestBattle.Hero();
+
+        var holed = new EffectCondition
+        {
+            Kind = ConditionKind.ANY,
+            Operands = new EffectCondition[] { null! },
+        };
+
+        Should.Throw<EffectContextException>(
+                () => ConditionEvaluator.IsSatisfied(
+                    holed,
+                    EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1))))
+            .Message.ShouldContain("null", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 A term carrying both a numeric value and a boolean one is rejected rather than answered on
+    /// the flag.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Without the check the flag branch simply wins: the term below would hold at <b>any</b>
+    /// non-zero HP, because a boolean comparison asks only whether the reading is non-zero — while
+    /// the data plainly asked for exactly 50%. Silent, and the wrong answer in the permissive
+    /// direction.
+    /// </remarks>
+    [Fact]
+    public void A_term_carrying_both_a_value_and_a_flag_fails_loudly()
+    {
+        var hero = EffectTestBattle.Hero(currentHp: 13, maxHp: 100);
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => ConditionEvaluator.IsSatisfied(
+                EffectCondition.Of(new ConditionTerm
+                {
+                    Fn = ConditionFunction.SELF_HP_PCT,
+                    Comparator = ConditionComparator.EQ,
+                    Value = 0.5,
+                    Flag = true,
+                }),
+                EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1))));
+
+        thrown.Token.ShouldBe(nameof(ConditionFunction.SELF_HP_PCT));
+        thrown.Message.ShouldContain("both a numeric value and a boolean one", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// An inverted <c>between</c> is rejected: it is satisfied by no reading at all, so the effect it
+    /// gates could never fire — a content error that would never go red.
+    /// </summary>
+    [Fact]
+    public void An_inverted_BETWEEN_range_fails_loudly()
+    {
+        var hero = EffectTestBattle.Hero(currentHp: 50, maxHp: 100);
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => ConditionEvaluator.IsSatisfied(
+                EffectCondition.Of(new ConditionTerm
+                {
+                    Fn = ConditionFunction.SELF_HP_PCT,
+                    Comparator = ConditionComparator.BETWEEN,
+                    RangeLow = 0.9,
+                    RangeHigh = 0.1,
+                }),
+                EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1))));
+
+        thrown.Token.ShouldBe(nameof(ConditionComparator.BETWEEN));
+        thrown.Message.ShouldContain("inverted", Case.Sensitive);
+    }
+
     // ------------------------------------------------------------------ the floor (steering S3)
 
     /// <summary>
@@ -225,7 +337,7 @@ public sealed class ConditionContextRuleTests
             BattleTimeSeconds = 12.0,
             EnrageAtSeconds = EffectTestBattle.EnrageSeconds,
             FightHorizonSeconds = EffectTestBattle.PveTimeoutSeconds,
-            Run = new RunStateReading(),
+            Run = EffectTestBattle.Run(),
         };
 
         var arguments = new ConditionArguments("SUNDER", "OFFENSE", "Star");

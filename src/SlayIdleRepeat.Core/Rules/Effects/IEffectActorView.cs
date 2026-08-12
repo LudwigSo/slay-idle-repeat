@@ -13,6 +13,16 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// different mechanism from <c>LOWEST_HP_ENEMY</c>/<c>HIGHEST_HP_ENEMY</c>).
 /// </para>
 /// <para>
+/// 🔒 <b>M2-07's actor stat block is expected to IMPLEMENT this, not to restate it.</b> Narrow is a
+/// statement about what this interface may <em>ask for</em>, not an invitation to build a second
+/// actor abstraction over the same roster: two views of one battle are two chances for
+/// <c>ENEMY_COUNT</c> and a stat aggregation to disagree about who is alive. ⚠️ Which direction that
+/// dependency should run — <c>Rules.Stats</c> naming <c>Rules.Effects</c> or the reverse — is a
+/// milestone-level decision, because `30` §11.4's layering table has a single <c>Rules</c> row and
+/// governs nothing <em>inside</em> it. Until it is taken deliberately, a cycle between the two can
+/// form with every architecture rule green.
+/// </para>
+/// <para>
 /// Read-only, because `18` §4 is explicit: <em>"Conditions gate an effect without changing when it is
 /// evaluated. All are pure functions of current state."</em> There is no mutating member here, and
 /// <c>ConditionPurityRuleTests</c> enforces mechanically that nothing under
@@ -22,6 +32,14 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 internal interface IEffectActorView
 {
     /// <summary>The actor's stable identity, used in failure messages and to resolve <c>OWNER</c>.</summary>
+    /// <remarks>
+    /// 🔒 <b>Unique within one battle roster.</b> <c>OWNER</c> resolves <see cref="OwnerId"/> by
+    /// matching it against this and takes the first hit, so two actors sharing an id would give a
+    /// sporeling the wrong summoner. That matters because `05` §6.4 spawns several units from one
+    /// archetype draw: a roster minting ids from content ids would hand three swarm units the same
+    /// string. Selection never keys on this — <see cref="Index"/> is what `05` §3.1 authorises as
+    /// unique — but <c>OWNER</c> has nothing else to match on.
+    /// </remarks>
     string Id { get; }
 
     /// <summary>

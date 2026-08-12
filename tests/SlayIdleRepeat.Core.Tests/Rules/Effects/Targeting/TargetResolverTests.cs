@@ -164,6 +164,35 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
+    /// 🔒 <c>OTHER_ENEMIES</c> excludes the primary by <b>actor index</b>, not by id — so a pack
+    /// spawned from one archetype does not vanish from the splash.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ `05` §6.4 spawns several units from one archetype draw, and nothing in `05` or `18`
+    /// promises a per-battle-unique id — only `05` §3.1's <b>index</b> is authorised as the actor's
+    /// unique position. A roster that minted ids from content ids would give three swarm units the
+    /// same string, and an id-based exclusion would then drop <b>all three</b> from
+    /// <c>PK_CLEAVE</c>'s splash instead of only the primary. This is the roster that catches it.
+    /// </remarks>
+    [Fact]
+    public void OTHER_ENEMIES_excludes_only_the_primary_when_a_pack_shares_one_id()
+    {
+        var hero = EffectTestBattle.Hero();
+        var primary = EffectTestBattle.Enemy("GRUNT_SWARM", 1);
+        var litter = EffectTestBattle.Enemy("GRUNT_SWARM", 2);
+        var runt = EffectTestBattle.Enemy("GRUNT_SWARM", 3);
+
+        var attacking = EffectTestBattle.Context(hero, hero, primary, litter, runt) with
+        {
+            CurrentTarget = primary,
+        };
+
+        TargetResolver.Resolve(EffectTarget.OTHER_ENEMIES, attacking)
+            .Select(a => a.Index)
+            .ShouldBe([2, 3]);
+    }
+
+    /// <summary>
     /// `18` §5 — <em>"Valid only inside an attack context; elsewhere it degrades to
     /// <c>ALL_ENEMIES</c>."</em> One of the two degradations the document actually authors.
     /// </summary>

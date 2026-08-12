@@ -30,19 +30,34 @@ public sealed class RunStateReadingTests : RunStateViewContract
         };
 
     /// <summary>
-    /// A default <see cref="RunStateReading"/> is a run at its start, not a run at index zero:
-    /// `18` §4 types <c>STAGE_INDEX</c> as <em>"1..3"</em> and chapters are numbered from one.
+    /// 🔒 The two <b>positional</b> readings have no default: <c>STAGE_INDEX</c> and <c>CHAPTER</c>
+    /// are <c>required</c>, so a caller cannot omit them and get a plausible stage 1.
     /// </summary>
+    /// <remarks>
+    /// The counters do default to zero, and the difference is the rule (steering S6): no perks and
+    /// no gold are real readings of a fresh run, whereas <em>no stage</em> is not a position — `18`
+    /// §4 types <c>STAGE_INDEX</c> as <c>1..3</c>, so there is no zero to fall back to and inventing
+    /// a 1 would be arguing from the hole to a filled value.
+    /// </remarks>
     [Fact]
-    public void A_default_reading_starts_at_stage_one_of_chapter_one()
+    public void The_positional_readings_are_required_and_the_counters_default_to_zero()
     {
-        var fresh = new RunStateReading();
+        var required = typeof(RunStateReading)
+            .GetProperties()
+            .Where(p => p.GetCustomAttributes(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), false).Length > 0)
+            .Select(p => p.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
 
-        fresh.StageIndex.ShouldBe(1);
-        fresh.Chapter.ShouldBe(1);
-        fresh.PetCount.ShouldBe(0);
-        fresh.GoldHeld.ShouldBe(0);
-        fresh.PerkCount(null).ShouldBe(0);
+        required.ShouldBe([nameof(RunStateReading.Chapter), nameof(RunStateReading.StageIndex)]);
+
+        var counters = EffectTestBattle.Run();
+
+        counters.PetCount.ShouldBe(0);
+        counters.GoldHeld.ShouldBe(0);
+        counters.BattlesWonThisRun.ShouldBe(0);
+        counters.PerkCount(null).ShouldBe(0);
+        counters.DistinctPerkCategories.ShouldBe(0);
     }
 
     /// <summary>
@@ -63,7 +78,7 @@ public sealed class RunStateReadingTests : RunStateViewContract
         settable.CanWrite.ShouldBeFalse(
             "a settable category count is a second source of truth for what the perk table already says");
 
-        var reading = new RunStateReading
+        var reading = EffectTestBattle.Run() with
         {
             PerksByCategory = new Dictionary<string, int>(StringComparer.Ordinal)
             {
