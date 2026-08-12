@@ -32,8 +32,10 @@ M0's first port shipped without its A8 suite and its two implementations already
 
 ## Dispatch
 
-**S8 · Paste this into every `feature-oneshot` dispatch: your review subagents report to the conductor, not to you. [M0]**
-A phase result describing work as "running in the background, will report when notified" is an **incomplete turn**, not a result. Block on real commands in the foreground. In M0 this cost a manual recovery and three orphaned reviews that had found three cannot-fail blockers.
+**S8 · Block on your review subagents in the foreground. A backgrounded review is not a result. [M0, amended M2]**
+Never end a phase — or a turn — with "reviews are running, will report when notified": that is an **incomplete turn**, not a result. Run each review as a foreground command, wait for its findings, apply them, then re-run the suites. **You may not end your turn while a subagent you spawned is still running.**
+In M0 this cost a manual recovery and three orphaned reviews that had found three cannot-fail blockers. In M2 it happened again **with this rule pasted verbatim into the agent's prompt** — because the old wording ("your review subagents report to the conductor, not to you") was written in the *conductor's* voice, and read by the agent it was addressed to, it licensed exactly the backgrounding it meant to forbid. The recovered reviews found both of that task's anti-cache architecture rules unable to catch a cache. **A rule whose headline can be read as permission for the thing it forbids is a defect in the rule.**
+*(Conductors: paste this into every `feature-oneshot` dispatch.)*
 
 **S9 · Never quote a number from one agent's report into another agent's prompt without verifying it. [M0]**
 A "98" repeated from a report was really 96, and it propagated into two dispatch prompts and six committed files, including a production doc comment.
