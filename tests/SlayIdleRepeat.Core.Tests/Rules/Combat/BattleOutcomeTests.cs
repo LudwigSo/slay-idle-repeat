@@ -130,8 +130,17 @@ public sealed class BattleOutcomeTests
         CombatRules.PvE.IsPvp.ShouldBeFalse();
         CombatRules.PvE.HorizonSeconds.ShouldBe(90.0);
 
-        var duel = new CombatRules(MaxTicks: 1200, OnKillTriggersFire: false, IsPvp: true);
+        // ⚠️ Built through the factory since M2-14. `IsPvp` stopped being a stored flag: `11` §4.3
+        // makes an underdog mandatory in a duel and `05` §3 gives PvE none, so the two were one fact
+        // and IsPvp is now DERIVED from ExactTieWinner. The hand-rolled `(1200, false, IsPvp: true)`
+        // this line used to carry — a duel with 11 §4.3's tie rule silently off — is no longer a
+        // representable value. See PvpDuelTests for the tie rule itself.
+        var duel = CombatRules.Duel(pvpMaxFightSeconds: 60.0, lowerRatedSide: BattleSide.ENEMY);
 
+        duel.MaxTicks.ShouldBe(1200);
+        duel.OnKillTriggersFire.ShouldBeFalse();
+        duel.IsPvp.ShouldBeTrue();
+        duel.ExactTieWinner.ShouldBe(BattleSide.ENEMY);
         duel.HorizonSeconds.ShouldBe(60.0);
         Should.NotThrow(() => duel.Validated());
     }
@@ -143,7 +152,7 @@ public sealed class BattleOutcomeTests
     [InlineData(1801)]
     public void A_cap_outside_the_logs_range_is_refused(int maxTicks) =>
         Should.Throw<ArgumentOutOfRangeException>(
-            () => new CombatRules(maxTicks, OnKillTriggersFire: true, IsPvp: false).Validated());
+            () => new CombatRules(maxTicks, OnKillTriggersFire: true).Validated());
 
     /// <summary>
     /// 🔒 A <b>despawned</b> summon has left the fight and has no stake in the timeout — `18` §2.4's
@@ -177,7 +186,7 @@ public sealed class BattleOutcomeTests
                     Timeline = new DespawnedShard(s, heroHp: 50, enemyHp: 30, shardHp: 100),
                 };
             },
-            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true)));
 
         services.ShouldNotBeNull();
 
@@ -261,7 +270,7 @@ public sealed class BattleOutcomeTests
                 Attack = new RecordingAttackPipeline(services, damage: 0.0),
                 Timeline = new WoundedAtStart(heroHp, enemies.Select(e => e.Hp).ToArray()),
             },
-            rules: new CombatRules(maxTicks, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(maxTicks, OnKillTriggersFire: true)));
     }
 }
 

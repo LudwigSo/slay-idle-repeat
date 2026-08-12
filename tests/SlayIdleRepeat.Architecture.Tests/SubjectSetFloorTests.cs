@@ -315,6 +315,39 @@ public sealed class SubjectSetFloorTests
             "'perks (in draft order)'. 06's 98 perks are M3-07's. ⚠️ '(in draft order)' is R5's " +
             "COLLECTION order; the application order is EffectResolutionOrder's, and is total"),
 
+        // ── M2-14 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Not a rule subject — a DEFERRAL, recorded here so it expires by itself (steering S4), on
+        // the precedent of the `RunController` and `LuckService` entries above.
+        //
+        // `11` §4.3 is 🔒: "on an exact tie, the LOWER-RATED player wins." M2-14 implements it, and
+        // the simulator takes it as one bit — CombatRules.Duel's `lowerRatedSide` — because rating is
+        // `11` §5's and `30` §11.1 keeps Elo out of the tick loop. What M2-14 deliberately does NOT
+        // build is the thing that decides that bit: `11` §4's duel flow, its candidate selection and
+        // its server-issued seed are M12's, and no ghost, ladder or rating type exists yet
+        // (GhostSnapshot is still Pending above).
+        //
+        // ⚠️ Whoever lands the duel flow inherits an obligation, and it is not obvious from the call
+        // site: `lowerRatedSide` is a LogHash INPUT. The outcome reaches ON_BATTLE_END's HeroWon, and
+        // those firings append to the log before it is hashed (`18` §9.2's win-only PET_DICEBEAST
+        // grant is the authored example) — so `11` §6 compares a hash that this bit moved. It
+        // therefore needs `11` §6's duelSeed discipline exactly: SERVER-ISSUED, fixed once at duel
+        // start, travelling with the seed. A rating re-read at re-run time, or an attacker rating
+        // that moved between the client's fetch and the server's, discards an HONEST duel and
+        // increments the player's cheat flag — the anti-cheat firing on the anti-cheat.
+        // CombatRules.Duel's own remarks carry the full contract, because a note addressed to M12 is
+        // worthless in a test file M12 will never open.
+        //
+        // ⚠️ THE NAME IS AN INFERENCE, recorded as one on the RunController entry's precedent, and it
+        // is `11`'s own title noun ("Ghost Duel") PascalCased. If M12 picks another, RENAME this entry
+        // rather than delete it: the subject being tracked is "something decides which duellist is the
+        // underdog and issues it with the seed", not the string.
+        new("GhostDuel", SubjectKind.CoreType, "M12 — 11 §4's duel flow",
+            "SlayIdleRepeat.Core.Rules.Combat.CombatRules.Duel's lowerRatedSide — 11 §4.3's exact-tie " +
+            "underdog bias, which M2-14 implements and nothing yet decides. See the note above this " +
+            "entry: the bit is inside LogHash, so it needs 11 §6's server-issued duelSeed discipline " +
+            "or an honest duel is discarded as tampering"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",

@@ -167,7 +167,7 @@ public sealed class CombatSimulatorTests
         return CombatSimulator.Simulate(BattleTestBench.Plan(
             actors,
             services => BattleSeams.Strict with { Attack = new RecordingAttackPipeline(services, 1.0) },
-            rules: new CombatRules(maxTicks, OnKillTriggersFire: true, IsPvp: false),
+            rules: new CombatRules(maxTicks, OnKillTriggersFire: true),
             battleSeed: seed));
     }
 
