@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Shouldly;
@@ -375,6 +376,17 @@ public sealed class AccessibilityBoundaryTests
                         "30 §11.4's chain: it names the root, the root does not name it."));
         }
 
+        // 🔒 M1-12 — AND THE ARM THE IL PHYSICALLY CANNOT CARRY. Everything above reads metadata, and
+        // a `const` never reaches metadata: the compiler inlines it at the use site as a literal, so
+        // `EnergyTuning.M1_12_Tuning` read from Core/Model/ emits `ldc.i4` and nothing else. No
+        // TypeRef, no FieldRef, no local — Il.ReferencedTypeNames has nothing to yield. This was found
+        // by M1-01 (its first S1 mutation PASSED for exactly this reason), re-found by M1-10 (which
+        // named the exploit: a Model type reading tuning through a const pointer), and re-found by
+        // M1-11 (which hit it trying to break the closure arm one file over). Measured on this branch
+        // before this arm existed: a Core/Content/ method returning a Core/Rules/ `const int` passed
+        // 63/63 — the whole suite green over a forbidden edge in this rule's own table.
+        offenders.AddRange(InlinedCrossLayerReferences(forbidden, mustNotReachTheRoot));
+
         ArchRule.Empty(
             offenders,
             "Core's internal layering holds: Testing -> Handlers -> Rules -> Model -> Content -> Primitives, " +
@@ -382,6 +394,231 @@ public sealed class AccessibilityBoundaryTests
             "Handlers (it drives the domain through GameRules.Apply alone) and nothing beneath it — root " +
             "included — names the harness, and Primitives, Content, Rng, Events, Commands and Model never " +
             "reach up into the SlayIdleRepeat.Core root (30 §11.4, 30 §6, 30 §11.2).");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.4 / carried-forward item (a) — the half of
+    /// <see cref="Core_internal_layering_holds"/> that <b>cannot</b> be answered from IL: a
+    /// cross-layer read of a <c>const</c>, which the compiler inlines as a literal so that no type,
+    /// field or local reference survives into metadata.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Scoped to exactly the blind spot, and no wider.</b> The candidate set is not "every type
+    /// in the upper layer" — it is "every type in the upper layer that declares at least one literal
+    /// field", because those are the only types a lower layer can name without leaving an IL trace.
+    /// Any other cross-layer reference is already reported by the metadata scan above and reporting
+    /// it twice would make one rule's failure two. ⚠️ Enum members are literal fields, so an enum
+    /// counts: <c>if (x == CommandKind.Run)</c> on an already-typed <c>x</c> compiles to
+    /// <c>ldc.i4</c> with the enum type reachable only through whatever declared <c>x</c>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The <c>using</c>-alias hole is closed rather than declared.</b> <c>Il</c>'s own preamble
+    /// says a grep "is defeated by a <c>using</c> alias, a fully-qualified call or an extension
+    /// method". Two of those three do not apply — a fully-qualified read still contains
+    /// <c>EnergyMath.</c>, and there is no such thing as an extension <em>constant</em> — and the
+    /// third is resolved here: every <c>using X = A.B.C;</c> in the file is read out of the same
+    /// stripped text and <c>X</c> is searched for alongside <c>C</c>. Comments and string literals
+    /// are already blanked by <see cref="SourceText"/>, which is what keeps the four
+    /// <c>GameRules.Apply</c> mentions in <c>Primitives</c>' and <c>Model</c>'s comments from
+    /// reading as violations.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The residual limit, stated so nobody assumes otherwise</b> (steering <b>S1</b>). This is
+    /// a source rule, so it sees what is compiled <em>into this assembly from these files</em>. A
+    /// const read from a <c>#if</c>-excluded branch reads as a violation here and is not one; that
+    /// direction is safe (it fails loudly rather than passing quietly) and no such branch exists in
+    /// <c>Core</c> today. What it cannot do is prove the <em>absence</em> of a const read written in
+    /// a file outside <c>Core</c>'s project directory — which no file in this assembly is, because
+    /// the SDK globs the directory.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> InlinedCrossLayerReferences(
+        (string Layer, string[] MustNotReference)[] forbidden,
+        IReadOnlyList<string> mustNotReachTheRoot)
+    {
+        var offenders = new List<string>();
+
+        foreach (var (layer, mustNotReference) in forbidden)
+        {
+            foreach (var upper in mustNotReference)
+            {
+                offenders.AddRange(
+                    InlinedReferencesFrom(layer, InlinableTypesIn(upper))
+                        .Select(hit => Explain(hit, layer, upper)));
+            }
+        }
+
+        // The root has no Layer row for the reason the metadata loop above records, so the
+        // root-directed direction is its own pass here too.
+        var rootTypes = InlinableRootTypes();
+
+        foreach (var layer in mustNotReachTheRoot)
+        {
+            offenders.AddRange(
+                InlinedReferencesFrom(layer, rootTypes)
+                    .Select(hit => Explain(hit, layer, Domain.CoreNamespace + " root")));
+        }
+
+        return offenders;
+
+        static string Explain(string hit, string layer, string upper) =>
+            $"{hit} — a type in {layer} names {upper} in SOURCE while naming nothing from it in IL, " +
+            "which is the signature of a `const` read: the compiler inlines a constant at its use " +
+            "site, so no type, field or local reference reaches metadata and the scan above is blind " +
+            "to it (30 §11.4). Make it `static readonly` if the layering permits the reference at " +
+            "all — that emits an ldsfld the scan can see — or move the value to a layer this one may " +
+            "name.";
+    }
+
+    /// <summary>
+    /// Every hit of one of <paramref name="candidates"/> used as a member access, in the source
+    /// files of <paramref name="layer"/>, with each file's <c>using</c> aliases resolved.
+    /// </summary>
+    private static IEnumerable<string> InlinedReferencesFrom(
+        string layer, IReadOnlyCollection<(string Name, string Namespace)> candidates)
+    {
+        if (candidates.Count == 0)
+        {
+            yield break;
+        }
+
+        foreach (var file in CoreSourceFiles.Value.Where(f => Il.IsUnder(f.Namespace, layer)))
+        {
+            foreach (var hit in InlinedMemberAccesses(file.Text.Stripped, candidates, file.Aliases))
+            {
+                yield return $"{RepoLayout.Relative(file.Text.Path)} reads {hit}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The pure half, so <see cref="The_inlined_reference_check_sees_a_const_read_and_refuses_a_bare_mention"/>
+    /// can drive it against text rather than against the repository.
+    /// </summary>
+    /// <param name="stripped">Source with comments and string literals already blanked.</param>
+    /// <param name="candidates">
+    /// Types whose members could be inlined constants, each with the namespace it is declared in —
+    /// the namespace is what lets a <b>qualified</b> read be recognised without <c>a.B.C</c> on an
+    /// arbitrary local reading as one.
+    /// </param>
+    /// <param name="aliases">This file's <c>using X = A.B.C;</c> map, alias to target simple name.</param>
+    internal static IEnumerable<string> InlinedMemberAccesses(
+        string stripped,
+        IReadOnlyCollection<(string Name, string Namespace)> candidates,
+        IReadOnlyDictionary<string, string> aliases)
+    {
+        var wanted = candidates.ToList();
+
+        // An alias stands for the type on its own, with no namespace in front of it — `EM.X`, never
+        // `Something.EM.X` — so it carries an empty namespace and gets no qualified-prefix arm.
+        wanted.AddRange(
+            aliases.Where(a => candidates.Any(c => c.Name.Equals(a.Value, StringComparison.Ordinal)))
+                   .Select(a => (Name: a.Key, Namespace: string.Empty)));
+
+        foreach (var (name, ns) in wanted.OrderBy(c => c.Name, StringComparer.Ordinal).Distinct())
+        {
+            // `Name` followed by a member access. Requiring the DOT AFTER is what makes this a
+            // const-read detector rather than a second, weaker copy of the metadata scan: a constant
+            // is always read as `Type.MEMBER`, while `nameof(Type)` or a bare type name in a
+            // signature has no dot — and a signature would have left an IL trace anyway.
+            //
+            // ⚠️ The lookbehind refusing a dot BEFORE is what keeps `state.Run.Position` — an
+            // ordinary instance member access on a local — from reading as `Model.Run`. That is
+            // also why the qualified form needs the explicit prefix below rather than a relaxed
+            // lookbehind: `…Rules.Economy.EnergyMath.MaxBanked` has a dot before the name too, and
+            // the only thing that tells the two apart is that one prefix is the type's OWN
+            // namespace and the other is whatever a local happens to be called.
+            var pattern = new Regex(
+                @"(?<![\w.])" + QualifiedPrefix(ns) + Regex.Escape(name) + @"\s*\.\s*\w+",
+                RegexOptions.None);
+
+            foreach (Match match in pattern.Matches(stripped))
+            {
+                yield return Regex.Replace(match.Value, @"\s+", string.Empty);
+            }
+        }
+    }
+
+    /// <summary>
+    /// An optional namespace qualification in front of a type name: any <b>suffix</b> of the
+    /// declaring namespace, so <c>SlayIdleRepeat.Core.Rules.Economy.EnergyMath</c>,
+    /// <c>Rules.Economy.EnergyMath</c> and <c>Economy.EnergyMath</c> all read as the same type.
+    /// </summary>
+    /// <remarks>
+    /// Suffixes rather than the full name alone because C# resolves a partially-qualified name
+    /// against the enclosing namespace, and a rule that only knew the fully-qualified spelling would
+    /// have a hole exactly the width of `using SlayIdleRepeat.Core;`. Longest first, so a match
+    /// reports the whole qualification rather than its tail.
+    /// </remarks>
+    private static string QualifiedPrefix(string ns)
+    {
+        if (ns.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var segments = ns.Split('.');
+
+        var alternatives = Enumerable.Range(0, segments.Length)
+            .Select(skip => string.Join(@"\s*\.\s*", segments.Skip(skip).Select(Regex.Escape)))
+            .ToArray();
+
+        return @"(?:(?:global\s*::\s*)?(?:" + string.Join("|", alternatives) + @")\s*\.\s*)?";
+    }
+
+    /// <summary>
+    /// `Core` types under <paramref name="ns"/> that declare a literal field, with their namespaces.
+    /// </summary>
+    private static IReadOnlyCollection<(string Name, string Namespace)> InlinableTypesIn(string ns) =>
+        Domain.CoreTypesUnder(ns)
+              .Where(t => t.Fields.Any(f => f.IsLiteral))
+              .Select(t => (t.Name, Namespace: Il.NamespaceOf(t)))
+              .Distinct()
+              .ToArray();
+
+    /// <summary>
+    /// `Core` types declared directly in the <c>SlayIdleRepeat.Core</c> root that declare a literal
+    /// field — the root's own inlinable surface, matched exactly rather than by prefix.
+    /// </summary>
+    private static IReadOnlyCollection<(string Name, string Namespace)> InlinableRootTypes() =>
+        Domain.CoreTypes
+              .Where(t => Il.NamespaceOf(t).Equals(Domain.CoreNamespace, StringComparison.Ordinal))
+              .Where(t => t.Fields.Any(f => f.IsLiteral))
+              .Select(t => (t.Name, Namespace: Domain.CoreNamespace))
+              .Distinct()
+              .ToArray();
+
+    /// <summary>One `Core` source file, stripped, with its namespace, aliases and declared types.</summary>
+    private sealed record CoreSourceFile(
+        SourceText Text,
+        string Namespace,
+        IReadOnlyDictionary<string, string> Aliases,
+        IReadOnlyList<(string Namespace, string Name)> DeclaredTypes);
+
+    private static readonly Lazy<IReadOnlyList<CoreSourceFile>> CoreSourceFiles = new(() =>
+        RepoLayout.SourceFiles(RepoLayout.ProjectDirectory(ProductionAssemblies.CoreName))
+                  .Select(ReadCoreSource)
+                  .ToArray());
+
+    private static CoreSourceFile ReadCoreSource(string path)
+    {
+        var text = SourceText.Read(path);
+
+        var ns = Regex.Match(text.Stripped, @"\bnamespace\s+([\w.]+)") is { Success: true } m
+            ? m.Groups[1].Value
+            : string.Empty;
+
+        var aliases = Regex.Matches(text.Stripped, @"\busing\s+(\w+)\s*=\s*([\w.]+)\s*;")
+            .Select(x => (Alias: x.Groups[1].Value, Target: x.Groups[2].Value.Split('.').Last()))
+            .GroupBy(x => x.Alias, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Target, StringComparer.Ordinal);
+
+        var declared = Regex.Matches(text.Stripped, @"\b(?:class|struct|record|interface|enum)\s+(\w+)")
+            .Select(x => (Namespace: ns, Name: x.Groups[1].Value))
+            .ToArray();
+
+        return new CoreSourceFile(text, ns, aliases, declared);
     }
 
     /// <summary>
@@ -419,6 +656,84 @@ public sealed class AccessibilityBoundaryTests
         var outerName = typeFullName[(Domain.CoreNamespace.Length + 1)..].Split('/')[0];
 
         return !outerName.Contains('.', StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.4 — the teeth of the inlined-reference arm of
+    /// <see cref="Core_internal_layering_holds"/>. It must recognise a <c>const</c> read and refuse
+    /// a bare mention, an instance member access, and a longer name that merely starts the same way.
+    /// </summary>
+    /// <remarks>
+    /// The negative cases carry the weight. Without the "longer name" case the check would report
+    /// <c>Primitives.RunId</c> as <c>Model.Run</c> on every file that names a run id, and a rule that
+    /// cries wolf on correct code is one the next agent weakens back out — which is how this hole
+    /// stayed open through three separate findings. Without the alias case the residual limit the arm
+    /// claims to have closed would still be open, with a comment saying it was not.
+    /// </remarks>
+    [Fact]
+    public void The_inlined_reference_check_sees_a_const_read_and_refuses_a_bare_mention()
+    {
+        var none = new Dictionary<string, string>(StringComparer.Ordinal);
+        var candidates = new[]
+        {
+            ("EnergyMath", "SlayIdleRepeat.Core.Rules.Economy"),
+            ("Run", "SlayIdleRepeat.Core.Model"),
+        };
+
+        InlinedMemberAccesses("var x = EnergyMath.MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe("EnergyMath.MaxBanked");
+
+        InlinedMemberAccesses("var x = EnergyMath . MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "EnergyMath.MaxBanked",
+                "whitespace around the dot is legal C# and must not be a way past the check.");
+
+        InlinedMemberAccesses("var x = SlayIdleRepeat.Core.Rules.Economy.EnergyMath.MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "SlayIdleRepeat.Core.Rules.Economy.EnergyMath.MaxBanked",
+                "a fully-qualified read is one of the three ways Il's preamble says a grep is " +
+                "defeated. It is not one of them here: the qualification is built from the type's OWN " +
+                "namespace, so it is recognised without a bare relaxed lookbehind letting every " +
+                "instance member access in.");
+
+        InlinedMemberAccesses("var x = Economy.EnergyMath.MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "Economy.EnergyMath.MaxBanked",
+                "C# resolves a PARTIALLY-qualified name against the enclosing namespace, so a rule " +
+                "that knew only the fully-qualified spelling would have a hole the width of one " +
+                "`using`.");
+
+        InlinedMemberAccesses("nameof(EnergyMath)", candidates, none)
+            .ShouldBeEmpty(
+                "a bare mention is not a constant read, and anything that put the TYPE in a signature " +
+                "would have left an IL trace the metadata scan already reports.");
+
+        InlinedMemberAccesses("var x = RunId.Parse(s);", candidates, none)
+            .ShouldBeEmpty(
+                "RunId is a Primitives type and Run is a Model one. If this fires, every file naming a " +
+                "run id is a false positive and the arm gets deleted rather than obeyed.");
+
+        InlinedMemberAccesses("var x = other.Run.Position;", candidates, none)
+            .ShouldBeEmpty(
+                "a property access on an instance is not a static const read — the lookbehind refuses " +
+                "a preceding dot. Without this, `state.Run` reads as a layer naming Model.");
+
+        InlinedMemberAccesses(
+                "var x = EM.MaxBanked;",
+                candidates,
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["EM"] = "EnergyMath" })
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "EM.MaxBanked",
+                "a `using EM = ...EnergyMath;` alias is the one way a grep of this shape can genuinely " +
+                "be defeated. It is resolved rather than declared a known limit.");
+
+        InlinedMemberAccesses("var x = EM.MaxBanked;", candidates, none)
+            .ShouldBeEmpty("an alias nobody declared is just an identifier.");
     }
 
     /// <summary>
