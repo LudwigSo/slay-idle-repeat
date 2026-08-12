@@ -55,11 +55,23 @@ public sealed class CommandResultTests
     /// 🔒 A value `14` §16.2 has no row for — an uninitialised field, or a number cast in from the
     /// wire — is refused rather than quietly acquiring a tier.
     /// </summary>
-    [Fact]
-    public void An_undeclared_rejection_reason_is_refused()
+    /// <remarks>
+    /// 🔒 Which rule refused it is pinned, not merely that one did (steering <b>S2</b>). Both this
+    /// and the transport-tier guard above raise <c>ArgumentOutOfRangeException</c> out of the same
+    /// call, and they are different findings with different fixes: this one says the value is not in
+    /// the catalogue at all — <c>RejectionReasons.TierOf</c>, <c>ParamName</c> <c>reason</c> — and
+    /// the other says a catalogued value belongs to the wrong producer.
+    /// </remarks>
+    [Theory]
+    [InlineData((RejectionReason)0)]
+    [InlineData((RejectionReason)999)]
+    public void An_undeclared_rejection_reason_is_refused(RejectionReason undeclared)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => CommandResult.Reject(default, AnySlice()));
-        Should.Throw<ArgumentOutOfRangeException>(() => CommandResult.Reject((RejectionReason)999, AnySlice()));
+        var thrown = Should.Throw<ArgumentOutOfRangeException>(() =>
+            CommandResult.Reject(undeclared, AnySlice()));
+
+        thrown.ParamName.ShouldBe("reason");
+        thrown.Message.ShouldContain("This is not a rejection reason", Case.Sensitive);
     }
 
     /// <summary>
@@ -167,26 +179,48 @@ public sealed class CommandResultTests
     // ------------------------------------------------------- rendering
 
     /// <summary>
-    /// 🔒 `14` §8.2 — the result renders identically under every culture. A record's synthesized
-    /// <c>PrintMembers</c> would append through <c>StringBuilder.Append(object)</c> and format with
-    /// the ambient culture, which the architecture suite's IL scan cannot see through the boxing.
+    /// 🔒 The result renders through <b>its own</b> <c>PrintMembers</c> and not the compiler's — it
+    /// names the two absent-capable components rather than dereferencing them.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The exact text is the load-bearing assertion, and the culture pair is not.</b>
+    /// <c>CurrencyChangedTests.ToString_renders_identically_under_any_culture</c> can state the
+    /// `14` §8.2 claim honestly because a <c>CurrencyChanged</c> carries a <c>long</c> that
+    /// <c>sv-SE</c> renders with U+2212. <b>A <c>CommandResult</c> carries no such member</b>: a
+    /// <c>bool</c>, an enum name, a literal word and a non-negative count read identically under
+    /// every culture, so a "renders the same under de-DE" comparison here would hold for the
+    /// synthesized <c>PrintMembers</c> too — an assertion true of every possible implementation
+    /// (steering <b>S1</b>). The exact string is not: the compiler's would dump the whole
+    /// <c>WorldSlice</c> and the event list's type name, and would raise out of
+    /// <c>default(CommandResult)</c> (pinned by
+    /// <see cref="The_default_struct_still_renders"/>).
+    /// </para>
+    /// <para>
+    /// The culture round trip is kept as the guard for the <em>next</em> member — the day one that
+    /// formats culture-sensitively is appended, it starts carrying the `14` §8.2 claim — and is
+    /// stated as that rather than as today's proof.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void ToString_renders_identically_under_any_culture()
+    public void The_result_renders_through_its_own_PrintMembers_and_not_the_synthesized_one()
     {
         var german = new CultureInfo("de-DE");
 
         german.NumberFormat.NumberDecimalSeparator.ShouldNotBe(
             CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator,
-            "this assertion is only meaningful if the runtime actually has a German culture. Under " +
-            "globalization-invariant mode new CultureInfo(\"de-DE\") silently returns the invariant " +
-            "culture and the comparison below would hold over nothing.");
+            "the forward guard below is only meaningful if the runtime actually has a German " +
+            "culture. Under globalization-invariant mode new CultureInfo(\"de-DE\") silently " +
+            "returns the invariant culture and the comparison would hold over nothing.");
 
         var result = CommandResult.Reject(RejectionReason.CAP_REACHED, AnySlice());
 
+        Render(result, CultureInfo.InvariantCulture).ShouldBe(
+            "CommandResult { Accepted = False, Rejection = CAP_REACHED, NewState = present, Events = 0 }",
+            "the synthesized PrintMembers renders NewState by dumping the WorldSlice and Events by " +
+            "its type name, and reads both through the accessors that throw on the default struct.");
+
         Render(result, german).ShouldBe(Render(result, CultureInfo.InvariantCulture));
-        Render(result, CultureInfo.InvariantCulture)
-            .ShouldContain("Accepted = False, Rejection = CAP_REACHED", Case.Sensitive);
     }
 
     public static TheoryData<RejectionReason> TransportTierReasons() => Theory(RejectionReasons.TransportTier);

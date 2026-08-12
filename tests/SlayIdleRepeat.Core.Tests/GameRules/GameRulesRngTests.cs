@@ -54,10 +54,19 @@ public sealed class GameRulesRngTests
     /// rather than replaying it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The draws are compared, not just the counter: a scope that opened every stream at 0 would
-    /// leave the counter looking right (3 → 6, because the fold writes the scope's position) while
-    /// handing the player the same three faces twice. Asserting the <em>values</em> differ is what
-    /// separates those two implementations.
+    /// leave the counter looking right (2 → 4, because the fold writes the scope's position) while
+    /// handing the player the same two faces twice.
+    /// </para>
+    /// <para>
+    /// 🔒 And they are compared against <b>the sequence `14` §8.1 derives</b>, not merely asserted
+    /// to differ from the first two. "These four numbers are not those two" is satisfied by every
+    /// wrong resume position there is — a scope that opened at 1, or at 12, or at whatever the
+    /// previous command's counter happened to be plus one — so it would report success for an
+    /// implementation that continued the stream in the wrong place. The second command's draws are
+    /// <c>Hash64(runSeed, "dice", 2)</c> and <c>…, 3)</c> or the run does not replay.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_second_command_continues_the_sequence_rather_than_replaying_it()
@@ -80,9 +89,16 @@ public sealed class GameRulesRngTests
             table, first.NewState, new Worlds.RunFixtureCommand(), Worlds.Context);
 
         second.NewState.Run!.StreamPosition(RngStreams.Dice).ShouldBe(4UL);
+
+        var resumed = new DeterministicRng(RunSnapshots.Seed, RngStreams.Dice, 2UL);
+
+        drawn.Skip(2).ShouldBe(new[] { resumed.Range(1, 1_000_000), resumed.Range(1, 1_000_000) },
+            "the second command must take draws 2 and 3 of the run's dice stream — not draws 0 and " +
+            "1 again, and not draws from some other position that merely happens to differ.");
+
         drawn.Take(2).ShouldNotBe(drawn.Skip(2).ToList(),
-            "draws 2 and 3 must not repeat draws 0 and 1. A scope that reopened the stream at 0 " +
-            "would still leave the counter at 4 and would hand the player the same numbers again.");
+            "and the two commands' draws are therefore different numbers, which is what a player " +
+            "would notice if the stream reopened at 0.");
     }
 
     /// <summary>
@@ -289,20 +305,13 @@ public sealed class GameRulesRngTests
     [Fact]
     public void Each_battle_takes_the_next_index_and_its_own_seed()
     {
-        ulong firstSeed = 0;
-        ulong secondSeed = 0;
+        var battles = new List<BattleRng>();
 
         var result = SlayIdleRepeat.Core.GameRules.Execute(
             Worlds.RunTable((_, input) =>
             {
-                var first = input.Rng.BeginBattle();
-                var second = input.Rng.BeginBattle();
-
-                first.BattleIndex.ShouldBe(4);
-                second.BattleIndex.ShouldBe(5);
-
-                firstSeed = first.Seed;
-                secondSeed = second.Seed;
+                battles.Add(input.Rng.BeginBattle());
+                battles.Add(input.Rng.BeginBattle());
 
                 return HandlerResult.Accept();
             }),
@@ -312,9 +321,10 @@ public sealed class GameRulesRngTests
 
         result.NewState.Run!.StreamPosition(RngStreams.Combat).ShouldBe(6UL);
 
-        firstSeed.ShouldBe(SeedDerivation.BattleSeed(RunSnapshots.Seed, 4));
-        secondSeed.ShouldBe(SeedDerivation.BattleSeed(RunSnapshots.Seed, 5));
-        firstSeed.ShouldNotBe(secondSeed);
+        battles.Select(b => b.BattleIndex).ShouldBe(new[] { 4, 5 });
+        battles[0].Seed.ShouldBe(SeedDerivation.BattleSeed(RunSnapshots.Seed, 4));
+        battles[1].Seed.ShouldBe(SeedDerivation.BattleSeed(RunSnapshots.Seed, 5));
+        battles[0].Seed.ShouldNotBe(battles[1].Seed);
     }
 
     /// <summary>

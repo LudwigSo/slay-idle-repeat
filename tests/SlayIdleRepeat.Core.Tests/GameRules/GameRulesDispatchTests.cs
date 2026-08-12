@@ -166,6 +166,61 @@ public sealed class GameRulesDispatchTests
         result.NewState.Run.ShouldNotBeNull();
     }
 
+    /// <summary>
+    /// 🔒 The mirror of the rule above, from the handler's side: a <c>CommandKind.Meta</c> command
+    /// that reaches for <c>input.Run</c> is told its <b>dispatch row</b> is classified wrongly.
+    /// </summary>
+    /// <remarks>
+    /// The two guards a misclassified row can hit are deliberately different sentences (steering
+    /// <b>S2</b>): this one is "a meta command tried to act on a run", and
+    /// <c>GameRulesRngTests.A_meta_command_has_no_run_scope_even_with_a_run_loaded</c> is "a meta
+    /// command tried to draw from the run's streams". A reader handed the wrong one reclassifies in
+    /// the wrong direction. ⚠️ The slice carries <b>no</b> run, which is the only shape that reaches
+    /// this guard: a meta command mid-run is handed the run quite happily (a player can open the
+    /// shop without leaving), and a <c>CommandKind.Run</c> command with no run never reaches a
+    /// handler at all — <c>Apply</c> refuses it first as a loading defect.
+    /// </remarks>
+    [Fact]
+    public void A_meta_command_that_reaches_for_the_run_names_the_misclassified_row()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => SlayIdleRepeat.Core.GameRules.Execute(
+            Worlds.MetaTable((command, input) =>
+            {
+                _ = input.Run;
+
+                return HandlerResult.Accept();
+            }),
+            Worlds.OutsideARun(),
+            new Worlds.MetaFixtureCommand(),
+            Worlds.Context));
+
+        thrown.Message.ShouldContain("a CommandKind.Meta command tried to act on a run", Case.Sensitive);
+        thrown.Message.ShouldContain("its dispatch row is classified wrongly", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 A handler that returned <c>default(HandlerResult)</c> is a <b>defect</b>, and the answer
+    /// says which one rather than surfacing as a null reference two frames later.
+    /// </summary>
+    /// <remarks>
+    /// The same hole <c>CommandResultTests.The_default_struct_is_not_a_result_and_says_so</c> covers
+    /// one layer out, and it is reachable the same way: <c>HandlerResult</c> is a
+    /// <c>readonly record struct</c>, so the language hands out an instance that ran no constructor
+    /// — carrying no rejection (which reads as <em>accepted</em>) and no event list.
+    /// </remarks>
+    [Fact]
+    public void A_handler_that_returns_the_default_struct_is_a_defect()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => SlayIdleRepeat.Core.GameRules.Execute(
+            Worlds.MetaTable((_, _) => default),
+            Worlds.OutsideARun(),
+            new Worlds.MetaFixtureCommand(),
+            Worlds.Context));
+
+        thrown.Message.ShouldContain("default(HandlerResult)", Case.Sensitive);
+        thrown.Message.ShouldContain("no handler can legitimately return", Case.Sensitive);
+    }
+
     /// <summary>Null arguments are caller defects and are named individually.</summary>
     [Fact]
     public void Apply_refuses_a_null_argument()
@@ -216,17 +271,28 @@ public sealed class GameRulesDispatchTests
     /// 🔒 `14` §2.3's ids are <c>SCREAMING_SNAKE</c>. This is the one place a command's wire name is
     /// declared, so a typo here is a wire-contract break nothing else would see.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Each row names the rule that refused it</b> (steering <b>S2</b>), because two different
+    /// ones do: an <b>absent</b> name is a registration that declared nothing, and a malformed one
+    /// is a name spelled differently from the id on the wire. They are different mistakes with
+    /// different fixes, and <c>Should.Throw&lt;ArgumentException&gt;</c> alone is also satisfied by
+    /// <c>ArgumentNullException</c> and <c>ArgumentOutOfRangeException</c> — the guard on the row
+    /// below this one.
+    /// </remarks>
     [Theory]
-    [InlineData("")]
-    [InlineData("roll_dice")]
-    [InlineData("RollDice")]
-    [InlineData("ROLL DICE")]
-    [InlineData("ROLL-DICE")]
-    [InlineData("ROLL.DICE")]
-    public void A_wire_name_that_is_not_SCREAMING_SNAKE_is_refused(string wireName)
+    [InlineData("", "A command registration declares 14 §2.3's wire name")]
+    [InlineData("roll_dice", "is not a 14 §2.3 wire name")]
+    [InlineData("RollDice", "is not a 14 §2.3 wire name")]
+    [InlineData("ROLL DICE", "is not a 14 §2.3 wire name")]
+    [InlineData("ROLL-DICE", "is not a 14 §2.3 wire name")]
+    [InlineData("ROLL.DICE", "is not a 14 §2.3 wire name")]
+    public void A_wire_name_that_is_absent_or_not_SCREAMING_SNAKE_is_refused(string wireName, string refusal)
     {
-        Should.Throw<ArgumentException>(() => new CommandDispatch()
+        var thrown = Should.Throw<ArgumentException>(() => new CommandDispatch()
             .Deferred<Worlds.MetaFixtureCommand>(wireName, CommandKind.Meta, "M4-09"));
+
+        thrown.ParamName.ShouldBe("wireName");
+        thrown.Message.ShouldContain(refusal, Case.Sensitive);
     }
 
     /// <summary>The shapes `14` §2.3 actually uses are accepted.</summary>
@@ -251,7 +317,8 @@ public sealed class GameRulesDispatchTests
     public void An_undefined_command_kind_is_refused()
     {
         Should.Throw<ArgumentOutOfRangeException>(() => new CommandDispatch()
-            .Deferred<Worlds.MetaFixtureCommand>(Worlds.MetaWireName, (CommandKind)0, "M4-09"));
+                .Deferred<Worlds.MetaFixtureCommand>(Worlds.MetaWireName, (CommandKind)0, "M4-09"))
+            .Message.ShouldContain("is either a RUN command or a META command", Case.Sensitive);
     }
 
     /// <summary>

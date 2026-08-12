@@ -115,24 +115,36 @@ public sealed class RunRngScopeTests
     [Fact]
     public void A_null_stream_name_is_refused()
     {
-        Should.Throw<ArgumentNullException>(() => new RunRngScope(Seed, Committed()).Stream(null!));
+        Should.Throw<ArgumentNullException>(() => new RunRngScope(Seed, Committed()).Stream(null!))
+            .ParamName.ShouldBe("streamName");
     }
 
     /// <summary>
     /// 🔒 A run committed at a stream the registry does not recognise cannot open a scope at all: a
     /// name that cannot be drawn from cannot be resumed either.
     /// </summary>
+    /// <remarks>
+    /// The refusal is pinned to <b>this</b> rule and not merely to <c>ArgumentException</c> (steering
+    /// <b>S2</b>): <c>Stream</c> refuses the same name with a different sentence, and Shouldly's
+    /// <c>Should.Throw&lt;ArgumentException&gt;</c> is satisfied by the <c>ArgumentNullException</c>
+    /// on the row below as well. "A run stands at a position in a stream nothing can draw from" and
+    /// "a handler asked for a stream that does not exist" are different findings.
+    /// </remarks>
     [Fact]
     public void A_committed_map_with_an_unregistered_stream_is_refused()
     {
-        Should.Throw<ArgumentException>(() => new RunRngScope(Seed, Committed(("DICE", 1UL))));
+        var thrown = Should.Throw<ArgumentException>(() => new RunRngScope(Seed, Committed(("DICE", 1UL))));
+
+        thrown.ParamName.ShouldBe("committedPositions");
+        thrown.Message.ShouldContain("no run can stand at a position in it", Case.Sensitive);
     }
 
     /// <summary>A null committed map is a caller bug — an absent map is not an empty one.</summary>
     [Fact]
     public void A_null_committed_map_is_refused()
     {
-        Should.Throw<ArgumentNullException>(() => new RunRngScope(Seed, null!));
+        Should.Throw<ArgumentNullException>(() => new RunRngScope(Seed, null!))
+            .ParamName.ShouldBe("committedPositions");
     }
 
     // ------------------------------------------------------------------ combat

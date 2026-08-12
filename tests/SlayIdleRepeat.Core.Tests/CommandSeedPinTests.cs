@@ -214,7 +214,8 @@ public sealed class CommandSeedPinTests
     [Fact]
     public void WireNameOf_refuses_a_null_type()
     {
-        Should.Throw<ArgumentNullException>(() => CommandSeedPin.WireNameOf(null!));
+        Should.Throw<ArgumentNullException>(() => CommandSeedPin.WireNameOf(null!))
+            .ParamName.ShouldBe("commandType");
     }
 
     /// <summary>
@@ -274,12 +275,22 @@ public sealed class CommandSeedPinTests
     /// </summary>
     /// <remarks>
     /// <para>
+    /// 🔒 <b>Named for its own subject, and not for the vocabulary.</b> This quantifies over
+    /// <em>concrete types under <c>SlayIdleRepeat.Core.Commands</c></em>, which is not the same set
+    /// as <c>Commands.GameCommandTests.The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives</c>'s
+    /// — concrete <c>GameCommand</c> subtypes, wherever declared. A command declared elsewhere wakes
+    /// that one and not this; a helper type dropped into this namespace wakes this one and not that.
+    /// Two mechanisms with two failure messages, so they carry two names.
+    /// </para>
+    /// <para>
     /// 🔒 This tripwire and the rule above share one predicate — whether
     /// <see cref="CommandSeedPin.CommandTypes"/> is empty — which is why that selector filters
     /// nesting only and not accessibility: an <c>internal</c> vocabulary must wake both, or the two
-    /// would go silent together. The independent backstop is
-    /// <c>SubjectSetFloorTests.Pending[SlayIdleRepeat.Core.Commands]</c> in the architecture suite,
-    /// which reads the same assembly with Mono.Cecil and fails the build when the namespace appears.
+    /// would go silent together. ⚠️ The independent backstop is <b>not</b>
+    /// <c>SubjectSetFloorTests</c>'s entry for this namespace: M1-06 moved that entry out of
+    /// <c>Pending</c> and it now watches only that the namespace <em>exists</em>, which the abstract
+    /// base already made true. It is the two rules named above, which read the assembly with
+    /// Mono.Cecil and see internal types.
     /// </para>
     /// <para>
     /// <b>When this fails, the pin has woken up.</b> M1-02 landed the command vocabulary. Check
@@ -290,7 +301,7 @@ public sealed class CommandSeedPinTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives()
+    public void No_concrete_type_under_the_commands_namespace_exists_yet_and_says_so_when_one_does()
     {
         CommandSeedPin.CommandTypes.ShouldBeEmpty(
             "when this fails the CommandSeed pin has woken up — M1-02 landed the command vocabulary. " +

@@ -196,14 +196,18 @@ public sealed class GameRulesStateTests
     {
         var state = Worlds.InARun();
 
-        SlayIdleRepeat.Core.GameRules.Execute(
+        var result = SlayIdleRepeat.Core.GameRules.Execute(
             Worlds.RunTable((_, _) => HandlerResult.Reject(RejectionReason.COOLDOWN_ACTIVE)),
             state,
             new Worlds.RunFixtureCommand(),
             Worlds.Context);
 
-        state.Player.LastAppliedAtUtc.ShouldBe(PlayerSnapshots.Midmorning);
-        state.Run!.LastAppliedAtUtc.ShouldBe(RunSnapshots.Midmorning);
+        // Read off the RESULT, which is what the Application layer persists, rather than off the
+        // fixture variable: the two are the same object here by P4, and saying it this way is what
+        // makes the claim "the TTL the caller stores did not move" instead of the weaker "Apply did
+        // not reach into its argument".
+        result.NewState.Player.LastAppliedAtUtc.ShouldBe(PlayerSnapshots.Midmorning);
+        result.NewState.Run!.LastAppliedAtUtc.ShouldBe(RunSnapshots.Midmorning);
     }
 
     // ------------------------------------------------------------------ round-trip defects

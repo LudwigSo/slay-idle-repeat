@@ -80,11 +80,17 @@ internal static class CommandSeedPin
     /// (<c>!t.IsAbstract</c>).
     /// </para>
     /// <para>
-    /// 🔒 Cross-check: <c>SubjectSetFloorTests</c> in the architecture suite now tracks
-    /// <c>SlayIdleRepeat.Core.Commands</c> as LIVE (M1-06), so the namespace's existence is watched
-    /// there rather than here. That entry reads the assembly with Mono.Cecil and sees internal
-    /// types, so it is the independent backstop for this set — but only if <em>this</em> selector
-    /// sees the same types, which is why accessibility is not filtered below.
+    /// 🔒 <b>The independent backstop, named exactly.</b> <c>SubjectSetFloorTests</c> in the
+    /// architecture suite tracks <c>SlayIdleRepeat.Core.Commands</c> as LIVE from M1-06, which
+    /// watches that the <em>namespace</em> exists — it went live the moment the abstract base landed
+    /// and therefore says nothing about whether a command type has arrived. What announces the
+    /// arrival independently of this file is
+    /// <c>Commands.GameCommandTests.The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives</c>,
+    /// which quantifies over concrete <c>GameCommand</c> subtypes <em>wherever</em> they are
+    /// declared, and <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c>, which reads
+    /// the assembly with Mono.Cecil and sees internal types. The two subject sets overlap without
+    /// being the same — a command declared outside this namespace wakes those and not this one —
+    /// which is the point of having both.
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<Type> CommandTypes { get; } = ConcreteTypesUnder(CommandsNamespace);
@@ -150,9 +156,6 @@ internal static class CommandSeedPin
 
         return GameRules.RegistrationFor(commandType)?.WireName;
     }
-
-    /// <summary>Every wire name the dispatch table declares. Empty until M1-02 lands the vocabulary.</summary>
-    internal static IReadOnlyDictionary<string, Type> DeclaredCommands => GameRules.CommandTypesByWireName;
 
     /// <summary>
     /// 🔒 The invariant itself: everything wrong with pairing <paramref name="commandName"/> with
