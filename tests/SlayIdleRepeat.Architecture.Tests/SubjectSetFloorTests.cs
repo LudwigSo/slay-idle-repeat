@@ -57,15 +57,11 @@ public sealed class SubjectSetFloorTests
             "IsolationTests.GuildView_is_a_read_only_projection"),
         new("InMemoryGame", SubjectKind.CoreType, "M1-11",
             "DomainPurityTests.The_whole_game_is_playable_from_Core_alone"),
-        new("CurrencyId", SubjectKind.CoreType, "M1-01",
-            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged"),
         new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged"),
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
-            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
@@ -91,6 +87,15 @@ public sealed class SubjectSetFloorTests
         new(Domain.EntitlementsType, SubjectKind.CoreType, "M1-07",
             "IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
 
+        // Moved out of Pending by M1-01 rather than deleted: Every_rule_subject_is_present_or_
+        // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these
+        // two lists, so a namespace that has arrived is TRACKED here, not dropped. Primitives is
+        // the bottom layer of Core_internal_layering_holds' five-row table — the row that forbids
+        // it from naming Content, Rng, Model, Rules or Handlers was quantifying over nothing until
+        // this commit.
+        new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
+            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
+
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RngNamespace, SubjectKind.CoreNamespace, "M0-06",
@@ -106,6 +111,16 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new("CanonicalStateWriter", SubjectKind.CoreType, "M0-07",
             "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests"),
+
+        // Moved out of Pending by M1-01 rather than deleted, for the reason the type list exists:
+        // DomainPurityTests.CurrencyFields() recognises a currency field by the hard-coded simple
+        // name Domain.CurrencyIdType, and nothing else in this suite would notice that constant
+        // going stale. The rule itself is still VACUOUS today — it needs a non-static instance
+        // field typed CurrencyId, and M1-04 brings the first — and that vacuity is tracked by the
+        // CurrencyChanged (M1-03) entry in Pending. This entry tracks the other half: the name.
+        new("CurrencyId", SubjectKind.CoreType, "M1-01",
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (vacuous until M1-04 " +
+            "declares the first currency field; this pins the name it will be recognised by)"),
     };
 
     // ---------------------------------------------------------------- floors
