@@ -484,10 +484,13 @@ public sealed class SubjectSetFloorTests
         // a Layer row to append to — in the direction M1-06's Commands row had to be widened for: a
         // production type naming the test harness is a cycle under every reading.
         //
-        // ⚠️ WHAT THAT ROW DOES NOT REACH, so this note does not promise more than the rule: it
-        // permits Testing -> Model, and must (30 §11.3's Rehydrate), so a harness calling an
-        // aggregate's INTERNAL mutator bypasses Apply exactly as calling a handler would and no
-        // namespace rule sees it. The row itself carries that limit in full.
+        // 🔒 WHAT THAT ROW DOES NOT REACH — CLOSED IN M1-12. It permits Testing -> Model, and must
+        // (30 §11.3's Rehydrate), so a harness calling an aggregate's INTERNAL mutator bypasses Apply
+        // exactly as calling a handler would, and no namespace rule can see it: both references go to
+        // the same namespace and differ only in the visibility of the member reached. That is now
+        // AccessibilityBoundaryTests.The_harness_drives_the_aggregates_through_their_public_seam_only,
+        // which is an accessibility rule rather than a layering row for exactly that reason — and
+        // this namespace is its subject set, so the row below carries it too.
         new(Domain.InMemoryGameType, SubjectKind.CoreType, "M1-11",
             "DomainPurityTests.The_whole_game_is_playable_from_Core_alone (the rule's NAME is stated " +
             "over this type: its public-harness arm had never run before this commit, and M1-11 " +
@@ -498,9 +501,12 @@ public sealed class SubjectSetFloorTests
             "that has named this namespace since M0-08, through Domain.PermittedCoreNamespaces — " +
             "though it governed an EMPTY region until this commit, and the Pending row this replaces " +
             "cited a different rule that did not key on it at all, which M1-09 flagged), " +
-            "AccessibilityBoundaryTests.Core_internal_layering_holds (LIVE from this commit, when the " +
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (LIVE from M1-11, when the " +
             "Testing row was added: the harness may not name Rules or Handlers, and nothing beneath " +
-            "it — root included — may name the harness)"),
+            "it — root included — may name the harness), " +
+            "AccessibilityBoundaryTests.The_harness_drives_the_aggregates_through_their_public_seam_only " +
+            "(M1-12 — this namespace is that rule's whole subject set, and it closes the half no " +
+            "layering row can express: Testing -> Model is permitted, but only to PUBLIC members)"),
     };
 
     // ---------------------------------------------------------------- floors

@@ -228,17 +228,23 @@ public sealed class AccessibilityBoundaryTests
             // catches that: Handlers_and_Rules_are_internal is about ACCESSIBILITY, and internal is
             // exactly what those types are TO this namespace.
             //
-            // 🔴 WHAT THIS ROW DOES NOT CLOSE, and an earlier draft of this comment denied it. The
-            // row permits `Testing -> Model`, and it MUST: 30 §11.3 makes Player.Rehydrate the one
-            // validated construction path and CreatePlayer has to call it. But Player's mutators are
-            // `internal`, and Core/Testing/ is inside the assembly — so a harness calling
-            // player.AccrueEnergy(...), player.MoveCurrency(...) or player.MarkApplied(...) bypasses
-            // Apply just as completely as calling BeginSession.Handle would, and this row does not
-            // see it. What this row closes is the half that is NAMESPACE-DECIDABLE; the rest rests on
-            // InMemoryGame declaring no such door (it declares none — no Restore, no setter, no
-            // internal mutator call) and on review. The one mechanical backstop that does reach it is
-            // DomainPurityTests.A_currency_event_is_never_discarded_at_its_call_site, which sees a
-            // CurrencyChanged dropped by a caller in Testing/ like any other.
+            // 🔒 WHAT THIS ROW DOES NOT CLOSE — AND WHAT NOW DOES. The row permits `Testing ->
+            // Model`, and it MUST: 30 §11.3 makes Player.Rehydrate the one validated construction
+            // path and CreatePlayer has to call it. But Player's mutators are `internal`, and
+            // Core/Testing/ is inside the assembly — so a harness calling player.AccrueEnergy(...),
+            // player.MoveCurrency(...) or player.MarkApplied(...) bypasses Apply just as completely
+            // as calling BeginSession.Handle would, and NO forbidden PAIR can see it: the permitted
+            // reference and the forbidden one go to the same namespace and differ only in the
+            // visibility of the member reached.
+            //
+            // M1-11 wrote that limit down honestly and left it resting on "InMemoryGame declaring no
+            // such door… and on review". M1-12 closed it, as an ACCESSIBILITY rule rather than a
+            // layering row: The_harness_drives_the_aggregates_through_their_public_seam_only, in this
+            // file. Measured — a `player.MarkApplied(Clock.NowUtc)` added to CreatePlayer goes red
+            // naming the method and the member; it passed every rule in the suite before.
+            //
+            // What this row still owns is the namespace-decidable half, which that rule does not
+            // duplicate: Testing may not name Rules or Handlers AT ALL, public or otherwise.
             //
             // ⚠️ AND A KNOWN TENSION WITH 30 §11.2, which is why the `Rules` half is stated as
             // settled-for-now rather than settled. §11.2 makes CombatSimulator public precisely
@@ -735,6 +741,122 @@ public sealed class AccessibilityBoundaryTests
         InlinedMemberAccesses("var x = EM.MaxBanked;", candidates, none)
             .ShouldBeEmpty("an alias nobody declared is just an identifier.");
     }
+
+    /// <summary>
+    /// 🔒 `30` §6 / §11.2 / §11.3 — the `30` §6 harness drives the aggregates through their
+    /// <b>public</b> seam only. A type under <c>Core/Testing/</c> may call
+    /// <c>Rehydrate</c>/<c>ToSnapshot</c> and every other public member of <c>Core/Model/</c>, and
+    /// may not touch a non-public one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>This is the hole <c>Core_internal_layering_holds</c>' <c>Testing</c> row writes down and
+    /// says it cannot reach.</b> That row permits <c>Testing -&gt; Model</c>, and it <em>must</em>:
+    /// `30` §11.3 makes <c>Player.Rehydrate</c> the one validated construction path and
+    /// <c>InMemoryGame.CreatePlayer</c> has to call it. But <c>Core/Testing/</c> lives inside the
+    /// production assembly, so <c>player.AccrueEnergy(…)</c>, <c>player.MoveCurrency(…)</c> and
+    /// <c>player.MarkApplied(…)</c> are all reachable from it — each bypassing <c>Apply</c> as
+    /// completely as calling <c>BeginSession.Handle</c> would, past the P4 clone, past the catch-up,
+    /// past the RNG fold and past the event stamping. M1-11 wrote the limit down honestly rather than
+    /// denying it and left it resting on <em>"InMemoryGame declaring no such door… and on review"</em>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It is closable, and the reason is that the boundary is an ACCESSIBILITY one, not a
+    /// namespace one.</b> Which is why it is a rule of its own rather than another row in that table:
+    /// no forbidden <em>pair</em> can express it, because the permitted and the forbidden reference
+    /// go to the same namespace and differ only in the visibility of the member reached. `30` §11.3
+    /// already put the sanctioned pair on the public surface — <c>Player.Rehydrate</c>,
+    /// <c>Run.Rehydrate</c>, <c>ToSnapshot</c> — precisely so an <em>adapter</em> could call it from
+    /// outside the assembly, so "public only" costs the harness nothing it is entitled to.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The floor is by identity</b> (steering <b>S3</b>). The subject set is "members of
+    /// <c>Core/Model/</c> reached from <c>Core/Testing/</c>", which becomes empty the moment the
+    /// harness stops building a <c>Player</c> — at which point this rule reports success forever over
+    /// a harness that has stopped driving the domain at all. <c>Rehydrate</c> is named, because a
+    /// count-only floor is satisfied by any Model call whatsoever.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What it does not close.</b> It governs <c>Core/Testing/</c>, not
+    /// <c>SlayIdleRepeat.Core.Tests</c> — the test assembly holds `30` §11.3's one
+    /// <c>InternalsVisibleTo</c> grant and is supposed to reach internals, which is what lets the
+    /// domain suite drive <c>Hash64</c> and <c>CanonicalStateWriter</c> directly. The harness is the
+    /// artefact that ships.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_harness_drives_the_aggregates_through_their_public_seam_only()
+    {
+        var reached = ModelMembersReachedFromTesting().ToArray();
+
+        Assert.NotEmpty(reached);
+        Assert.Contains(
+            reached,
+            r => r.Member.Contains("Rehydrate", StringComparison.Ordinal));
+
+        var offenders = reached
+            .Where(r => !r.IsPublic)
+            .Select(r =>
+                $"{r.Caller} calls the non-public {r.Member}. 30 §11.2 makes GameRules.Apply the only " +
+                "public way to change state, and 30 §6's harness is the artefact that DEMONSTRATES " +
+                "it — a harness reaching an aggregate's internal mutator drives the domain behind " +
+                "Apply's back, past the P4 clone, past 30 §2.3's catch-up, past the 14 §8.1 RNG fold " +
+                "and past the 30 §7 event stamping, and every claim it makes about 'the rules decided " +
+                "this' becomes a claim about the harness. 30 §11.3's Rehydrate/ToSnapshot pair is " +
+                "public precisely so this is not a cost: build the state through it and send a " +
+                "command.");
+
+        ArchRule.Empty(
+            offenders,
+            "The 30 §6 harness reaches Core/Model/ through its public seam only — it drives the " +
+            "aggregates through GameRules.Apply, never through their internal mutators (30 §6, 30 §11.2).");
+    }
+
+    /// <summary>
+    /// Every <c>Core/Model/</c> member a <c>Core/Testing/</c> method names in its IL, with whether
+    /// that member is public.
+    /// </summary>
+    /// <remarks>
+    /// Methods and fields both: an <c>internal</c> field written directly is the same bypass as an
+    /// <c>internal</c> mutator called, and reading only the calls would leave the shorter route open.
+    /// A reference that cannot be resolved is skipped rather than guessed at — it is not a
+    /// <c>Core/Model/</c> member if Cecil cannot find it in this assembly.
+    /// </remarks>
+    private static IEnumerable<(string Caller, string Member, bool IsPublic)> ModelMembersReachedFromTesting()
+    {
+        foreach (var type in Domain.CoreTypesUnder(Domain.TestingNamespace))
+        {
+            foreach (var method in type.Methods)
+            {
+                foreach (var instruction in Il.Instructions(method))
+                {
+                    switch (instruction.Operand)
+                    {
+                        case MethodReference call when IsUnderModel(call.DeclaringType):
+                            if (call.Resolve() is { } target)
+                            {
+                                yield return (Il.Describe(method), call.FullName, target.IsPublic);
+                            }
+
+                            break;
+
+                        case FieldReference field when IsUnderModel(field.DeclaringType):
+                            if (field.Resolve() is { } resolved)
+                            {
+                                yield return (Il.Describe(method), field.FullName, resolved.IsPublic);
+                            }
+
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>True when a type reference names a type under <c>Core/Model/</c>.</summary>
+    private static bool IsUnderModel(TypeReference reference) =>
+        reference.Resolve() is { } resolved &&
+        Il.IsUnder(Il.NamespaceOf(resolved), Domain.ModelNamespace);
 
     /// <summary>
     /// `30` §11.3 — 🔒 `InternalsVisibleTo` names exactly one assembly,
