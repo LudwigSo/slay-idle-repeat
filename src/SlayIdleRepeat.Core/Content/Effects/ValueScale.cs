@@ -91,10 +91,12 @@ public sealed record ValueScale
     /// <para>
     /// 🔴 <b>Added by `18` §10's extension route, and it closes a gap `18` §1.1 shipped with.</b>
     /// §1.1 offers <c>fn</c> <em>"any condition function from §4"</em> and its own worked list names
-    /// <c>STATUS_STACKS</c> and <c>DIE_FACE_COUNT</c> — but §4 types those <em>"by status id"</em> and
-    /// <em>"by face kind"</em>, and §1.1's table declared no field to carry either. A scale over
-    /// either was therefore unexpressible, and the two functions were offered for something the
-    /// vocabulary could not do. Recorded as an erratum against §1.1.
+    /// <c>STATUS_STACKS</c> and <c>DIE_FACE_COUNT</c> — but both take an argument (§4 types
+    /// <c>DIE_FACE_COUNT</c> <em>"by face kind"</em>; <c>STATUS_STACKS</c> counts one status, the same
+    /// one §4 types <c>HAS_STATUS</c> <em>"by status id"</em> — §4's own <c>STATUS_STACKS</c> row
+    /// states no argument at all, which is this gap one section over), and §1.1's table declared no
+    /// field to carry either. A scale over either was therefore unexpressible, and the two functions
+    /// were offered for something the vocabulary could not do. Recorded as an erratum against §1.1.
     /// </para>
     /// <para>
     /// 🔒 <b>The same three keys a `18` §4 condition term already carries, with the same names, types

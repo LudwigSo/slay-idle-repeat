@@ -148,16 +148,25 @@ internal sealed record EffectStackSet
         // the absence is the absence of the opt-in rather than a manufactured default (steering S6).
         var refresh = Stacking.RefreshOnReapply ?? false;
 
+        // ⚠️ `18` §6 names the five modes and writes NOT ONE WORD about what any of them does — the
+        // section is `mode`: ADDITIVE · MULTIPLICATIVE · REPLACE · HIGHEST_WINS · NONE, and that is
+        // all of it. Each arm below is therefore the plain reading of the mode's NAME, recorded as an
+        // inference rather than dressed up as a quotation (steering S6). Three of the five are pinned
+        // to authored behaviour elsewhere and are not inferences at all: MULTIPLICATIVE is `05` §3.1's
+        // SYS_ENRAGE ("multiplicative stacking, uncapped"), ADDITIVE is `05` §5's SUNDER and BURN
+        // ("stacks to 5"), and NONE is `05` §5's BLEED ("does not stack; reapplication refreshes").
+        // REPLACE and HIGHEST_WINS have no authored user in the content set today, so if either name
+        // ever meant something other than the reading below, `18` §6 is what has to say so.
         return Stacking.Mode switch
         {
-            // "A second application is ignored" — the stack set, not the duration.
+            // NONE — a second application is ignored. The stack set, not the duration.
             StackingMode.NONE => new StackApplication(this, StackAdded: false, refresh),
 
-            // "A new application replaces the existing one." The count does not grow.
+            // REPLACE — a new application replaces the existing one. The count does not grow.
             StackingMode.REPLACE => new StackApplication(
                 this with { Applications = Only(value) }, StackAdded: false, refresh),
 
-            // "The strongest application wins."
+            // HIGHEST_WINS — the strongest application wins.
             // ⚠️ Compared LITERALLY, not by magnitude: `18` §6 authors no reading of "highest" for a
             // negative value, and taking the larger number is the only one that needs no invention.
             // The consequence, stated so nobody has to rediscover it: a negative-valued debuff

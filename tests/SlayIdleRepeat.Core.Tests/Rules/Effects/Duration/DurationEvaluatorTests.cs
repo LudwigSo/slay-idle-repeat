@@ -128,6 +128,38 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
+    /// 🔒 <b>A <c>PHASE</c> effect is battle-bounded, so the battle's own boundary still ends it —
+    /// even in the phase it was applied in, which the boss never leaves.</b>
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Found by the Phase 4 code review, and it was a real defect: nothing pinned it in either
+    /// direction.</b> The evaluator answered "not ended" for a phase-scoped effect while it was still
+    /// inside its own phase, whatever the probe said about the fight — so `18` §7.8's Thornmaw
+    /// mechanic, re-authored as R3 requires (<c>scope: PHASE</c>, phase 3, never exited), outlived the
+    /// battle. That is the one answer `18` §6 reserves for <c>STAGE</c>/<c>RUN</c>/<c>PERMANENT</c>
+    /// (kickoff A4), and it directly contradicted this file's own
+    /// <c>A_battle_bounded_scope_does_not_outlive_the_battle(PHASE)</c> — two rules of one document,
+    /// disagreeing, both green. The coverage hole was that every other <c>PHASE</c> case either
+    /// changes phase or is applied outside a boss fight.
+    /// </remarks>
+    [Fact]
+    public void A_PHASE_effect_still_inside_its_own_phase_ends_when_the_battle_does()
+    {
+        var thornmawRage = Applied(new EffectDuration { Scope = DurationScope.PHASE }, 42.0, appliedInPhase: 3);
+
+        DurationEvaluator.Evaluate(thornmawRage, At(80.0) with { CurrentPhase = 3 }).HasEnded.ShouldBeFalse(
+            "the fight is still going and phase 3 is never exited");
+
+        var ended = DurationEvaluator.Evaluate(
+            thornmawRage, At(90.0) with { CurrentPhase = 3, BattleEnded = true });
+
+        ended.HasEnded.ShouldBeTrue(
+            "18 §6 puts PHASE among the battle-bounded scopes — DurationScopes.OutlivesTheBattle(PHASE) " +
+            "is false, and an effect that survived here would contradict it");
+        ended.Reason.ShouldBe(DurationEndReason.BattleEnded);
+    }
+
+    /// <summary>
     /// 🔒 `05` §3.1: <em>"Phases never revert — healing back above a threshold does not re-enter an
     /// earlier phase"</em>. A probe reporting an earlier phase than the application is therefore an
     /// invariant violation, and it is refused rather than quietly read as "still inside".

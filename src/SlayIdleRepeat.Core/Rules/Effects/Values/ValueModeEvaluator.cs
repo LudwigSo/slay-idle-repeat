@@ -143,11 +143,22 @@ internal static class ValueModeEvaluator
     /// `18` §2.2's <em>"a fraction of the target's missing HP"</em>.
     /// </summary>
     /// <remarks>
-    /// 🔒 Floored at zero, for the reason <c>ConditionEvaluator.HpFraction</c> gives for clamping:
-    /// a Max HP <em>decrease</em> (a buff expiring, `18` §9.1's <c>CP_GLASS_HEART</c> re-base) leaves
-    /// <c>CurrentHp &gt; MaxHp</c>, at which point "missing HP" is negative and an execute effect
-    /// would <em>heal</em> its target. The document types the quantity as HP the target has lost, and
-    /// a target that has lost none has lost zero.
+    /// <para>
+    /// 🔒 <b>Floored at zero, and the authority is `18` §4 rather than §2.2.</b> §2.2 names this mode
+    /// and types no range for it, so a bound read off §2.2 alone would be one the design has not
+    /// authorised (steering S6, and `16` R6 — which is why <see cref="ValueScale.StepsFor"/> imposes
+    /// no lower bound of its own). The bound that <em>is</em> authorised is §4's: it types
+    /// <c>SELF_MISSING_HP_PCT</c> as <c>0..1</c>, and <c>ConditionEvaluator.HpFraction</c> clamps on
+    /// exactly that authority. The DSL therefore states "missing HP" twice, once as a §4 function and
+    /// once as a §2.2 value mode, and the two must not disagree about the same actor — so this floor
+    /// is §4's clamp restated in HP units, not a second, invented bound.
+    /// </para>
+    /// <para>
+    /// The case that reaches it is the one <c>HpFraction</c> records: a Max HP <em>decrease</em> — a
+    /// buff expiring, `18` §9.1's <c>CP_GLASS_HEART</c> re-base — leaves <c>CurrentHp &gt; MaxHp</c>,
+    /// at which point unclamped "missing HP" is negative and an execute effect would <em>heal</em> its
+    /// target while <c>SELF_MISSING_HP_PCT</c>, on the same actor in the same tick, read zero.
+    /// </para>
     /// </remarks>
     private static double MissingHp(IEffectActorView target) =>
         Math.Max(0.0, target.MaxHp - target.CurrentHp);

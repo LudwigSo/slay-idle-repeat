@@ -57,6 +57,33 @@ public sealed class ValueModeEvaluatorTests
             50.0, "the target is at 300 of 500, so 200 missing, and a quarter of that is 50");
     }
 
+    /// <summary>
+    /// 🔒 <c>TARGET_MISSING_HP_PCT</c> floors at zero, because "missing HP" and `18` §4's
+    /// <c>SELF_MISSING_HP_PCT</c> are the same quantity and §4 types that <c>0..1</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Found by the Phase 4 code review: nothing pinned the floor in either direction.</b>
+    /// <c>CurrentHp &gt; MaxHp</c> is reachable — a Max HP <em>decrease</em> from a buff expiring, or
+    /// `18` §9.1's <c>CP_GLASS_HEART</c> re-base — and unfloored the mode returns a negative amount,
+    /// so an execute effect would <b>heal</b> the target it was meant to finish. The DSL states
+    /// "missing HP" in two places and they must not disagree about one actor in one tick:
+    /// <c>ConditionEvaluator.HpFraction</c> clamps for exactly this reason, and this is the same
+    /// clamp on the other statement.
+    /// </remarks>
+    [Fact]
+    public void TARGET_MISSING_HP_PCT_floors_at_zero_when_the_target_is_over_its_Max_HP()
+    {
+        var overHealed = EffectTestBattle.Hero(currentHp: 600, maxHp: 500);
+
+        var resolved = Resolve(
+            ValueMode.TARGET_MISSING_HP_PCT, 0.25, Full() with { Target = overHealed });
+
+        resolved.ShouldBe(0.0, "a target that has lost no HP has lost zero, not a negative amount");
+
+        resolved.ShouldNotBe(
+            -25.0, "-25 is 0.25 x (500 - 600) — an execute effect healing the target it should finish");
+    }
+
     /// <summary>`18` §2.2's <c>DAMAGE_DEALT_PCT</c> — <c>HEAL_LEECH</c>'s basis.</summary>
     [Fact]
     public void DAMAGE_DEALT_PCT_is_a_fraction_of_the_damage_just_dealt()

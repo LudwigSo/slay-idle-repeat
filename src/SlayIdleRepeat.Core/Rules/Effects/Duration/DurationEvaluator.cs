@@ -49,9 +49,9 @@ internal static class DurationEvaluator
             return new DurationOutcome(true, DurationEndReason.Instant);
         }
 
-        if (duration.Until is { } terminator && Fires(terminator, probe, application))
+        if (duration.Until is { } terminator && Fired(terminator, probe, application) is { } fired)
         {
-            return new DurationOutcome(true, Reason(terminator, application));
+            return new DurationOutcome(true, fired);
         }
 
         if (duration.Seconds is { } seconds &&
@@ -132,9 +132,14 @@ internal static class DurationEvaluator
                 "an exit 18 §6 says ends it.");
         }
 
+        // 🔒 Still inside the applied phase, so the phase boundary has not fired — but PHASE is one of
+        // the three scopes DurationScopes.OutlivesTheBattle rules battle-bounded, so the battle's own
+        // boundary still ends it. Without this a boss AURA applied in phase 3 would answer "not ended"
+        // on the probe that reports the fight over, which is the one answer 18 §6 reserves for the run
+        // layer's three (kickoff A4) — an effect outliving the battle it was scoped to.
         return current > appliedIn
             ? new DurationOutcome(true, DurationEndReason.PhaseExited)
-            : Running;
+            : Battle(probe);
     }
 
     /// <summary>
@@ -149,29 +154,27 @@ internal static class DurationEvaluator
     /// cannot say the pool emptied without saying <em>how</em>, and the ruling is enforced here, once,
     /// for every effect that carries the terminator. An effect terminating on segment expiry would
     /// end Ossify's DR buff every time a ward simply timed out, which is the opposite of the mechanic.
+    /// <para>
+    /// ⚠️ <b>Whether it fired and what reason it carries are ONE decision, not two.</b> Splitting
+    /// them gave the second half a <c>default</c> arm that no input could ever reach — the first half
+    /// had already thrown for every terminator but <c>WARD_BROKEN</c> — and a guard that cannot fire
+    /// is a guard nothing keeps honest (steering S1). A nullable reason says "did not fire" without
+    /// needing a second switch to say what firing meant.
+    /// </para>
     /// </remarks>
-    private static bool Fires(
+    /// <returns>The end reason when the terminator fired, or <c>null</c> when it did not.</returns>
+    private static DurationEndReason? Fired(
         DurationTerminator terminator, DurationProbe probe, EffectApplication application) =>
         terminator switch
         {
-            DurationTerminator.WARD_BROKEN => probe.OwnerWardEvent == WardPoolEvent.BrokenByDamage,
+            DurationTerminator.WARD_BROKEN => probe.OwnerWardEvent == WardPoolEvent.BrokenByDamage
+                ? DurationEndReason.WardBroken
+                : null,
             _ => throw new EffectContextException(
                 terminator.ToString(),
                 $"'{application.EffectId}' names an 'until' terminator that 18 §6 does not author",
                 "18 §6 authors exactly one: WARD_BROKEN. A second takes 18 §10's route — schema, " +
                 "code, document and test in one commit — and this arm is where it announces itself."),
-        };
-
-    private static DurationEndReason Reason(
-        DurationTerminator terminator, EffectApplication application) =>
-        terminator switch
-        {
-            DurationTerminator.WARD_BROKEN => DurationEndReason.WardBroken,
-            _ => throw new EffectContextException(
-                terminator.ToString(),
-                $"'{application.EffectId}' fired an 'until' terminator with no end reason",
-                "18 §6 authors exactly one terminator and DurationEndReason carries exactly one " +
-                "answer for it."),
         };
 
     private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
@@ -241,7 +244,7 @@ internal readonly record struct DurationProbe
 
     /// <summary>
     /// 🔒 The ward-pool event that just occurred to the effect's <b>owner</b>, if any — and
-    /// <em>how</em> the pool emptied, not merely that it did. See <c>DurationEvaluator.Fires</c>.
+    /// <em>how</em> the pool emptied, not merely that it did. See <c>DurationEvaluator.Fired</c>.
     /// </summary>
     internal WardPoolEvent? OwnerWardEvent { get; init; }
 
