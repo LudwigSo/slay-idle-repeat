@@ -138,7 +138,13 @@ internal static class DeclaredRules
     {
         var embedded = new List<(string Location, ContentValue Effect)>();
 
-        foreach (var (path, root) in documents.OrderBy(d => d.Key, StringComparer.Ordinal))
+        // 🔒 content/ only. `18` §1's list of owners — perk, talent, pet, mount, curse, boss script
+        // — lives entirely under content/, and the walk's signature is a bare `op` member, so
+        // sweeping tuning/ and loc/ too would let a future tuning key innocently called "op" fail
+        // with a oneOf message about an effect vocabulary it has nothing to do with.
+        foreach (var (path, root) in documents
+                     .Where(d => d.Key.StartsWith(ContentLayout.ContentDirectory, StringComparison.Ordinal))
+                     .OrderBy(d => d.Key, StringComparer.Ordinal))
         {
             CollectEmbeddedEffects(root, path, string.Empty, embedded);
         }

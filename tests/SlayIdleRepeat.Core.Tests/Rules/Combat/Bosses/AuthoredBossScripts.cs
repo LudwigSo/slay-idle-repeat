@@ -34,6 +34,40 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 /// the engine: there is no per-boss branch in <c>SlayIdleRepeat.Core</c> and this file adds none —
 /// it is one loop over nine rows, with no boss named anywhere in it.
 /// </para>
+///
+/// <para>
+/// ═══ 🔴 <b>THIS READER HAS A SUCCESSOR, AND IT IS THE NEXT TASK — RECORDED, NOT DISCOVERED LATER</b> ═══
+/// </para>
+/// <para>
+/// <c>EnemyFixtures</c> and <c>StatFixtures</c> both state this suite's convention in prose: Core.Tests
+/// <em>"has no JSON reader and no content loader"</em>, so a shipped file's numbers are restated as a
+/// fixture here and the transcription is asserted separately in <c>SlayIdleRepeat.Application.Tests</c>,
+/// which reads the real document. <b>This file reaches the opposite conclusion from the same
+/// premise</b>, and the reason is narrow: what these cases are about <em>is</em> the shipped script —
+/// that the authored data satisfies <see cref="BossEncounterBuilder"/>'s eight authoring rules — and a
+/// restated fixture proves that of the fixture, not of the data.
+/// </para>
+/// <para>
+/// 🔴 <b>The proper resolution is a <c>BossCatalogue.Read(ContentSnapshot)</c> in
+/// <c>Core/Rules/Combat/Bosses/</c>, on <c>EnemyCatalogue</c>'s and <c>StatusCatalogue</c>'s exact
+/// precedent</b> — Core already owns that responsibility for <c>enemies.json</c> and
+/// <c>statuses.json</c>. It is not written here because M2-13 authors data against an engine that
+/// already exists, and because <b>M2-16a needs that mapping anyway</b>: its balance harness must build
+/// a boss encounter from this file, and <c>tools/BalanceHarness</c> is pinned to Core with no package
+/// references, so it can reach neither this reader nor the Application pipeline. When
+/// <c>BossCatalogue</c> lands, this file is <b>deleted</b> and its cases re-pointed at it; it is not
+/// to be kept alongside as a second mapping.
+/// </para>
+/// <para>
+/// ⚠️ <b>Two ways it already disagrees with the pipeline, stated so neither is discovered by a
+/// symptom.</b> (1) <see cref="JsonDocument"/> silently keeps the <em>last</em> of two duplicate keys;
+/// <c>JsonContentReader</c> exists partly to report that as a duplicate-key finding. (2)
+/// <see cref="Optional"/> returns the element for an authored <c>null</c>, so a numeric read on one
+/// throws, where the pipeline classifies it as an unauthorised hole and every rule skips it — which is
+/// the load-bearing convention of the whole content layer. Neither bites today: <c>bosses.json</c>
+/// authors no duplicate keys and no nulls, the second of which is pinned by name in
+/// <c>RealDataNegativeCaseTests</c>' per-file hole census.
+/// </para>
 /// </remarks>
 internal static class AuthoredBossScripts
 {

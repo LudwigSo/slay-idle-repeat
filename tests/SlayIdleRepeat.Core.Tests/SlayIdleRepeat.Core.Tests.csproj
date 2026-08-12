@@ -84,10 +84,21 @@
     and the whole point of these cases is that the AUTHORED data satisfies the encounter builder's
     eight authoring rules.
 
-    Embedded rather than copied to the output directory for the same reason as the four tables
-    above — the off-host determinism job (M5-12) does not let us predict a working directory —
-    and because this suite references SlayIdleRepeat.Core and nothing else (30 §11.3), so it has
-    no content loader to read a path with.
+    🔴 NOT for the same reason as the four tables above, and the difference matters. Those are
+    determinism pins, generated for this suite, living inside this tree, re-asserted off-host by
+    M5-12. This one reaches out with ..\..\ into game-data/ and M5-12 re-asserts nothing about it.
+    It is embedded because this suite references SlayIdleRepeat.Core and nothing else (30 §11.3),
+    so it has no content loader to read a path with — and because a COPY would be a fixture that
+    agrees with the shipped data only until somebody edits one of them.
+
+    ⚠️ THIS IS THE FIRST EmbeddedResource HERE THAT REACHES INTO game-data/, AND IT INVERTS A
+    CONVENTION THIS REPO WROTE DOWN TWICE. EnemyFixtures.cs and StatFixtures.cs both state it:
+    Core.Tests has no JSON reader, so a shipped file's numbers are RESTATED as a fixture here and
+    the transcription is asserted separately, in SlayIdleRepeat.Application.Tests, which reads the
+    real document. M2-13 reached the opposite conclusion from the same premise because what these
+    cases are about IS the shipped script — that the authored data satisfies BossEncounterBuilder's
+    eight authoring rules, which a restated fixture cannot show. See AuthoredBossScripts.cs for the
+    successor that resolves it and for the two ways this reader already diverges from the pipeline.
   -->
   <ItemGroup>
     <EmbeddedResource Include="..\..\game-data\content\bosses\bosses.json" LogicalName="bosses.json" />

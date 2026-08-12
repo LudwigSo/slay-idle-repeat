@@ -102,16 +102,19 @@ public sealed class BossesDataTests
     [Fact]
     public void R35_validated_every_embedded_effect_in_the_shipped_content_set()
     {
-        var before = ContentInvariants.ValidatedEmbeddedEffects.ToHashSet(StringComparer.Ordinal);
-
         var snapshot = Data();
 
-        var validated = ContentInvariants.ValidatedEmbeddedEffects;
+        // 🔴 Scoped to THIS document, not read off the accumulator whole. ValidatedEmbeddedEffects is
+        // process-wide and never cleared, so it holds every earlier load in the assembly — an
+        // equality against its total would turn red the first time any other test loads a content set
+        // with an embedded effect at a new pointer, for a reason with nothing to do with R35.
+        var validated = ContentInvariants.ValidatedEmbeddedEffects
+            .Where(e => e.StartsWith(Document, StringComparison.Ordinal))
+            .ToArray();
 
-        validated.ShouldAllBe(
-            e => e.StartsWith(Document, StringComparison.Ordinal),
-            "content/bosses/ is the only content type embedding effects today; when M3's perks land, " +
-            "this assertion is the one that has to be widened deliberately");
+        ContentInvariants.ValidatedEmbeddedEffects.ShouldAllBe(
+            e => e.StartsWith(ContentLayout.ContentDirectory, StringComparison.Ordinal),
+            "R35 walks content/ and nothing else — a tuning key innocently called 'op' is not an effect");
 
         // What the file actually carries — the count nothing else in the repository states, so the
         // rule's reach is compared against the data instead of against a literal.
@@ -123,13 +126,8 @@ public sealed class BossesDataTests
         embedded.ShouldBeGreaterThanOrEqualTo(
             50, "S3 — the eight fights of 17 §2-9 embed roughly fifty mechanics between them");
 
-        validated.Count.ShouldBe(
+        validated.Length.ShouldBe(
             embedded, "R35 reaches every embedded effect in the file, not a prefix of them");
-
-        // The accumulator really did grow on THIS load the first time this class runs; on a re-run
-        // within one process it is already saturated, which is why the equality above is the
-        // load-bearing assertion and this is only a floor under it.
-        before.Count.ShouldBeLessThanOrEqualTo(validated.Count);
     }
 
     /// <summary>
