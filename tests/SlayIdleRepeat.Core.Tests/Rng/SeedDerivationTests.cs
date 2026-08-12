@@ -142,7 +142,11 @@ public sealed class SeedDerivationTests
     public void RunSeed_refuses_a_chapter_below_one(int chapterId)
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => SeedDerivation.RunSeed(Player, chapterId, DifficultyTier.NORMAL, Midmorning, 0));
+                  () => SeedDerivation.RunSeed(Player, chapterId, DifficultyTier.NORMAL, Midmorning, 0))
+              .ParamName.ShouldBe(
+                  "chapterId",
+                  "three of this function's five arguments are guarded with the same exception " +
+                  "type, so the type alone does not say which guard fired (steering S2).");
     }
 
     /// <summary>
@@ -155,7 +159,11 @@ public sealed class SeedDerivationTests
     public void RunSeed_refuses_an_undefined_tier(int tier)
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => SeedDerivation.RunSeed(Player, 1, (DifficultyTier)tier, Midmorning, 0));
+                  () => SeedDerivation.RunSeed(Player, 1, (DifficultyTier)tier, Midmorning, 0))
+              .ParamName.ShouldBe(
+                  "tier",
+                  "the exception type alone is shared with the chapter and counter guards " +
+                  "(steering S2).");
     }
 
     /// <summary>A negative <c>runCounter</c> is refused: it counts upwards from zero and is never reset.</summary>
@@ -163,7 +171,11 @@ public sealed class SeedDerivationTests
     public void RunSeed_refuses_a_negative_run_counter()
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => SeedDerivation.RunSeed(Player, 1, DifficultyTier.NORMAL, Midmorning, -1));
+                  () => SeedDerivation.RunSeed(Player, 1, DifficultyTier.NORMAL, Midmorning, -1))
+              .ParamName.ShouldBe(
+                  "runCounter",
+                  "the exception type alone is shared with the chapter and tier guards " +
+                  "(steering S2).");
     }
 
     /// <summary>
@@ -192,24 +204,15 @@ public sealed class SeedDerivationTests
             () => SeedDerivation.RunSeed(default(PlayerId), 1, DifficultyTier.NORMAL, Midmorning, 0));
     }
 
-    /// <summary>
-    /// 🔒 The run seed and the battle seed are different derivations and do not collide: a run seeded
-    /// from `02` §2 is not the battle seed of anything.
-    /// </summary>
-    /// <remarks>
-    /// The two functions in this class are the only places a seed is born or spawned, and they take
-    /// different argument shapes on purpose. This is the cheap check that they have not been made
-    /// into each other by a refactor.
-    /// </remarks>
-    [Fact]
-    public void RunSeed_and_BattleSeed_are_different_derivations()
-    {
-        var runSeed = SeedDerivation.RunSeed(Player, 1, DifficultyTier.NORMAL, Midmorning, 0);
-
-        Enumerable.Range(0, 32)
-            .Select(index => SeedDerivation.BattleSeed(runSeed, index))
-            .ShouldNotContain(runSeed);
-    }
+    // 🔒 There was a `RunSeed_and_BattleSeed_are_different_derivations` case here. It asserted that
+    // BattleSeed(runSeed, 0..31) never returns runSeed itself — which is true of ANY hash of any
+    // seed and would hold even if the two derivations had been refactored into one another, so its
+    // name promised something its assertion could never deliver (steering S1). The claim it was
+    // reaching for is already covered with teeth:
+    // RunSeed_is_Hash64_over_the_five_arguments_of_02_section_2 pins this derivation argument for
+    // argument, BattleSeed_is_Hash64_over_the_run_seed_the_combat_stream_and_the_battle_index pins
+    // the other, and BattleSeed_differs_for_every_battle_index_of_a_run pins the injectivity
+    // RunRngStreamTests leans on.
 
     // ----------------------------------------------------------------- battleSeed
 

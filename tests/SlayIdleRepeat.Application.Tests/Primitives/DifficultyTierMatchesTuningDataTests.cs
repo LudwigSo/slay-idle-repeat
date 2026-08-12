@@ -19,12 +19,16 @@ namespace SlayIdleRepeat.Application.Tests.Primitives;
 /// on a tier the balance data cannot describe.
 /// </para>
 /// <para>
-/// ⚠️ <b>Three documents, three assertions, deliberately.</b> The vocabulary is transcribed in three
-/// independent places, and they are checked separately rather than folded into one union: a union
-/// would go green while two of the three disagreed with each other. <c>par_power.json</c> is checked
-/// twice over — once for the <c>defaultFill</c> multipliers and once for <b>every</b> <c>parPower</c>
-/// row — because `29` §7 makes every one of the 24 cells independently editable, so a row that lost a
-/// tier column is a real, reachable state.
+/// ⚠️ <b>Three documents, four assertions, deliberately.</b> <see cref="DifficultyTier"/>'s own
+/// remarks name <b>three</b> authored transcriptions of this vocabulary — <c>progression.json</c>'s
+/// <c>chapterGating</c>, <c>par_power.json</c>'s tier columns, and
+/// <c>schema/chapter.schema.json</c>'s <c>unlockCondition.tier</c> <c>enum</c> — and every one of
+/// them is checked here, because a claim in a doc comment that no test checks is a claim that stops
+/// being true without anything going red. They are checked separately rather than folded into one
+/// union: a union would go green while two of the three disagreed with each other.
+/// <c>par_power.json</c> is checked twice over — once for the <c>defaultFill</c> multipliers and once
+/// for <b>every</b> <c>parPower</c> row — because `29` §7 makes every one of the 24 cells
+/// independently editable, so a row that lost a tier column is a real, reachable state.
 /// </para>
 /// <para>
 /// It lives in <c>SlayIdleRepeat.Application.Tests</c> rather than <c>Core.Tests</c> because it reads
@@ -37,6 +41,7 @@ public sealed class DifficultyTierMatchesTuningDataTests
 {
     private const string ProgressionDocument = "tuning/progression.json";
     private const string ParPowerDocument = "tuning/par_power.json";
+    private const string ChapterSchemaDocument = "schema/chapter.schema.json";
 
     /// <summary>
     /// `10` §7 — the enum is exactly <c>progression.json</c>'s <c>chapterGating</c> keys.
@@ -131,8 +136,45 @@ public sealed class DifficultyTierMatchesTuningDataTests
     }
 
     /// <summary>
+    /// 🔒 `14` §6 / `10` §7 — the enum is exactly <c>chapter.schema.json</c>'s
+    /// <c>unlockCondition.tier</c> <c>enum</c>, the third authored transcription.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ It is a <b>schema</b> rather than a tuning file, and that is why it needs its own case
+    /// rather than riding on the two above: <c>chapter.schema.json</c> sits on
+    /// <c>ContentLoader.SchemasAwaitingContent</c> (<c>content/chapters/</c> is empty until M3-14),
+    /// so <b>no content document is validated against it today</b> and nothing else in this
+    /// repository would notice its tier list drifting away from the enum. A gate authored against a
+    /// tier <c>Core</c> cannot parse is a chapter that never unlocks.
+    /// </remarks>
+    [Fact]
+    public void DifficultyTier_is_exactly_the_unlockCondition_tier_enum_of_chapter_schema_json()
+    {
+        using var schema = JsonDocument.Parse(RepoData.Documents[ChapterSchemaDocument]);
+
+        var tiers = schema.RootElement
+            .GetProperty("properties").GetProperty("unlockCondition")
+            .GetProperty("properties").GetProperty("tier")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(value => value.GetString()!)
+            .ToArray();
+
+        tiers.ShouldNotBeEmpty(
+            $"{ChapterSchemaDocument} declares no unlockCondition.tier enum, so this cross-check " +
+            "would compare the enum against nothing and pass forever. The schema moved — fix the " +
+            "reader, do not delete the case.");
+
+        tiers.OrderBy(id => id, StringComparer.Ordinal).ShouldBe(
+            Enum.GetNames<DifficultyTier>().OrderBy(id => id, StringComparer.Ordinal),
+            $"DifficultyTier and {ChapterSchemaDocument}'s unlockCondition.tier disagree. A chapter " +
+            "could then author an unlock gate naming a tier no run can be started on, and the " +
+            "schema would validate it.");
+    }
+
+    /// <summary>
     /// 🔒 …and the tier ids are the same <b>text</b> the enum members are spelled with, which is what
-    /// makes the three cross-checks above comparisons rather than coincidences.
+    /// makes the cross-checks above comparisons rather than coincidences.
     /// </summary>
     /// <remarks>
     /// ⚠️ The three tokens are written out as literals rather than derived from

@@ -227,12 +227,19 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>A negative position is refused — and that is the whole position check (see M3-01).</summary>
+    /// <remarks>
+    /// ⚠️ The fault <b>count</b> is asserted beside the fragment, because <c>Position</c> is a
+    /// substring of <c>RngStreamPositions</c>: on its own, that fragment would be satisfied by a
+    /// message about the stream map and this case would pass while the position check was gone
+    /// (steering S2).
+    /// </remarks>
     [Fact]
     public void A_negative_position_is_refused()
     {
         var result = Run.Rehydrate(RunSnapshots.With(position: -1));
 
         result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("(1 problem(s))", Case.Sensitive);
         result.Error.ShouldContain("Position", Case.Sensitive);
     }
 
@@ -260,6 +267,7 @@ public sealed class RunRehydrateTests
         var result = Run.Rehydrate(RunSnapshots.With(currentHp: 0, maxHp: maxHp));
 
         result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("(1 problem(s))", Case.Sensitive);
         result.Error.ShouldContain("MaxHp", Case.Sensitive);
     }
 
@@ -280,6 +288,11 @@ public sealed class RunRehydrateTests
         var result = Run.Rehydrate(RunSnapshots.With(currentHp: 101, maxHp: 100));
 
         result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(
+            "(1 problem(s))",
+            Case.Sensitive,
+            "an overheal is ONE defect: the maximum is legal and the current is non-negative, so " +
+            "neither of the other two hit-point rules has anything to say about this row.");
         result.Error.ShouldContain("CurrentHp", Case.Sensitive);
         result.Error.ShouldContain("MaxHp", Case.Sensitive);
     }
@@ -369,10 +382,13 @@ public sealed class RunRehydrateTests
     [Fact]
     public void Every_row_of_the_registry_is_accepted_including_the_parameterised_minigame_row()
     {
+        // ⚠️ index + 1, not index: a stream persisted at 0 is indistinguishable from one the row
+        // never carried, because absent means 0. With a zero in the fixture, one of the ten
+        // assertions below would hold for a validation that dropped that key entirely.
         var everyStream = RngStreams.FixedNames
-            .Select((name, index) => (Stream: name, Position: (ulong)index))
-            .Append((Stream: RngStreams.Minigame(0), Position: 4UL))
-            .Append((Stream: RngStreams.Minigame(7), Position: 9UL))
+            .Select((name, index) => (Stream: name, Position: (ulong)(index + 1)))
+            .Append((Stream: RngStreams.Minigame(0), Position: 9UL))
+            .Append((Stream: RngStreams.Minigame(7), Position: 10UL))
             .ToArray();
 
         everyStream.Length.ShouldBe(

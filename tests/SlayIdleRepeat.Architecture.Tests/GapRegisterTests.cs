@@ -239,6 +239,32 @@ public sealed class GapRegisterTests
             "about the ones it dropped, and nothing else in this repository enumerates them.");
 
         domainEvents.Namespace.ShouldBe(Domain.EventsNamespace);
+
+        // 🔒 M1-05. The same floor for the two transcriptions that milestone added, and for the same
+        // reason: a trimmed list does not fail, it quietly stops asking. Both counts are literals,
+        // not the lists' own lengths.
+        var runContents = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("30 §4 (the Run-contents row", StringComparison.Ordinal));
+
+        runContents.Subjects.Count.ShouldBe(
+            5,
+            "30 §4's Run row enumerates ten things; M1-05 built five (position, HP, run Gold, RNG " +
+            "stream positions, per-run ad uses) and this transcription is the other five. Five plus " +
+            "five is the row — if this shrinks, the arithmetic in GapRegister.Surfaces' remarks stops " +
+            "adding up and the dropped item is deferred by nobody.");
+
+        runContents.Namespace.ShouldBe(Domain.ModelNamespace);
+
+        var runStateMachine = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("02 §1.1", StringComparison.Ordinal));
+
+        runStateMachine.Subjects.Count.ShouldBe(
+            1,
+            "02 §1.1's state machine is deferred as exactly one subject, RunPhase — the state SET is " +
+            "M3-05's ruling, not a list to transcribe here. An empty transcription would silently " +
+            "un-defer the SchemaVersion bump that entry exists to price.");
+
+        runStateMachine.Namespace.ShouldBe(Domain.PrimitivesNamespace);
     }
 
     /// <summary>

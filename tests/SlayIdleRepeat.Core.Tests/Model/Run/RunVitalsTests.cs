@@ -78,6 +78,9 @@ public sealed class RunVitalsTests
         Should.Throw<ArgumentOutOfRangeException>(() => run.SetHitPoints(-1, 100))
               .Message.ShouldMatchWildcard("*negative*");
 
+        run.CurrentHp.ShouldBe(100, "a refused write changes nothing — least of all a partial one");
+        run.MaxHp.ShouldBe(100);
+
         run.SetHitPoints(0, 100);
 
         run.CurrentHp.ShouldBe(0, "02 §6's revive acts on a hero at zero, so zero is a state the run has");
@@ -148,9 +151,13 @@ public sealed class RunVitalsTests
 
         var act = () => run.MoveTo(-1);
 
-        Should.Throw<ArgumentOutOfRangeException>(act);
+        Should.Throw<ArgumentOutOfRangeException>(act)
+              .ParamName.ShouldBe(
+                  "position",
+                  "naming the parameter is what says WHICH refusal this is (steering S2) — the " +
+                  "exception type alone is the same one SetHitPoints and MarkApplied raise.");
 
-        run.Position.ShouldBe(7);
+        run.Position.ShouldBe(7, "a refused write changes nothing");
     }
 
     /// <summary>
@@ -245,8 +252,10 @@ public sealed class RunVitalsTests
     /// <remarks>
     /// `14` §16.3 makes the run TTL sliding and measured from the last command accepted <em>by the
     /// run</em>. The player's anchor advances on meta commands too, so a run whose expiry were slid
-    /// off it would stay alive because its owner opened the shop. Stated as a type-shape assertion
-    /// because there is nothing else in <c>Core</c> that could notice the two being merged.
+    /// off it would stay alive because its owner opened the shop. ⚠️ It is a <b>state</b> assertion
+    /// over two live aggregates, not a type-shape one: what it catches is the two anchors being
+    /// backed by one store — a static, a shared clock field, a <c>Run</c> that delegated to its
+    /// parent — which is the only way in <c>Core</c> for advancing one to advance the other.
     /// </remarks>
     [Fact]
     public void The_runs_TTL_anchor_is_the_runs_own_and_not_the_players()

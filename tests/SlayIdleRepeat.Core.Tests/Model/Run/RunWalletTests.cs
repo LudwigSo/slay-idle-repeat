@@ -31,11 +31,16 @@ public sealed class RunWalletTests
     {
         var run = Rich(150);
 
-        var moved = run.MoveCurrency(CurrencyId.GOLD, 60, "tile_kill_gold");
+        CurrencyChanged moved = run.MoveCurrency(CurrencyId.GOLD, 60, "tile_kill_gold");
 
         run.Gold.ShouldBe(210);
         run.BalanceOf(CurrencyId.GOLD).ShouldBe(210);
-        moved.ShouldBeOfType<CurrencyChanged>();
+
+        // 🔒 No `moved.ShouldBeOfType<CurrencyChanged>()` here. CurrencyChanged is a sealed record
+        // and MoveCurrency's return type IS CurrencyChanged, so that assertion could only ever have
+        // caught a null — which the three assertions below catch anyway, with a message that says
+        // what was wrong (steering S1: an assertion true of every possible value is not an
+        // assertion).
         moved.Id.ShouldBe(CurrencyId.GOLD);
         moved.Delta.ShouldBe(60);
         moved.Reason.ShouldBe("tile_kill_gold");
@@ -162,11 +167,22 @@ public sealed class RunWalletTests
     }
 
     /// <summary>An undefined <see cref="CurrencyId"/> is an uninitialised field, not a balance.</summary>
+    /// <remarks>
+    /// Both doors, because they are two guards: a reader that refused an undefined id while the
+    /// mutator accepted it would let a run's purse be moved under a currency the game does not have.
+    /// </remarks>
     [Fact]
     public void An_undefined_currency_is_refused()
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => Rich().BalanceOf((CurrencyId)999))
+        var run = Rich(10);
+
+        Should.Throw<ArgumentOutOfRangeException>(() => run.BalanceOf((CurrencyId)999))
               .Message.ShouldMatchWildcard("*not one of them*");
+
+        Should.Throw<ArgumentOutOfRangeException>(() => run.MoveCurrency((CurrencyId)999, 1, "economy_defect"))
+              .Message.ShouldMatchWildcard("*not one of them*");
+
+        run.Gold.ShouldBe(10, "a refused movement changes nothing");
     }
 
     /// <summary>
@@ -221,5 +237,18 @@ public sealed class RunWalletTests
                    "the getter is the only Gold-named member. A SetGold/AddGold beside " +
                    "MoveCurrency would be a second place a run's purse changes, and the reason " +
                    "MoveCurrency exists is that there is exactly one.");
+
+        // 🔒 …and the same over the OTHER name the balance goes by. A filter on "Gold" alone is
+        // blind to a second seam called AdjustWallet or SetWallet — which is the more likely name
+        // for one, because the field it would write is `_wallet`. The two filters together are the
+        // claim; either on its own leaves the obvious rename through.
+        members.Where(name => name.Contains("Wallet", StringComparison.OrdinalIgnoreCase))
+               .ShouldBe(
+                   new[] { "_wallet" },
+                   ignoreOrder: true,
+                   "the backing field is the only Wallet-named member. Its NAME is what puts this " +
+                   "run's Gold inside DomainPurityTests.CurrencyFields()'s subject set at all (a " +
+                   "bare long matches neither half of the type predicate), so a Wallet-named " +
+                   "method beside it is both a second seam and a second thing that rule watches.");
     }
 }

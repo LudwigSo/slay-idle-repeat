@@ -76,17 +76,30 @@ public sealed class RunAdUseTests
 
         run.AdUseCount("AD_REVIVE").ShouldBe(1);
 
-        typeof(Run)
+        var members = typeof(Run)
             .GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
                         BindingFlags.DeclaredOnly)
             .Select(member => member.Name)
-            .Where(name => name.Contains("Reviv", StringComparison.OrdinalIgnoreCase))
-            .ShouldBeEmpty(
-                "02 §6's revive is one of 12 §4.3's thirteen in-run placements (AD_REVIVE, cap 1). A " +
-                "RevivesUsed field beside the counter would be a second source of truth for one count.");
+            .ToArray();
+
+        members.ShouldContain(
+            nameof(Run.CountAdUse),
+            "the floor (steering S3): without it this reflection could be looking at the wrong " +
+            "type — or at nothing — and the emptiness below would report success forever.");
+
+        members.Where(name => name.Contains("Reviv", StringComparison.OrdinalIgnoreCase))
+               .ShouldBeEmpty(
+                   "02 §6's revive is one of 12 §4.3's thirteen in-run placements (AD_REVIVE, cap 1). A " +
+                   "RevivesUsed field beside the counter would be a second source of truth for one count.");
     }
 
     /// <summary>A blank placement key is refused: a key names the placement it counts.</summary>
+    /// <remarks>
+    /// ⚠️ The <b>parameter</b> is asserted, not just the exception type.
+    /// <see cref="ArgumentOutOfRangeException"/> derives from <see cref="ArgumentException"/>, so
+    /// <c>Should.Throw&lt;ArgumentException&gt;</c> is also satisfied by the amount guard — and by
+    /// any other guard either method grows. The parameter name says which one fired (steering S2).
+    /// </remarks>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -95,8 +108,11 @@ public sealed class RunAdUseTests
     {
         var run = WithAdUses();
 
-        Should.Throw<ArgumentException>(() => run.CountAdUse(placementId, 1));
-        Should.Throw<ArgumentException>(() => run.AdUseCount(placementId));
+        Should.Throw<ArgumentException>(() => run.CountAdUse(placementId, 1))
+              .ParamName.ShouldBe("placementId");
+
+        Should.Throw<ArgumentException>(() => run.AdUseCount(placementId))
+              .ParamName.ShouldBe("placementId");
     }
 
     /// <summary>A negative amount is refused: a use counter counts, it does not settle back down.</summary>
@@ -107,7 +123,12 @@ public sealed class RunAdUseTests
 
         var act = () => run.CountAdUse("AD_SHOP_REFRESH", -1);
 
-        Should.Throw<ArgumentOutOfRangeException>(act);
+        Should.Throw<ArgumentOutOfRangeException>(act)
+              .ParamName.ShouldBe(
+                  "amount",
+                  "the other guard on this method throws an ArgumentException over the key, and " +
+                  "ArgumentOutOfRangeException is one of those — so the type alone does not say " +
+                  "which refusal this is (steering S2).");
 
         run.AdUseCount("AD_SHOP_REFRESH").ShouldBe(2, "a refused advance changes nothing");
     }

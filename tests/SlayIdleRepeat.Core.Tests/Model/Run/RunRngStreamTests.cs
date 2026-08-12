@@ -179,8 +179,15 @@ public sealed class RunRngStreamTests
         var act = () => run.CommitStreamPositions(
             new Dictionary<string, ulong>(StringComparer.Ordinal) { [streamName] = 1 });
 
-        Should.Throw<ArgumentException>(act)
-              .Message.ShouldMatchWildcard("*" + streamName + "*14 §8.1*");
+        var message = Should.Throw<ArgumentException>(act).Message;
+
+        message.ShouldMatchWildcard("*" + streamName + "*14 §8.1*");
+
+        // ⚠️ ShouldMatchWildcard is case-INSENSITIVE (it reproduces FluentAssertions' semantics), so
+        // the pattern above is also satisfied by a message that lower-cased the offending key — and
+        // "DICE" versus "dice" is the whole point of the registry being ordinal. The key has to come
+        // back exactly as it was persisted, or the reader cannot find the row that carries it.
+        message.ShouldContain(streamName, Case.Sensitive);
 
         run.RngStreamPositions.ShouldBeEmpty("a refused commit changes nothing");
     }
@@ -326,20 +333,23 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 <b>What <c>combat</c>'s position means, and it is not what the others' means.</b> `14`
-    /// §8.1 derives <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>, so the <c>combat</c>
-    /// stream rooted at <c>runSeed</c> is consumed exactly <b>once per battle</b> — its position is
-    /// the number of battles started, i.e. the <b>next</b> <c>battleIndex</c>.
+    /// 🔒 The <c>combat</c> position is the <c>battleIndex</c> `14` §8.1 derives the <b>next</b>
+    /// battle's seed from — <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c> — so a run
+    /// standing at 3 opens battle 3, which is none of the three it has already fought.
     /// </summary>
     /// <remarks>
-    /// ⚠️ This is the assertion that stops the next reader treating it as a count of combat draws and
-    /// advancing it per attack roll — which would make every battle after the first draw a seed no
-    /// replay could reproduce. The draws <em>inside</em> a battle are rooted at the battle seed,
-    /// restart at 0 for every battle and are never persisted, which is what makes §8.1's <em>"a
-    /// revived battle restarts from draw 0 of the same battle stream"</em> true.
+    /// ⚠️ <b>What this case proves, and what it deliberately does not.</b> That the counter's
+    /// <em>unit</em> is battles-started rather than combat-draws is a <b>ruling</b>, and this
+    /// aggregate cannot enforce it: the position is a <c>ulong</c> and every monotone value is a
+    /// legal commit, by design (a handler is what folds a scope's final positions in). Naming the
+    /// case after the ruling would be a name promising what no assertion here can deliver (steering
+    /// S1). What <em>is</em> checkable is asserted: the value the run holds is the index
+    /// <see cref="SeedDerivation.BattleSeed"/> takes, and the battle it opens is not one already
+    /// fought. The ruling itself is recorded on <c>Run.RngStreamPositions</c>'s remarks, and the
+    /// case below pins its other checkable half — that a battle's own draws never reach the run.
     /// </remarks>
     [Fact]
-    public void The_combat_stream_position_is_the_next_battle_index_and_not_a_count_of_draws()
+    public void The_combat_position_is_the_battle_index_the_next_battle_seed_is_derived_from()
     {
         var run = WithStreams((RngStreams.Combat, 3UL));
 
@@ -355,16 +365,20 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// …and starting a battle advances that position by exactly one, whatever happened inside the
-    /// previous battle.
+    /// 🔒 A battle's <b>own</b> draws never reach the run's <c>combat</c> position: fifty attack
+    /// rolls move the battle-rooted stream fifty places and leave the run exactly where it was.
     /// </summary>
     /// <remarks>
-    /// The discriminating half: a fifty-draw battle and a one-draw battle advance the run's
-    /// <c>combat</c> counter identically, because the run-rooted stream is consumed once per battle
-    /// and the per-battle draws live under <c>battleSeed</c> and are never persisted.
+    /// This is the discriminating half of `14` §8.1's re-rooting, and it is the assertion that stops
+    /// the next reader wiring a battle's draw counter into the run: the draws <em>inside</em> a
+    /// battle are rooted at <c>battleSeed</c>, restart at 0 for every battle and are <b>never
+    /// persisted</b>, which is what makes §8.1's <em>"a revived battle restarts from draw 0 of the
+    /// same battle stream: reproducible by construction"</em> true. Committing the draw count
+    /// instead of the battle count would skip forty-nine battle indices and derive every later
+    /// battle from a seed no replay reconstructs.
     /// </remarks>
     [Fact]
-    public void Starting_a_battle_advances_the_combat_position_by_one_however_many_draws_it_took()
+    public void A_battles_own_draws_never_reach_the_runs_combat_position()
     {
         var run = WithStreams((RngStreams.Combat, 3UL));
 
@@ -375,13 +389,15 @@ public sealed class RunRngStreamTests
         }
 
         battle.Position.ShouldBe(50UL, "the battle's own stream counted every draw…");
+        run.StreamPosition(RngStreams.Combat).ShouldBe(
+            3UL,
+            "…and not one of them reached the run: the per-battle draws are rooted at battleSeed " +
+            "and are never persisted (14 §8.1).");
 
         run.CommitStreamPositions(
             new Dictionary<string, ulong>(StringComparer.Ordinal) { [RngStreams.Combat] = 4 });
 
         run.StreamPosition(RngStreams.Combat).ShouldBe(
-            4UL,
-            "…and the run's combat counter moved by one, because it counts battles started. If this " +
-            "were 53 the run would derive its next battle from a seed no replay could reproduce.");
+            4UL, "one battle started, one step — not fifty-three.");
     }
 }

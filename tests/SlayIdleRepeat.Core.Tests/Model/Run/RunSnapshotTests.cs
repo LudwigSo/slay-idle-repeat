@@ -49,6 +49,15 @@ public sealed class RunSnapshotTests
     /// Record equality compares the two dictionaries by reference, so this is asserted field by field
     /// rather than with a single <c>ShouldBe</c> — which would pass for two rows whose maps differed
     /// and fail for two whose maps were equal but not the same object.
+    /// <para>
+    /// ⚠️ The two maps are compared with <c>ignoreOrder</c>. Shouldly's <c>ShouldBe</c> over an
+    /// <see cref="IEnumerable{T}"/> is order-sensitive, and a dictionary's enumeration order is an
+    /// <b>implementation detail of the aggregate's copy</b>, not part of the contract:
+    /// <c>CanonicalStateWriter</c> imposes ascending key order itself (the case below pins exactly
+    /// that), so an implementation that copied into a sorted map would round-trip and hash
+    /// identically while failing an ordered comparison. Pinning the order here would be a test that
+    /// breaks on a harmless refactor.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_snapshot_round_trips_through_the_aggregate()
@@ -66,8 +75,8 @@ public sealed class RunSnapshotTests
         round.CurrentHp.ShouldBe(Populated.CurrentHp);
         round.MaxHp.ShouldBe(Populated.MaxHp);
         round.Gold.ShouldBe(Populated.Gold);
-        round.RngStreamPositions.ShouldBe(Populated.RngStreamPositions);
-        round.AdUses.ShouldBe(Populated.AdUses);
+        round.RngStreamPositions.ShouldBe(Populated.RngStreamPositions, ignoreOrder: true);
+        round.AdUses.ShouldBe(Populated.AdUses, ignoreOrder: true);
     }
 
     /// <summary>
