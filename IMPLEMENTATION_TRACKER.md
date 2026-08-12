@@ -392,7 +392,7 @@ after it.
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | 🔍 merged to `milestone/M8` · `feature-M8-09-asset-manifest` — **974 art + 106 audio rows**, 208-test suite, schema-validated at build time. 11 doc discrepancies recorded as data, none reconciled (see below) |
-| M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | 🔄 wave 2 · `feature-M8-01a-provenance` |
+| M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | 🔍 merged to `milestone/M8` · `feature-M8-01a-provenance` — 102 tests, own CI job. Gate reads **1080 register ids / 1048 uncut / 32 cut**, 0 delivered, **licences confirmed 0 of 1**. Coverage is a 3-state enum, so the empty state cannot be mistaken for a populated pass |
 | M8-01b | **Licence confirmations in writing** — Midjourney §G terms; audio tools not yet licensed | 15 §G, 20 §2.1 | ⛔ **product owner owns this** — a legal act, not an engineering task |
 | M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | 🔄 wave 2 · `feature-M8-06-asset-pipeline` |
 | M8-10 | **Placeholder generator** — renders a correctly-named, correctly-sized, correctly-pivoted, ID-stamped placeholder for every runtime slot in M8-09, drives them through M8-06's full pipeline into the §D2 atlases, and asserts the QA gate passes. Output is a **build artifact, never committed** (binary churn, and it must not enter the Godot checkout). Answers M7's open placeholder-asset-policy decision in advance | 15 §C–D, §D2, F | ⬜ |
@@ -428,9 +428,25 @@ after it.
 - **84 rows are `derived: true`**, from exactly two sections: E9 (64 — 8 decor props × 8 biomes, a prose
   list with no ids) and E17 (20 — card frames, dividers/ribbons/banners, toast chrome). Everything doc
   `15` delegates elsewhere (E11→`08` §1, E12/E13→`22` Parts A/B) is individually authored, not derived.
-- **`SubjectSetFloorTests`' comment is stale** — it says "26 under `src/` + 3 under `tools/`"; there are
-  now 4 tool projects. It is a *floor*, so it passes; the file belongs to **M1-12**, which is in flight,
-  so wave 1 correctly left it alone (**S12**). Owner: M1-12.
+- **Three stale comments in M0-08's rule files — owner: M1-12.** `SubjectSetFloorTests.ProductionProjectFloor`
+  says `= 29; // 26 under src/ + 3 under tools/`; the truth is now **26 + 5 = 31**. Same drift in
+  `RepoLayout.cs:21` (names only EconomySim/BalanceHarness/ContentValidator) and
+  `Architecture.Tests.csproj:86` ("Four projects"). Nothing is red — a floor is a floor — only the
+  breakdowns are wrong. Both waves correctly declined to touch them: M1-12 is in flight on exactly
+  those files (**S12**).
+- 🔴 **Cross-task decision, conductor-owned: where the shared register vocabulary lives.** M8-01a found
+  that `AssetMedium`, the id→register lookup, the `15` §D1 / `20` §5 delivery-format table,
+  `DeliveredAsset` and the JSON member-access helpers are all things M8-06 and M8-10 want too — and its
+  own new architecture rule forbids one register consumer from referencing another, so
+  `tools/AssetManifest` is the **only** place a consolidation can go. It deliberately did not move them
+  (M8-09's merged component, outside its territory, M8-06 in flight). **Resolve at the wave-2 merge if
+  M8-06 duplicated any of them.**
+- **A fourth shared file, discovered mid-wave:** `tests/SlayIdleRepeat.Architecture.Tests/SlayIdleRepeat.Architecture.Tests.csproj`
+  needs a `ProjectReference` to every new `tools/` project, or `DependencyRuleTests` throws
+  `FileNotFoundException` on it (`ProductionAssemblies.AllNames` covers `tools/`). One additive line each.
+- 🔒 **M8-10 must write placeholder output to `artifacts/` (gitignored), never `assets/`.** M8-01a's
+  delivery scan reads the filesystem, not the git index, so an uncommitted placeholder run under
+  `assets/` would redden the provenance gate for every developer. Carried into the wave-3 prompt.
 
 ---
 
