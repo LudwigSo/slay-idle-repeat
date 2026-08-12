@@ -1,3 +1,4 @@
+using System.Reflection;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -186,6 +187,7 @@ public sealed class SubjectSetFloorTests
     private const int AdapterFloor = 21;
     private const int CoreTypeFloor = 26;            // Il.AllTypes over SlayIdleRepeat.Core
     private const int PortFloor = 1;                 // IContentSourcePort (M0-09)
+    private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     /// <summary>
     /// `23` §6 — the subject sets these rules quantify over are the ones they were written
@@ -308,10 +310,55 @@ public sealed class SubjectSetFloorTests
                   .Select(ns => $"Core namespace '{ns}' is enumerated by 30 §11.4 but appears in neither Pending nor Live. " +
                                 "Every namespace a layering row names must be tracked, or its row governs nothing."));
 
+        // 🔒 And the same for the TYPE names, which the comment above has claimed since M0-08
+        // while only the namespaces were actually checked. Measured on the M1-03 branch: deleting
+        // the CurrencyChanged row from Live outright — rather than moving it — passed. That is the
+        // shape steering S1 is about, a comment promising more than the assertion delivers, sitting
+        // inside the very mechanism whose job is to stop a subject going untracked.
+        //
+        // The inventory is read off Domain's own const fields rather than transcribed, so a new
+        // constant is covered the moment it is written. IClockPort is the one exclusion and it is
+        // inline rather than in a list, so a second one cannot be added quietly: it is the name
+        // that must NEVER appear in Core (30 §3), so "pending until some milestone creates it" is
+        // the wrong frame for it — AmbientApiTests is what watches that name.
+        var typeConstants = TypeNameConstants();
+
+        Floor(offenders, "Domain type-name constants", typeConstants.Length, TypeConstantFloor,
+            "The untracked-subject check below is stated over this set. Read off Domain's const fields by " +
+            "the 'Type'/'Event' suffix, so a renamed constant drops out of the inventory silently and its " +
+            "subject stops having to be tracked at all.");
+
+        offenders.AddRange(
+            typeConstants
+                .Where(c => !c.Value.Equals(Domain.ClockPortType, StringComparison.Ordinal))
+                .Where(c => !declared.Contains(c.Value))
+                .Select(c => $"Domain.{c.Constant} looks up the Core type '{c.Value}', which appears in neither " +
+                             "Pending nor Live. Every name a rule keys on must be tracked: absent and undeclared, " +
+                             "the rule keyed on it is passing over an empty set and nothing here would say so."));
+
         ArchRule.Empty(
             offenders,
             "Every rule subject is present, or declared pending with the milestone that creates it (23 §6, 30 §11.4).");
     }
+
+    /// <summary>
+    /// Every simple type name <c>Domain</c> looks a subject up by, read off its own <c>const</c>
+    /// fields by the <c>Type</c>/<c>Event</c> suffix its authors have used since M0-08.
+    /// </summary>
+    /// <remarks>
+    /// Reflection rather than a transcription, so a constant added in a later milestone is covered
+    /// on the commit that adds it rather than on the commit someone remembers to. <c>ApplyMethod</c>
+    /// is correctly outside the set — it names a method, not a subject a type lookup can find.
+    /// </remarks>
+    private static (string Constant, string Value)[] TypeNameConstants() =>
+        typeof(Domain)
+            .GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .Where(f => f is { IsLiteral: true, IsInitOnly: false } && f.FieldType == typeof(string))
+            .Where(f => f.Name.EndsWith("Type", StringComparison.Ordinal) ||
+                        f.Name.EndsWith("Event", StringComparison.Ordinal))
+            .Select(f => (Constant: f.Name, Value: (string)f.GetRawConstantValue()!))
+            .OrderBy(c => c.Constant, StringComparer.Ordinal)
+            .ToArray();
 
     private static void Floor(List<string> offenders, string what, int actual, int floor, string consequence)
     {
