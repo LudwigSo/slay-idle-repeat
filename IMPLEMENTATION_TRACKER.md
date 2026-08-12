@@ -386,7 +386,7 @@ after it.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | ⬜ |
+| M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | 🔄 wave 1 · `feature-M8-09-asset-manifest` |
 | M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | ⬜ |
 | M8-01b | **Licence confirmations in writing** — Midjourney §G terms; audio tools not yet licensed | 15 §G, 20 §2.1 | ⛔ **product owner owns this** — a legal act, not an engineering task |
 | M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | ⬜ |
