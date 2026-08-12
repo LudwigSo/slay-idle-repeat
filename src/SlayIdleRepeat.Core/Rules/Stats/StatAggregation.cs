@@ -255,10 +255,40 @@ internal static class StatAggregation
         RoundAll(values, "step 8 (STAT_SET)");
 
         // ── Step 9 · caps, honouring STAT_CAP_OVERRIDE, then round.
-        var effective = seams.Ops.OverrideCaps(byOp[EffectOp.STAT_CAP_OVERRIDE].ToArray(), caps, seams.Values);
+        //
+        //    🔒 Two halves, because `18` §2.1 gives the op two jobs — "raise OR REDIRECT a stat
+        //    cap". The raise is a change to the table below; the redirect (`09` §4's Perfect Strike,
+        //    "crit above the 75% cap converts to crit damage") moves value from one stat to another
+        //    and cannot be expressed as a cap at all. M2-03 added the second seam member for it.
+        var overrides = byOp[EffectOp.STAT_CAP_OVERRIDE].ToArray();
+        var effective = seams.Ops.OverrideCaps(overrides, caps, seams.Values);
+
+        // 🔒 Frozen BEFORE the caps land — this is the only place the overshoot still exists, and
+        //    freezing it is what stops one redirect reading another's output, exactly as step 6's
+        //    post-step-5 block does. Built only when there IS an override: no authored content
+        //    carries one today, and this runs per actor whenever the fight changes (05 §3.1's
+        //    SYS_ENRAGE re-aggregates every second from 70 s).
+        var preCap = overrides.Length == 0 ? null : ActorStats.FromSlots(values);
+
         for (var slot = 0; slot < values.Length; slot++)
         {
             values[slot] = effective.Apply(StatAt(slot), values[slot]);
+        }
+
+        if (preCap is not null)
+        {
+            foreach (var delta in seams.Ops.RedirectCappedExcess(overrides, preCap, effective, seams.Values))
+            {
+                values[ActorStats.SlotOf(delta.Stat)] += delta.Amount;
+            }
+
+            // 🔒 Re-applied, and it is not belt-and-braces. Step 9 is "apply caps"; a redirect that
+            //    carried its DESTINATION past that stat's own ceiling would leave step 9 having
+            //    produced an uncapped stat. Idempotent for every stat no redirect touched.
+            for (var slot = 0; slot < values.Length; slot++)
+            {
+                values[slot] = effective.Apply(StatAt(slot), values[slot]);
+            }
         }
 
         RoundAll(values, "step 9 (caps)");

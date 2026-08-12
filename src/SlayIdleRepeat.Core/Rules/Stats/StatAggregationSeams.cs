@@ -1,4 +1,3 @@
-using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Stats;
@@ -100,6 +99,61 @@ internal interface IStatOpBehaviour
     /// <param name="values">The same value reader, for the same reason as <see cref="Convert"/>.</param>
     StatCaps OverrideCaps(
         IReadOnlyList<EffectDefinition> overrides, StatCaps declared, IEffectValueReader values);
+
+    /// <summary>
+    /// 🔒 `18` §8 step 9's <b>other half</b> — the deltas a <c>REDIRECT_EXCESS</c>
+    /// <c>STAT_CAP_OVERRIDE</c> produces once the caps have landed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Added by M2-03; M2-07 shipped this interface with two members.</b> `18` §2.1 gives
+    /// <c>STAT_CAP_OVERRIDE</c> two jobs — <em>"raise <b>or redirect</b> a stat cap"</em> — and only
+    /// the raise is a change to a cap table. `09` §4's <em>Perfect Strike</em>, <em>"crit chance
+    /// above the 75% cap converts to crit damage at 1:4"</em>, moves value from one stat to another,
+    /// which <see cref="OverrideCaps"/>'s <see cref="StatCaps"/> return cannot express at all. The
+    /// alternative to this member was leaving the only authored redirect in the game permanently
+    /// unimplementable.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Frozen, on step 6's discipline.</b> <paramref name="preCap"/> is the block as it stood
+    /// <em>before</em> the caps were applied — which is the only place the overshoot still exists —
+    /// and it is handed in frozen so a redirect reads how far <em>its own</em> stat overshot and
+    /// never another redirect's output.
+    /// </para>
+    /// </remarks>
+    /// <param name="overrides">The <c>STAT_CAP_OVERRIDE</c> effects, already in effect-id order.</param>
+    /// <param name="preCap">The stat block as it stood after step 8, before any cap was applied.</param>
+    /// <param name="effective">The cap table <see cref="OverrideCaps"/> returned.</param>
+    /// <param name="values">The same value reader, for the same reason as <see cref="Convert"/>.</param>
+    IReadOnlyList<StatDelta> RedirectCappedExcess(
+        IReadOnlyList<EffectDefinition> overrides,
+        ActorStats preCap,
+        StatCaps effective,
+        IEffectValueReader values);
+
+    /// <summary>
+    /// 🔒 `18` §7.6's <c>HEAL_CEILING</c> — the fraction of Max HP above which the actor cannot be
+    /// healed (<em>Avatar of War</em>) — or <c>null</c> where the build authors none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Not a `18` §8 step, and on this interface anyway.</b> It bounds <c>Heal()</c> (`05`
+    /// §4.3), which is M2-09's, so it belongs to no step of the aggregation — but it is the
+    /// <b>third</b> of <c>STAT_CAP_OVERRIDE</c>'s three <c>capKind</c>s, and this interface is what
+    /// owns that op's behaviour. Left off, one kind in three would sit outside the swap point that
+    /// governs the other two, and M2-09 would have to name a concrete <c>Rules.Stats</c> class.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The lowest ceiling wins.</b> `18` §6's stacking modes govern repeat applications of one
+    /// effect and say nothing about two different effects both bounding healing; the minimum is the
+    /// only reading under which a second restriction cannot loosen the first, which is what "you can
+    /// no longer be healed above" means. Recorded as a ruling — no document states it, because no
+    /// second <c>HEAL_CEILING</c> is authored.
+    /// </para>
+    /// </remarks>
+    /// <param name="overrides">The <c>STAT_CAP_OVERRIDE</c> effects, already in effect-id order.</param>
+    /// <param name="values">The same value reader, for the same reason as <see cref="Convert"/>.</param>
+    double? HealCeilingFraction(IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values);
 }
 
 /// <summary>
@@ -114,22 +168,25 @@ internal sealed record StatAggregationSeams(
     IStatOpBehaviour Ops)
 {
     /// <summary>
-    /// 🔒 The seam set M2-07 ships: every part of `18` §8 that is not yet authored refuses the
-    /// input rather than guessing at it.
+    /// 🔒 The seam set M2-07 shipped, with M2-03's <see cref="IStatOpBehaviour"/> in place: every
+    /// part of `18` §8 that is <em>still</em> not authored refuses the input rather than guessing.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// It is a complete, usable implementation for the whole of `18` §8 that authored content can
     /// reach <em>today</em> — unconditional <c>STAT_ADD_FLAT</c>, <c>STAT_ADD_PCT</c>,
     /// <c>STAT_MULT</c> and <c>STAT_SET</c>, which is `18` §9.1's <c>CP_GLASS_HEART</c>, `18` §7.1's
     /// <c>PK_SHARP_EDGE</c>, `18` §7.6's <c>Avatar of War</c> multiplier and `05` §3.1's
-    /// <c>SYS_ENRAGE</c> — and it throws, with the owning task named, on everything else. That is
-    /// the shape S6 asks for: a hole that fails loudly rather than a default that looks like an
-    /// answer.
+    /// <c>SYS_ENRAGE</c> — plus, since M2-03, steps 6 and 9: <c>STAT_CONVERT</c> and all three
+    /// <c>STAT_CAP_OVERRIDE</c> kinds. It still throws, with the owning task named, on a condition
+    /// (M2-05) and on a <c>valueScale</c> (M2-06). That is the shape S6 asks for: a hole that fails
+    /// loudly rather than a default that looks like an answer.
+    /// </para>
     /// </remarks>
     internal static StatAggregationSeams Strict { get; } = new(
         UnconditionalEffectsOnly.Instance,
         AuthoredEffectValue.Instance,
-        UnimplementedStatOps.Instance);
+        StatOpBehaviour.Instance);
 }
 
 /// <summary>
@@ -223,59 +280,5 @@ internal sealed class AuthoredEffectValue : IEffectValueReader
             "an absent one is an authoring hole, and treating it as 0 would make STAT_ADD_* a no-op and " +
             "STAT_MULT a wipe.",
             nameof(effect));
-    }
-}
-
-/// <summary>
-/// The `18` §8 step 6 / step 9 behaviour M2-07 ships: none, stated as a refusal.
-/// </summary>
-/// <remarks>
-/// Both methods are a no-op on an <b>empty</b> input — which is the real state of the content set,
-/// since no <c>STAT_CONVERT</c> or <c>STAT_CAP_OVERRIDE</c> effect is authored anywhere yet — and
-/// throw the moment one arrives. See <see cref="IStatOpBehaviour"/> for why neither op's semantics
-/// can be written from what `18` and `09` authorise today.
-/// </remarks>
-internal sealed class UnimplementedStatOps : IStatOpBehaviour
-{
-    /// <summary>The single instance.</summary>
-    internal static UnimplementedStatOps Instance { get; } = new();
-
-    private UnimplementedStatOps()
-    {
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyList<StatDelta> Convert(
-        IReadOnlyList<EffectDefinition> conversions, ActorStats postAdditive, IEffectValueReader values)
-    {
-        ArgumentNullException.ThrowIfNull(conversions);
-
-        return conversions.Count == 0
-            ? []
-            : throw new NotSupportedException(
-                $"18 §8 step 6 applies STAT_CONVERT, and " +
-                $"{conversions.Count.ToString(CultureInfo.InvariantCulture)} such effect(s) reached the " +
-                $"aggregation: {string.Join(", ", conversions.Select(e => e.Id))}. 18 §2.1 describes the " +
-                "op as 'convert a percentage of stat A into stat B' while the effect shape carries one " +
-                "'stat' key, so which side is the source is unauthored — M2-03 rules on it. M2-07 owns " +
-                "the step's position, its post-step-5 reading and its rounding, not its arithmetic.");
-    }
-
-    /// <inheritdoc />
-    public StatCaps OverrideCaps(
-        IReadOnlyList<EffectDefinition> overrides, StatCaps declared, IEffectValueReader values)
-    {
-        ArgumentNullException.ThrowIfNull(overrides);
-        ArgumentNullException.ThrowIfNull(declared);
-
-        return overrides.Count == 0
-            ? declared
-            : throw new NotSupportedException(
-                $"18 §8 step 9 honours STAT_CAP_OVERRIDE, and " +
-                $"{overrides.Count.ToString(CultureInfo.InvariantCulture)} such effect(s) reached " +
-                $"the aggregation: {string.Join(", ", overrides.Select(e => e.Id))}. The one authored " +
-                "capKind is HEAL_CEILING (18 §7.6's Avatar of War), which is not one of 05 §1's six " +
-                "caps, and the one authored redirect — 09's Perfect Strike, crit above the 75% cap into " +
-                "crit damage at 1:4 — appears in no DSL example. Both are M2-03's to rule on.");
     }
 }

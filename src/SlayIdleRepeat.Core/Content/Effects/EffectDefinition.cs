@@ -33,7 +33,7 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// <para>
 /// The keys after the spine are op-specific and are harvested from `18`'s own worked examples
 /// (§2.2, §2.4, §7.6, §7.8, §7.9, §9.1, §9.2). Which of them each op admits is stated once, in
-/// <c>game-data/schema/effect.schema.json</c>, as a closed partition of the 43 ops into thirteen
+/// <c>game-data/schema/effect.schema.json</c>, as a closed partition of the 43 ops into sixteen
 /// key shapes — so <c>{"op":"STAT_ADD_PCT","archetype":"SWARM"}</c> is a validation failure rather
 /// than a field that silently means nothing.
 /// </para>
@@ -103,15 +103,62 @@ public sealed record EffectDefinition
     public EffectStacking? Stacking { get; init; }
 
     /// <summary>
-    /// Free-form author tags — <c>["offense"]</c> in §1, <c>["drawback"]</c> in §7.5. Also what
-    /// <see cref="EffectOp.REMOVE_STATUS"/> means by <em>"a tag group"</em>.
+    /// Free-form author tags — <c>["offense"]</c> in §1, <c>["drawback"]</c> in §7.5.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>NOT what <see cref="EffectOp.REMOVE_STATUS"/> means by <em>"a tag group"</em></b>, which
+    /// M2-01's note here assumed. `18` §2.3's tag group labels a <b>status</b>; this array labels the
+    /// <b>effect</b>, and `05` §4.1's ward-bypass list keys on its reserved <c>drawback</c> member.
+    /// Two vocabularies, spelled the same way — see <see cref="AuthorTag"/> and
+    /// <see cref="StatusTag"/> for why they are kept apart at the type level, and
+    /// <see cref="Content.Effects.StatusTag"/> for the key the second one uses.
+    /// </remarks>
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     // ------------------------------------------------------------------ op-specific keys
 
     /// <summary>The stat a §2.1 stat op or <see cref="EffectOp.STAT_COPY"/> names.</summary>
     public StatSelector? Stat { get; init; }
+
+    /// <summary>
+    /// 🔒 <b>Added by M2-03 under `18` §10.</b> The <b>destination</b> stat of
+    /// <see cref="EffectOp.STAT_CONVERT"/> and of a <see cref="StatCapKind.REDIRECT_EXCESS"/>
+    /// <see cref="EffectOp.STAT_CAP_OVERRIDE"/>. <see cref="Stat"/> is the source.
+    /// </summary>
+    /// <remarks>
+    /// `18` §2.1 describes <c>STAT_CONVERT</c> as <em>"convert a percentage of stat A into stat
+    /// B"</em> while the eight-part shape carries one <c>stat</c> key, so which side is which was
+    /// written nowhere and the op was unimplementable as authored. The direction is fixed by `06`'s
+    /// own two named users — <c>PK_TURTLE</c> <em>"convert 20% of DEF into ATK"</em> and
+    /// <c>PK_JUGGERNAUT</c> <em>"convert 8% of Max HP into ATK"</em>: they share a destination and
+    /// differ in source, so the pre-existing <c>stat</c> key is the <b>source</b> and the new key
+    /// names where the amount goes. Recorded as errata against `18` §2.1.
+    /// </remarks>
+    public StatId? ToStat { get; init; }
+
+    /// <summary>
+    /// 🔒 <b>Added by M2-03 under `18` §10.</b> The <c>N</c> of
+    /// <see cref="EffectOp.ATTACK_MULT_NEXT"/>'s <em>"multiply the damage of the next N attacks"</em>
+    /// and <see cref="EffectOp.FORCE_CRIT_NEXT"/>'s <em>"the next N attacks always crit"</em>.
+    /// </summary>
+    /// <remarks>
+    /// Both ops need a count <em>and</em> — for the first — a multiplier, and the shape carries one
+    /// <see cref="Value"/>. `05` §4 spends that one on the multiplier: <em>"<c>ATTACK_MULT_NEXT</c>
+    /// charges, consumed in ascending effect-id order (<c>PK_OPENER</c>'s ×3 first attack)"</em>.
+    /// So the count is the key that was missing. <c>FORCE_CRIT_NEXT</c> has no multiplier at all and
+    /// carries only this. Recorded as errata against `18` §2.4.
+    /// </remarks>
+    public int? Charges { get; init; }
+
+    /// <summary>
+    /// 🔒 <b>Added by M2-03 under `18` §10.</b> The status <b>tag group</b>
+    /// <see cref="EffectOp.REMOVE_STATUS"/> clears — `18` §2.3's <em>"a status or a tag group"</em>.
+    /// </summary>
+    /// <remarks>
+    /// A different vocabulary from <see cref="Tags"/>, and a different C# type. See
+    /// <see cref="Content.Effects.StatusTag"/>.
+    /// </remarks>
+    public StatusTag? StatusTag { get; init; }
 
     /// <summary>What <see cref="Value"/> is a multiple of (`18` §2.2).</summary>
     public ValueMode? ValueMode { get; init; }
