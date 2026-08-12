@@ -99,6 +99,112 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
+    /// 🔒 A negative <c>value</c> scaled by <b>zero steps</b> must produce <c>+0.0</c>, never
+    /// <c>-0.0</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>CanonicalStateWriter</c> throws on a negative zero rather than encoding one: <c>-0.0</c>
+    /// and <c>0.0</c> are different bit patterns, so one state would hash two ways. Its comment
+    /// names the fix and names the owner — <em>"normalise at the accumulation point"</em> — and
+    /// <see cref="ValueScale.EffectiveValue"/> is that point (`18` §8 step 10).
+    /// </para>
+    /// <para>
+    /// ⚠️ The assertion has to be <c>double.IsNegative</c>. <c>(-0.0).Equals(0.0)</c> is <b>true</b>,
+    /// so <c>ShouldBe(0)</c> cannot see the sign — which is precisely why the defect survived the
+    /// first round of these tests.
+    /// </para>
+    /// <para>
+    /// Reachable with `18`'s own numbers: §7.10's Bog Air is <c>-0.35</c>, every §7.5-style drawback
+    /// is negative, and zero steps is the ordinary reading at full HP, at zero gold and under a cap
+    /// of zero.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(-0.35, 0.0)]
+    [InlineData(-1.0, 0.0)]
+    [InlineData(-0.0001, 0.0)]
+    public void A_negative_value_over_zero_steps_produces_positive_zero(double value, double reading)
+    {
+        var scale = new ValueScale { Fn = ConditionFunction.SELF_MISSING_HP_PCT, Per = 0.01, Cap = 45 };
+
+        // The premise: the naive product really is a negative zero, so this case is testing the
+        // normalisation and not an arithmetic accident.
+        scale.StepsFor(reading).ShouldBe(0);
+        double.IsNegative(Math.Round(value * 0, 4)).ShouldBeTrue(
+            "value x 0 is -0.0 for a negative value, and Math.Round preserves the sign");
+
+        var effective = scale.EffectiveValue(value, reading);
+
+        effective.ShouldBe(0);
+        double.IsNegative(effective).ShouldBeFalse(
+            "CanonicalStateWriter throws on -0.0; 18 §8 step 10 makes this the accumulation point " +
+            "that has to normalise it");
+    }
+
+    /// <summary>
+    /// 🔒 <c>cap</c> is a maximum. Negative is not "no cap" — <c>null</c> is — and a negative cap
+    /// would clamp every reading to a negative step count and invert the effect.
+    /// <c>game-data/schema/effect.schema.json</c> declares <c>"minimum": 0</c>; this is the same
+    /// bound on the C# side, so a scale built in code cannot reach a state authored JSON cannot.
+    /// </summary>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-45)]
+    public void A_negative_cap_is_rejected_at_construction(int cap)
+    {
+        var thrown = Should.Throw<ArgumentOutOfRangeException>(
+            () => new ValueScale { Fn = ConditionFunction.GOLD_HELD, Per = 100, Cap = cap });
+
+        thrown.ParamName.ShouldBe("Cap");
+        thrown.Message.ShouldContain("inverts", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// `18` §1.1's <c>min(…, cap)</c> clamps from above only, so a negative reading yields negative
+    /// steps. No lower clamp is imposed — `16` R6: a bound the design has not authorised is not one
+    /// to invent — and this pins the behaviour so that adding one later is a deliberate change
+    /// rather than a silent one.
+    /// </summary>
+    [Fact]
+    public void A_negative_reading_yields_negative_steps_because_18_states_no_lower_bound()
+    {
+        var scale = new ValueScale { Fn = ConditionFunction.SELF_MISSING_HP_PCT, Per = 0.01, Cap = 45 };
+
+        scale.StepsFor(-0.5).ShouldBe(-50);
+        scale.EffectiveValue(0.01, -0.5).ShouldBe(-0.5, 1e-9);
+    }
+
+    /// <summary>
+    /// 🔒 The cap is applied <b>before</b> the int-range check, not after. A capped scale over an
+    /// enormous reading is well defined — <c>min(…, cap)</c> is the cap — and swapping the two
+    /// blocks would turn <c>PK_BERSERK</c> into a runtime throw at a reading it is designed to
+    /// survive.
+    /// </summary>
+    [Fact]
+    public void A_capped_scale_over_an_enormous_reading_returns_the_cap_rather_than_throwing()
+    {
+        var scale = new ValueScale { Fn = ConditionFunction.GOLD_HELD, Per = 0.0001, Cap = 45 };
+
+        // Uncapped, this reading overflows an int — the sibling case below proves it.
+        scale.StepsFor(1e15).ShouldBe(45);
+    }
+
+    /// <summary>
+    /// The other half of the range guard. A reading far below zero cannot be rescued by a cap, and
+    /// the message must not tell the author to add one.
+    /// </summary>
+    [Fact]
+    public void A_reading_far_below_zero_fails_loudly_and_does_not_advise_a_cap()
+    {
+        var scale = new ValueScale { Fn = ConditionFunction.GOLD_HELD, Per = 0.0001, Cap = 45 };
+
+        var thrown = Should.Throw<ArgumentOutOfRangeException>(() => scale.StepsFor(-1e15));
+
+        thrown.Message.ShouldContain("bounds this from above only", Case.Sensitive);
+    }
+
+    /// <summary>
     /// 🔒 <c>per</c> is the divisor. Zero is a division by zero and a negative one reverses the
     /// direction of every step, so neither is accepted and interpreted later.
     /// </summary>
@@ -135,7 +241,8 @@ public sealed class ValueScaleTests
 
         var thrown = Should.Throw<ArgumentOutOfRangeException>(() => scale.StepsFor(1e15));
 
-        thrown.Message.ShouldContain("needs a cap", Case.Sensitive);
+        thrown.Message.ShouldContain("not a step count", Case.Sensitive);
+        thrown.Message.ShouldContain("GOLD_HELD", Case.Sensitive);
     }
 
     /// <summary>

@@ -53,17 +53,16 @@ public static class EffectOrder
     {
         public int Compare(EffectDefinition? x, EffectDefinition? y)
         {
-            if (ReferenceEquals(x, y))
-            {
-                return 0;
-            }
-
-            // A null effect has no id to order by. Sorting it to one end would be an arbitrary
-            // choice that reads as deliberate; the collection should not hold one.
+            // 🔒 The null checks come FIRST, before any reference-equality fast path. A
+            // `ReferenceEquals(x, y)` shortcut would answer 0 for `Compare(null, null)` — the one
+            // pair where the comment below is most true — and the guard would then reject a
+            // half-null collection while quietly accepting an all-null one.
             ArgumentNullException.ThrowIfNull(x);
             ArgumentNullException.ThrowIfNull(y);
 
-            return IdComparer.Compare(x.Id, y.Id);
+            // A null effect has no id to order by. Sorting it to one end would be an arbitrary
+            // choice that reads as deliberate; the collection should not hold one.
+            return ReferenceEquals(x, y) ? 0 : IdComparer.Compare(x.Id, y.Id);
         }
     }
 }

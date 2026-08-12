@@ -48,7 +48,7 @@ public sealed partial class RealDataSetTests
     }
 
     [Fact]
-    public void The_only_schemas_governing_nothing_are_the_ones_whose_content_has_an_owner_and_a_milestone()
+    public void The_only_schemas_governing_nothing_are_the_two_whose_content_has_an_owner_and_a_milestone()
     {
         ContentLoader.SchemasAwaitingContent.ShouldBe(
         [
@@ -57,12 +57,43 @@ public sealed partial class RealDataSetTests
 
             // 26 §2 — one live-ops event package. content/liveops_events/*.json is authored by M11.
             "schema/event.schema.json",
-
-            // 18 §1 — the EffectDefinition vocabulary (M2-01). Not a content type: an effect is
-            // always embedded in the thing that owns it, so no data file pairs with this one.
-            // ContentLoader.SchemasAwaitingContent carries the full reasoning and the caveat.
-            "schema/effect.schema.json",
         ]);
+    }
+
+    /// <summary>
+    /// 🔒 The second, separate exemption: a schema that describes a SHAPE rather than a file, and
+    /// therefore governs nothing permanently rather than temporarily.
+    /// </summary>
+    /// <remarks>
+    /// Pinned as its own list because the two claims are different and only one of them expires.
+    /// Adding an entry here is a decision that a schema will never govern a file — which is a much
+    /// stronger statement than "its content has not been authored yet", and one that deserves to be
+    /// made somewhere a reviewer will see it.
+    /// </remarks>
+    [Fact]
+    public void The_only_schema_that_describes_a_shape_rather_than_a_file_is_the_effect_vocabulary()
+    {
+        ContentLoader.VocabularySchemas.ShouldBe(["schema/effect.schema.json"]);
+
+        ContentLoader.VocabularySchemas.ShouldNotContain(
+            s => ContentLoader.SchemasAwaitingContent.Contains(s, StringComparer.Ordinal),
+            "the two lists make opposite claims; ContentLoader.Pair reports a schema in both");
+    }
+
+    /// <summary>
+    /// 🔒 A vocabulary schema that starts governing a data file fails the build, the same way an
+    /// awaiting-content one does when its content lands. Different message, because it means
+    /// something different: the file is misnamed, or the schema has quietly become a content type.
+    /// </summary>
+    [Fact]
+    public void A_vocabulary_schema_that_starts_governing_a_file_fails_the_build()
+    {
+        var source = RepoData.Source().Set("effect.json", """
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1 }
+        """);
+
+        ContentLoader.Load(source).Issues.ShouldContain(i =>
+            i.Code == ContentIssueCode.OrphanSchema && i.Location == "schema/effect.schema.json");
     }
 
     /// <summary>

@@ -22,9 +22,9 @@ public static class StatIds
     /// Every stat named explicitly rather than <c>stat &lt;= StatId.THORNS</c>: the wire values are
     /// append-only and a future non-combat stat could not be given a number below THORNS, but a
     /// comparison would still be a rule that depends on numbering rather than on membership, and it
-    /// would go quietly wrong. <c>StatIdsTests.Every_stat_is_classified_combat_or_non_combat</c>
-    /// enumerates the enum, so a 27th stat with no arm here is a red test rather than a throw in a
-    /// battle.
+    /// would go quietly wrong.
+    /// <c>StatSelectorTests.Every_stat_is_classified_combat_or_non_combat</c> enumerates the enum,
+    /// so a 27th stat with no arm here is a red test rather than a throw in a battle.
     /// </remarks>
     public static bool IsCombat(StatId stat) => stat switch
     {

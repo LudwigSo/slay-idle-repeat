@@ -311,7 +311,7 @@
 
   "$defs": {
     "effectId": {
-      "description": "🔒 18 §8 — the authored, repository-unique effect id. Effect-id order is the ascending LEXICOGRAPHIC order of these, not draft order, and it is what removes the last source of order-dependence between client and server; 05 §3.1 keys on it in five places. Never derived, never defaulted, never positional. Uniqueness is 14 §6's duplicate-id failure class, not a second mechanism here.",
+      "description": "🔒 18 §8 — the authored, repository-unique effect id. Effect-id order is the ascending LEXICOGRAPHIC order of these, not draft order, and it is what removes the last source of order-dependence between client and server; 05 §3.1 keys on it in five places. Never derived, never defaulted, never positional. Uniqueness is 14 §6's duplicate-id failure class, not a second mechanism here. ⚠️ THE PATTERN IS AN INFERENCE, recorded as one: 18 writes no effect id anywhere, so no format is authored. This is the uppercase-snake shape every other id in the content set uses (PK_*, CP_*, BOSS_*, TILE_*, SYS_ENRAGE) and the same pattern chapter.schema.json applies to enemy-pool keys; it constrains shape only and asserts nothing about prefixes.",
       "type": "string",
       "minLength": 1,
       "pattern": "^[A-Z][A-Z0-9_]*$"
@@ -533,7 +533,7 @@
           "description": "18 §4 — {\"fn\": …, \"op\": …, \"value\": …}. The three optional argument keys are what 18 §4's table means by 'optionally by category', 'by status id' and 'by face kind'; 18 writes no worked example carrying one, so the key NAMES are reused from the ones 18 §2 and §3 already authorise for the same three things rather than invented.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["fn", "op"],
+          "required": ["fn", "op", "value"],
           "properties": {
             "fn": { "$ref": "#/$defs/conditionFunction" },
             "op": { "$ref": "#/$defs/comparator" },
@@ -599,7 +599,7 @@
       "oneOf": [
         {
           "title": "18 §3 — no parameters",
-          "description": "ALWAYS is the passive form. The last four are run-layer boundaries the run controller fires.",
+          "description": "ALWAYS is the passive form. The last three are run-layer boundaries the run controller fires; ON_HEAL, in the middle of the list, is a combat trigger.",
           "type": "object",
           "additionalProperties": false,
           "required": ["kind"],

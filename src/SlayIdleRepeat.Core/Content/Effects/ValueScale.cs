@@ -24,10 +24,23 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// evaluates §4 is M2-05's, not M2-01's. What lives here is the arithmetic, stated once so that
 /// sixteen call sites cannot each round it differently.
 /// </para>
+/// <para>
+/// ⚠️ <b>A public calculator in <c>Content</c>, stated as an exemption rather than left implicit.</b>
+/// `30` §11.2 rules calculators <c>internal</c> and under <c>Rules</c>, with two named public
+/// exceptions each carrying a documented external consumer. <see cref="StepsFor"/> and
+/// <see cref="EffectiveValue"/> are a third, on the same terms: the named consumers are M2-02's
+/// resolver, M2-05's condition evaluator and the balance harness (`05` §9), which runs against
+/// synthetic stat blocks and loads no aggregate. The alternative — the formula restated in each —
+/// is the duplication `18` §8 exists to prevent, and the rounding order below is precisely the
+/// detail three independent restatements would get differently. This is <b>not</b> a precedent for
+/// putting behaviour in <c>Content</c>: it is two pure functions of this record's own fields, and
+/// nothing here reads state, holds state or resolves anything.
+/// </para>
 /// </remarks>
 public sealed record ValueScale
 {
     private readonly double _per;
+    private readonly int? _cap;
 
     /// <summary>
     /// Which of `18` §4's condition functions supplies the state reading.
@@ -52,13 +65,36 @@ public sealed record ValueScale
     }
 
     /// <summary>The maximum number of steps; <c>null</c> is uncapped.</summary>
-    public int? Cap { get; init; }
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Negative. <c>game-data/schema/effect.schema.json</c> declares <c>cap</c> with
+    /// <c>"minimum": 0</c>, and a negative cap does not weaken an effect — it inverts it, clamping
+    /// every reading to a negative step count and flipping the sign of the whole effect. The two
+    /// statements of the bound have to agree, or a scale built in code (the balance harness, a
+    /// test) can reach a state no authored JSON can.
+    /// </exception>
+    public int? Cap
+    {
+        get => _cap;
+        init => _cap = value is null or >= 0
+            ? value
+            : throw new ArgumentOutOfRangeException(
+                nameof(Cap), value,
+                "18 §1.1: 'cap' is a maximum number of steps. Negative is not 'no cap' — null is. " +
+                "A negative cap inverts every effect it governs.");
+    }
 
     /// <summary>
     /// `18` §1.1's <c>steps = min( floor( fn / per ), cap )</c>, with <paramref name="functionValue"/>
     /// rounded to 4 decimal places before the division.
     /// </summary>
     /// <param name="functionValue">The value <see cref="Fn"/> read from current state.</param>
+    /// <returns>
+    /// The step count, which may be <b>negative</b> for a negative reading. `18` §1.1's formula
+    /// clamps from above only — <c>min(…, cap)</c> — and states no lower bound, so none is imposed
+    /// here (`16` R6: a bound the design has not authorised is not one to invent). Every §4 function
+    /// that drives a documented scale is non-negative by construction; a negative reading reaching
+    /// this method means the function is wrong, and a silent clamp to zero would hide that.
+    /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="functionValue"/> is NaN or infinite, or the step count does not fit in an
     /// <see cref="int"/>. Both would otherwise become a silently wrong multiplier.
@@ -75,7 +111,10 @@ public sealed record ValueScale
         // 🔒 Round the READING, then divide. See the remarks above for why the order is load-bearing.
         var steps = Math.Floor(Math.Round(functionValue, 4) / _per);
 
-        if (Cap is { } cap && steps > cap)
+        // 🔒 The cap is applied BEFORE the range check, not after. A capped scale over an enormous
+        // reading is well defined — `min(…, cap)` is the cap — and throwing there would turn
+        // PK_BERSERK into a runtime failure at a reading it is explicitly designed to survive.
+        if (_cap is { } cap && steps > cap)
         {
             steps = cap;
         }
@@ -86,8 +125,8 @@ public sealed record ValueScale
                 nameof(functionValue), functionValue,
                 $"18 §1.1: floor({Fn} / {_per.ToString(System.Globalization.CultureInfo.InvariantCulture)}) " +
                 $"is {steps.ToString(System.Globalization.CultureInfo.InvariantCulture)}, which is not a step count. " +
-                "Either 'per' is far too small for this function's range or the reading is wrong; " +
-                "an uncapped valueScale over an unbounded function needs a cap.");
+                "Either 'per' is far too small for this function's range, or the reading is wrong. " +
+                "A cap bounds this from above only, so it is no help to a reading this far below zero.");
         }
 
         return (int)steps;
@@ -99,6 +138,18 @@ public sealed record ValueScale
     /// </summary>
     /// <param name="value">The effect's authored <c>value</c>.</param>
     /// <param name="functionValue">The value <see cref="Fn"/> read from current state.</param>
+    /// <remarks>
+    /// 🔒 <b>The trailing <c>+ 0.0</c> is not redundant.</b> A negative authored <c>value</c> — `18`
+    /// §7.10's Bog Air is <c>-0.35</c>, and every §7.5-style drawback is negative — multiplied by
+    /// <b>zero steps</b> gives <c>-0.0</c>, and <c>Math.Round(-0.0, 4)</c> preserves the sign.
+    /// <c>CanonicalStateWriter</c> <em>throws</em> on a negative zero rather than encoding one,
+    /// because <c>-0.0</c> and <c>0.0</c> have different bit patterns and would produce two
+    /// <c>stateHash</c>es for one state; its own comment names the fix and names the owner —
+    /// <em>"normalise at the accumulation point — <c>x + 0.0</c> is +0.0 — rather than letting the
+    /// writer edit state on its way out."</em> This is that accumulation point (`18` §8 step 10).
+    /// Zero steps is not an edge case: it is the reading at full HP, at zero gold, and under a cap
+    /// of zero.
+    /// </remarks>
     public double EffectiveValue(double value, double functionValue) =>
-        Math.Round(value * StepsFor(functionValue), 4);
+        Math.Round(value * StepsFor(functionValue), 4) + 0.0;
 }

@@ -38,9 +38,33 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// than a field that silently means nothing.
 /// </para>
 /// <para>
+/// ⚠️ <b>The schema is the only enforcement of which keys go with which op.</b> This record admits
+/// combinations the schema rejects — <see cref="Stat"/> is nullable although every <c>STAT_*</c>
+/// branch requires it, and <see cref="StatSelector.AllCombat"/> is assignable to
+/// <see cref="EffectOp.STAT_SET"/>. That is deliberate (the partition is stated once, not twice),
+/// and it has a consequence worth stating: anything that builds an effect <em>in code</em> rather
+/// than loading authored JSON — the balance harness (`05` §9), a test, <c>InMemoryGame</c> — is
+/// outside that enforcement, and is responsible for building shapes the schema would accept.
+/// </para>
+/// <para>
 /// 🔒 Nothing here resolves, fires, evaluates or stacks. M2-02 (resolution order), M2-03 (op
 /// behaviour), M2-04 (trigger firing), M2-05 (condition evaluation) and M2-06 (duration and
-/// stacking) all key on this vocabulary; M2-01 is the vocabulary alone.
+/// stacking) all key on this vocabulary; M2-01 is the vocabulary alone. The <b>interpreter</b> they
+/// build belongs under <c>SlayIdleRepeat.Core.Rules.Effects</c> and is <c>internal</c> there
+/// (`30` §11.2/§11.4); the vocabulary is here, in <c>Content</c>, because `30` §11.4 puts <em>"every
+/// definition type"</em> in <c>Content</c> and forbids <c>Content</c> from naming <c>Rules</c> — so
+/// the perk, pet, curse and boss definitions M2-07 and M3 author could not reach an
+/// <c>EffectDefinition</c> that lived under <c>Rules</c>.
+/// </para>
+/// <para>
+/// ⚠️ <b>Flagged for a doc fix</b>, in the house style of <c>game-data/README.md</c>'s count-
+/// discrepancy box: `18` §5 and §10 step 2 name <c>SlayIdleRepeat.Core/Effects</c> and
+/// <c>SlayIdleRepeat.Core/Effects/Ops</c>, and `14` §4's tree shows the same flat directory. Neither
+/// exists, and neither can: `30` §11.4 — the tree the architecture tests are written against —
+/// places <c>Effects/</c> under <c>Rules/</c>, and <c>Domain.PermittedCoreNamespaces</c> is a closed
+/// list. `18` §10 is the procedure a future author follows to extend the DSL, so its path is the
+/// costly one: the two real homes are <b>this namespace</b> for the vocabulary and
+/// <c>Core/Rules/Effects/</c> for the resolver.
 /// </para>
 /// </remarks>
 public sealed record EffectDefinition

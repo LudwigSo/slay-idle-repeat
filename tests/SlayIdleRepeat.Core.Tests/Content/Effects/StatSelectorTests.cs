@@ -107,13 +107,31 @@ public sealed class StatSelectorTests
         (doubled with { Value = 1.6 }).Value.ShouldBe(1.6);
     }
 
+    /// <summary>
+    /// The classification, stated against `18` §2.1's two literal lists rather than against
+    /// <c>StatIds.All</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <c>Combat.Concat(NonCombat) == All</c> would be a tautology: both are defined as
+    /// <c>All.Where(IsCombat)</c> and its complement, so the identity holds however
+    /// <see cref="StatIds.IsCombat"/> answers. Only naming the twelve non-combat stats can catch a
+    /// stat that moved sides — which matters because <c>ALL_COMBAT</c> selects exactly the other
+    /// fourteen, so one stat crossing over silently changes what <c>CP_GLASS_HEART</c> doubles.
+    /// </remarks>
     [Fact]
     public void Every_stat_is_classified_combat_or_non_combat()
     {
-        var all = StatIds.All;
+        StatIds.All.Count.ShouldBe(26);
 
-        all.Count.ShouldBe(26);
-        StatIds.Combat.Concat(StatIds.NonCombat).OrderBy(s => (int)s).ShouldBe(all.OrderBy(s => (int)s));
+        StatIds.NonCombat.ShouldBe(
+        [
+            StatId.GOLD_PCT, StatId.CROWNS_PCT, StatId.DROP_CHANCE, StatId.RARITY_SHIFT,
+            StatId.ENERGY_REGEN_PCT, StatId.PET_AURA_PCT, StatId.REROLL_CHARGES,
+            StatId.TILE_PREVIEW, StatId.SHOP_PRICE_PCT, StatId.XP_PCT,
+            StatId.BEAST_FEED_PCT, StatId.STONE_PCT,
+        ]);
+
+        StatIds.Combat.ShouldBe(StatSelector.AllCombat.Expand(), "ALL_COMBAT selects exactly these");
         StatIds.Combat.ShouldNotContain(s => StatIds.NonCombat.Contains(s));
     }
 

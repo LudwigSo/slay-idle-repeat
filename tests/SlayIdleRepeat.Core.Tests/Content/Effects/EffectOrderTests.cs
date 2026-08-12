@@ -99,11 +99,25 @@ public sealed class EffectOrderTests
         effects.Select(e => e.Id).ShouldBe(["PKA", "PK_A"]);
     }
 
+    /// <summary>
+    /// 🔒 Including <c>Compare(null, null)</c>. A reference-equality fast path ahead of the guard
+    /// would answer <c>0</c> for the one pair where "a null effect has no id to order by" is most
+    /// true, so a half-null collection would be rejected while an all-null one sorted happily.
+    /// </summary>
     [Fact]
     public void The_effect_comparer_refuses_a_null_effect_rather_than_sorting_it_to_an_end()
     {
         Should.Throw<ArgumentNullException>(() => EffectOrder.ById.Compare(null, Effect("PKA")));
         Should.Throw<ArgumentNullException>(() => EffectOrder.ById.Compare(Effect("PKA"), null));
+        Should.Throw<ArgumentNullException>(() => EffectOrder.ById.Compare(null, null));
+    }
+
+    [Fact]
+    public void The_effect_comparer_answers_zero_for_the_same_instance()
+    {
+        var effect = Effect("PK_A");
+
+        EffectOrder.ById.Compare(effect, effect).ShouldBe(0);
     }
 
     [Fact]

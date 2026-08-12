@@ -340,6 +340,170 @@ public sealed class EffectSchemaTests
               "trigger": {"kind":"PERIODIC","interval":15.0} }
             """
         },
+
+        // ---- the effects inside 18's MULTI-effect snippets, which the entries above only
+        // ---- represent by their first element. Several carry a shape nothing else exercises.
+        {
+            "18 §7.1 — PK_SHARP_EDGE, the simplest effect in the document",
+            """
+            { "id": "PK_SHARP_EDGE_T1", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.12,
+              "trigger": {"kind":"ALWAYS"}, "target": "SELF" }
+            """
+        },
+        {
+            "18 §7.4 — PK_UNBREAKABLE's second effect: a SELF_MAXHP_PCT shield on ON_LETHAL once",
+            """
+            { "id": "PK_UNBREAKABLE_T1_WARD", "op": "SHIELD", "value": 0.25,
+              "valueMode": "SELF_MAXHP_PCT", "trigger": {"kind":"ON_LETHAL","once":true},
+              "target": "SELF" }
+            """
+        },
+        {
+            "18 §7.5 — CP_BLOOD_PRICE's benefit, an ALWAYS effect with no target",
+            """
+            { "id": "CP_BLOOD_PRICE_ATK", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.45,
+              "trigger": {"kind":"ALWAYS"} }
+            """
+        },
+        {
+            "18 §7.6 — Avatar of War's STAT_MULT, no target",
+            """
+            { "id": "TAL_AVATAR_OF_WAR_ATK", "op": "STAT_MULT", "stat": "ATK", "value": 1.20,
+              "trigger": {"kind":"ALWAYS"} }
+            """
+        },
+        {
+            "18 §7.7 — PET_STORMFANG's aura",
+            """
+            { "id": "PET_STORMFANG_AURA_ASPD", "op": "STAT_ADD_PCT", "stat": "ASPD", "value": 0.06,
+              "trigger": {"kind":"ALWAYS"} }
+            """
+        },
+        {
+            "18 §7.7 — PET_STORMFANG's active damage: no trigger, no valueMode",
+            """
+            { "id": "PET_STORMFANG_ACTIVE_DAMAGE", "op": "DAMAGE", "value": 2.0,
+              "target": "ALL_ENEMIES" }
+            """
+        },
+        {
+            "18 §7.8 — Thornmaw's phase-3 entry summon",
+            """
+            { "id": "BOSS_THORNMAW_P3_SWARM_ENTRY", "op": "SUMMON", "archetype": "SWARM", "value": 2,
+              "trigger": {"kind":"ON_PHASE_ENTER","phase":3} }
+            """
+        },
+        {
+            "18 §7.8 — Thornmaw's phase-3 RAGE, a 999-second BATTLE duration",
+            """
+            { "id": "BOSS_THORNMAW_P3_RAGE", "op": "APPLY_STATUS", "statusId": "RAGE", "value": 0.30,
+              "duration": {"seconds":999,"scope":"BATTLE"},
+              "trigger": {"kind":"ON_PHASE_ENTER","phase":3}, "target": "SELF" }
+            """
+        },
+        {
+            "18 §7.10 — Ossify's ward, the first of the pair",
+            """
+            { "id": "BOSS_OSSUARY_KING_OSSIFY_WARD", "op": "SHIELD", "value": 0.20,
+              "valueMode": "SELF_MAXHP_PCT", "trigger": {"kind":"PERIODIC","interval":14.0},
+              "target": "SELF" }
+            """
+        },
+
+        // ---- shapes the schema declares that no 18 example happens to write. Each was
+        // ---- unexercised until this block, so a typo in it validated nothing and broke nobody.
+        {
+            "18 §4 — the worked 'all' combinator, the only combinator 18 writes outside §7.10",
+            """
+            { "id": "PK_LAST_STAND", "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.20,
+              "trigger": {"kind":"ALWAYS"}, "target": "SELF",
+              "condition": { "all": [
+                  { "fn": "SELF_HP_PCT", "op": "gte", "value": 1.0 },
+                  { "fn": "ENEMY_COUNT",  "op": "eq",  "value": 1 } ] } }
+            """
+        },
+        {
+            "18 §4 — the 'not' combinator, and IS_PVP as the gate 18 §9.3 describes",
+            """
+            { "id": "GEAR_AFFIX_GOLD_GAIN", "op": "STAT_ADD_PCT", "stat": "GOLD_PCT", "value": 0.10,
+              "trigger": {"kind":"ALWAYS"}, "target": "SELF",
+              "condition": { "not": { "fn": "IS_PVP", "op": "eq", "value": true } } }
+            """
+        },
+        {
+            "18 §4 — 'between', whose two-element form is an assumption this pins",
+            """
+            { "id": "PK_MIDGAME", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.10,
+              "trigger": {"kind":"ALWAYS"},
+              "condition": { "fn": "BATTLE_TIME", "op": "between", "value": [10, 40] } }
+            """
+        },
+        {
+            "18 §4 — a condition argument key: STATUS_STACKS by status id, nested under 'any'",
+            """
+            { "id": "PK_PLAGUEBEARER", "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.15,
+              "trigger": {"kind":"ALWAYS"},
+              "condition": { "any": [
+                  { "fn": "STATUS_STACKS", "op": "gte", "value": 3, "statusId": "POISON" },
+                  { "fn": "HAS_STATUS", "op": "eq", "value": true, "statusId": "BLEED" } ] } }
+            """
+        },
+        {
+            "18 §4 — DIE_FACE_COUNT by face kind, and PERK_COUNT by category",
+            """
+            { "id": "PK_STARGAZER", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.05,
+              "trigger": {"kind":"ALWAYS"},
+              "condition": { "all": [
+                  { "fn": "DIE_FACE_COUNT", "op": "gte", "value": 2, "faceKind": "Star" },
+                  { "fn": "PERK_COUNT", "op": "gte", "value": 3, "category": "OFFENSE" } ] } }
+            """
+        },
+        {
+            "18 §7.9 — the numbered faceIndex form (Weighted Faces), 1-based over 04 §1's six faces",
+            """
+            { "id": "TILE_WEIGHTED_FACES", "op": "MODIFY_DIE_FACE", "faceIndex": 6,
+              "newFace": {"kind":"Star"}, "duration": {"scope":"RUN"},
+              "trigger": {"kind":"ON_TILE_RESOLVED","tileType":"TILE_DICE_FORGE"} }
+            """
+        },
+        {
+            "18 §6 — the stacking block with refreshOnReapply, which no §7 example writes",
+            """
+            { "id": "PK_MOMENTUM", "op": "STAT_ADD_PCT", "stat": "ASPD", "value": 0.04,
+              "trigger": {"kind":"ON_KILL","everyNth":1}, "target": "SELF",
+              "duration": {"seconds":4.0,"scope":"BATTLE"},
+              "stacking": {"mode":"ADDITIVE","maxStacks":5,"refreshOnReapply":true} }
+            """
+        },
+        {
+            "18 §9.1 — an explicit null trigger, the form the type branch admits",
+            """
+            { "id": "CP_GLASS_HEART_MULT_EXPLICIT", "op": "STAT_MULT", "stat": "ALL_COMBAT",
+              "value": 2.0, "trigger": null }
+            """
+        },
+        {
+            "17 §6 — Rimehold's Core, a state flag rather than a second actor",
+            """
+            { "id": "BOSS_RIMEHOLD_CORE_VULNERABLE", "op": "DAMAGE_TAKEN_MULT", "value": 1.6,
+              "trigger": {"kind":"ON_PHASE_ENTER","phase":2}, "target": "SELF",
+              "duration": {"scope":"PHASE"} }
+            """
+        },
+        {
+            "17 §4 — the Ossuary King's Rise Again, despawning its own summons",
+            """
+            { "id": "BOSS_OSSUARY_KING_CLEAR_SUMMONS", "op": "CLEAR_SUMMONS",
+              "trigger": {"kind":"ON_PHASE_ENTER","phase":3}, "target": "SELF" }
+            """
+        },
+        {
+            "18 §5 — OWNER, the target that skips on a non-summon (Sporequeen's sporelings)",
+            """
+            { "id": "BOSS_SPOREQUEEN_SPORELING_DEATH_HEAL", "op": "HEAL", "value": 0.02,
+              "valueMode": "SELF_MAXHP_PCT", "trigger": {"kind":"ON_DEATH"}, "target": "OWNER" }
+            """
+        },
     };
 
     // ---------------------------------------------------------------- 18 §10's three failure classes
@@ -493,28 +657,151 @@ public sealed class EffectSchemaTests
     [InlineData("\"\"")]
     public void An_id_that_breaks_the_shape_convention_is_rejected(string id)
     {
+        Validate("""
+        { "id": "PK_FINE", "op": "EXTRA_ATTACK", "value": 1 }
+        """).ShouldBeEmpty("the control: the same effect with a conventional id is valid");
+
         Validate($$"""
         { "id": {{id}}, "op": "EXTRA_ATTACK", "value": 1 }
-        """).ShouldNotBeEmpty();
+        """).ShouldNotBeEmpty($"{id} is the only edit");
     }
 
-    /// <summary>`18` §1.1 — <c>per</c> is the divisor, so the schema refuses zero as the record does.</summary>
-    [Fact]
-    public void A_value_scale_with_a_per_of_zero_is_rejected()
+    /// <summary>
+    /// `18` §1.1 — <c>per</c> is the divisor and <c>cap</c> a maximum, so the schema refuses a
+    /// non-positive <c>per</c> and a negative <c>cap</c> exactly as <see cref="ValueScale"/> does.
+    /// Each row differs from the control in one token.
+    /// </summary>
+    [Theory]
+    [InlineData("\"fn\": \"GOLD_HELD\", \"per\": 0, \"cap\": 1")]
+    [InlineData("\"fn\": \"GOLD_HELD\", \"per\": -100, \"cap\": 1")]
+    [InlineData("\"fn\": \"MOON_PHASE\", \"per\": 100, \"cap\": 1")]
+    [InlineData("\"fn\": \"GOLD_HELD\", \"per\": 100, \"cap\": -1")]
+    [InlineData("\"fn\": \"GOLD_HELD\", \"cap\": 1")]
+    public void A_malformed_value_scale_is_rejected(string brokenScale)
     {
         Validate("""
-        { "id": "PK_BAD_SCALE", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.01,
-          "valueScale": { "fn": "GOLD_HELD", "per": 0 } }
-        """).ShouldNotBeEmpty();
+        { "id": "PK_HOARD", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.01,
+          "valueScale": { "fn": "GOLD_HELD", "per": 100, "cap": 1 } }
+        """).ShouldBeEmpty("the control: 18 §1.1's own PK_HOARD shape, capped");
+
+        Validate($$"""
+        { "id": "PK_HOARD", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.01,
+          "valueScale": { {{brokenScale}} } }
+        """).ShouldNotBeEmpty($"one token differs from the control: {brokenScale}");
     }
 
+    /// <summary>
+    /// `18` §4's comparison is <c>{"fn": …, "op": …, "value": …}</c> — all three. A comparison with
+    /// no operand compares the function against nothing and would gate on whatever the evaluator
+    /// decided an absent value meant.
+    /// </summary>
     [Fact]
-    public void A_value_scale_over_something_that_is_not_a_condition_function_is_rejected()
+    public void A_comparison_with_no_value_to_compare_against_is_rejected()
     {
         Validate("""
-        { "id": "PK_BAD_SCALE", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.01,
-          "valueScale": { "fn": "MOON_PHASE", "per": 1 } }
-        """).ShouldNotBeEmpty();
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1,
+          "condition": { "fn": "SELF_HP_PCT", "op": "lt", "value": 0.3 } }
+        """).ShouldBeEmpty("the control: the same condition with its operand is valid");
+
+        Validate("""
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1,
+          "condition": { "fn": "SELF_HP_PCT", "op": "lt" } }
+        """).ShouldNotBeEmpty("the operand is the only edit");
+    }
+
+    /// <summary>`04` §1 gives the die six faces; the schema and <see cref="DieFaceIndex"/> agree on the bound.</summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("7")]
+    [InlineData("\"RANDOM\"")]
+    public void A_face_index_outside_the_die_is_rejected(string faceIndex)
+    {
+        Validate("""
+        { "id": "TILE_WEIGHTED_FACES", "op": "MODIFY_DIE_FACE", "faceIndex": 6,
+          "newFace": {"kind":"Star"} }
+        """).ShouldBeEmpty("the control: face 6 is on the die");
+
+        Validate($$"""
+        { "id": "TILE_WEIGHTED_FACES", "op": "MODIFY_DIE_FACE", "faceIndex": {{faceIndex}},
+          "newFace": {"kind":"Star"} }
+        """).ShouldNotBeEmpty($"faceIndex {faceIndex} is the only edit");
+    }
+
+    /// <summary>
+    /// The bounds `04` §1 fixes are stated in three places — the schema's <c>faceIndex</c>, the
+    /// schema's <c>dieFace.value</c> and <see cref="DieFaceIndex"/>'s constants. Nothing but this
+    /// makes them agree.
+    /// </summary>
+    [Fact]
+    public void The_die_face_bounds_agree_between_the_schema_and_the_record()
+    {
+        Bound("faceIndex", "oneOf", 1).ShouldBe((DieFaceIndex.MinFace, DieFaceIndex.MaxFace));
+        Bound("dieFace", "properties", "value").ShouldBe((DieFaceIndex.MinFace, DieFaceIndex.MaxFace));
+    }
+
+    /// <summary>
+    /// The two single-token enums the schema and the C# both restate. Small sets, but a divergence
+    /// in one of them is a token nobody can author against a record that still declares it.
+    /// </summary>
+    [Fact]
+    public void The_single_token_enums_agree_between_the_schema_and_the_C_sharp()
+    {
+        Members("capKind").ShouldBe(Enum.GetNames<StatCapKind>());
+
+        Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
+        var dieFaceBranch = branches!.Items.Single(b =>
+        {
+            b.TryGetMember("properties", out var p);
+            p!.TryGetMember("op", out var op);
+            return op!.TryGetMember("const", out var c) && c!.AsText() == nameof(EffectOp.MODIFY_DIE_FACE);
+        });
+
+        dieFaceBranch.TryGetMember("properties", out var properties).ShouldBeTrue();
+        properties!.TryGetMember("scope", out var scope).ShouldBeTrue();
+        scope!.TryGetMember("enum", out var members).ShouldBeTrue();
+
+        members!.Items.Select(i => i.AsText()).ShouldBe(Enum.GetNames<DieFaceScope>());
+    }
+
+    /// <summary>
+    /// 🔒 The guard under <c>ContentLoader.VocabularySchemas</c> — the one exemption in the repo with
+    /// no mechanical expiry of its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>effect.schema.json</c> governs no file and never will, so the stale-exemption check that
+    /// protects <c>SchemasAwaitingContent</c> cannot fire for it. What can go wrong instead is
+    /// concrete and near: <see cref="JsonSchemaValidator"/> resolves same-document pointers only, so
+    /// the perk, pet, mount, curse and boss schemas M2-07 and M3 author cannot <c>$ref</c> this
+    /// file — the tempting alternative is to paste the 43-op enum, the thirteen-way trigger
+    /// partition and the recursive condition tree into each of them, at which point five copies
+    /// drift and `18` §10's "add the op to the JSON schema" becomes ambiguous about which.
+    /// </para>
+    /// <para>
+    /// This fails on the commit that does it, which is what S4 asks of a declared exception. The fix
+    /// at that point is a generator or a deliberate decision recorded here — not a quiet fifth copy.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void No_other_schema_restates_the_effect_vocabulary()
+    {
+        var offenders = RepoData.Documents
+            .Where(d => d.Key.StartsWith("schema/", StringComparison.Ordinal))
+            .Where(d => !d.Key.Equals(SchemaPath, StringComparison.Ordinal))
+            .Where(d => Enum.GetNames<EffectOp>().Count(op => d.Value.Contains($"\"{op}\"", StringComparison.Ordinal)) >= 3)
+            .Select(d => d.Key)
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .ToArray();
+
+        offenders.ShouldBeEmpty(
+            "a second schema now enumerates the 18 §2 op vocabulary. Two copies of a 43-member " +
+            "closed set drift, and 18 §10's 'add the op to the JSON schema' stops naming one file. " +
+            "Extract it or record the duplication deliberately in ContentLoader.VocabularySchemas.");
+
+        // S3 — the floor. The filter above is a substring scan over the schema set; if that set
+        // were empty or unreadable it would report success over nothing.
+        RepoData.Documents.Count(d => d.Key.StartsWith("schema/", StringComparison.Ordinal))
+            .ShouldBeGreaterThanOrEqualTo(20, "19 schemas from M0-10 plus effect.schema.json");
     }
 
     // ---------------------------------------------------------------- helpers
@@ -535,6 +822,34 @@ public sealed class EffectSchemaTests
             .ShouldBeTrue($"schema/effect.schema.json must parse: {string.Join("; ", issues.Select(i => i.Message))}");
 
         return schema!;
+    }
+
+    /// <summary>The <c>minimum</c>/<c>maximum</c> pair at a <c>$defs</c> path, for the bound checks.</summary>
+    /// <remarks>
+    /// A numeric path segment indexes into a <c>oneOf</c>, so <c>faceIndex/oneOf/1</c> reaches the
+    /// integer branch of `18` §7.9's two forms.
+    /// </remarks>
+    private static (int Minimum, int Maximum) Bound(string definition, params object[] path)
+    {
+        Schema.TryGetMember("$defs", out var defs).ShouldBeTrue();
+        defs!.TryGetMember(definition, out var node).ShouldBeTrue();
+
+        foreach (var segment in path)
+        {
+            if (segment is int index)
+            {
+                node = node!.Items[index];
+                continue;
+            }
+
+            node!.TryGetMember((string)segment, out var next).ShouldBeTrue($"$defs/{definition} has no '{segment}'");
+            node = next!;
+        }
+
+        node!.TryGetMember("minimum", out var minimum).ShouldBeTrue();
+        node.TryGetMember("maximum", out var maximum).ShouldBeTrue();
+
+        return (minimum!.AsInt32(), maximum!.AsInt32());
     }
 
     /// <summary>The ordinal-sorted members of an <c>enum</c> keyword under <c>$defs</c>.</summary>
