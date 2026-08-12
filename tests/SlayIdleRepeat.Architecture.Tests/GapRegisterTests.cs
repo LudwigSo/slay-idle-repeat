@@ -376,12 +376,36 @@ public sealed class GapRegisterTests
             .Select(m => (Wire: m.Groups["wire"].Value, Owner: m.Groups["owner"].Value))
             .ToArray();
 
+        // 🔒 M1-09 lowered the deferred floor from 49 to 48 by exactly the one row that became
+        // Handled — BEGIN_SESSION — and added the Handled floor beside it rather than only editing
+        // the number. That is the difference between "48 rows are deferred" and "48 are deferred AND
+        // the 49th is handled": the sentence this replaces would have been satisfied just as well by
+        // a row that was DELETED, which is the failure 14 §2.3's registry ("a command not listed here
+        // does not exist") most needs a rule to notice. The two are asserted, and then their sum.
+        var handled = Regex.Matches(dispatch, @"\.Handled<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), (?<handler>[\w.]+)\)")
+            .Select(m => m.Groups["wire"].Value)
+            .ToArray();
+
         owners.Length.ShouldBe(
+            48,
+            "14 §2.3's registry is 19 run + 30 meta, and 48 of the 49 rows are Deferred since M1-09 " +
+            "landed the BEGIN_SESSION handler. If this is 0 the pattern has stopped matching the " +
+            "dispatch table and the comparison below holds over nothing; if it shrinks, either a row " +
+            "went away or a row became Handled — in which case lower this by exactly that many and " +
+            "raise the Handled floor by the same.");
+
+        handled.ShouldBe(
+            new[] { "BEGIN_SESSION" },
+            ignoreOrder: true,
+            "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
+            "satisfied by whatever handler replaced the one this names. 30 §2.3's BEGIN_SESSION is " +
+            "the first and, on this commit, the only one.");
+
+        (owners.Length + handled.Length).ShouldBe(
             49,
-            "14 §2.3's registry is 19 run + 30 meta and every row is Deferred today. If this is 0 the " +
-            "pattern has stopped matching the dispatch table and the comparison below holds over " +
-            "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
-            "lower this by exactly that many.");
+            "…and the sum, because the two floors above are separately satisfiable while a row goes " +
+            "missing entirely. 14 §2.3 says the registry is EXHAUSTIVE — 'a command not listed here " +
+            "does not exist' — so 49 is the number the table has, whatever the split.");
 
         var tracker = File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 

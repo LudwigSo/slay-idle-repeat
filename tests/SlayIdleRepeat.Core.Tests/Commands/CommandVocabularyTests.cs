@@ -401,11 +401,25 @@ public sealed class CommandVocabularyTests
             deferred++;
         }
 
+        // 🔒 M1-09 lowered this from 49 to 48 by exactly the one row that became Handled —
+        // BEGIN_SESSION — which is what the sentence this replaces asked for. It is stated as
+        // "the registry minus the handled rows" rather than as the literal 48 so the next task to
+        // land a handler lowers it by construction, and so the number can never drift below what the
+        // loop can reach: an equality against a computed total fails in BOTH directions, where a
+        // hand-lowered literal only fails when the count goes up.
         deferred.ShouldBe(
-            49,
-            "every row of 14 §2.3 is deferred on this commit, so all 49 are driven here. When M1-09 " +
-            "lands the BEGIN_SESSION handler this becomes 48 — lower it by exactly the number of rows " +
-            "that became Handled, and never to a number the loop cannot reach.");
+            Registry.Count(row => !RegistrationFor(row.Key).IsHandled),
+            "every DEFERRED row of 14 §2.3 is driven here — 48 of the 49 since M1-09 landed the " +
+            "BEGIN_SESSION handler. A mismatch means the loop skipped a deferred row rather than that " +
+            "the count moved.");
+
+        deferred.ShouldBe(
+            48,
+            "…and the absolute number, because the assertion above compares the loop against the same " +
+            "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
+            "is 49 rows and exactly one of them — BEGIN_SESSION, 30 §2.3's day cycle — has a handler. " +
+            "Lower this by exactly the number of rows that become Handled, and never to a number the " +
+            "loop cannot reach.");
     }
 
     /// <summary>
@@ -441,12 +455,28 @@ public sealed class CommandVocabularyTests
                 continue;
             }
 
-            SlayIdleRepeat.Core.GameRules
-                .Apply(Worlds.OutsideARun(), command, Worlds.Context)
-                .Rejection
-                .ShouldBe(
+            // 🔒 M1-09. The claim of this arm is "a meta command is SENDABLE outside a run" — it was
+            // spelled as "…and is refused with ILLEGAL_STATE", which was the same sentence only
+            // while every row was deferred. BEGIN_SESSION is handled now, so the two readings have
+            // come apart and the weaker-looking one is the correct one: what must not happen is the
+            // loading defect the run arm above asserts.
+            var result = SlayIdleRepeat.Core.GameRules
+                .Apply(Worlds.OutsideARun(), command, ContextFor(name));
+
+            if (RegistrationFor(name).IsHandled)
+            {
+                result.Accepted.ShouldBeTrue(
+                    $"'{name}' is a handled meta command, so outside a run it runs its handler — " +
+                    "whatever that handler decides is its own suite's business, but reaching it at " +
+                    "all is what this rule is about.");
+            }
+            else
+            {
+                result.Rejection.ShouldBe(
                     RejectionReason.ILLEGAL_STATE,
-                    $"'{name}' is a meta command and must be sendable outside a run.");
+                    $"'{name}' is a deferred meta command: sendable outside a run, and refused for " +
+                    "its missing milestone rather than for a missing run.");
+            }
 
             metaRows++;
         }
@@ -841,6 +871,45 @@ public sealed class CommandVocabularyTests
                          "list is closed and a sub-namespace is not on it.";
         }
     }
+
+    /// <summary>
+    /// 🔒 The <c>GameContext</c> a command of this wire name may legally be applied with — a
+    /// server-issued <c>CommandSeed</c> for the nine ⚄ rows of `14` §2.3, and <c>null</c> for the
+    /// other forty.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>This discharges half of the tripwire <c>CommandSeedPin</c> carries against M1-09.</b> Its
+    /// remarks record that M1-02 wired <c>CommandSeedPin.Violations</c> over the forty-nine wire
+    /// <em>names</em>, and that what was still unasserted was the invariant "where a
+    /// <c>GameContext</c> is actually paired with a command" — because until M1-09 no row had a
+    /// handler, so no pairing was ever consumed. It is consumed here: the sweeps above now apply real
+    /// commands with the context their classification demands, and a ⚄ row handed no seed reaches
+    /// <c>HandlerInput.MetaDraws</c>' defect rather than a silent unseeded draw.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What is still not asserted, named rather than left for the next reader.</b> Nothing in
+    /// <em>production</em> refuses a mispairing: <c>Apply</c> has no ⚄ column on the dispatch row to
+    /// check against, and <c>CommandSeedPin.SeedBearingMetaCommands</c> lives in this test assembly.
+    /// The consequence is one-sided and worth stating — a ⚄ command handed no seed <b>is</b> caught
+    /// (its handler asks for the scope and gets the defect), while a non-drawing command handed a
+    /// seed is silently ignored. Making it symmetric means declaring the ⚄ column on
+    /// <c>CommandRegistration</c>, which is a forty-nine-row edit and the natural companion to
+    /// <b>M5-03</b>'s wire envelope, which needs the same column to route the two endpoints.
+    /// </para>
+    /// <para>
+    /// The seed is a fixed arbitrary constant: these sweeps are about <em>reachability</em>, not
+    /// about what any particular seed draws. The determinism claims are
+    /// <c>MetaDrawScopeTests</c>' and <c>BeginSessionDrawSeamTests</c>'.
+    /// </para>
+    /// </remarks>
+    private static GameContext ContextFor(string wireName) =>
+        CommandSeedPin.SeedBearingMetaCommands.Contains(wireName)
+            ? Worlds.Drawing(SweepSeed)
+            : Worlds.Context;
+
+    /// <summary>The seed the ⚄ rows are swept with. Arbitrary, fixed, and not a claim about a draw.</summary>
+    private const ulong SweepSeed = 0xC0FFEE_1234_5678UL;
 
     /// <summary>
     /// One instance of a command type, built from its declared constructor.

@@ -309,6 +309,14 @@ internal static class GapRegister
         // The arithmetic — what is built, what is ruled off, what is left — is on the Surfaces
         // transcription below, where a reader checking the register against the document will look.
 
+        // 🔒 M1-09 REWROTE BOTH REASONS BELOW, and that is the point of re-reading a register at a
+        // kickoff (S4's known limit). Each entry used to say the redraw "waits for BEGIN_SESSION's
+        // seed (M1-09)" — which now reads as a promise M1-09 kept, when in fact M1-09 built the SEAM
+        // and deferred the DRAWS to the same task that already owned the state. Both entries now
+        // carry BOTH halves, so a reader can tell what exists from what does not without diffing two
+        // milestones. Neither predicate moved: QuestDefinition and ShopOffer are still the types that
+        // must not yet exist, and both are still M4-09's.
+
         new("QuestSlate", "M4-09", "QuestDefinition",
             "30 §2.3 makes QUEST EXPIRY one of the 05:00 UTC catch-up boundaries, and 19 B draws the " +
             "day's three quests from a 20-quest pool under BEGIN_SESSION's seed. Expiring a slate " +
@@ -316,8 +324,16 @@ internal static class GapRegister
             "reroll is a fourth draw or a replacement — is all M4-09's, and a list authored now would " +
             "freeze it under the draw rules, the reroll rules and the 3-of-3 chest alike (S6). Keyed " +
             "on QuestDefinition, the type that reads the pool, rather than on the slate's own " +
-            "container: the container is trivial and the element is what is missing. ⚠️ Catch-up owns " +
-            "only the EXPIRY; 30 §2.3 leaves the day's redraw to BEGIN_SESSION's seed (M1-09)."),
+            "container: the container is trivial and the element is what is missing. " +
+            "🔒 M1-09 BUILT THE SEAM AND DEFERRED THE DRAW, deliberately: Handlers/BeginSession takes " +
+            "30 §2.3's day-draw seed through HandlerInput.MetaDraws on the first BEGIN_SESSION of the " +
+            "game day, proven deterministic in CommandSeed and proven to move no run stream position, " +
+            "and draws NOTHING from it. Three things are missing, not one — the slate element above, " +
+            "content/quests/ (empty, no schema), and a 14 §8.1 STREAM NAME: that registry is complete " +
+            "for the run streams and says a system needing randomness 'draws from one of these " +
+            "streams or gets a new row here', and no row names a quest draw. M4-09 amends 14 §8.1, " +
+            "adds the RngStreams row and takes the draw; nothing else has to move. Catch-up still " +
+            "owns only the EXPIRY."),
 
         new("DailyShopStock", "M4-09", "ShopOffer",
             "30 §2.3 gives catch-up the Daily tab's STOCK EXPIRY and explicitly leaves the REDRAW to " +
@@ -326,7 +342,13 @@ internal static class GapRegister
             "6-offer block with a draw rule and staples, and none of an offer's shape exists: what is " +
             "sold, at what price, in which currency, and whether a bought offer is removed or marked. " +
             "Expiring stock needs the stock. Keyed on ShopOffer rather than on the wallet model M4-09 " +
-            "also lands, because the offer is the thing being expired."),
+            "also lands, because the offer is the thing being expired. " +
+            "🔒 M1-09 BUILT THE SEAM AND DEFERRED THE DRAW — the same seam, the same command and the " +
+            "SAME SEED as QuestSlate above, which is 30 §2.3's own claim that 'the quest slate and " +
+            "the Daily shop tab are the only daily actions that consume randomness, both derive from " +
+            "this one seed'. So the two deferrals are not independent: whichever of them M4-09 lands " +
+            "first fixes the seed's consumption order for the other, and taking them in one change is " +
+            "the cheaper reading. This entry also needs a 14 §8.1 stream row that does not exist."),
 
         new("EventWindow", "M13-01", "EventDefinition",
             "30 §2.3 lists 'event-window state' among the boundaries catch-up rolls forward, and 26 §4 " +

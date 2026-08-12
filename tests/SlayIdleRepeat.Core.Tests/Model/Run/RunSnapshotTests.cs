@@ -141,7 +141,10 @@ public sealed class RunSnapshotTests
 
         var probes = new (string Field, RunSnapshot A, RunSnapshot B)[]
         {
-            (nameof(RunSnapshot.SchemaVersion), v, RunSnapshots.With(schemaVersion: 2)),
+            // 🔒 One PAST the current version, as an expression rather than a literal — see
+            // PlayerSnapshotTests' probe of the same name for what the literal cost at M1-09's bump.
+            (nameof(RunSnapshot.SchemaVersion), v,
+                RunSnapshots.With(schemaVersion: SnapshotSchema.SchemaVersion + 1)),
             (nameof(RunSnapshot.Id), v, RunSnapshots.With(id: new RunId("OTHER_RUN"))),
             (nameof(RunSnapshot.PlayerId), v, RunSnapshots.With(playerId: new PlayerId("OTHER_PLAYER"))),
             (nameof(RunSnapshot.RunSeed), v, RunSnapshots.With(runSeed: RunSnapshots.Seed + 1)),

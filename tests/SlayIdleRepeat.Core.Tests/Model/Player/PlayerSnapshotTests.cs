@@ -116,8 +116,8 @@ public sealed class PlayerSnapshotTests
     }
 
     /// <summary>
-    /// 🔒 Every field of <c>PlayerSnapshot</c> reaches the bytes: changing any one of the fifteen
-    /// changes the hash.
+    /// 🔒 Every field of <c>PlayerSnapshot</c> reaches the bytes: changing any one of them changes
+    /// the hash.
     /// </summary>
     /// <remarks>
     /// ⚠️ This is the assertion that would have caught the public-field defect on real state
@@ -137,7 +137,14 @@ public sealed class PlayerSnapshotTests
         // hash change even if FtueCompletedAtUtc contributed nothing at all.
         var probes = new (string Field, PlayerSnapshot A, PlayerSnapshot B)[]
         {
-            (nameof(PlayerSnapshot.SchemaVersion), v, PlayerSnapshots.With(schemaVersion: 2)),
+            // 🔒 One PAST the current version, as an expression rather than the literal 2 it used to
+            // be. M1-09 bumped SchemaVersion to 2 and this probe silently became "the valid row
+            // against the valid row" — two identical snapshots, one hash, and the field reported as
+            // invisible to the writer when in fact nothing had been perturbed. It went red, which is
+            // the good outcome; the arithmetic is what stops the next bump from depending on that
+            // luck.
+            (nameof(PlayerSnapshot.SchemaVersion), v,
+                PlayerSnapshots.With(schemaVersion: SnapshotSchema.SchemaVersion + 1)),
             (nameof(PlayerSnapshot.Id), v, PlayerSnapshots.With(id: new PlayerId("OTHER"))),
             (nameof(PlayerSnapshot.DisplayName), v, PlayerSnapshots.With(displayName: "Someone Else")),
             (nameof(PlayerSnapshot.LegendLevel), v, PlayerSnapshots.With(legendLevel: 2)),
@@ -155,6 +162,15 @@ public sealed class PlayerSnapshotTests
             (nameof(PlayerSnapshot.DailyCounters), v, PlayerSnapshots.With(dailyCounters: PlayerSnapshots.Counters(("ad_caps", 1)))),
             (nameof(PlayerSnapshot.WeeklyPeriodStartUtc), v, PlayerSnapshots.With(weeklyPeriodStartUtc: PlayerSnapshots.Monday.AddDays(7))),
             (nameof(PlayerSnapshot.WeeklyCounters), v, PlayerSnapshots.With(weeklyCounters: PlayerSnapshots.Counters(("ad_caps", 1)))),
+
+            // 🔒 M1-09, 19 Part G. Both halves are probed: two players on different calendar days
+            // must not share a stateHash, and neither must two on the same day of whom one has
+            // claimed it — the second is the one a bool is easy to leave out of an encoder, and
+            // 14 §2.4 has the CLIENT recompute this hash, so a claim invisible to it is a
+            // client/server disagreement the mirror check would report as agreement.
+            (nameof(PlayerSnapshot.LoginCalendarDay), v, PlayerSnapshots.With(loginCalendarDay: 2)),
+            (nameof(PlayerSnapshot.LoginCalendarDayClaimed), v,
+                PlayerSnapshots.With(loginCalendarDayClaimed: true)),
         };
 
         var invisible = probes

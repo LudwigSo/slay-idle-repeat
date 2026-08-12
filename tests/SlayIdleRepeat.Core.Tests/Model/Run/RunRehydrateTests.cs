@@ -81,9 +81,15 @@ public sealed class RunRehydrateTests
     /// 🔒 `14` §16.6 + the M1 kickoff ruling — an unknown <c>SchemaVersion</c> hard-fails, and the
     /// message says there is no migration rather than reading the row anyway.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>The "one past the current" row is an expression, not a literal</b> — see
+    /// <c>PlayerRehydrateTests</c>'s case of the same name for why M1-09 changed it. <c>RunSnapshot</c>
+    /// did not move at the SchemaVersion 2 bump and this case went red all the same, which is the
+    /// point: the pin is per <em>version</em>, not per record.
+    /// </remarks>
     [Theory]
     [InlineData(0)]
-    [InlineData(2)]
+    [InlineData(SnapshotSchema.SchemaVersion + 1)]
     [InlineData(int.MaxValue)]
     public void An_unknown_SchemaVersion_hard_fails_and_says_no_migration_exists(int schemaVersion)
     {
@@ -108,7 +114,8 @@ public sealed class RunRehydrateTests
     public void A_wrong_SchemaVersion_is_reported_alone_and_not_alongside_field_faults()
     {
         var result = Run.Rehydrate(
-            RunSnapshots.With(schemaVersion: 2, position: -3, chapterId: 0, gold: -5));
+            RunSnapshots.With(
+                schemaVersion: SnapshotSchema.SchemaVersion + 1, position: -3, chapterId: 0, gold: -5));
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldContain("NO MIGRATION EXISTS", Case.Sensitive);

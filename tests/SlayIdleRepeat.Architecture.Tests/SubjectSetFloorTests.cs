@@ -57,8 +57,6 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.HandlersNamespace, SubjectKind.CoreNamespace, "M1-09",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, DomainPurityTests.Every_command_type_is_handled_by_Apply"),
         new(Domain.TestingNamespace, SubjectKind.CoreNamespace, "M1-11",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
     };
@@ -306,9 +304,10 @@ public sealed class SubjectSetFloorTests
         new("GameRules", SubjectKind.CoreType, "M1-06",
             "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the Apply-exists and " +
             "public-static arms, live from M1-06), DomainPurityTests." +
-            "Every_command_type_is_handled_by_Apply (the dispatch surface half — GameRules is the " +
-            "ONLY type on that surface until M1-09 puts the first handler under Core/Handlers/, so " +
-            "renaming it would drop all 49 commands out of the 'dispatched' set at once)"),
+            "Every_command_type_is_handled_by_Apply (the dispatch surface half — GameRules was the " +
+            "ONLY type on that surface until M1-09 put the first handler under Core/Handlers/, and " +
+            "it is still the only one that names 48 of the 49, so renaming it would drop them out of " +
+            "the 'dispatched' set at once)"),
 
         new("GameCommand", SubjectKind.CoreType, "M1-06",
             "DomainPurityTests.Every_command_type_is_handled_by_Apply (LIVE over 49 concrete " +
@@ -343,6 +342,40 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Core_internal_layering_holds (the Commands row and the " +
             "mustNotReachTheRoot row, both added in M1-06 and both governing 50 types since M1-02), " +
             "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace"),
+
+        // ---------------------------------------------------------------- M1-09, 30 §2.3
+        //
+        // 🔒 MOVED out of Pending, not deleted — the same reason Primitives, Rules and Commands were
+        // moved: Every_rule_subject_is_present_or_declared_pending requires every namespace 30 §11.4
+        // enumerates to appear in one of these two arrays, and M1-01 proved that deleting a namespace
+        // row goes red rather than quiet.
+        //
+        // 🔒 WHAT WOKE UP WITH IT, measured on this branch rather than assumed:
+        //
+        //  · Handlers_and_Rules_are_internal was VACUOUS ON ITS Handlers HALF from M0-08 until this
+        //    commit — Core/Handlers/ held nothing but .gitkeep, so the whole rule rested on the Rules
+        //    half M1-10 woke up. Core/Handlers/BeginSession is its first subject, and making that
+        //    type public turns the build red naming it. Proved by mutation, reverted, and the literal
+        //    output is in the task report (S1).
+        //  · Every_command_type_is_handled_by_Apply's DISPATCH SURFACE is no longer GameRules alone.
+        //    ⚠️ That is a widening, and it is worth stating what it costs: the surface is now "types
+        //    under Core/Handlers/ plus GameRules", so a command named by a handler and by no dispatch
+        //    row would count as dispatched. It cannot be reached that way today — a handler is only
+        //    ever named FROM a dispatch row — but the rule's guarantee is now "some type on the
+        //    surface names it" rather than "the table names it", and the thing that keeps the two the
+        //    same is CommandVocabularyTests pinning the registry's 49 wire names in both directions.
+        //
+        // ⚠️ The floor under BOTH rules is now by IDENTITY as well as by namespace: Core/Handlers/
+        // holds exactly one type, so a rename or a move of BeginSession would empty the Handlers half
+        // of the first rule completely and shrink the second's surface back to M1-06's — with this
+        // row still reporting the namespace as present, because a namespace with one type and a
+        // namespace with none are what this array can tell apart and nothing more. M1-12 inherits
+        // that limit; it is named here rather than left for it to find.
+        new(Domain.HandlersNamespace, SubjectKind.CoreNamespace, "M1-09",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal (the Handlers half, LIVE from " +
+            "this commit — before it, Core/Handlers/ was empty and that half quantified over nothing), " +
+            "DomainPurityTests.Every_command_type_is_handled_by_Apply (the dispatch-surface half — " +
+            "GameRules was the only type on that surface until this commit)"),
     };
 
     // ---------------------------------------------------------------- floors

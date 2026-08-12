@@ -3,6 +3,7 @@ using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Handlers;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
@@ -81,10 +82,15 @@ public static class GameRules
     /// expire by itself instead of waiting to be noticed.
     /// </para>
     /// <para>
-    /// ⚠️ <b>Handlers stay out of <c>Core/Handlers/</c> until M1-09 puts the first real one there.</b>
-    /// That namespace is a <c>SubjectSetFloorTests.Pending</c> entry owned by M1-09, and populating
-    /// it with dispatch plumbing would move the entry — and the two rules keyed on it — a milestone
-    /// early, over types that are not handlers.
+    /// 🔒 <b>M1-09 put the first real handler under <c>Core/Handlers/</c>, and the sentence that used
+    /// to stand here — "handlers stay out of it until M1-09" — is corrected rather than left to go
+    /// stale (steering <b>S4</b>'s known limit).</b> <c>Domain.HandlersNamespace</c> has moved from
+    /// <c>SubjectSetFloorTests.Pending</c> to <c>Live</c>, and both rules keyed on it are awake:
+    /// <c>Handlers_and_Rules_are_internal</c> now quantifies over a real type on its <c>Handlers</c>
+    /// half for the first time, and <c>Every_command_type_is_handled_by_Apply</c>'s dispatch surface
+    /// is no longer <c>GameRules</c> alone. M1-06's reason for keeping the plumbing out still holds
+    /// for the plumbing: <c>CommandDispatch</c>, <c>CommandRegistration</c> and <c>HandlerInput</c>
+    /// are not handlers and stay where they are.
     /// </para>
     /// <para>
     /// 🔒 <b>M1-02 landed the 49 rows and nothing reshaped</b> — one row is one chained call, exactly
@@ -103,8 +109,14 @@ public static class GameRules
     /// <c>runSeed</c> no scope at all.
     /// </para>
     /// <para>
-    /// 🔒 <b>Every row is <c>Deferred</c> today, including <c>BEGIN_SESSION</c></b>, whose handler is
-    /// M1-09's and lands two tasks from here. Each row's owner is the task the tracker gives for the
+    /// 🔒 <b>Forty-eight rows are <c>Deferred</c> and one is <c>Handled</c>.</b> M1-09 swapped
+    /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which is the one-line edit
+    /// this table's shape was designed for and the first time <see cref="Execute"/>'s
+    /// <c>registration.IsHandled</c> arm runs over the production table. ⚠️ <b>The consequence for
+    /// every handler-shaped rule stated over this table, which used to be quantifying over
+    /// nothing:</b> they now have exactly one subject, so a floor by identity rather than by count is
+    /// what keeps them honest — see <c>Every_command_type_is_handled_by_Apply</c>. Each row's owner
+    /// is the task the tracker gives for the
     /// system behind the command — read off <c>IMPLEMENTATION_TRACKER.md</c>'s task rows rather than
     /// inferred, because a wrong owner is a deferral that expires at the wrong time (steering
     /// <b>S4</b>). The owner lives <em>here</em>, on the row, rather than in a mirrored
@@ -143,7 +155,7 @@ public static class GameRules
         .Deferred<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, "M3-13")
 
         // ----------------------------------------------- `14` §2.3 — the 30 META commands
-        .Deferred<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, "M1-09")
+        .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)
         .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
         .Deferred<EquipCommand>("EQUIP", CommandKind.Meta, "M4-03")
         .Deferred<MergeCommand>("MERGE", CommandKind.Meta, "M4-04")
@@ -265,9 +277,13 @@ public static class GameRules
     /// rules against shapes that must <b>never</b> be committed to <c>Core</c> — a handler that
     /// hand-writes an RNG counter, a handler that stamps its own <c>Sequence</c>, a command whose
     /// system does not exist. ⚠️ M1-02 filled the real table with 49 rows and <b>none of that
-    /// changed</b>: every one of those rows is <c>Deferred</c>, so the production table still holds
-    /// <em>no handler at all</em>, and every handler-shaped rule stated over it would be asserted
-    /// over nothing and would report success forever (steering <b>S3</b>). The third shape —
+    /// changed</b>: every one of those rows was <c>Deferred</c>, so the production table held
+    /// <em>no handler at all</em>, and every handler-shaped rule stated over it would have been
+    /// asserted over nothing and would have reported success forever (steering <b>S3</b>). 🔒 <b>M1-09
+    /// changed exactly that much and no more:</b> the production table now holds <b>one</b> handler,
+    /// so the two shapes below are no longer merely unreachable there — they are shapes a real
+    /// handler could grow — and this parameter is still what lets the suite drive them without
+    /// committing one. The third shape —
     /// "a command whose system does not exist" — is the one the real table now has, 49 times, and
     /// <c>Commands.CommandVocabularyTests</c> drives it there rather than here.
     /// </para>
@@ -390,10 +406,12 @@ public static class GameRules
     /// command sent inside one regeneration interval of the last: with no catch-up events this
     /// hands the handler's own list straight through, and <see cref="Stamp"/> is the thing that
     /// then copies it. The mirrored arm is the same trade for the other one-sided case — a catch-up
-    /// event and an accepted command whose handler produced none, which M1-09's
-    /// <c>BEGIN_SESSION</c> will be the first production command able to reach at all. ⚠️ A
-    /// <c>Deferred</c> row is <em>not</em> an instance of it: a deferral <b>rejects</b>, and
-    /// <see cref="Execute"/> returns at the rejection arm without ever calling this.
+    /// event and an accepted command whose handler produced none — and 🔒 <b>M1-09's
+    /// <c>BEGIN_SESSION</c> reaches it, as this remark predicted</b>: its second and every later call
+    /// inside one game day is `30` §2.3's no-op, so a command that also crossed a regeneration
+    /// interval hands the catch-up's accrual straight through. ⚠️ A <c>Deferred</c> row is
+    /// <em>not</em> an instance of it: a deferral <b>rejects</b>, and <see cref="Execute"/> returns
+    /// at the rejection arm without ever calling this.
     /// </para>
     /// </remarks>
     private static IReadOnlyList<DomainEvent> Combine(

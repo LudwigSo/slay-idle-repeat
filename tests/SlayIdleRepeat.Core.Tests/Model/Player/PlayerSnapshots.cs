@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
@@ -104,7 +105,9 @@ internal static class PlayerSnapshots
             Wednesday,
             daily ? null! : Counters(),
             Monday,
-            weekly ? null! : Counters());
+            weekly ? null! : Counters(),
+            LoginCalendarTuning.FirstDay,
+            false);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -123,7 +126,9 @@ internal static class PlayerSnapshots
         DateTimeOffset? dailyPeriodStartUtc = null,
         IReadOnlyDictionary<string, long>? dailyCounters = null,
         DateTimeOffset? weeklyPeriodStartUtc = null,
-        IReadOnlyDictionary<string, long>? weeklyCounters = null) =>
+        IReadOnlyDictionary<string, long>? weeklyCounters = null,
+        int? loginCalendarDay = null,
+        bool? loginCalendarDayClaimed = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -140,5 +145,13 @@ internal static class PlayerSnapshots
             dailyPeriodStartUtc ?? Wednesday,
             dailyCounters ?? Counters(),
             weeklyPeriodStartUtc ?? Monday,
-            weeklyCounters ?? Counters());
+            weeklyCounters ?? Counters(),
+
+            // 🔒 19 G's starting calendar: day 1 open and UNCLAIMED, which is where a brand-new
+            // player stands and — because CLAIM_CALENDAR is deferred to M4-09 — where every M1
+            // player stays. A fixture that defaulted to `claimed` would make the paused arm the
+            // exception rather than the rule, and M1-09's suite drives the advance arm by asking for
+            // it explicitly.
+            loginCalendarDay ?? LoginCalendarTuning.FirstDay,
+            loginCalendarDayClaimed ?? false);
 }
