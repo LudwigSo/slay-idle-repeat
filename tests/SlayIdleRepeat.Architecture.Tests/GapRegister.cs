@@ -33,8 +33,9 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   ("a renamed or deleted project must take its exemption with it"): an entry whose
 ///   <see cref="Gap.Subject"/> appears in no transcription is deferring something no specification
 ///   asks for. It can never be <i>satisfied</i>, only deleted by hand — which is the state this
-///   register replaces. It is also what holds M1-06 to the promise below: transcribe the command
-///   inventory into <see cref="Surfaces"/>, do not just add entries to <see cref="Deferred"/>.</item>
+///   register replaces. It is also what holds <b>M1-02</b> to the promise below: transcribe
+///   `14` §2.3's command inventory into <see cref="Surfaces"/>, do not just add entries to
+///   <see cref="Deferred"/>.</item>
 ///   <item><b>Vacuous.</b> Both sets have floors, and both predicates are proven to distinguish a
 ///   type that exists from one that does not — see <c>GapRegisterTests</c>. A register whose
 ///   subject set can silently become empty is steering <b>S3</b>'s failure mode, and the three
@@ -44,8 +45,19 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// 🔒 <b>One register for the repository, not one per milestone</b> (steering S4: one mechanism per
 /// repo). It is named <c>GapRegister</c> rather than <c>M1GapRegister</c> for exactly that reason —
 /// a milestone-stamped name invites an <c>M2GapRegister</c> beside it, and then the "is every gap
-/// declared?" question has two answers. M1-06 adds its deferred commands to <see cref="Deferred"/>
-/// and its command inventory to <see cref="Surfaces"/>; it does not add a sibling file.
+/// declared?" question has two answers. Each task adds to <see cref="Deferred"/> and
+/// <see cref="Surfaces"/>; none adds a sibling file.
+/// </para>
+/// <para>
+/// ⚠️ <b>The owner of the command inventory is M1-02, not M1-06 — corrected in M1-06's own
+/// architecture review, which is the kickoff re-read the limit below asks for.</b> M1-06 landed the
+/// abstract <c>GameCommand</c>, the dispatch table and `30` §4.1's <c>WorldSlice</c> row (the
+/// <c>GuildView</c> and <c>GhostSnapshot</c> entries below); it deliberately landed <b>no</b>
+/// command types, because <c>Every_command_type_is_handled_by_Apply</c> fails the build for a
+/// concrete subtype no dispatch row names and the base therefore has to precede the vocabulary. So
+/// the promise about the 49 rows of `14` §2.3 — every <c>CommandDispatch.Deferred</c> row carrying
+/// an entry here, and the inventory transcribed into <see cref="Surfaces"/> — belongs to M1-02, and
+/// naming M1-06 was a reason that went stale on the commit that satisfied the rest of it.
 /// </para>
 /// <para>
 /// It joins three older instances of the same shape, and is modelled on the last of them:

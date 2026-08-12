@@ -323,6 +323,28 @@ public static class GameRules
     /// <c>Math.Max(TimeSpan.Zero, now − anchor)</c>, because a host clock that went backwards would
     /// otherwise accrue a negative amount of Energy.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Two rulings M1-08 owns, named here by M1-06's architecture review so that neither is
+    /// discovered halfway through writing the body.</b> Both follow from this signature and this
+    /// call site rather than from the catch-up itself, and both are cheap to change <em>here</em> —
+    /// there is exactly one caller — and expensive to notice later:
+    /// </para>
+    /// <list type="number">
+    ///   <item><b>The catch-up has no way to emit an event.</b> <c>ENERGY</c> is a
+    ///   <c>CurrencyId</c> and <c>Player.AccrueEnergy</c> <em>returns</em> a <c>CurrencyChanged</c>,
+    ///   so an accrual that runs here produces an event this <c>void</c> drops on the floor —
+    ///   `30` §9's IL rule is satisfied (the aggregate's own mutator constructs one) while `14`
+    ///   §7.1's economy log never sees the row. If offline accrual is loggable, this returns its
+    ///   events and <see cref="Execute"/> prepends them to the handler's <b>before</b>
+    ///   <see cref="Stamp"/> — they happened first — and if it is deliberately not loggable, that is
+    ///   a ruling to write down rather than a signature to inherit.</item>
+    ///   <item><b>A refused command discards the catch-up with the working copy.</b> `30` §2.1's
+    ///   <b>P4</b> returns the caller's own slice on a rejection, so the elapsed time is re-accrued
+    ///   from the same anchors on the next command — correct as long as the catch-up is idempotent
+    ///   in elapsed time, and <em>wrong</em> the moment it consumes something (a daily reset that
+    ///   clears a counter, an Energy overflow that spills into `28` C's reserve). M1-08 either keeps
+    ///   it idempotent or splits the commit, and the choice belongs in that task's report.</item>
+    /// </list>
     /// </remarks>
     private static void AdvanceTime(WorldSlice state, GameContext context)
     {
