@@ -57,16 +57,12 @@ public sealed class SubjectSetFloorTests
             "IsolationTests.GuildView_is_a_read_only_projection"),
         new("InMemoryGame", SubjectKind.CoreType, "M1-11",
             "DomainPurityTests.The_whole_game_is_playable_from_Core_alone"),
-        new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
-            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged"),
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
         new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
-            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
-        new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.HandlersNamespace, SubjectKind.CoreNamespace, "M1-09",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, DomainPurityTests.Every_command_type_is_handled_by_Apply"),
@@ -95,6 +91,26 @@ public sealed class SubjectSetFloorTests
         // this commit.
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
+
+        // Moved out of Pending by M1-03, and tracked HERE for the same reason CurrencyId is: the
+        // rule keyed on this name is STILL VACUOUS. Every_currency_mutation_emits_CurrencyChanged
+        // is an IL scan over the fields CurrencyFields() recognises, and that set stays empty until
+        // M1-04 declares the first CurrencyId-typed instance field on the Player aggregate. So this
+        // commit gives the rule a real type to look for and does not wake it — and a rename of the
+        // event in the interval would leave it looking for a name nothing has, permanently green,
+        // with no other test in the repository noticing.
+        new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (still vacuous until M1-04 " +
+            "declares the first currency field; this pins the event name the IL scan looks for)"),
+
+        // Moved out of Pending by M1-03 rather than deleted: Every_rule_subject_is_present_or_
+        // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these two
+        // lists, so dropping the row goes red. Events has no row in Core_internal_layering_holds'
+        // five-row table either — DomainEventTests.Core_Events_holds_the_event_hierarchy_and_nothing_
+        // else is what governs the namespace's contents in the meantime.
+        new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
+            "AccessibilityBoundaryTests.Core_internal_layering_holds, " +
+            "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

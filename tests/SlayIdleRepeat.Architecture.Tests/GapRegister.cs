@@ -1,0 +1,269 @@
+using System.Text.RegularExpressions;
+using SlayIdleRepeat.Architecture.Tests.Infrastructure;
+
+namespace SlayIdleRepeat.Architecture.Tests;
+
+/// <summary>
+/// 🔒 The repo's register of design-document surface that has been <b>deliberately not built
+/// yet</b>, with the milestone that builds it and a decidable predicate that expires the entry.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Why this exists.</b> `30` §7 specifies six domain events; M1-03 authored one of them,
+/// because four name payload types that do not exist (<c>DieFace</c>, <c>TileType</c>,
+/// <c>GearInstance</c>, <c>GuildId</c>) and one has no producer until <c>LuckService</c>.
+/// Steering <b>S6</b> forbids inventing any of them to make an event compile: a guessed type at
+/// the bottom of the dependency graph is what three later milestones would then build on. But a
+/// hole that is merely <i>not written</i> is indistinguishable from a hole nobody noticed, and it
+/// stays that way until someone re-reads the spec. This register is the difference.
+/// </para>
+/// <para>
+/// <b>The mechanism, and it fails in three directions.</b>
+/// </para>
+/// <list type="number">
+///   <item><b>Stale.</b> An entry whose <see cref="Gap.WaitsFor"/> type now exists — or whose own
+///   <see cref="Gap.Subject"/> has been authored — fails the build. Removing an entry is
+///   <i>forced</i> on the commit that makes it untrue, not remembered at some later kickoff.</item>
+///   <item><b>Undeclared.</b> Every name in <see cref="Surfaces"/> — the closed transcription of
+///   what a spec section enumerates — must be either authored in its namespace or carried by an
+///   entry here. A sixth event quietly dropped from `30` §7 fails rather than vanishing. This is
+///   the direction that is usually skipped, and it is the one that makes the register more than a
+///   comment.</item>
+///   <item><b>Vacuous.</b> Both sets have floors, and both predicates are proven to distinguish a
+///   type that exists from one that does not — see <c>GapRegisterTests</c>. A register whose
+///   subject set can silently become empty is steering <b>S3</b>'s failure mode, and the two rules
+///   above would report success forever.</item>
+/// </list>
+/// <para>
+/// 🔒 <b>One register for the repository, not one per milestone</b> (steering S4: one mechanism per
+/// repo). It is named <c>GapRegister</c> rather than <c>M1GapRegister</c> for exactly that reason —
+/// a milestone-stamped name invites an <c>M2GapRegister</c> beside it, and then the "is every gap
+/// declared?" question has two answers. M1-06 adds its deferred commands to <see cref="Deferred"/>
+/// and its command inventory to <see cref="Surfaces"/>; it does not add a sibling file.
+/// </para>
+/// <para>
+/// It joins three older instances of the same shape, and is modelled on the last of them:
+/// <c>build/ci/test-suites.json</c>'s <c>knownEmpty</c> block,
+/// <c>ContentLoader.SchemasAwaitingContent</c>, and
+/// <c>tests/SlayIdleRepeat.Core.Tests/Model/Snapshots/SnapshotFieldOrderPin.cs</c> — the only one
+/// of the three that also checks its own permanent vacuity.
+/// </para>
+/// <para>
+/// ⚠️ <b>The known limit, stated so nobody assumes otherwise</b> (steering S4's own caveat). What
+/// is decidable here is the <i>shape</i>: the type arrived, the subject was authored, the owner or
+/// the reason is missing. What is not decidable is an entry whose written <i>reason</i> stopped
+/// being true while its predicate still holds — the same hole
+/// <c>test-suites.json</c>'s <c>$knownGapInThisMechanism</c> documents. Re-read these entries at
+/// each milestone kickoff; CI is not doing it for you.
+/// </para>
+/// </remarks>
+internal static class GapRegister
+{
+    /// <summary>
+    /// A piece of specified surface that has not been built, the task that builds it, and the type
+    /// whose arrival makes this deferral stale.
+    /// </summary>
+    /// <param name="Subject">
+    /// The simple name of the thing deferred, as the specification writes it — e.g. <c>DiceRolled</c>.
+    /// </param>
+    /// <param name="Owner">The milestone task that authors it, e.g. <c>M3-04</c>.</param>
+    /// <param name="WaitsFor">
+    /// 🔒 The decidable predicate: the simple name of a <c>Core</c> type that <b>must not yet
+    /// exist</b>. For most entries this is the payload type without which the subject cannot be
+    /// written at all; where the payload already compiles, it is the <i>producer</i> that gives the
+    /// subject meaning. Either way, the day it appears is the day this entry is wrong, and the
+    /// build says so.
+    /// </param>
+    /// <param name="Why">Why it is deferred rather than written. Something a later reader can falsify.</param>
+    internal sealed record Gap(string Subject, string Owner, string WaitsFor, string Why);
+
+    /// <summary>
+    /// A closed list of names one specification section enumerates, and the <c>Core</c> namespace
+    /// an authored one must live in.
+    /// </summary>
+    /// <remarks>
+    /// This is what makes the <b>undeclared</b> direction decidable. Without it the register could
+    /// only ever check the entries it already has, which is a comment with a unit test around it.
+    /// </remarks>
+    /// <param name="Citation">The document section, e.g. <c>30 §7</c>.</param>
+    /// <param name="Namespace">Where an authored subject lives, e.g. <c>SlayIdleRepeat.Core.Events</c>.</param>
+    /// <param name="Subjects">Every name the section enumerates, transcribed.</param>
+    internal sealed record SpecifiedSurface(string Citation, string Namespace, IReadOnlyList<string> Subjects);
+
+    /// <summary>
+    /// 🔒 Everything specified and not yet built. Each entry expires by itself.
+    /// </summary>
+    internal static readonly Gap[] Deferred =
+    {
+        new("DiceRolled", "M3-04", "DieFace",
+            "30 §7 writes it as (int Sequence, DieFace Face). DieFace is the die-face vocabulary of 04, " +
+            "authored by M3-04. Inventing one here would put a guessed type under the dice, board and " +
+            "combat milestones that all read it (S6)."),
+
+        new("TileResolved", "M3-03", "TileType",
+            "30 §7 writes it as (int Sequence, TileType Type, NodeId Node). Both payload types are the " +
+            "board's (03), authored by M3-03. Keyed on TileType; NodeId lands in the same task."),
+
+        new("GearGranted", "M4-03", "GearInstance",
+            "30 §7 writes it as (int Sequence, GearInstance Item, SourceClass Source, bool FromPity). " +
+            "GearInstance is the gear aggregate's (08), authored by M4-03. Keyed on GearInstance rather " +
+            "than on SourceClass deliberately: SourceClass arrives earlier, with M4-01's LuckService, and " +
+            "the event still could not be written on that day."),
+
+        new("PityCounterAdvanced", "M4-01", "LuckService",
+            "30 §7 writes it as (int Sequence, string Key, int Value), which compiles today — and that is " +
+            "the trap. The payload is a SKETCH, not a ruling: the pity-key vocabulary is LuckService's " +
+            "(24 §11), and nothing in M1 can emit one. Authoring it now would freeze 'string Key' before " +
+            "the milestone that knows whether a key is a closed enum, a primitive or a content id, and " +
+            "would leave a public type with no producer, no consumer and no rule watching it. Keyed on " +
+            "the producer rather than on a payload type, because the payload is not what is missing."),
+
+        new("GuildContribution", "M14", "GuildId",
+            "30 §7 writes it as (int Sequence, GuildId Guild, string CounterId, long Delta). GuildId is " +
+            "M14's. Deferred, not dropped: guilds ship in v1 (milestone kickoff, 2026-08-11)."),
+    };
+
+    /// <summary>
+    /// 🔒 The closed transcriptions the <b>undeclared</b> direction is checked against.
+    /// </summary>
+    /// <remarks>
+    /// Transcribed by hand from the design document, which is the only way this can work: a list
+    /// derived from the code would say the code is complete because the code says so.
+    /// </remarks>
+    internal static readonly SpecifiedSurface[] Surfaces =
+    {
+        new("30 §7", Domain.EventsNamespace, new[]
+        {
+            "DiceRolled",
+            "TileResolved",
+            "GearGranted",
+            "CurrencyChanged",
+            "PityCounterAdvanced",
+            "GuildContribution",
+        }),
+    };
+
+    /// <summary>A milestone task id: <c>M14</c>, or <c>M3-04</c>.</summary>
+    private static readonly Regex TaskId = new(@"^M\d{1,2}(-\d{2})?$", RegexOptions.Compiled);
+
+    /// <summary>What a stale entry means, said once.</summary>
+    internal const string StaleConsequence =
+        "This deferral has expired. Author the subject now, or — if it is still not the right time — " +
+        "replace the entry with one whose predicate is a type that genuinely does not exist yet, and say " +
+        "why in the commit. Do NOT re-point the entry at an arbitrary later type to buy silence: an " +
+        "exemption whose predicate no longer describes the reason it was written is the one failure this " +
+        "mechanism cannot detect for you.";
+
+    /// <summary>What an undeclared subject means, said once.</summary>
+    internal const string UndeclaredConsequence =
+        "A specification enumerates it, no Core namespace declares it, and nothing here says who will. " +
+        "Either author it, or add a GapRegister.Deferred entry naming the owning task and a type that " +
+        "must not yet exist. An undeclared gap is indistinguishable from one nobody noticed.";
+
+    /// <summary>True when a type with this simple name exists anywhere in <c>SlayIdleRepeat.Core</c>.</summary>
+    internal static bool IsPresentInCore(string simpleName) => Domain.FindInCore(simpleName) is not null;
+
+    /// <summary>True when a type with this simple name is declared under the given <c>Core</c> namespace.</summary>
+    internal static bool IsAuthoredUnder(string namespacePrefix, string simpleName) =>
+        Domain.CoreTypesUnder(namespacePrefix)
+              .Any(t => t.Name.Equals(simpleName, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Every entry that has expired: its <see cref="Gap.WaitsFor"/> type has arrived, or its
+    /// <see cref="Gap.Subject"/> has been authored anyway. Empty means the register holds.
+    /// </summary>
+    /// <remarks>
+    /// Takes its entries as a parameter rather than reading <see cref="Deferred"/>, so the
+    /// self-tests can drive it with a deliberately expired entry and prove it bites — without ever
+    /// committing one. Same construction as <c>SnapshotFieldOrderPin.Violations</c>.
+    /// </remarks>
+    internal static IReadOnlyList<string> Expired(IEnumerable<Gap> entries)
+    {
+        var offenders = new List<string>();
+
+        foreach (var gap in entries)
+        {
+            if (IsPresentInCore(gap.WaitsFor))
+            {
+                offenders.Add(
+                    $"'{gap.Subject}' is declared deferred to {gap.Owner} until '{gap.WaitsFor}' exists — " +
+                    $"and '{gap.WaitsFor}' now exists in SlayIdleRepeat.Core. {StaleConsequence}");
+            }
+
+            if (IsPresentInCore(gap.Subject))
+            {
+                offenders.Add(
+                    $"'{gap.Subject}' is declared deferred to {gap.Owner}, but SlayIdleRepeat.Core already " +
+                    $"declares it. Delete the entry. {StaleConsequence}");
+            }
+        }
+
+        return offenders;
+    }
+
+    /// <summary>
+    /// Every subject a specification enumerates that is neither authored in its namespace nor
+    /// carried by an entry. Empty means the register holds.
+    /// </summary>
+    /// <remarks>Parameterised for the same reason as <see cref="Expired"/>.</remarks>
+    internal static IReadOnlyList<string> Undeclared(
+        IEnumerable<SpecifiedSurface> surfaces,
+        IEnumerable<Gap> entries)
+    {
+        var declared = entries.Select(g => g.Subject).ToHashSet(StringComparer.Ordinal);
+
+        return (from surface in surfaces
+                from subject in surface.Subjects
+                where !IsAuthoredUnder(surface.Namespace, subject)
+                where !declared.Contains(subject)
+                select $"{surface.Citation} specifies '{subject}'. It is not declared under " +
+                       $"{surface.Namespace}, and GapRegister.Deferred does not carry it. {UndeclaredConsequence}")
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Every entry that is not well formed: a missing or malformed owning task, a blank predicate,
+    /// a blank subject, or no written reason. Empty means the register holds.
+    /// </summary>
+    /// <remarks>
+    /// An entry with no owner has no expiry a reader can check, and one with no reason has nothing
+    /// to falsify at the next kickoff — the two mitigations that stand in for the reason-went-stale
+    /// case the mechanism cannot decide.
+    /// </remarks>
+    internal static IReadOnlyList<string> Malformed(IEnumerable<Gap> entries)
+    {
+        var offenders = new List<string>();
+
+        foreach (var gap in entries)
+        {
+            if (string.IsNullOrWhiteSpace(gap.Subject))
+            {
+                offenders.Add($"an entry owned by '{gap.Owner}' names no subject.");
+            }
+
+            if (!TaskId.IsMatch(gap.Owner ?? string.Empty))
+            {
+                offenders.Add(
+                    $"'{gap.Subject}' names owner '{gap.Owner}', which is not a milestone task id (M14, M3-04). " +
+                    "An entry with no owner has no expiry a reader can check.");
+            }
+
+            if (string.IsNullOrWhiteSpace(gap.WaitsFor))
+            {
+                offenders.Add(
+                    $"'{gap.Subject}' names no type that must not yet exist, so nothing can expire it. " +
+                    "That is a comment, not a register entry.");
+            }
+
+            if (string.IsNullOrWhiteSpace(gap.Why) || gap.Why.Length < 40)
+            {
+                offenders.Add(
+                    $"'{gap.Subject}' carries no written reason worth falsifying. The reason going stale " +
+                    "while the predicate still holds is the one case CI cannot catch; the text is what a " +
+                    "human re-reads at the next kickoff.");
+            }
+        }
+
+        return offenders;
+    }
+}
