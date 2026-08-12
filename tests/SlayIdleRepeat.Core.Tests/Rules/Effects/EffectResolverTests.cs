@@ -146,13 +146,24 @@ public sealed class EffectResolverTests
     /// would otherwise resolve differently is exactly a same-id <c>STAT_SET</c> pair at two values.
     /// </summary>
     /// <remarks>
-    /// 🔒 This runs the <b>real</b> <c>StatAggregation.Aggregate</c>, not the comparer alone. The
-    /// claim is not "the comparer is total" — that is one line — but "the totality survives the
-    /// handoff", which depends on <c>StatAggregation</c>'s re-sort being stable. If that ever changes
-    /// to an unstable sort this test goes red and the comparer test does not.
+    /// <para>
+    /// 🔒 This runs the <b>real</b> <c>StatAggregation.Aggregate</c>, not the comparer alone: the
+    /// claim is that the ruling survives the handoff into `18` §8 steps 3-10, which depends on that
+    /// method's re-sort being stable.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>This test alone does NOT prove the tiebreak works</b>, and it is labelled so nobody
+    /// reads it as though it did. Removing the tiebreak entirely (steering S1) left it <b>green</b>:
+    /// <c>EffectSourceSet.Collect</c> already walks the catalogue in `18` §8 step 1's order, so the
+    /// argument order to <c>Of</c> is normalised before the sort ever runs, and two elements are
+    /// below <c>Array.Sort</c>'s insertion-sort threshold anyway. What it does pin is <b>which</b>
+    /// source wins, which is spec content in its own right. The tiebreak itself is held by
+    /// <see cref="The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements"/>
+    /// and <see cref="The_resolution_order_never_calls_two_distinct_collected_effects_equal"/>.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void Two_effects_with_one_id_resolve_the_same_way_from_either_arrival_order()
+    public void The_later_18_8_step_1_source_is_the_last_writer_for_a_shared_id()
     {
         var fromGear = Set("AFF_FRAIL", 10.0);
         var fromPerk = Set("AFF_FRAIL", 99.0);
@@ -186,9 +197,55 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// 🔒 <b>The comparer is TOTAL.</b> Stated directly, because the aggregation tests above could
-    /// pass on a stable sort with a comparer that answered 0 — which is the state M2-07 left and
-    /// handed here.
+    /// 🔴 <b>The test that actually holds the duplicate-id ruling.</b> Twenty effects sharing one id,
+    /// which is above <c>Array.Sort</c>'s insertion-sort threshold — so the sort genuinely permutes
+    /// equal elements, and only a <em>total</em> comparer can put them back in `18` §8 step 1's
+    /// documented order.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Twenty, and the number is load-bearing.</b> .NET's introsort runs insertion sort at 16
+    /// elements or fewer, which is stable in practice; below that threshold a broken tiebreak is
+    /// invisible because arrival order survives and arrival order happens to be the right answer.
+    /// This was found by removing the tiebreak on purpose (steering S1) and watching the two-element
+    /// tests stay green.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Deterministic, not probabilistic.</b> <c>Array.Sort</c> is a pure function of its input
+    /// and its comparer, so this test does not flake: with the tiebreak it is right every time, and
+    /// without it, it is wrong every time.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements()
+    {
+        // Twenty STAT_SETs on one id, at ascending values — 18 §8 step 8 is "last writer wins", so
+        // the answer names exactly which of the twenty the order put last.
+        var shared = Enumerable.Range(0, 20).Select(i => Set("AFF_FRAIL", 100.0 + i)).ToArray();
+
+        var resolved = EffectResolver.Resolve(
+            EffectSourceSet.Of(Source(EffectSourceKind.GEAR, shared)), AllActive.Instance);
+
+        // Step 1's index within the source is the second tiebreak, so the twenty come back in list
+        // order and the last writer is index 19.
+        resolved.Collected.Select(c => c.IndexInSource).ShouldBe(Enumerable.Range(0, 20));
+        resolved.Active.Select(e => e.Value).ShouldBe(shared.Select(e => e.Value));
+
+        var result = StatAggregation.Aggregate(
+            StatFixtures.Block((StatId.ATK, 100), (StatId.MAX_HP, 100)), resolved.Active,
+            StatFixtures.Caps(), StatAggregationSeams.Strict);
+
+        result.Final[StatId.MAX_HP].ShouldBe(
+            119.0,
+            "18 §8 step 8's last writer is the effect the resolution order put last — index 19 of the " +
+            "GEAR source. Without the (source, index) tiebreak the comparer answers 0 for all twenty " +
+            "and Array.Sort's quicksort leaves them in an order no document states");
+    }
+
+    /// <summary>
+    /// 🔒 <b>The comparer is TOTAL.</b> Stated directly, over the two pairs the tiebreak exists to
+    /// separate — and this one depends on no sort at all, so it holds even if <c>Array.Sort</c>'s
+    /// internals change.
     /// </summary>
     [Fact]
     public void The_resolution_order_never_calls_two_distinct_collected_effects_equal()

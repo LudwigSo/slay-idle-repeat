@@ -70,7 +70,7 @@ internal readonly record struct CollectedEffect(
 /// and is documented stable — so effects handed to it already in <em>this</em> order keep it among
 /// equal ids, and `18` §8 steps 4-8 see the total order without <c>Rules.Stats</c> needing to know
 /// this type exists (which R17 forbids anyway).
-/// <c>EffectResolverTests.Two_effects_with_one_id_resolve_the_same_way_from_either_arrival_order</c>
+/// <c>EffectResolverTests.The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements</c>
 /// is that claim run end-to-end through the real aggregation.
 /// </para>
 /// </remarks>
@@ -86,11 +86,23 @@ internal static class EffectResolutionOrder
 
         var ordered = collected.ToArray();
 
-        // 🔒 Array.Sort with a TOTAL comparer, not OrderBy. OrderBy's stability would hide a
-        //    tiebreak that had stopped working — the pairs it is meant to separate would keep their
-        //    arrival order and look correct for whichever arrival order the test happened to use.
-        //    Array.Sort is unstable, so a comparer that returned 0 for two distinct effects would
-        //    show up as a flapping order rather than as a passing test.
+        // 🔒 Array.Sort with a TOTAL comparer, not OrderBy — because the order must be a property of
+        //    the DATA rather than of the algorithm. Under a stable sort keyed on the id alone, the
+        //    same-id order would be inherited from the collector's walk, and every later caller that
+        //    re-sorted, filtered into a new list or merged two builds would silently re-open the
+        //    question. A total comparer means the order is recoverable from the effects themselves,
+        //    which is what lets `StatAggregation` re-sort independently and reach the same answer.
+        //
+        // ⚠️ Array.Sort's instability is NOT itself the safety net, and an earlier draft of this
+        //    comment claimed it was. Found by removing the tiebreak on purpose (steering S1): .NET's
+        //    introsort runs insertion sort at 16 elements or fewer, which is stable in practice, so
+        //    a two-element same-id probe stayed GREEN with the tiebreak gone. What actually holds
+        //    this line is
+        //    `The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements` —
+        //    twenty same-id effects, above that threshold, where the same probe returns
+        //    [0, 17, 16, …, 1, 18, 19] — plus
+        //    `The_resolution_order_never_calls_two_distinct_collected_effects_equal`, which asserts
+        //    totality directly and depends on no sort at all.
         Array.Sort(ordered, Comparer);
 
         return ordered;
