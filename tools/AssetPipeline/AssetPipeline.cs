@@ -71,13 +71,25 @@ public sealed class AssetPipeline
 
     /// <summary>A pipeline with stated options.</summary>
     /// <param name="options">The options.</param>
-    public AssetPipeline(PipelineOptions options) => Options = options;
+    public AssetPipeline(PipelineOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        Options = options;
+    }
 
     /// <summary>The options this pipeline runs with.</summary>
     public PipelineOptions Options { get; }
 
     /// <summary>Steps 1-6, in `15` §B4 order.</summary>
-    public IReadOnlyList<IAssetStep> Steps => throw new NotImplementedException();
+    public IReadOnlyList<IAssetStep> Steps { get; } =
+    [
+        new BackgroundRemovalStep(),
+        new TrimToCanvasStep(),
+        new PaletteQuantiseStep(),
+        new OutlineRepairStep(),
+        new ResizeStep(),
+        new ExportStep(),
+    ];
 
     /// <summary>Runs `15` §B4 steps 1-6 over one asset.</summary>
     /// <param name="image">
@@ -85,6 +97,44 @@ public sealed class AssetPipeline
     /// </param>
     /// <param name="asset">The manifest row. A cut row is skipped before a spec is built.</param>
     /// <param name="thresholds">The threshold set. An uncalibrated read throws.</param>
-    public PipelineRun Run(SKBitmap image, ArtAsset asset, ThresholdSet thresholds) =>
-        throw new NotImplementedException();
+    public PipelineRun Run(SKBitmap image, ArtAsset asset, ThresholdSet thresholds)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(thresholds);
+
+        // 🔒 Before the spec, and before a pixel is read. All 32 `15` §E19 VFX rows also carry no
+        // pivot, so a skip that fell out of AssetSpec.Resolve refusing them would be the right
+        // outcome for the wrong reason — and silent the day a live row loses its pivot.
+        if (asset.Cut is not null)
+        {
+            return new PipelineRun(
+                asset.Id,
+                StepOutcome.SkippedCutByRuling,
+                $"A ruling cut '{asset.Id}' ({asset.Section}): {asset.Cut}. No `15` §B4 step ran " +
+                "and not a pixel was touched.",
+                Output: null,
+                Steps: [],
+                Intermediates: []);
+        }
+
+        var spec = AssetSpec.Resolve(asset);
+        var results = new List<AssetStepResult>(Steps.Count);
+        var intermediates = new List<SKBitmap>();
+        var current = image;
+
+        foreach (var step in Steps)
+        {
+            var result = step.Run(new AssetStepInput(current, spec, thresholds));
+            results.Add(result);
+            current = result.Image;
+
+            if (Options.CaptureIntermediates)
+            {
+                intermediates.Add(current);
+            }
+        }
+
+        return new PipelineRun(asset.Id, StepOutcome.Applied, string.Empty, current, results, intermediates);
+    }
 }

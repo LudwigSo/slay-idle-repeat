@@ -64,8 +64,20 @@ public static class Doc15Authorised
     /// </summary>
     /// <param name="canvasWidth">The canvas width in pixels.</param>
     /// <returns>The inclusive minimum and maximum outline width in pixels.</returns>
-    public static (double Min, double Max) OutlineWidthBandFor(int canvasWidth) =>
-        throw new NotImplementedException();
+    public static (double Min, double Max) OutlineWidthBandFor(int canvasWidth)
+    {
+        if (canvasWidth <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(canvasWidth),
+                canvasWidth,
+                "`15` §A3 scales its 3-4 px band proportionally with the canvas, and a canvas of " +
+                "no width scales it to nothing.");
+        }
+
+        var scale = canvasWidth / (double)OutlineWidthReferenceCanvas;
+        return (OutlineWidthMinAtReferenceCanvas * scale, OutlineWidthMaxAtReferenceCanvas * scale);
+    }
 }
 
 /// <summary>

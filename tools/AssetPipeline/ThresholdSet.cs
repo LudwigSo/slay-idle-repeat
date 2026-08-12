@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace SlayIdleRepeat.AssetPipeline;
 
 /// <summary>
@@ -165,8 +167,46 @@ public sealed class ThresholdSet
         ThresholdKeys.WatermarkCornerOpacityCeiling,
     ];
 
+    /// <summary>The one member of a <see cref="ThresholdsPath"/>-shaped file that is not a key.</summary>
+    private const string DocMember = "_doc";
+
+    /// <summary>
+    /// What asks for each key, so the refusal says which step or check stopped and where to look.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Seventeen holes can throw the same exception type. "An uncalibrated threshold stopped the
+    /// batch" tells a reader nothing about which of the seventeen to go and measure, so the message
+    /// carries both the key and its consumer (steering rule S2).
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<string, string> Consumers =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [ThresholdKeys.BackgroundKeyTolerance] = "`15` §B4 step 1 (background removal)",
+            [ThresholdKeys.MatteDecontaminationStrength] = "`15` §B4 step 1 (matte decontamination)",
+            [ThresholdKeys.OutlineColourTolerance] = "`15` §B4 step 4 and Part F item 3",
+            [ThresholdKeys.OutlineGapClosureRadius] = "`15` §B4 step 4 (gap closure)",
+            [ThresholdKeys.OutlineWidthUniformityTolerance] = "`15` Part F item 3",
+            [ThresholdKeys.PaletteNeutrals] = "`15` §B4 step 3 and Part F item 5",
+            [ThresholdKeys.PaletteMatchTolerance] = "`15` §B4 step 3 and Part F item 5",
+            [ThresholdKeys.ResizeSharpenRadius] = "`15` §B4 step 5 (unsharp mask radius)",
+            [ThresholdKeys.ExportColourBudget] = "`15` §B4 step 6 (the pngquant substitute)",
+            [ThresholdKeys.ExportMaxMeanError] = "`15` §B4 step 6 (the pngquant substitute)",
+            [ThresholdKeys.HaloMaxFringeRatio] = "`15` Part F item 6",
+            [ThresholdKeys.HaloMaxLuminanceDeviation] = "`15` Part F item 6",
+            [ThresholdKeys.SilhouetteMinCoverageRatio] = "the `15` §A4 silhouette gate",
+            [ThresholdKeys.SilhouetteMinBoundingBoxFill] = "the `15` §A4 silhouette gate",
+            [ThresholdKeys.SilhouetteMaxComponentCount] = "the `15` §A4 silhouette gate",
+            [ThresholdKeys.SilhouetteMinDistinguishability] = "the `15` §A4 silhouette gate",
+            [ThresholdKeys.WatermarkCornerOpacityCeiling] = "`15` Part F item 8's mechanical proxy",
+        };
+
+    private readonly IReadOnlyDictionary<string, ThresholdValue?> values;
+
+    private ThresholdSet(IReadOnlyDictionary<string, ThresholdValue?> values) => this.values = values;
+
     /// <summary>A set in which every key is null — what the shipped file describes.</summary>
-    public static ThresholdSet Uncalibrated() => throw new NotImplementedException();
+    public static ThresholdSet Uncalibrated() =>
+        new(Keys.ToDictionary(key => key, _ => (ThresholdValue?)null, StringComparer.Ordinal));
 
     /// <summary>Reads a threshold file's JSON text.</summary>
     /// <remarks>
@@ -174,34 +214,132 @@ public sealed class ThresholdSet
     /// the file is the register of holes, and a register that can silently shrink is not one.
     /// </remarks>
     /// <param name="json">The contents of a <see cref="ThresholdsPath"/>-shaped file.</param>
-    public static ThresholdSet LoadFrom(string json) => throw new NotImplementedException();
+    public static ThresholdSet LoadFrom(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException(
+                $"A {ThresholdsPath}-shaped file is a JSON object of the {Keys.Count} keys in " +
+                $"{nameof(ThresholdSet)}.{nameof(Keys)}; this one is a " +
+                $"{document.RootElement.ValueKind}.");
+        }
+
+        var read = new Dictionary<string, ThresholdValue?>(StringComparer.Ordinal);
+        foreach (var member in document.RootElement.EnumerateObject())
+        {
+            if (string.Equals(member.Name, DocMember, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!Consumers.ContainsKey(member.Name))
+            {
+                throw new InvalidOperationException(
+                    $"'{member.Name}' is not one of the {Keys.Count} thresholds. This file is the " +
+                    "register of the holes `15` leaves, so a name nobody consumes is a typo or a " +
+                    $"key that was renamed in one place only — see {nameof(ThresholdKeys)}.");
+            }
+
+            read[member.Name] = ReadValue(member);
+        }
+
+        var missing = Keys.Where(key => !read.ContainsKey(key)).ToArray();
+        if (missing.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"{ThresholdsPath} is missing {missing.Length} of the {Keys.Count} thresholds: " +
+                $"{string.Join(", ", missing)}. A hole that is absent from the register is " +
+                "invisible rather than greppable, which is the failure steering rule S6 exists to " +
+                "prevent — a key nobody has calibrated belongs here with the value null.");
+        }
+
+        return new ThresholdSet(read);
+    }
 
     /// <summary>True when the key carries a stated value.</summary>
     /// <param name="key">A <see cref="Keys"/> member. An unknown key is a loud failure.</param>
-    public bool IsCalibrated(string key) => throw new NotImplementedException();
+    public bool IsCalibrated(string key) => Stated(key) is not null;
 
     /// <summary>
     /// The stated value, or <see cref="UncalibratedThresholdException"/> naming the key.
     /// </summary>
     /// <param name="key">A <see cref="Keys"/> member. An unknown key is a loud failure.</param>
-    public ThresholdValue Require(string key) => throw new NotImplementedException();
+    public ThresholdValue Require(string key) =>
+        Stated(key) ?? throw new UncalibratedThresholdException(key, Consumers[key]);
 
     /// <summary>The stated value as a number.</summary>
     /// <param name="key">A <see cref="Keys"/> member holding a numeric value.</param>
-    public double RequireNumber(string key) => throw new NotImplementedException();
+    public double RequireNumber(string key) => Require(key) is NumericThreshold numeric
+        ? numeric.Value
+        : throw new InvalidOperationException(
+            $"Threshold '{key}' holds a colour list, and {Consumers[key]} reads it as a number.");
 
     /// <summary>The stated value as a colour list.</summary>
     /// <param name="key">A <see cref="Keys"/> member holding a colour list.</param>
-    public IReadOnlyList<string> RequireColours(string key) => throw new NotImplementedException();
+    public IReadOnlyList<string> RequireColours(string key) =>
+        Require(key) is ColourListThreshold colours
+            ? colours.Colours
+            : throw new InvalidOperationException(
+                $"Threshold '{key}' holds a number, and {Consumers[key]} reads it as a colour list.");
 
     /// <summary>This set with one numeric value stated by the caller.</summary>
     /// <param name="key">A <see cref="Keys"/> member.</param>
     /// <param name="value">The caller's stated value.</param>
-    public ThresholdSet With(string key, double value) => throw new NotImplementedException();
+    public ThresholdSet With(string key, double value) => WithValue(key, new NumericThreshold(value));
 
     /// <summary>This set with one colour list stated by the caller.</summary>
     /// <param name="key">A <see cref="Keys"/> member.</param>
     /// <param name="colours">The caller's stated colours.</param>
-    public ThresholdSet WithColours(string key, IReadOnlyList<string> colours) =>
-        throw new NotImplementedException();
+    public ThresholdSet WithColours(string key, IReadOnlyList<string> colours)
+    {
+        ArgumentNullException.ThrowIfNull(colours);
+        return WithValue(key, new ColourListThreshold([.. colours]));
+    }
+
+    /// <summary>Reads one member of a threshold file, or refuses its shape.</summary>
+    /// <param name="member">The JSON member.</param>
+    private static ThresholdValue? ReadValue(JsonProperty member) => member.Value.ValueKind switch
+    {
+        JsonValueKind.Null => null,
+        JsonValueKind.Number => new NumericThreshold(member.Value.GetDouble()),
+        JsonValueKind.Array => new ColourListThreshold(
+        [
+            .. member.Value.EnumerateArray().Select(entry =>
+                entry.ValueKind == JsonValueKind.String
+                    ? entry.GetString()!
+                    : throw new InvalidOperationException(
+                        $"Threshold '{member.Name}' is a list of hex colours and holds a " +
+                        $"{entry.ValueKind}.")),
+        ]),
+        _ => throw new InvalidOperationException(
+            $"Threshold '{member.Name}' is a {member.Value.ValueKind}. A threshold is null, a " +
+            "number, or — for the one `15` §A5 leaves unenumerated — a list of hex colours."),
+    };
+
+    private ThresholdValue? Stated(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        return values.TryGetValue(key, out var value)
+            ? value
+            : throw new ArgumentException(
+                $"'{key}' is not one of the {Keys.Count} thresholds in " +
+                $"{nameof(ThresholdSet)}.{nameof(Keys)}.",
+                nameof(key));
+    }
+
+    private ThresholdSet WithValue(string key, ThresholdValue value)
+    {
+        _ = Stated(key);
+
+        var stated = new Dictionary<string, ThresholdValue?>(values, StringComparer.Ordinal)
+        {
+            [key] = value,
+        };
+
+        return new ThresholdSet(stated);
+    }
 }
