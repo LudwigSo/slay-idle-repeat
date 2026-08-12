@@ -198,7 +198,7 @@ internal sealed class AttackPipeline : IAttackPipeline
         var thorns = Thorns(target);
         if (thorns > 0.0)
         {
-            ReflectDamage(source, StatRounding.Round(basis * thorns), sourceEffectId);
+            ReflectDamage(source, target, StatRounding.Round(basis * thorns), sourceEffectId);
         }
 
         return new AttackResolution(Missed: false, isCrit, blocked, basis, hpLost);
@@ -342,15 +342,21 @@ internal sealed class AttackPipeline : IAttackPipeline
     /// reflects" one wrong argument away.
     /// </remarks>
     /// <param name="receiver">The attacker whose hit is being reflected back.</param>
+    /// <param name="thorned">
+    /// 🔒 The actor whose <c>THORN</c> produced it — the <c>Hit</c>'s source. `05` §8 makes the log
+    /// the replay, and a reflect logged with no source draws as damage from nowhere; the defender is
+    /// in hand at the one call site, so there is nothing to infer.
+    /// </param>
     /// <param name="amount">`05` §4 step 10's <c>basis × defender.THORN</c>.</param>
     /// <param name="sourceEffectId">The `18` §8 id of the attack that provoked it.</param>
-    internal void ReflectDamage(BattleActor receiver, double amount, string sourceEffectId)
+    internal void ReflectDamage(
+        BattleActor receiver, BattleActor thorned, double amount, string sourceEffectId)
     {
         RequireFinite(amount, sourceEffectId, "reflected damage");
 
         var dmg = IncomingDamage(StatRounding.Round(Math.Max(0.0, amount)), receiver);
 
-        ApplyToHp(receiver, dmg, absorbedByWards: true, CombatActor.None);
+        ApplyToHp(receiver, dmg, absorbedByWards: true, thorned.LogId);
     }
 
     /// <summary>

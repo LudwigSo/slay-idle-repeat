@@ -82,7 +82,6 @@ public sealed class DamageResolutionRuleTests
                 "mitigation curve belongs to " + PipelineType + " alone — it is the one expression " +
                 "`05` §4 calls 'the two most important balance dials in the game', and a second " +
                 "statement of it is a second game the 29 §2.3 power model is not grading.")
-            .Select(message => message)
             .ToArray();
 
         ArchRule.Empty(

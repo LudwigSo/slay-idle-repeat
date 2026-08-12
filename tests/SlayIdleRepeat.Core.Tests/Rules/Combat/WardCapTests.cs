@@ -120,19 +120,11 @@ public sealed class WardCapTests
     /// <remarks>
     /// <para>
     /// ⚠️ <b>Driven by a <c>BATTLE_TIME</c>-gated <c>STAT_MULT</c> rather than by the literal
-    /// <c>SYS_ENRAGE</c>, and the reason belongs in the report.</b> `05` §3.1's enrage is a
-    /// <c>PERIODIC</c>, and `18` §8 step 1 as M2-08 wired it aggregates <b>untriggered</b> effects
-    /// only — a fired <c>STAT_MULT</c> <em>"reaches <c>EffectOpResolver</c> and changes nothing that
-    /// outlives the call"</em> (<c>BattleSimulation.RefreshStats</c>), because the live-effect set is
-    /// M2-02's and is not on this branch. A <c>PERIODIC STAT_MULT</c> would therefore move no stat
-    /// and prove nothing. What the ward-cap claim needs is a post-step-7 Max HP that <b>changes
-    /// mid-fight</b>, and a `18` §4 condition is the mechanism that delivers one today: it makes the
-    /// holder state-dependent, so <c>RefreshStats</c> re-aggregates it on every tick. The threshold
-    /// is the enrage's own <c>startDelay: 70.0</c>.
-    /// </para>
-    /// <para>
-    /// ⚠️ And <c>MAX_HP</c> rather than the enrage's <c>ATK</c>, because the ward cap reads Max HP —
-    /// a growing ATK would demonstrate the re-read of a number the cap never consults.
+    /// <c>SYS_ENRAGE</c>.</b> <see cref="AttackPipelineBench.EnrageShaped"/> carries the full reason
+    /// — in short, `18` §8 step 1 as M2-08 wired it aggregates untriggered effects only, so a
+    /// <c>PERIODIC STAT_MULT</c> moves no stat on this branch and would prove nothing. The threshold
+    /// is the enrage's own <c>startDelay: 70.0</c>, and the stat is <c>MAX_HP</c> because that is
+    /// what the ward cap reads.
     /// </para>
     /// <para>
     /// 🔒 <b>The discriminating shape.</b> A cap taken once at battle start would leave the pool
@@ -338,9 +330,6 @@ public sealed class WardCapTests
             .ShouldBe(new[] { 1000.0, 0.0 });
     }
 
-    private static ActorStats Stats(double maxHp) =>
-        StatFixtures.Block(
-            (StatId.MAX_HP, maxHp),
-            (StatId.ASPD, 1.0),
-            (StatId.HEAL_PCT, 1.0));
+    /// <summary>`05` §1's block — see <see cref="AttackPipelineBench.Stats"/> for the two defaults.</summary>
+    private static ActorStats Stats(double maxHp) => AttackPipelineBench.Stats(maxHp);
 }

@@ -209,20 +209,12 @@ public sealed class HealingTests
 
     // ══════════════════════════════════════════════════════ helpers
 
-    /// <summary>A `05` §1 block with the named stats set and the `05` §2 bases for the rest.</summary>
-    private static ActorStats Stats(double maxHp, params (StatId Stat, double Value)[] rest)
-    {
-        var values = new List<(StatId, double)>
-        {
-            (StatId.MAX_HP, maxHp),
-            (StatId.ASPD, 1.0),
-            (StatId.HEAL_PCT, 1.0),
-        };
-
-        values.AddRange(rest.Select(r => (r.Stat, r.Value)));
-
-        return StatFixtures.Block(values.ToArray());
-    }
+    /// <summary>
+    /// `05` §1's block — see <see cref="AttackPipelineBench.Stats"/>, whose <c>HEAL_PCT = 1.0</c>
+    /// default this file depends on more than any other.
+    /// </summary>
+    private static ActorStats Stats(double maxHp, params (StatId Stat, double Value)[] rest) =>
+        AttackPipelineBench.Stats(maxHp, rest);
 
     /// <summary>
     /// One <c>ON_HEAL</c> holding shaped like <c>PK_TRANSFUSION</c> — a <c>SHIELD</c> on

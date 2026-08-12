@@ -167,14 +167,20 @@ internal sealed record BattlePlan
     /// </remarks>
     private void RequireSimulatorConstants()
     {
-        if (!double.IsFinite(WardCapPct) || WardCapPct < 0.0)
+        // 🔒 STRICTLY positive, and the strictness is the point: 0 is the one value all three of this
+        // check's authorities forbid. game-data/schema/combat_caps.schema.json declares
+        // "exclusiveMinimum": 0 on the pointer, and a zero clips every grant to nothing while `05`
+        // §4.1's Shield event still fires on every one — a fight that replays with shields absorbing
+        // nothing, which is exactly the silent failure the remarks above describe.
+        if (!double.IsFinite(WardCapPct) || WardCapPct <= 0.0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(WardCapPct), WardCapPct,
-                "`05` §4.1's wardCapPct is a non-negative fraction of the actor's post-`18` §8-step-7 " +
-                "Max HP, and content/combat_caps.json ships 1.0. A negative or non-finite one clips " +
-                "every ward grant to nothing while `05` §4.1's Shield event still fires on every " +
-                "grant — a fight that replays with shields that absorb no damage.");
+                "`05` §4.1's wardCapPct is a positive fraction of the actor's post-`18` §8-step-7 " +
+                "Max HP, and content/combat_caps.json ships 1.0 under an exclusiveMinimum of 0. A " +
+                "zero, negative or non-finite one clips every ward grant to nothing while `05` §4.1's " +
+                "Shield event still fires on every grant — a fight that replays with shields that " +
+                "absorb no damage.");
         }
 
         if (!double.IsFinite(Mitigation.Flat) || !double.IsFinite(Mitigation.PerLevel) ||

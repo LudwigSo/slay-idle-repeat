@@ -96,7 +96,15 @@ internal sealed class WardPool
     }
 
     /// <summary>The live segments, in `05` §4.1's absorption order.</summary>
-    /// <remarks>Ordered rather than raw: a reader that saw insertion order would draw the wrong one first.</remarks>
+    /// <remarks>
+    /// Ordered rather than raw: a reader that saw insertion order would draw the wrong one first.
+    /// <para>
+    /// ⚠️ <b>An assertion surface, not a hot path.</b> It copies and sorts on every get, and nothing
+    /// in production reads it — <see cref="Absorb"/> and <see cref="ExpireDue"/> both walk the list
+    /// directly. It exists so that <c>WardPoolTests</c> can state `05` §4.1's ordering rule over the
+    /// segments themselves rather than inferring it from which ones survived a damage number.
+    /// </para>
+    /// </remarks>
     internal IReadOnlyList<WardSegment> Segments
     {
         get
@@ -241,9 +249,12 @@ internal sealed class WardPool
 
         _segments.Sort(AbsorptionOrder);
 
+        // 🔒 ONE predicate, used for both the report and the removal. Written twice — once to collect
+        // the remainders and once inside RemoveAll — they are one edit away from disagreeing, and the
+        // symptom would be a StatusExpired carrying a remainder that is still in the pool.
         for (var i = 0; i < _segments.Count; i++)
         {
-            if (_segments[i].ExpiresAtTick is { } expiry && expiry <= tick)
+            if (Due(_segments[i]))
             {
                 dropped.Add(_segments[i]);
             }
@@ -251,10 +262,12 @@ internal sealed class WardPool
 
         if (dropped.Count > 0)
         {
-            _segments.RemoveAll(s => s.ExpiresAtTick is { } expiry && expiry <= tick);
+            _segments.RemoveAll(Due);
         }
 
         return dropped;
+
+        bool Due(WardSegment segment) => segment.ExpiresAtTick is { } expiry && expiry <= tick;
     }
 
     /// <summary>

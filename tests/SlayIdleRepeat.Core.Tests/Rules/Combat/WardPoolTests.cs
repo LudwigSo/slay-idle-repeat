@@ -15,7 +15,15 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// </remarks>
 public sealed class WardPoolTests
 {
-    private const double Uncapped = 1.0;
+    /// <summary>
+    /// 📐 <c>combat_caps.json#/wardCapPct</c> as shipped. ⚠️ <b>Not "uncapped"</b>: against the
+    /// 1000-point basis below every case in this file runs under a real 1000-point ceiling, which is
+    /// why <see cref="A_grant_is_clipped_at_wardCapPct_times_the_Max_HP_basis"/> carries a 0.25 row —
+    /// at 1.0 the ceiling and the basis are numerically the same number.
+    /// </summary>
+    private const double ShippedCapPct = 1.0;
+
+    /// <summary>The post-`18` §8-step-7 Max HP every case measures its ceilings against.</summary>
     private const double Thousand = 1000.0;
 
     /// <summary>🔒 `05` §4.1 — <em>"a grant that would exceed the cap is clipped"</em>.</summary>
@@ -58,10 +66,10 @@ public sealed class WardPoolTests
         // Granted deliberately OUT of absorption order: the non-expiring one first, the latest
         // expiry second, and the two that tie on tick 5 last — so insertion order and absorption
         // order disagree at every position.
-        pool.Grant(10.0, null, "EFF_NONE", expiresAtTick: null, Uncapped, Thousand);
-        pool.Grant(10.0, null, "EFF_LATE", expiresAtTick: 9, Uncapped, Thousand);
-        pool.Grant(10.0, null, "EFF_TIE_OLD", expiresAtTick: 5, Uncapped, Thousand);
-        pool.Grant(10.0, null, "EFF_TIE_NEW", expiresAtTick: 5, Uncapped, Thousand);
+        pool.Grant(10.0, null, "EFF_NONE", expiresAtTick: null, ShippedCapPct, Thousand);
+        pool.Grant(10.0, null, "EFF_LATE", expiresAtTick: 9, ShippedCapPct, Thousand);
+        pool.Grant(10.0, null, "EFF_TIE_OLD", expiresAtTick: 5, ShippedCapPct, Thousand);
+        pool.Grant(10.0, null, "EFF_TIE_NEW", expiresAtTick: 5, ShippedCapPct, Thousand);
 
         var reached = pool.Absorb(25.0, out var broken);
 
@@ -93,8 +101,8 @@ public sealed class WardPoolTests
     {
         var pool = new WardPool();
 
-        pool.Grant(10.0, null, grantedFirst, expiresAtTick: 5, Uncapped, Thousand);
-        pool.Grant(10.0, null, grantedSecond, expiresAtTick: 5, Uncapped, Thousand);
+        pool.Grant(10.0, null, grantedFirst, expiresAtTick: 5, ShippedCapPct, Thousand);
+        pool.Grant(10.0, null, grantedSecond, expiresAtTick: 5, ShippedCapPct, Thousand);
 
         pool.Absorb(10.0, out _);
 
@@ -109,7 +117,7 @@ public sealed class WardPoolTests
     public void The_pool_reaching_zero_through_damage_is_a_break()
     {
         var pool = new WardPool();
-        pool.Grant(10.0, null, "EFF_A", null, Uncapped, Thousand);
+        pool.Grant(10.0, null, "EFF_A", null, ShippedCapPct, Thousand);
 
         pool.Absorb(4.0, out var partial);
         partial.ShouldBeFalse("6 of the 10 is still in the pool");
@@ -138,7 +146,7 @@ public sealed class WardPoolTests
     public void Segment_expiry_empties_the_pool_and_is_not_a_break()
     {
         var pool = new WardPool();
-        pool.Grant(10.0, null, "EFF_A", expiresAtTick: 5, Uncapped, Thousand);
+        pool.Grant(10.0, null, "EFF_A", expiresAtTick: 5, ShippedCapPct, Thousand);
         pool.Absorb(4.0, out _);
 
         var dropped = pool.ExpireDue(4);
@@ -173,20 +181,20 @@ public sealed class WardPoolTests
     {
         var pool = new WardPool();
 
-        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, Uncapped, Thousand)
+        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, ShippedCapPct, Thousand)
             .ShouldBe(150.0);
-        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, Uncapped, Thousand)
+        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, ShippedCapPct, Thousand)
             .ShouldBe(50.0, "20% of 1000 is 200, and 150 of it is already live");
-        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, Uncapped, Thousand)
+        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, ShippedCapPct, Thousand)
             .ShouldBe(0.0);
 
         // A DIFFERENT source is untouched by it — the cap is per instance, not per pool.
-        pool.Grant(150.0, 0.20, "PK_AEGIS", null, Uncapped, Thousand).ShouldBe(150.0);
+        pool.Grant(150.0, 0.20, "PK_AEGIS", null, ShippedCapPct, Thousand).ShouldBe(150.0);
 
         pool.Absorb(200.0, out _);
         pool.LiveFrom("PK_TRANSFUSION").ShouldBe(0.0);
 
-        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, Uncapped, Thousand)
+        pool.Grant(150.0, 0.20, "PK_TRANSFUSION", null, ShippedCapPct, Thousand)
             .ShouldBe(150.0, "the spent ward is no longer 'unbroken', so the instance may grant again");
     }
 
@@ -203,8 +211,8 @@ public sealed class WardPoolTests
     {
         var pool = new WardPool();
 
-        pool.Grant(150.0, null, "PK_WARDED", null, Uncapped, Thousand).ShouldBe(150.0);
-        pool.Grant(150.0, 0.0, "PK_ZEROED", null, Uncapped, Thousand).ShouldBe(0.0);
+        pool.Grant(150.0, null, "PK_WARDED", null, ShippedCapPct, Thousand).ShouldBe(150.0);
+        pool.Grant(150.0, 0.0, "PK_ZEROED", null, ShippedCapPct, Thousand).ShouldBe(0.0);
     }
 
     /// <summary>
@@ -216,8 +224,8 @@ public sealed class WardPoolTests
     {
         var pool = new WardPool();
 
-        pool.Grant(1000.0, null, "EFF_A", null, Uncapped, Thousand).ShouldBe(1000.0);
-        pool.Grant(50.0, null, "EFF_B", null, Uncapped, Thousand).ShouldBe(0.0);
+        pool.Grant(1000.0, null, "EFF_A", null, ShippedCapPct, Thousand).ShouldBe(1000.0);
+        pool.Grant(50.0, null, "EFF_B", null, ShippedCapPct, Thousand).ShouldBe(0.0);
 
         pool.Segments.Count.ShouldBe(1);
         pool.Segments.Single().SourceEffectId.ShouldBe("EFF_A");
@@ -227,7 +235,7 @@ public sealed class WardPoolTests
     [Fact]
     public void A_non_finite_grant_is_refused() =>
         Should.Throw<ArgumentOutOfRangeException>(() =>
-            new WardPool().Grant(double.NaN, null, "EFF_A", null, Uncapped, Thousand));
+            new WardPool().Grant(double.NaN, null, "EFF_A", null, ShippedCapPct, Thousand));
 
     /// <summary>Absorbing against an empty pool changes nothing and is not a break.</summary>
     [Fact]

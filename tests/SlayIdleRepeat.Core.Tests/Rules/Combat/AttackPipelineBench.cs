@@ -142,6 +142,31 @@ internal static class AttackPipelineBench
     }
 
     /// <summary>
+    /// 🔒 A `05` §1 block with the named stats set, <c>ASPD</c> and <c>HEAL_PCT</c> at their `05` §2
+    /// bases, and every other stat at zero.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b><c>HEAL_PCT</c> is 1.0 rather than 0, and it is load-bearing.</b>
+    /// <c>StatFixtures.Block</c> zeroes what it is not given, and `05` §2 is explicit that
+    /// <c>HEAL%</c>'s base is 1.0 <em>"so that lifesteal and heals work with no modifiers"</em>. A
+    /// zero here would make every lifesteal and heal case in the suite pass by healing nothing —
+    /// which is why the default is stated once, here, rather than in each test class.
+    /// </remarks>
+    internal static ActorStats Stats(double maxHp, params (StatId Stat, double Value)[] rest)
+    {
+        var values = new List<(StatId, double)>
+        {
+            (StatId.MAX_HP, maxHp),
+            (StatId.ASPD, 1.0),
+            (StatId.HEAL_PCT, 1.0),
+        };
+
+        values.AddRange(rest.Select(r => (r.Stat, r.Value)));
+
+        return StatFixtures.Block(values.ToArray());
+    }
+
+    /// <summary>
     /// An effect with a condition — the shape that makes `18` §8 re-aggregate its holder on every
     /// tick (<c>BattleActor.StatsDependOnLiveState</c>).
     /// </summary>

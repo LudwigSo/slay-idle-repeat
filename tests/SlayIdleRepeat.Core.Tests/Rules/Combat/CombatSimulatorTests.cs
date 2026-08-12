@@ -57,10 +57,24 @@ public sealed class CombatSimulatorTests
     /// <c>StatFixtures.Mitigation</c> for why restating them in this assembly is safe.
     /// </para>
     /// </remarks>
+    /// <remarks>
+    /// ⚠️ <b>The last four assertions are M2-08's block; the first three are not, and they are what
+    /// make the case discriminating.</b> The prescribed four all hold for a fight in which the
+    /// pipeline deals no damage at all — a <c>ResolveAttack</c> that always returned
+    /// <c>Missed: true</c>, or one whose step 2 produced 0, passes them verbatim. Discharging an
+    /// expiry does not license keeping a test that cannot fail (steering S1), so the fight is
+    /// asserted to have <em>landed hits</em>, <em>killed both enemies</em> and <em>finished inside the
+    /// cap</em> — a Legend-60 hero swings ATK 390 into 300 and 200 HP, so all three are arithmetic
+    /// rather than hope.
+    /// </remarks>
     [Fact]
     public void The_public_entry_point_runs_a_whole_fight()
     {
         var result = PublicFight(seed: 1);
+
+        result.Log.ShouldContain(e => e.Type == CombatEventType.Hit);
+        result.HeroWon.ShouldBeTrue();
+        result.DurationTicks.ShouldBeLessThan(CombatLog.MaxTicks);
 
         result.Log[0].Type.ShouldBe(CombatEventType.BattleStart);
         result.Log[^1].Type.ShouldBe(CombatEventType.BattleEnd);
@@ -192,9 +206,13 @@ public sealed class CombatSimulatorTests
             actors.Add(BattleTestBench.Enemy(i, BattleTestBench.Stats(maxHp: 1_000_000, aspd: 2.0)));
         }
 
+        // 🔒 The REAL `05` §4 pipeline, since M2-09. `05`'s headnote budget is about the cost of a
+        // fight, and a recording double that subtracts one number and appends one event measures
+        // nothing: the per-swing cost is now three RNG draws, a ward-pool sort, a thorns sort and
+        // eight roundings, across six attackers and 1800 ticks. Over the double this case would have
+        // stayed green through an arbitrarily slow pipeline.
         return CombatSimulator.Simulate(BattleTestBench.Plan(
             actors,
-            services => BattleSeams.Strict with { Attack = new RecordingAttackPipeline(services, 1.0) },
             rules: new CombatRules(maxTicks, OnKillTriggersFire: true, IsPvp: false),
             battleSeed: seed));
     }

@@ -210,9 +210,17 @@ public sealed class ReflectDamageTests
         var hits = probe.EventsOf(CombatEventType.Hit);
 
         hits.Count.ShouldBe(2);
+
         hits[0].Value.ShouldBe(Basis, "the attack");
+        hits[0].SourceId.ShouldBe(CombatActor.Hero);
+        hits[0].TargetId.ShouldBe(CombatActor.Enemy(0));
+
         hits[1].Value.ShouldBe(26.925, "the reflect");
         hits[1].TargetId.ShouldBe(CombatActor.Hero);
+
+        // 🔒 The reflect names the THORNS HOLDER as its source. `05` §8 makes the log the replay, so
+        // a Hit with CombatActor.None here would draw as damage arriving from nowhere.
+        hits[1].SourceId.ShouldBe(CombatActor.Enemy(0));
     }
 
     // ══════════════════════════════════════════════════════ helpers
@@ -229,17 +237,7 @@ public sealed class ReflectDamageTests
             },
             body);
 
-    private static ActorStats Stats(double maxHp, (StatId Stat, double Value)[] rest)
-    {
-        var values = new List<(StatId, double)>
-        {
-            (StatId.MAX_HP, maxHp),
-            (StatId.ASPD, 1.0),
-            (StatId.HEAL_PCT, 1.0),
-        };
-
-        values.AddRange(rest.Select(r => (r.Stat, r.Value)));
-
-        return StatFixtures.Block(values.ToArray());
-    }
+    /// <summary>`05` §1's block — see <see cref="AttackPipelineBench.Stats"/> for the two defaults.</summary>
+    private static ActorStats Stats(double maxHp, (StatId Stat, double Value)[] rest) =>
+        AttackPipelineBench.Stats(maxHp, rest);
 }

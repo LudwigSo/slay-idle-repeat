@@ -2,6 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Combat;
+using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
 using SlayIdleRepeat.Core.Tests.Rules.Stats;
 using Xunit;
@@ -289,17 +290,23 @@ public sealed class DamageResolutionTests
     // ══════════════════════════════════════════════════════ steps 6-8
 
     /// <summary>
-    /// 🔒 `05` §4 step 6 — <c>dmg × (1 − DR%)</c>, then the <c>DAMAGE_TAKEN_MULT</c> product.
+    /// 🔒 `05` §4 step 6 — <b>both</b> <c>(1 − DR%)</c> and the <c>DAMAGE_TAKEN_MULT</c> product are
+    /// applied, and the product is the product rather than one of its factors.
     /// </summary>
     /// <remarks>
-    /// The two halves are separated across the rows: <c>DR%</c> alone, the product alone, and both,
-    /// because a pipeline that applied only one of them passes two of the three.
+    /// ⚠️ <b>It does not observe the <em>order</em> of the two, and does not claim to.</b>
+    /// Multiplication commutes and none of the rows differs in the fourth decimal between the two
+    /// sequences, so a name promising "DR then the product" would be an assertion this case cannot
+    /// make. What the three rows separate is DR alone, the product alone, and both — a pipeline that
+    /// applied only one of them passes exactly one row. The <em>ascending effect-id</em> order the
+    /// product is taken in is <c>CombatFlowState.DamageTakenMultiplier</c>'s and is pinned by
+    /// <c>CombatFlowStateTests</c>.
     /// </remarks>
     [Theory]
     [InlineData(0.5, 1.0, 1.0, 26.925)]
     [InlineData(0.0, 0.5, 0.5, 13.4625)]
     [InlineData(0.5, 0.5, 1.0, 13.4625)]
-    public void Step_6_applies_DR_then_the_DAMAGE_TAKEN_MULT_product(
+    public void Step_6_applies_both_DR_and_the_DAMAGE_TAKEN_MULT_product(
         double dr, double firstMult, double secondMult, double expected)
     {
         Fight(
@@ -495,25 +502,65 @@ public sealed class DamageResolutionTests
                         .HpLost.ShouldBe(expected));
 
     /// <summary>
-    /// 🔒 `05` §4 — <em>"it resets to 1.0 after every resolved attack"</em>, by construction: the
-    /// transient is the argument and is never stored.
+    /// 🔒 `05` §4 — <em>"it resets to 1.0 after every resolved attack"</em>, over the whole slot-4
+    /// path: an <c>ATTACK_MULT_NEXT</c> charge granted at the pre-tick applies to the <b>first</b>
+    /// swing and to no later one.
     /// </summary>
     /// <remarks>
-    /// The whole-loop half of the claim — <c>ATTACK_MULT_NEXT</c> charges composed in ascending
-    /// effect-id order and spent — is <c>CombatFlowState.ConsumeAttackMultiplier</c>'s and M2-08's.
-    /// What is asserted here is the pipeline's side of it: a ×2 swing leaves nothing behind for the
-    /// next one.
+    /// <para>
+    /// 🔴 <b>Written over the tick loop rather than over two direct calls, and the earlier form was a
+    /// test that could not fail.</b> <c>attackMultiplier</c> is a parameter of
+    /// <c>ResolveAttack</c>, so the pipeline structurally cannot carry it forward and <em>every</em>
+    /// implementation of that signature passed. The claim `05` §4 actually makes spans three
+    /// components — <c>PK_OPENER</c>'s grant (`18` §2.4), <c>CombatFlowState.ConsumeAttackMultiplier</c>'s
+    /// composition and spending, and this pipeline's step 2 — and only the loop exercises all three.
+    /// </para>
+    /// <para>
+    /// The hero swings at 1.0 ASPD, so tick 0 and tick 20 are its first two swings. <c>PK_OPENER</c>
+    /// is ×3 for one charge, so the two hits must be 161.55 and 53.85 — a factor of three apart,
+    /// which no other rule in `05` §4 would produce.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void A_multiplied_attack_leaves_nothing_behind_for_the_next_one() =>
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(50_000.0, (StatId.DEF, SanityCheckDef)),
-            body: p =>
+    public void An_ATTACK_MULT_NEXT_charge_applies_to_the_next_swing_and_then_resets_to_1()
+    {
+        var opener = new HeldEffect(new EffectDefinition
+        {
+            Id = "PK_OPENER",
+            Op = EffectOp.ATTACK_MULT_NEXT,
+            Target = EffectTarget.SELF,
+            Value = 3.0,
+            Charges = 1,
+            Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_START },
+        });
+
+        var probe = AttackPipelineBench.Run(
+            new[]
             {
-                p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 2.0, "EFF_X").HpLost.ShouldBe(107.7);
-                p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X").HpLost.ShouldBe(SanityCheckHit);
-            });
+                BattleTestBench.Hero(Block(500.0, (StatId.ATK, Atk)), 1, opener),
+                BattleTestBench.Enemy(0, Block(50_000.0, (StatId.DEF, SanityCheckDef))),
+            },
+            static _ => { },
+            maxTicks: 21,
+            actorsMaySwing: true);
+
+        // 🔒 Attack precedes the outcome events (`05` §7's per-attack emission sequence) and marks a
+        // BASIC attack only — one per swing, none for anything else. Both actors swing on both ticks
+        // (`05` §3.1's fixed initiative: hero, then enemies by index), so the whole log is four
+        // Attack/Hit pairs interleaved.
+        probe.Sequence().ShouldBe(new[]
+        {
+            CombatEventType.Attack, CombatEventType.Hit,
+            CombatEventType.Attack, CombatEventType.Hit,
+            CombatEventType.Attack, CombatEventType.Hit,
+            CombatEventType.Attack, CombatEventType.Hit,
+        });
+
+        probe.EventsOf(CombatEventType.Hit)
+            .Where(e => e.SourceId == CombatActor.Hero)
+            .Select(e => e.Value)
+            .ShouldBe(new[] { 161.55, SanityCheckHit });
+    }
 
     // ══════════════════════════════════════════════════════ 05 §4.2's other two routes
 
@@ -568,31 +615,76 @@ public sealed class DamageResolutionTests
                 p.Services.Rng.Position.ShouldBe(0UL, "no dodge, no crit, no block — so no draws");
             });
 
-    // ══════════════════════════════════════════════════════ helpers
+    // ══════════════════════════════════════════════════════ the S6 refusals
 
     /// <summary>
-    /// A `05` §1 block with the named stats set, <c>ASPD</c> and <c>HEAL_PCT</c> at their `05` §2
-    /// bases, and every other stat at zero.
+    /// 🔒 A non-finite number is refused by name rather than carried through the ten steps.
     /// </summary>
     /// <remarks>
-    /// <c>HEAL_PCT</c> is 1.0 rather than 0 deliberately — <c>StatFixtures.Block</c> zeroes what it
-    /// is not given, and `05` §2 is explicit that its base is 1.0 <em>"so that lifesteal and heals
-    /// work with no modifiers"</em>. A zero here would silently make every lifesteal case pass by
-    /// healing nothing.
+    /// A NaN compares <c>false</c> against every bound in `05` §4 — the dodge test, the floor, the
+    /// ward cap — so it passes through all of them and is refused by <c>CombatLog</c> three layers
+    /// later, naming the serialiser rather than the effect. The message is the deliverable
+    /// (steering S2), so the effect id is asserted and not merely the type.
     /// </remarks>
-    private static ActorStats Block(double maxHp, params (StatId Stat, double Value)[] rest)
-    {
-        var values = new List<(StatId, double)>
+    [Fact]
+    public void A_non_finite_number_is_refused_naming_the_effect_that_produced_it() =>
+        Fight(body: p =>
         {
-            (StatId.MAX_HP, maxHp),
-            (StatId.ASPD, 1.0),
-            (StatId.HEAL_PCT, 1.0),
-        };
+            var refused = Should.Throw<EffectContextException>(
+                () => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), double.NaN, "PK_GAMBLER"));
 
-        values.AddRange(rest.Select(r => (r.Stat, r.Value)));
+            refused.Message.ShouldContain("PK_GAMBLER", Case.Sensitive);
+            refused.Message.ShouldContain("AttackMultiplier", Case.Sensitive);
 
-        return StatFixtures.Block(values.ToArray());
+            Should.Throw<EffectContextException>(
+                () => p.Pipeline.Heal(p.Enemy(), double.PositiveInfinity, "PK_TRANSFUSION"))
+                .Message.ShouldContain("PK_TRANSFUSION", Case.Sensitive);
+        });
+
+    /// <summary>
+    /// 🔒 A view that is not this battle's actor is refused — <c>BattleFlowSink</c>'s guard and its
+    /// reason: a battle has one roster and one view of it.
+    /// </summary>
+    [Fact]
+    public void A_foreign_actor_view_is_refused() =>
+        Fight(body: p =>
+            Should.Throw<InvalidOperationException>(
+                    () => p.Pipeline.Heal(new ForeignView(), 1.0, "EFF_X"))
+                .Message.ShouldContain("one roster", Case.Sensitive));
+
+    /// <summary>An <c>IEffectActorView</c> that is not a <c>BattleActor</c>.</summary>
+    private sealed class ForeignView : IEffectActorView
+    {
+        public string Id => "FOREIGN";
+
+        public int Index => 99;
+
+        public BattleSide Side => BattleSide.ENEMY;
+
+        public EffectActorKind Kind => EffectActorKind.ENEMY;
+
+        public bool IsAlive => true;
+
+        public double CurrentHp => 1.0;
+
+        public double MaxHp => 1.0;
+
+        public bool IsElite => false;
+
+        public bool IsBoss => false;
+
+        public bool IsSummon => false;
+
+        public string? OwnerId => null;
+
+        public int StatusStacks(string statusId) => 0;
     }
+
+    // ══════════════════════════════════════════════════════ helpers
+
+    /// <summary>`05` §1's block — see <see cref="AttackPipelineBench.Stats"/> for the two defaults.</summary>
+    private static ActorStats Block(double maxHp, params (StatId Stat, double Value)[] rest) =>
+        AttackPipelineBench.Stats(maxHp, rest);
 
     /// <summary>One probe fight: a hero, one enemy, nobody swinging, the probe in slot 1.</summary>
     private static AttackProbe Fight(
