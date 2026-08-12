@@ -197,7 +197,7 @@ public sealed class EveryNthCounterTests
             {
                 Kind = TriggerKind.ON_KILL,
                 Tick = kill,
-                IsDuel = true,
+                IsPvp = true,
             };
 
             registry.Evaluate(id, duelKill).ShouldBe(TriggerOutcome.NEVER_FIRES_IN_A_DUEL);

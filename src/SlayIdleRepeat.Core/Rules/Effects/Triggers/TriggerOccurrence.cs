@@ -49,11 +49,21 @@ internal readonly record struct TriggerOccurrence
     /// duels</b>: <em>"The only death in a duel ends the fight."</em>
     /// </summary>
     /// <remarks>
+    /// <para>
     /// M2-14 builds the duel; what is settled here is that the predicate answers correctly when told
     /// it is one, and that a duel kill does not advance the run-scoped counter either — see
     /// <see cref="TriggerInstance"/>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Named <c>IsPvp</c>, matching <c>EffectEvaluationContext.IsPvp</c> — one fact, one
+    /// spelling.</b> The two live in the same namespace and M2-08 and M2-14 hold both on the same
+    /// tick; a call site that set one and forgot the other would make <c>ON_KILL</c> fire in a duel
+    /// <em>and</em> advance the run-scoped counter, which is exactly the defect this field exists to
+    /// prevent, arrived at silently. ⚠️ <b>Derive it from the context's, never set it
+    /// independently.</b>
+    /// </para>
     /// </remarks>
-    internal bool IsDuel { get; init; }
+    internal bool IsPvp { get; init; }
 
     /// <summary>
     /// <see cref="TriggerKind.ON_BATTLE_END"/> — whether the hero side won, read by

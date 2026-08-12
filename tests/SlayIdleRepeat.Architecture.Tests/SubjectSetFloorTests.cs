@@ -229,17 +229,22 @@ public sealed class SubjectSetFloorTests
             "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
             "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
 
-        // 🔒 M2-04's three named subjects. The namespace floors in IntraRulesLayeringRuleTests are
-        // not enough on their own: they are PREFIX counts over Rules.Effects, so moving the
-        // catalogue, the registry or the counter seam out of Rules/Effects/Triggers/ would leave
-        // those floors satisfied by the conditions and targeting types next door while the rules and
-        // suites keyed on these names quantified over nothing.
+        // 🔒 M2-04's two vacuity-prone subjects, and only those two. Most of M2-04's types are named
+        // in C# by the tests that cover them, so a rename is a compile error rather than a silent
+        // vacuity and an entry here would buy nothing but dilution. These two are different:
+        //
+        //   TriggerCatalogue     — the 23-kind floor is stated over its ROWS, which is why the
+        //                          catalogue builds its own inventory rather than deriving it from
+        //                          Enum.GetValues. Losing a row is precisely the silent shrink S3
+        //                          watches for, and TriggerCatalogueTests' theories are MemberData
+        //                          over it, so they would quietly quantify over less.
+        //   IRunTriggerCounters  — the seam RunTriggerCountersContract runs every implementation
+        //                          through (steering S7), and the counterpart of the Run entry in
+        //                          Pending, which is where its persistence lands. It is the seam's
+        //                          name that carries the cross-milestone obligation.
         new("TriggerCatalogue", SubjectKind.CoreType, "M2-04",
-            "TriggerCatalogueTests — the 23-kind floor of 18 §11 and the parameter partition; the " +
-            "catalogue is built from its own rows precisely so the floor is an assertion"),
-        new("TriggerRegistry", SubjectKind.CoreType, "M2-04",
-            "PeriodicAnchoringTests (R8), EveryNthCounterTests, TriggerFiringTests — every trigger " +
-            "predicate is reached through it"),
+            "TriggerCatalogueTests — 18 §11's 23-kind floor and 18 §3.1's narrowing/constitutive " +
+            "partition, both stated over the catalogue's own rows; TriggerFiringTests' MemberData"),
         new("IRunTriggerCounters", SubjectKind.CoreType, "M2-04",
             "RunTriggerCountersContract — the shared contract suite every implementation of the " +
             "run-scoped ON_KILL counter is run through (steering S7); paired with the Run entry in " +

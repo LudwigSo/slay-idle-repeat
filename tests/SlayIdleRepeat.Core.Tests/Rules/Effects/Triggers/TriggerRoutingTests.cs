@@ -40,6 +40,7 @@ public sealed class TriggerRoutingTests
         var routing = TriggerRouting.Route(
             due[0].Effect,
             new TriggerOccurrence { Kind = TriggerKind.PERIODIC, Tick = firing },
+            TriggerLayer.COMBAT,
             dicelord,
             sink,
             argument: 4.0);
@@ -64,7 +65,8 @@ public sealed class TriggerRoutingTests
 
         var routing = TriggerRouting.Route(
             TriggerTestBattle.Scramble(),
-            new TriggerOccurrence { Kind = TriggerKind.PERIODIC, Tick = 40, IsDuel = true },
+            new TriggerOccurrence { Kind = TriggerKind.PERIODIC, Tick = 40, IsPvp = true },
+            TriggerLayer.COMBAT,
             TriggerTestBattle.Boss(),
             sink);
 
@@ -100,10 +102,87 @@ public sealed class TriggerRoutingTests
         TriggerRouting.Route(
             diceForge,
             new TriggerOccurrence { Kind = TriggerKind.ON_TILE_RESOLVED, Tick = 0 },
+            TriggerLayer.RUN,
             TriggerTestBattle.Hero(),
             sink).ShouldBe(EffectRouting.RESOLVE);
 
         sink.Queued.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// 🔒 An <c>ALWAYS</c> perk carrying a run/board op is routed by the <b>caller's</b> layer, not
+    /// by its trigger's — because `18` §3's one passive kind has no layer of its own.
+    /// </summary>
+    /// <remarks>
+    /// <c>MODIFY_SHOP</c> and <c>MODIFY_DROP_TABLE</c> (`18` §2.5) are exactly the shape a perk
+    /// authors as <c>{"kind":"ALWAYS"}</c>. Read off the trigger, <c>ALWAYS</c> is not
+    /// <see cref="TriggerLayer.RUN"/>, so such a perk classified as a combat emission — and M3,
+    /// evaluating one off the board with no sink to hand, got a throw instead of "resolve it".
+    /// </remarks>
+    [Theory]
+    [InlineData(EffectOp.MODIFY_SHOP)]
+    [InlineData(EffectOp.MODIFY_DROP_TABLE)]
+    public void An_ALWAYS_run_op_is_routed_by_the_callers_layer(EffectOp op)
+    {
+        var perk = TriggerTestBattle.Effect(
+            "PK_HAGGLER_T1",
+            new EffectTrigger { Kind = TriggerKind.ALWAYS },
+            op);
+
+        TriggerRouting.RouteOf(perk, TriggerLayer.RUN, isPvp: false).ShouldBe(
+            EffectRouting.RESOLVE,
+            "the run controller resolves its own run ops; there is no battle to queue against");
+
+        TriggerRouting.RouteOf(perk, TriggerLayer.COMBAT, isPvp: false).ShouldBe(
+            EffectRouting.QUEUE_FOR_RUN,
+            "reached from inside a battle it is 18 §2.5's combat-context exception like any other");
+    }
+
+    /// <summary>
+    /// An effect with no trigger is fired by its wrapper, so the wrapper's layer answers for it —
+    /// the fourth arm of the rule, which is easy to collapse into a throw.
+    /// </summary>
+    /// <remarks>
+    /// `18` §9.1's <c>CP_GLASS_HEART</c> and §7.7's pet actives are the authored triggerless effects.
+    /// Neither carries a run op today; what is pinned is that the classifier does not fall over when
+    /// one does.
+    /// </remarks>
+    [Fact]
+    public void A_triggerless_run_op_is_routed_by_the_callers_layer_too()
+    {
+        var triggerless = new EffectDefinition
+        {
+            Id = "PET_DICEBEAST_ACTIVE",
+            Op = EffectOp.MODIFY_DIE_FACE,
+            Target = EffectTarget.RUN,
+            FaceIndex = DieFaceIndex.At(1),
+            NewFace = new DieFaceSpec("Star"),
+        };
+
+        TriggerRouting.RouteOf(triggerless, TriggerLayer.RUN, isPvp: false).ShouldBe(EffectRouting.RESOLVE);
+        TriggerRouting.RouteOf(triggerless, TriggerLayer.COMBAT, isPvp: false).ShouldBe(EffectRouting.QUEUE_FOR_RUN);
+    }
+
+    /// <summary>
+    /// 🔒 `05` §1.1 — the one runtime-resolved argument is rounded to 4 dp on the way to the log,
+    /// which is the replay and is inside <c>LogHash</c>.
+    /// </summary>
+    [Fact]
+    public void The_queued_argument_is_rounded_to_4_dp()
+    {
+        var sink = new RecordingRunEffectSink();
+
+        TriggerRouting.Route(
+            TriggerTestBattle.Scramble(),
+            new TriggerOccurrence { Kind = TriggerKind.PERIODIC, Tick = 40 },
+            TriggerLayer.COMBAT,
+            TriggerTestBattle.Boss(),
+            sink,
+            argument: 1.0 / 3.0);
+
+        sink.Queued.ShouldHaveSingleItem();
+        sink.Queued[0].Argument.ShouldBe(0.3333);
+        Math.Round(sink.Queued[0].Argument, 4).ShouldBe(sink.Queued[0].Argument);
     }
 
     /// <summary>An ordinary combat op is resolved and never touches the sink.</summary>
@@ -115,6 +194,7 @@ public sealed class TriggerRoutingTests
         TriggerRouting.Route(
             TriggerTestBattle.ThornmawRoot(),
             new TriggerOccurrence { Kind = TriggerKind.PERIODIC, Tick = 160 },
+            TriggerLayer.COMBAT,
             TriggerTestBattle.Boss(),
             sink).ShouldBe(EffectRouting.RESOLVE);
 
@@ -144,7 +224,7 @@ public sealed class TriggerRoutingTests
                 new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 10.0 },
                 op);
 
-            TriggerRouting.RouteOf(effect, isDuel: false).ShouldBe(
+            TriggerRouting.RouteOf(effect, TriggerLayer.COMBAT, isPvp: false).ShouldBe(
                 EffectRouting.QUEUE_FOR_RUN,
                 $"{op} is a 18 §2.5 op and the simulator never resolves one");
         }
@@ -164,6 +244,7 @@ public sealed class TriggerRoutingTests
         var failure = Should.Throw<EffectContextException>(() => TriggerRouting.Route(
             TriggerTestBattle.Scramble(),
             new TriggerOccurrence { Kind = TriggerKind.PERIODIC, Tick = 40 },
+            TriggerLayer.COMBAT,
             TriggerTestBattle.Boss(),
             sink: null));
 

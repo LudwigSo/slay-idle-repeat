@@ -618,32 +618,71 @@ public sealed class EffectSchemaTests
 
     /// <summary>A trigger parameter on a kind that does not take it.</summary>
     /// <remarks>
-    /// Each row carries its own control: the same kind with the parameter removed. The parameter is
-    /// the only edit between the two, so what fired is the partition of `18` §3's 23 kinds into
-    /// fourteen parameter shapes and not, say, a typo in the kind.
+    /// <para>
+    /// Each row carries its own control: the same kind <b>with</b> everything it needs and
+    /// <b>without</b> the borrowed parameter. The parameter is the only edit between the two, so what
+    /// fired is the partition of `18` §3's 23 kinds into fourteen parameter shapes and not, say, a
+    /// typo in the kind.
+    /// </para>
     /// <para>
     /// 🔒 The <c>ON_KILL</c> / <c>chance</c> row is M2-04's, and it is the negative half of ruling
     /// R11: <c>ON_ATTACK</c> gained <c>chance</c> and <c>ON_KILL</c> deliberately did not. Without
     /// this row the two kinds could be quietly re-merged into one branch and every other assertion
     /// in this file would still pass.
     /// </para>
+    /// <para>
+    /// ⚠️ The control carries the kind's <b>constitutive</b> parameters (`18` §3.1) because three
+    /// kinds are no longer valid bare — <c>PERIODIC</c> without an <c>interval</c>,
+    /// <c>ON_LOW_HP</c> without a <c>threshold</c> and <c>ON_PHASE_ENTER</c> without a <c>phase</c>
+    /// state no rule and are refused by the schema rather than defaulted at read time.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData("ALWAYS", "\"chance\":0.5")]
-    [InlineData("ON_HIT", "\"cooldown\":3.0")]
-    [InlineData("ON_KILL", "\"interval\":1.0")]
-    [InlineData("ON_KILL", "\"chance\":0.5")]
-    [InlineData("PERIODIC", "\"everyNth\":3")]
-    [InlineData("ON_DEATH", "\"once\":true")]
-    public void A_trigger_parameter_on_a_kind_that_does_not_take_it_is_rejected(string kind, string parameter)
+    [InlineData("ALWAYS", "", "\"chance\":0.5")]
+    [InlineData("ON_HIT", "", "\"cooldown\":3.0")]
+    [InlineData("ON_KILL", "", "\"interval\":1.0")]
+    [InlineData("ON_KILL", "", "\"chance\":0.5")]
+    [InlineData("PERIODIC", "\"interval\":8.0", "\"everyNth\":3")]
+    [InlineData("ON_DEATH", "", "\"once\":true")]
+    [InlineData("ON_LOW_HP", "\"threshold\":0.3", "\"cooldown\":3.0")]
+    [InlineData("ON_PHASE_ENTER", "\"phase\":2", "\"everyNth\":3")]
+    public void A_trigger_parameter_on_a_kind_that_does_not_take_it_is_rejected(
+        string kind, string constitutive, string parameter)
     {
-        Validate($$"""
-        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"} }
-        """).ShouldBeEmpty($"the control: {kind} with no parameters is valid");
+        var needed = constitutive.Length > 0 ? "," + constitutive : string.Empty;
 
         Validate($$"""
-        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}",{{parameter}}} }
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"{{needed}}} }
+        """).ShouldBeEmpty($"the control: {kind} with only what 18 §3 requires is valid");
+
+        Validate($$"""
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"{{needed}},{{parameter}}} }
         """).ShouldNotBeEmpty($"18 §3 does not give {parameter} to {kind}");
+    }
+
+    /// <summary>
+    /// 🔒 `18` §3.1 — the three <b>constitutive</b> parameters are required by the schema, so a
+    /// trigger that states no rule fails the content build rather than a battle.
+    /// </summary>
+    /// <remarks>
+    /// The complement of the theory above, and it is the pair that makes either meaningful: that one
+    /// proves a surplus key is refused, this proves a missing one is. `PERIODIC` with no `interval`
+    /// has no period, `ON_LOW_HP` with no `threshold` names no crossing, and `ON_PHASE_ENTER` with no
+    /// `phase` cannot say which entry it means — steering S6, the hole is not filled at read time.
+    /// </remarks>
+    [Theory]
+    [InlineData("PERIODIC", "\"interval\":8.0")]
+    [InlineData("ON_LOW_HP", "\"threshold\":0.3")]
+    [InlineData("ON_PHASE_ENTER", "\"phase\":2")]
+    public void A_constitutive_trigger_parameter_is_required(string kind, string constitutive)
+    {
+        Validate($$"""
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}",{{constitutive}}} }
+        """).ShouldBeEmpty($"the control: {kind} with its constitutive parameter is valid");
+
+        Validate($$"""
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"} }
+        """).ShouldNotBeEmpty($"18 §3.1 — {kind} states no rule without {constitutive}");
     }
 
     /// <summary>

@@ -34,15 +34,15 @@ internal enum EffectRouting
 /// </para>
 /// <list type="bullet">
 ///   <item>
-///     A <b>combat</b> trigger (`18` §3's <see cref="TriggerLayer.COMBAT"/> kinds, and
-///     <c>ALWAYS</c>) carrying a `18` §2.5 op — the Dicelord's Scramble, a
-///     <c>PERIODIC</c> firing <c>MODIFY_DIE_FACE</c> — is <b>queued</b>. The simulator stays pure:
+///     Fired by the <b>combat</b> loop and carrying a `18` §2.5 op — the Dicelord's Scramble, a
+///     <c>PERIODIC</c> firing <c>MODIFY_DIE_FACE</c> — it is <b>queued</b>. The simulator stays pure:
 ///     <em>"these are resolved by the run controller, never by the combat simulator"</em>.
 ///   </item>
 ///   <item>
-///     A <b>run</b> trigger carrying the same op — `18` §7.9's <c>TILE_DICE_FORGE</c>, an
-///     <c>ON_TILE_RESOLVED</c> firing <c>MODIFY_DIE_FACE</c> — is <b>resolved</b>. It is already on
-///     the run layer; queueing it would post a letter to the room it is standing in.
+///     Fired by the <b>run</b> controller — `18` §7.9's <c>TILE_DICE_FORGE</c>, an
+///     <c>ON_TILE_RESOLVED</c> firing <c>MODIFY_DIE_FACE</c>; or an <c>ALWAYS</c> perk carrying
+///     <c>MODIFY_SHOP</c> — it is <b>resolved</b>. It is already on the run layer; queueing it would
+///     post a letter to the room it is standing in.
 ///   </item>
 ///   <item>
 ///     In a duel the queue is <b>discarded</b> (`18` §2.5, consistent with §9.3's <c>IS_PVP</c>
@@ -61,9 +61,23 @@ internal static class TriggerRouting
     /// <summary>
     /// Where an effect that has just fired goes.
     /// </summary>
-    /// <param name="effect">The effect that fired. Its trigger decides which layer fired it.</param>
-    /// <param name="isDuel">`05` §3.3 — whether this is a Ghost Duel.</param>
-    internal static EffectRouting RouteOf(EffectDefinition effect, bool isDuel)
+    /// <param name="effect">The effect that fired.</param>
+    /// <param name="firedBy">
+    /// 🔒 Which loop fired it — <see cref="TriggerLayer.COMBAT"/> from `05` §3.1's tick loop,
+    /// <see cref="TriggerLayer.RUN"/> from M3's run controller. See the remarks for why this is the
+    /// <b>caller's</b> layer and not the trigger's.
+    /// </param>
+    /// <param name="isPvp">`05` §3.3 — whether this is a Ghost Duel.</param>
+    /// <remarks>
+    /// ⚠️ <b>The layer is the caller's, because <c>ALWAYS</c> has no layer of its own.</b> An earlier
+    /// draft read it off the trigger, which is exact for the sixteen combat kinds and the six run
+    /// kinds and wrong for the one passive: <see cref="TriggerLayer.PASSIVE"/> means <em>both loops
+    /// see it</em>. <c>MODIFY_SHOP</c> and <c>MODIFY_DROP_TABLE</c> (`18` §2.5) are precisely the
+    /// passive-run-op shape a perk authors as <c>{"kind":"ALWAYS"}</c>, and reading the layer off the
+    /// trigger classified those as a combat emission — so M3, evaluating one off the board with no
+    /// sink to hand, got a throw instead of "resolve it".
+    /// </remarks>
+    internal static EffectRouting RouteOf(EffectDefinition effect, TriggerLayer firedBy, bool isPvp)
     {
         ArgumentNullException.ThrowIfNull(effect);
 
@@ -72,17 +86,23 @@ internal static class TriggerRouting
             return EffectRouting.RESOLVE;
         }
 
-        // 🔒 An effect with no trigger is not a combat trigger, so it cannot be the 18 §2.5
-        // exception. 18 §9.1's CP_GLASS_HEART and §7.7's pet actives are the authored triggerless
-        // effects and neither carries a run op; if one ever does, its wrapper decides when it fires
-        // and its wrapper is the run layer's or the battle's — not this function's to guess.
-        if (effect.Trigger is not { } trigger ||
-            TriggerCatalogue.LayerOf(trigger.Kind) == TriggerLayer.RUN)
+        // 🔒 The run controller resolves its own run ops. 18 §7.9's TILE_DICE_FORGE is already on
+        // the run layer; queueing it would post a letter to the room it is standing in.
+        if (firedBy == TriggerLayer.RUN)
         {
             return EffectRouting.RESOLVE;
         }
 
-        return isDuel ? EffectRouting.DISCARDED_IN_A_DUEL : EffectRouting.QUEUE_FOR_RUN;
+        // 🔒 An effect with no trigger is fired by its wrapper, and the wrapper's layer is the one
+        // above. 18 §9.1's CP_GLASS_HEART and §7.7's pet actives are the authored triggerless
+        // effects; neither carries a run op today, and if one ever does it is `firedBy` that answers
+        // for it rather than a trigger that is not there.
+        if (effect.Trigger is { } trigger && TriggerCatalogue.LayerOf(trigger.Kind) == TriggerLayer.RUN)
+        {
+            return EffectRouting.RESOLVE;
+        }
+
+        return isPvp ? EffectRouting.DISCARDED_IN_A_DUEL : EffectRouting.QUEUE_FOR_RUN;
     }
 
     /// <summary>
@@ -91,9 +111,13 @@ internal static class TriggerRouting
     /// </summary>
     /// <param name="effect">The effect that fired.</param>
     /// <param name="occurrence">The moment it fired on — its tick and whether this is a duel.</param>
+    /// <param name="firedBy">Which loop fired it. See <see cref="RouteOf"/>.</param>
     /// <param name="source">The actor whose effect fired.</param>
     /// <param name="sink">Where a queued op goes. Only reached for <see cref="EffectRouting.QUEUE_FOR_RUN"/>.</param>
-    /// <param name="argument">The op's one runtime-resolved argument, rounded to 4 dp.</param>
+    /// <param name="argument">
+    /// The op's one runtime-resolved argument. 🔒 Rounded to 4 dp <b>here</b> (`05` §1.1): it crosses
+    /// into the combat log, which is the replay, and `14` §8.2's cross-platform gate hashes it.
+    /// </param>
     /// <returns>What was done, so the caller resolves only what it should.</returns>
     /// <exception cref="EffectContextException">
     /// The effect must be queued and no sink was handed in.
@@ -101,6 +125,7 @@ internal static class TriggerRouting
     internal static EffectRouting Route(
         EffectDefinition effect,
         in TriggerOccurrence occurrence,
+        TriggerLayer firedBy,
         IEffectActorView source,
         IRunEffectSink? sink,
         double argument = 0.0)
@@ -108,7 +133,7 @@ internal static class TriggerRouting
         ArgumentNullException.ThrowIfNull(effect);
         ArgumentNullException.ThrowIfNull(source);
 
-        var routing = RouteOf(effect, occurrence.IsDuel);
+        var routing = RouteOf(effect, firedBy, occurrence.IsPvp);
 
         if (routing != EffectRouting.QUEUE_FOR_RUN)
         {
@@ -128,7 +153,7 @@ internal static class TriggerRouting
                 "append, the op would be silently lost.");
         }
 
-        sink.QueueRunEffect(occurrence.Tick, source, effect, argument);
+        sink.QueueRunEffect(occurrence.Tick, source, effect, Math.Round(argument, 4, MidpointRounding.ToEven));
 
         return routing;
     }

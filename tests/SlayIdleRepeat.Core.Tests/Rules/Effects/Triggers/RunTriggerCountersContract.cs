@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 using Xunit;
 
@@ -128,25 +129,102 @@ public abstract class RunTriggerCountersContract
             () => Create().Write(EffectInstanceId.Of("HERO#0/PK_MIDAS_T1"), -1));
     }
 
-    /// <summary>An id with no value at all is refused, for the same reason a blank one is.</summary>
-    [Fact]
-    public void An_instance_with_no_id_throws_ArgumentException()
+    /// <summary>
+    /// 🔒 An id that names no holding is refused on <b>both</b> members — <c>default</c>, empty and
+    /// whitespace alike.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <c>EffectInstanceId.Of</c> refuses all three, but a <c>record struct</c>'s generated
+    /// constructor is public and <c>default</c> bypasses it — so these arrive here whatever
+    /// <c>Of</c> does. Two <c>new EffectInstanceId("")</c> instances sharing one run counter is the
+    /// per-instance rule of `18` §3 failing in the direction that looks like it works.
+    /// </remarks>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void An_id_that_names_no_holding_throws_ArgumentException(string? value)
     {
-        Should.Throw<ArgumentException>(() => Create().Write(default, 1));
+        var id = value is null ? default : new EffectInstanceId(value);
+
+        Should.Throw<ArgumentException>(() => Create().Write(id, 1));
+        Should.Throw<ArgumentException>(() => Create().Read(id));
     }
 
     /// <summary>
-    /// 🔒 The seam declares exactly one read and one write, and nothing else. Floored, or the claim
-    /// passes forever over an emptied interface (steering S3).
+    /// 🔒 What M3 persists comes out in ascending <b>ordinal</b> id order, not in the order the hero
+    /// happened to kill things.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A dictionary's enumeration order is an implementation detail of the runtime, and `14` §8.2
+    /// hashes the run snapshot on x64 and ARM64 and compares. Ordering here is what stops the same
+    /// run hashing differently on two devices, which is why it is on the <b>contract</b> and not on
+    /// one implementation.
+    /// </para>
+    /// <para>
+    /// ⚠️ Two things this is written to be able to fail on. The <b>keys</b> are asserted, not the
+    /// counts, and the counts deliberately do <em>not</em> co-vary with the id order — an earlier
+    /// draft assigned 1/2/3 in id order and asserted the values, so ordering by the count would have
+    /// passed identically. And the ids differ by <b>case</b>: <c>'A' (U+0041)</c> sorts before
+    /// <c>'a' (U+0061)</c> ordinally and <em>after</em> it under most culture-aware collations, so a
+    /// culture-sensitive comparer fails here rather than in production on somebody's phone.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void The_seam_declares_one_read_and_one_write()
+    public void The_entries_come_out_in_ascending_ordinal_id_order()
+    {
+        var counters = Create();
+
+        counters.Write(EffectInstanceId.Of("HERO#0/a-slot/PK_MIDAS_T1"), 9);
+        counters.Write(EffectInstanceId.Of("HERO#0/Z-slot/PK_MIDAS_T1"), 4);
+        counters.Write(EffectInstanceId.Of("HERO#0/A-slot/PK_MIDAS_T1"), 7);
+
+        counters.Entries.Select(e => e.Key.Value).ShouldBe(
+            new[]
+            {
+                "HERO#0/A-slot/PK_MIDAS_T1",
+                "HERO#0/Z-slot/PK_MIDAS_T1",
+                "HERO#0/a-slot/PK_MIDAS_T1",
+            },
+            Case.Sensitive,
+            "ordinal puts every uppercase letter before every lowercase one; a culture-aware " +
+            "collation interleaves them");
+
+        counters.Entries.Select(e => e.Value).ShouldBe(new[] { 7, 4, 9 });
+    }
+
+    /// <summary>An empty run enumerates to nothing rather than failing.</summary>
+    [Fact]
+    public void An_empty_run_has_no_entries()
+    {
+        Create().Entries.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// 🔒 The seam declares exactly one read, one write and one enumeration, and nothing else.
+    /// Floored, or the claim passes forever over an emptied interface (steering S3).
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <c>Entries</c> is on the <b>interface</b> and not only on the implementation, because
+    /// without it the seam does not close: the pairs M3 has to snapshot would be reachable only
+    /// through the concrete type, so M3 would abandon the interface and the contract would buy
+    /// nothing.
+    /// </remarks>
+    [Fact]
+    public void The_seam_declares_one_read_one_write_and_one_enumeration()
     {
         var members = typeof(IRunTriggerCounters).GetMethods();
 
-        members.Length.ShouldBe(2, "`18` §3 needs a read and a write, and a wider seam here becomes M3's forced shape");
+        members.Length.ShouldBe(
+            3,
+            "18 §3 needs a read, a write and the enumeration M3 persists — and a wider seam here " +
+            "becomes M3's forced shape");
         members.Count(m => m.ReturnType == typeof(void)).ShouldBe(1, "one write");
         members.Count(m => m.ReturnType == typeof(int)).ShouldBe(1, "one read");
+        members.Count(m => m.Name.StartsWith("get_", StringComparison.Ordinal)).ShouldBe(
+            1,
+            "one enumeration, and it is a getter — nothing here takes a snapshot argument");
     }
 }
 
@@ -154,25 +232,4 @@ public abstract class RunTriggerCountersContract
 public sealed class RunTriggerCountersTests : RunTriggerCountersContract
 {
     private protected override IRunTriggerCounters Create() => new RunTriggerCounters();
-
-    /// <summary>
-    /// 🔒 What M3 persists comes out in ascending ordinal id order, not in the order the hero
-    /// happened to kill things.
-    /// </summary>
-    /// <remarks>
-    /// A dictionary's enumeration order is an implementation detail of the runtime, and `14` §8.2
-    /// hashes the run snapshot on x64 and ARM64 and compares. Ordering here is what stops the same
-    /// run hashing differently on two devices.
-    /// </remarks>
-    [Fact]
-    public void The_entries_come_out_in_ascending_ordinal_id_order()
-    {
-        var counters = new RunTriggerCounters();
-
-        counters.Write(EffectInstanceId.Of("HERO#0/z-slot/PK_MIDAS_T1"), 3);
-        counters.Write(EffectInstanceId.Of("HERO#0/a-slot/PK_MIDAS_T1"), 1);
-        counters.Write(EffectInstanceId.Of("HERO#0/m-slot/PK_MIDAS_T1"), 2);
-
-        counters.Entries.Select(e => e.Value).ShouldBe(new[] { 1, 2, 3 });
-    }
 }

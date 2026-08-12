@@ -42,6 +42,8 @@ internal sealed class TriggerInstance
 {
     private readonly IRunTriggerCounters _runCounters;
 
+    private readonly int _cooldownTicks;
+
     private int _battleOccasions;
     private int _fireCount;
     private int _cooldownReadyTick;
@@ -81,27 +83,14 @@ internal sealed class TriggerInstance
 
         TriggerCatalogue.Validate(Trigger);
 
-        // 🔒 ON_LOW_HP's armed flag cannot be guessed. A crossing needs a reading from BEFORE the
-        // change as well as after it, and there is no safe default: assume armed and an effect
-        // granted while the holder is already under its threshold fires on the next scratch that
-        // was never a crossing; assume disarmed and PK_UNBREAKABLE never fires against a hero who
-        // goes from full HP to 20% in one blow. Steering S6 — the hole stays a hole and says so.
-        if (Trigger.Kind == TriggerKind.ON_LOW_HP)
-        {
-            if (holderHpFraction is not { } fraction)
-            {
-                throw new EffectContextException(
-                    TriggerKind.ON_LOW_HP.ToString(),
-                    $"'{effect.Id}' was registered without the holder's HP fraction",
-                    "`18` §3 fires it when self HP CROSSES a threshold downward, and a crossing needs " +
-                    "the reading before the change as well as the one after it. Hand in the holder's " +
-                    "HP fraction at activation.");
-            }
+        // 🔒 Computed once, here, rather than at every firing. `Validate` has already refused a
+        // cooldown that is not a whole number of ticks, so this cannot throw — and that is the
+        // point: an earlier draft converted it inside Fire(), so `{"kind":"ON_DODGE","cooldown":0.03}`
+        // passed the schema, passed validation, and threw out of `05` §3.1 slot 4 on the first
+        // successful dodge of a live fight.
+        _cooldownTicks = TriggerSchedule.CooldownTicks(Trigger);
 
-            _lowHpArmed = Round(fraction) > Threshold;
-        }
-
-        Anchor(activationTick);
+        Arm(activationTick, holderHpFraction);
         IsActive = true;
     }
 
@@ -149,13 +138,31 @@ internal sealed class TriggerInstance
     internal int OccasionCount =>
         Trigger.Kind == TriggerKind.ON_KILL ? _runCounters.Read(Id) : _battleOccasions;
 
-    /// <summary>`18` §3's <c>threshold</c>, which <c>ON_LOW_HP</c> cannot be read without.</summary>
-    private double Threshold => Trigger.Threshold ?? 0.0;
+    /// <summary>
+    /// `18` §3's <c>threshold</c>, which <c>ON_LOW_HP</c> cannot be read without.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Throws rather than coercing an absent threshold to <c>0.0</c> (steering S6). It is
+    /// unreachable today because <see cref="TriggerCatalogue.Validate"/> requires <c>threshold</c> on
+    /// the one kind that reads it — but a coerced <c>0.0</c> is a threshold of "at zero HP", which
+    /// reads as a working trigger that simply never fires, and the day the partition changes is not
+    /// the day to find that out.
+    /// </remarks>
+    private double Threshold =>
+        Trigger.Threshold ?? throw new EffectContextException(
+            Trigger.Kind.ToString(),
+            $"'{Effect.Id}' carries no threshold",
+            "`18` §3's ON_LOW_HP fires when self HP crosses a THRESHOLD downward; with none there is " +
+            "no crossing, and 0.0 would be a trigger that looks live and never fires.");
 
     /// <summary>
     /// 🔒 R8 — starts the instance's clock, <b>once</b>. Re-anchoring a live instance is refused.
     /// </summary>
     /// <param name="tick">The tick the effect became active on.</param>
+    /// <param name="holderHpFraction">
+    /// The holder's HP fraction now, for <c>ON_LOW_HP</c>'s armed flag. Required for that kind and
+    /// ignored by every other — a re-grant is a new arming for the same reason it is a new clock.
+    /// </param>
     /// <remarks>
     /// <para>
     /// 🔒 <b>The double-anchor guard is the point.</b> `05` §3.1's phase check runs after every boss
@@ -169,8 +176,15 @@ internal sealed class TriggerInstance
     /// A <b>deactivated</b> instance that is activated again does re-anchor, and that is a different
     /// case: its `18` §6 <c>PHASE</c>-scoped effect ended and a new grant is a new clock.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>And a new <em>arming</em>, which is why this takes the HP reading.</b> The armed flag is
+    /// stateful and <see cref="Crossing"/> is unreachable while the instance is inactive, so an
+    /// instance deactivated while armed and re-granted after the holder had already fallen below its
+    /// threshold would fire on the next scratch — a crossing that never happened, and precisely the
+    /// case the constructor refuses to guess.
+    /// </para>
     /// </remarks>
-    internal void Activate(int tick)
+    internal void Activate(int tick, double? holderHpFraction = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tick);
 
@@ -179,7 +193,7 @@ internal sealed class TriggerInstance
             return;
         }
 
-        Anchor(tick);
+        Arm(tick, holderHpFraction);
         IsActive = true;
     }
 
@@ -211,6 +225,22 @@ internal sealed class TriggerInstance
     /// </exception>
     internal TriggerOutcome Evaluate(in TriggerOccurrence occurrence, DeterministicRng? rng)
     {
+        // 🔒 Refused HERE and not only in TriggerRegistry.Evaluate, because this method is reachable
+        // on every instance the registry hands out — Register's return value, the indexer, PeriodicDue's
+        // result, Instances. Without this a PERIODIC walked through the ordinary path passes every
+        // gate (no filter arm, no cooldown, no everyNth, no chance) and FIRES, leaving _nextFiringTick
+        // untouched — so it fires again at its scheduled tick. The registry's guard carries the
+        // message; this one carries the invariant.
+        if (Trigger.Kind == TriggerKind.PERIODIC)
+        {
+            throw new EffectContextException(
+                TriggerKind.PERIODIC.ToString(),
+                $"'{Effect.Id}' was evaluated as a moment",
+                $"A PERIODIC fires on a schedule anchored when its effect became active (R8), not on a " +
+                $"moment. {nameof(TriggerRegistry)}.{nameof(TriggerRegistry.PeriodicDue)} is the one " +
+                "path that advances that schedule — `05` §3.1 slot 3.");
+        }
+
         if (occurrence.Kind != Trigger.Kind)
         {
             return TriggerOutcome.WRONG_KIND;
@@ -224,7 +254,7 @@ internal sealed class TriggerInstance
         // 🔒 `05` §3.3 — before the counter, deliberately. A duel is not part of a run, so a duel
         // kill must not advance PK_MIDAS's run-scoped count: a player could otherwise farm the
         // counter in the arena and walk into the next run with the perk half-charged.
-        if (occurrence.Kind == TriggerKind.ON_KILL && occurrence.IsDuel)
+        if (occurrence.Kind == TriggerKind.ON_KILL && occurrence.IsPvp)
         {
             return TriggerOutcome.NEVER_FIRES_IN_A_DUEL;
         }
@@ -400,18 +430,50 @@ internal sealed class TriggerInstance
     {
         _fireCount++;
 
-        var cooldownTicks = TriggerSchedule.CooldownTicks(Trigger);
-        if (cooldownTicks > 0)
+        if (_cooldownTicks > 0)
         {
-            _cooldownReadyTick = tick + cooldownTicks;
+            _cooldownReadyTick = tick + _cooldownTicks;
         }
 
         return TriggerOutcome.FIRES;
     }
 
-    /// <summary>🔒 R8 — sets the clock, for the kinds that have one.</summary>
-    private void Anchor(int tick)
+    /// <summary>
+    /// 🔒 Everything an activation sets: R8's clock, and <c>ON_LOW_HP</c>'s armed flag. One method,
+    /// so the constructor and a re-grant cannot set different subsets of it.
+    /// </summary>
+    private void Arm(int tick, double? holderHpFraction)
     {
+        if (Trigger.Kind == TriggerKind.ON_LOW_HP)
+        {
+            // 🔒 The armed flag cannot be guessed, and there is no safe default: assume armed and an
+            // effect granted while the holder is already under its threshold fires on the next
+            // scratch that was never a crossing; assume disarmed and PK_UNBREAKABLE never fires
+            // against a hero who goes from full HP to 20% in one blow. Steering S6 — the hole stays
+            // a hole and says so.
+            if (holderHpFraction is not { } fraction)
+            {
+                throw new EffectContextException(
+                    TriggerKind.ON_LOW_HP.ToString(),
+                    $"'{Effect.Id}' was activated without the holder's HP fraction",
+                    "`18` §3 fires it when self HP CROSSES a threshold downward, and a crossing needs " +
+                    "the reading before the change as well as the one after it. Hand in the holder's " +
+                    "HP fraction at activation.");
+            }
+
+            if (double.IsNaN(fraction) || fraction is < 0.0 or > 1.0)
+            {
+                throw new EffectContextException(
+                    TriggerKind.ON_LOW_HP.ToString(),
+                    $"'{Effect.Id}' was activated at an HP fraction of " +
+                    $"{fraction.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}",
+                    "An HP fraction is 0..1 (`18` §4's SELF_HP_PCT). A NaN would silently start the " +
+                    "instance disarmed, because every comparison against it is false.");
+            }
+
+            _lowHpArmed = Round(fraction) > Threshold;
+        }
+
         if (Trigger.Kind != TriggerKind.PERIODIC)
         {
             return;

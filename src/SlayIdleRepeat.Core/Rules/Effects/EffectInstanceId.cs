@@ -1,8 +1,8 @@
-namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
+namespace SlayIdleRepeat.Core.Rules.Effects;
 
 /// <summary>
-/// 🔒 The identity of one <b>effect instance</b> — what `18` §3's <c>everyNth</c> counters live on,
-/// and the key M3 persists a run-scoped <c>ON_KILL</c> counter against.
+/// 🔒 <b>The</b> identity of one <b>effect instance</b> — what `18` §3's <c>everyNth</c> counters live
+/// on, and the key M3 persists a run-scoped <c>ON_KILL</c> counter against.
 /// </summary>
 /// <param name="Value">
 /// The caller's stable, unique name for this instance. Compared <b>ordinally</b>, as every id in
@@ -38,6 +38,23 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 /// run-counter seam cannot be handed an effect id, an actor id or a status id by mistake; those are
 /// all strings too, and three of the four are wrong.
 /// </para>
+/// <para>
+/// 🔒 <b>It lives in <c>Rules/Effects/</c> rather than in <c>Rules/Effects/Triggers/</c>, and
+/// deliberately: this is the effects layer's <em>one</em> instance identity.</b> `18` §6's stacking
+/// is <em>"one instance per <c>statusId</c> per target"</em>, so M2-06's duration and
+/// <c>refreshOnReapply</c> need the same key M2-04's counters do, and M2-03's ops and M2-08's log
+/// will want it too. A second identity type invented one namespace over would be two answers to
+/// "which copy of this effect is this", with nothing making them agree — the split
+/// <see cref="BattleRoster"/>'s remarks describe for the living-enemies predicate, one layer up.
+/// </para>
+/// <para>
+/// ⚠️ <b><c>default</c> and the generated constructor bypass <see cref="Of"/>.</b> A
+/// <c>record struct</c>'s positional constructor is public and <c>default(EffectInstanceId)</c>
+/// carries a null <see cref="Value"/>, so the validation here is a convenience and not a guarantee.
+/// Every consumer that stores against this key therefore re-checks — <c>TriggerRegistry.Register</c>
+/// and <see cref="Triggers.IRunTriggerCounters"/>'s implementations — because a shared unnamed key is
+/// the per-instance rule failing in the direction that looks like it works.
+/// </para>
 /// </remarks>
 internal readonly record struct EffectInstanceId(string Value)
 {
@@ -58,6 +75,12 @@ internal readonly record struct EffectInstanceId(string Value)
 
         return new EffectInstanceId(value);
     }
+
+    /// <summary>
+    /// Whether this id names a holding at all — <c>false</c> for <c>default</c> and for a blank
+    /// value, both of which reach here around <see cref="Of"/>.
+    /// </summary>
+    internal bool NamesAHolding => !string.IsNullOrWhiteSpace(Value);
 
     /// <inheritdoc />
     public override string ToString() => Value;

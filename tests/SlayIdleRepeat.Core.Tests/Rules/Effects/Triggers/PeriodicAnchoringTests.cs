@@ -95,6 +95,13 @@ public sealed class PeriodicAnchoringTests
     /// three seconds of <c>×1.08</c> is <c>1.08³ = 1.259712</c> — <b>125.9712</b> on a base of 100.
     /// The stacking itself is M2-06's and M2-07's; what is proved here is that exactly three firings
     /// have landed by 72 s, because a schedule that fired at 71 s first would show two.
+    /// <para>
+    /// ⚠️ The multiplier is <b>read from the authored effect</b> rather than written as a literal.
+    /// An earlier draft wrote <c>Math.Pow(1.08, 3)</c> with both the base and the exponent supplied
+    /// by the test, which asserted only that the test could multiply — steering S1. As written, the
+    /// line fails if <c>SYS_ENRAGE</c>'s authored value drifts from `05` §3.1's <c>×1.08</c> or if
+    /// the schedule lands a different number of firings by 72 s.
+    /// </para>
     /// </remarks>
     [Fact]
     public void SYS_ENRAGE_anchors_at_battle_start_and_fires_once_a_second_from_70_s()
@@ -116,9 +123,11 @@ public sealed class PeriodicAnchoringTests
             TriggerTestBattle.At(72.0),
         });
 
-        Math.Round(100.0 * Math.Pow(1.08, firings.Count), 4).ShouldBe(
+        var multiplier = TriggerTestBattle.SysEnrage().Value!.Value;
+
+        Math.Round(100.0 * Math.Pow(multiplier, firings.Count), 4).ShouldBe(
             125.9712,
-            "R1: STAT_MULT's value IS the multiplier, so three seconds of x1.08 is 1.08^3");
+            "R1: STAT_MULT's value IS the multiplier, so three seconds of the authored x1.08 is 1.08^3");
     }
 
     /// <summary>
@@ -185,12 +194,24 @@ public sealed class PeriodicAnchoringTests
         root.AnchorTick.ShouldBeNull("a deactivated instance has no clock left to fire on");
         summon.AnchorTick.ShouldBe(burst, "phase 3 anchors once, on the tick it was entered");
 
-        // Drive far enough past both intervals that a leaked phase-2 Root would have fired twice.
-        var firedPhase2 = FiringTicks(registry, phase2, upTo: TriggerTestBattle.At(40.0));
-        var firedPhase3 = FiringTicks(registry, phase3, upTo: TriggerTestBattle.At(40.0));
+        // 🔒 ONE ascending sweep over BOTH instances — the shape `05` §3.1's loop actually has, and
+        // the only shape the registry accepts now that a backwards tick is refused. Driven far
+        // enough past both intervals that a leaked phase-2 Root would have fired twice.
+        var fired = new List<(int Tick, string Instance)>();
 
-        firedPhase2.ShouldBeEmpty("phase 2 was left; 18 §6's PHASE scope ends at the exit");
-        firedPhase3.ShouldBe(new[] { TriggerTestBattle.At(24.0), TriggerTestBattle.At(36.0) });
+        for (var tick = 0; tick <= TriggerTestBattle.At(40.0); tick++)
+        {
+            foreach (var instance in registry.PeriodicDue(new[] { phase2, phase3 }, tick))
+            {
+                fired.Add((tick, instance.Id.Value));
+            }
+        }
+
+        fired.Where(f => f.Instance == phase2.Value)
+             .ShouldBeEmpty("phase 2 was left; 18 §6's PHASE scope ends at the exit");
+
+        fired.Where(f => f.Instance == phase3.Value).Select(f => f.Tick)
+             .ShouldBe(new[] { TriggerTestBattle.At(24.0), TriggerTestBattle.At(36.0) });
     }
 
     /// <summary>
@@ -296,6 +317,115 @@ public sealed class PeriodicAnchoringTests
 
         failure.Token.ShouldBe(nameof(TriggerKind.PERIODIC));
         failure.Message.ShouldContain("PeriodicDue", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 Two instances of <b>one</b> effect tie on the effect id, and the tie is broken by the
+    /// instance id — never by the caller's list order.
+    /// </summary>
+    /// <remarks>
+    /// <c>EffectInstanceId</c> exists precisely because one actor can hold two copies of one effect
+    /// (`18` §3), so <c>OrderBy(effect id)</c> alone is a <em>stable</em> sort over a tie: which of
+    /// two <c>PK_AEGIS</c> wards lands first would be decided by how the tick loop happened to build
+    /// its list. The candidates are handed in reversed, so a version without the tie-break returns
+    /// them reversed.
+    /// </remarks>
+    [Fact]
+    public void Two_instances_of_one_effect_are_tie_broken_by_the_instance_id()
+    {
+        var registry = TriggerTestBattle.Registry();
+
+        var first = TriggerTestBattle.Instance("HERO#0/perk-slot-1/PK_AEGIS_T1");
+        var second = TriggerTestBattle.Instance("HERO#0/perk-slot-2/PK_AEGIS_T1");
+
+        foreach (var id in new[] { first, second })
+        {
+            registry.Register(
+                id,
+                TriggerTestBattle.Effect(
+                    "PK_AEGIS_T1",
+                    new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 1.0 },
+                    EffectOp.SHIELD),
+                activationTick: 0);
+        }
+
+        var due = registry.PeriodicDue(new[] { second, first }, TriggerTestBattle.At(1.0));
+
+        due.Select(instance => instance.Id.Value).ShouldBe(
+            new[] { first.Value, second.Value },
+            Case.Sensitive,
+            "18 §8's order is total: the effect id first, then the instance id");
+    }
+
+    /// <summary>
+    /// 🔒 A tick that goes backwards is refused rather than silently answering "nothing is due".
+    /// </summary>
+    /// <remarks>
+    /// `05` §3.1's loop runs ticks in ascending order, and a caller that walked it wrongly would lose
+    /// every firing in between with nothing going red — the shape of failure every other guard in
+    /// this class throws on. <c>CombatLog.Append</c> refuses a backwards tick for the neighbouring
+    /// reason.
+    /// </remarks>
+    [Fact]
+    public void A_tick_that_goes_backwards_is_refused()
+    {
+        var registry = TriggerTestBattle.Registry();
+        var id = TriggerTestBattle.Instance("BOSS#0/BOSS_THORNMAW_P2_ROOT");
+        registry.Register(id, TriggerTestBattle.ThornmawRoot(), activationTick: 0);
+
+        registry.PeriodicDue(new[] { id }, TriggerTestBattle.At(8.0)).Count.ShouldBe(1);
+
+        var failure = Should.Throw<EffectContextException>(
+            () => registry.PeriodicDue(new[] { id }, TriggerTestBattle.At(7.0)));
+
+        failure.Message.ShouldContain("goes backwards", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 One instance decides once per moment: the same id twice in one call is refused.
+    /// </summary>
+    /// <remarks>
+    /// Normally harmless, and that is the trap. A schedule that is behind leaves the instance due
+    /// again the moment it fires, so the duplicate fires a second time inside one tick — a boss
+    /// summoning two waves on one tick, from a caller bug no combat log would explain.
+    /// </remarks>
+    [Fact]
+    public void A_duplicate_candidate_in_one_call_is_refused()
+    {
+        var registry = TriggerTestBattle.Registry();
+        var id = TriggerTestBattle.Instance("BOSS#0/BOSS_THORNMAW_P2_ROOT");
+        registry.Register(id, TriggerTestBattle.ThornmawRoot(), activationTick: 0);
+
+        var failure = Should.Throw<EffectContextException>(
+            () => registry.PeriodicDue(new[] { id, id }, TriggerTestBattle.At(8.0)));
+
+        failure.Token.ShouldBe(id.Value);
+        failure.Message.ShouldContain("twice among the candidates", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 A <c>PERIODIC</c> is refused on the <b>instance</b> too, not only through the registry.
+    /// </summary>
+    /// <remarks>
+    /// The registry hands instances out — from <c>Register</c>, from the indexer, from
+    /// <c>PeriodicDue</c>, from <c>Instances</c> — so a guard that lived only on the registry wrapper
+    /// would leave the ordinary path open: a <c>PERIODIC</c> walked through it passes every gate
+    /// (no filter arm, no cooldown, no <c>everyNth</c>, no <c>chance</c>) and fires, leaving the
+    /// schedule untouched so it fires again at its scheduled tick.
+    /// </remarks>
+    [Fact]
+    public void A_PERIODIC_cannot_be_fired_through_the_ordinary_path_on_the_instance_either()
+    {
+        var registry = TriggerTestBattle.Registry();
+        var id = TriggerTestBattle.Instance("BOSS#0/BOSS_THORNMAW_P2_ROOT");
+        var instance = registry.Register(id, TriggerTestBattle.ThornmawRoot(), activationTick: 0);
+
+        var failure = Should.Throw<EffectContextException>(
+            () => instance.Evaluate(TriggerTestBattle.Moment(TriggerKind.PERIODIC, 40), rng: null));
+
+        failure.Token.ShouldBe(nameof(TriggerKind.PERIODIC));
+        instance.FireCount.ShouldBe(0, "nothing fired, and the schedule is untouched");
+        instance.NextFiringTick.ShouldBe(TriggerTestBattle.At(8.0));
     }
 
     /// <summary>

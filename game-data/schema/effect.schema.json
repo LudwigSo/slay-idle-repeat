@@ -595,7 +595,7 @@
     },
 
     "trigger": {
-      "description": "18 §3 — when the effect fires. The 23 kinds are partitioned into thirteen closed parameter shapes, so a parameter on the wrong kind is a validation failure rather than a key that silently does nothing. null is admitted because 18 §9.1's CP_GLASS_HEART and 18 §7.7's pet active effects carry no trigger — the pet's ability cooldown is the wrapper's, not the effect's — and 18 states no default; supplying one here would be manufacturing a rule.",
+      "description": "18 §3 — when the effect fires. The 23 kinds are partitioned into fourteen closed parameter shapes, so a parameter on the wrong kind is a validation failure rather than a key that silently does nothing. null is admitted because 18 §9.1's CP_GLASS_HEART and 18 §7.7's pet active effects carry no trigger — the pet's ability cooldown is the wrapper's, not the effect's — and 18 states no default; supplying one here would be manufacturing a rule.",
       "oneOf": [
         {
           "title": "18 §3 — no parameters",
@@ -684,9 +684,10 @@
         },
         {
           "title": "18 §3 — ON_LOW_HP",
+          "description": "18 §3.1 — threshold is CONSTITUTIVE: an ON_LOW_HP with none names no crossing, so it is required here rather than defaulted at read time.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind"],
+          "required": ["kind", "threshold"],
           "properties": {
             "kind": { "const": "ON_LOW_HP" },
             "threshold": { "$ref": "#/$defs/probability" },
@@ -706,10 +707,10 @@
         },
         {
           "title": "18 §3 — PERIODIC",
-          "description": "18 §3 — every interval seconds of battle time, first firing after startDelay. The built-in enrage is {interval: 1.0, startDelay: 70.0}.",
+          "description": "18 §3.1 — interval is CONSTITUTIVE: a PERIODIC with none has no period. R8 anchors the schedule when the owning effect becomes ACTIVE, and an absent startDelay is one interval. 18 §3 — every interval seconds of battle time, first firing after startDelay. The built-in enrage is {interval: 1.0, startDelay: 70.0}.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind"],
+          "required": ["kind", "interval"],
           "properties": {
             "kind": { "const": "PERIODIC" },
             "interval": { "type": "number", "exclusiveMinimum": 0 },
@@ -718,9 +719,10 @@
         },
         {
           "title": "18 §3 — ON_PHASE_ENTER",
+          "description": "18 §3.1 — phase is CONSTITUTIVE: an ON_PHASE_ENTER with none cannot say which entry it means, and firing on all three would triple a boss phase block.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind"],
+          "required": ["kind", "phase"],
           "properties": {
             "kind": { "const": "ON_PHASE_ENTER" },
             "phase": {

@@ -21,7 +21,7 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 /// <c>IRunStateView</c> must never grow one.
 /// </para>
 /// <para>
-/// 🔒 <b>Narrow, and to stay narrow.</b> Two members over one key type. The <c>Run</c> aggregate
+/// 🔒 <b>Narrow, and to stay narrow.</b> Three members over one key type. The <c>Run</c> aggregate
 /// cannot implement it directly for the reason <see cref="IRunStateView"/> records — `30` §11.4's
 /// <em>"<c>Model</c> never references <c>Rules</c>"</em>, enforced by
 /// <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c> — so M3 honours it with a
@@ -48,6 +48,27 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 /// </remarks>
 internal interface IRunTriggerCounters
 {
+    /// <summary>
+    /// 🔒 Every instance the run holds a count for, <b>in ascending ordinal id order</b> — what M3
+    /// persists.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>On the interface, not on the implementation, because otherwise the seam does not close.</b>
+    /// The obligation this contract creates on M3 is that a run's snapshot carries these pairs; a
+    /// seam that could only be <em>written</em> and <em>read one key at a time</em> would force M3 to
+    /// abandon it and depend on the concrete type — at which point the interface buys nothing at all.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Ordered, and ordered by the implementation.</b> A dictionary's enumeration order is a
+    /// property of the runtime, and `14` §8.2 hashes the run snapshot on x64 and on ARM64 and
+    /// compares — so a set of pairs serialised in insertion order would make the same run hash
+    /// differently depending on which enemy the hero happened to kill first. Ordinal, for
+    /// <c>EffectOrder</c>'s reason.
+    /// </para>
+    /// </remarks>
+    IReadOnlyList<KeyValuePair<EffectInstanceId, int>> Entries { get; }
+
     /// <summary>
     /// How many qualifying occurrences this instance has accumulated over the run so far.
     /// </summary>

@@ -278,6 +278,19 @@ internal static class TriggerCatalogue
                 $"its phase is {Format(phase)}",
                 "`17` §1 gives every boss exactly three phases, at 100%, 66% and 33% Max HP.");
         }
+
+        // 🔒 The whole-tick rule, applied EAGERLY. `05` §3's simulation is fixed-tick, so a span that
+        // is not a whole number of ticks points between two ticks and at neither — and the schema
+        // types all three as a plain number, so this is the only place that catches it. Checked here
+        // rather than at first firing: an earlier draft converted a cooldown inside Fire(), so
+        // {"kind":"ON_DODGE","cooldown":0.03} threw out of `05` §3.1 slot 4 on the first successful
+        // dodge of a live fight rather than when the effect was registered.
+        _ = TriggerSchedule.CooldownTicks(trigger);
+
+        if (trigger.Kind == TriggerKind.PERIODIC)
+        {
+            _ = TriggerSchedule.FirstFiringTick(trigger, 0);
+        }
     }
 
     private static void RequireProbability(string kind, double? value, string name)

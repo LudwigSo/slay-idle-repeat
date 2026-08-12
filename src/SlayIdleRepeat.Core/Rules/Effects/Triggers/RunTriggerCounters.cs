@@ -29,30 +29,22 @@ internal sealed class RunTriggerCounters : IRunTriggerCounters
 {
     private readonly Dictionary<EffectInstanceId, int> _counts = new();
 
-    /// <summary>Every instance the run holds a count for, in ascending ordinal id order.</summary>
-    /// <remarks>
-    /// 🔒 Ordered, and ordered <b>here</b>: this is what M3 persists, and a dictionary's enumeration
-    /// order is an implementation detail of the runtime. `14` §8.2 hashes the run snapshot on both
-    /// x64 and ARM64 and compares, so a set of pairs that serialised in insertion order would make
-    /// the same run hash differently depending on which enemy the hero happened to kill first.
-    /// </remarks>
-    internal IReadOnlyList<KeyValuePair<EffectInstanceId, int>> Entries =>
+    /// <inheritdoc />
+    public IReadOnlyList<KeyValuePair<EffectInstanceId, int>> Entries =>
         _counts.OrderBy(entry => entry.Key.Value, EffectInstanceId.Comparer).ToArray();
 
     /// <inheritdoc />
-    public int Read(EffectInstanceId instance) => _counts.GetValueOrDefault(instance);
+    public int Read(EffectInstanceId instance)
+    {
+        RequireAHolding(instance);
+
+        return _counts.GetValueOrDefault(instance);
+    }
 
     /// <inheritdoc />
     public void Write(EffectInstanceId instance, int count)
     {
-        if (instance.Value is null)
-        {
-            throw new ArgumentException(
-                "A run-scoped counter was written against an instance with no id. `18` §3's counters " +
-                "live on the effect instance, and an unnamed instance shares one counter with every " +
-                "other unnamed instance.",
-                nameof(instance));
-        }
+        RequireAHolding(instance);
 
         if (count < 0)
         {
@@ -66,5 +58,26 @@ internal sealed class RunTriggerCounters : IRunTriggerCounters
         }
 
         _counts[instance] = count;
+    }
+
+    /// <summary>
+    /// 🔒 Refuses an id that names no holding — <c>default</c>, empty or whitespace.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Whitespace, not just null.</b> An earlier draft checked <c>Value is null</c> alone, so
+    /// two <c>new EffectInstanceId("")</c> instances shared one run counter — the exact silent
+    /// failure <see cref="EffectInstanceId"/>'s remarks say must not happen, arrived at through the
+    /// generated constructor that bypasses <c>EffectInstanceId.Of</c>.
+    /// </remarks>
+    private static void RequireAHolding(EffectInstanceId instance)
+    {
+        if (!instance.NamesAHolding)
+        {
+            throw new ArgumentException(
+                "A run-scoped counter was addressed by an instance id that names no holding. `18` §3's " +
+                "counters live on the effect instance, and every unnamed instance would share one " +
+                "counter with every other.",
+                nameof(instance));
+        }
     }
 }

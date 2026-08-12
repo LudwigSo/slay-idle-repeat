@@ -88,7 +88,7 @@ internal static class TriggerSchedule
     /// cannot name it.</b> R17 fixes the layering inside <c>Rules</c> as
     /// <c>Rules.Combat ▶ Rules.Stats ▶ Rules.Effects</c>, so <c>Rules.Effects</c> is the bottom and
     /// may not reach up into <c>Rules.Combat</c>. The duplication is therefore structural rather than
-    /// careless, and it is closed by a test — <c>TriggerScheduleTests.The_tick_rate_agrees_with_the_
+    /// careless, and it is closed by a test — <c>PeriodicAnchoringTests.The_tick_rate_agrees_with_the_
     /// combat_log</c> lives in the test assembly, which can see both.
     /// </remarks>
     internal const int TicksPerSecond = 20;

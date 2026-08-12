@@ -215,32 +215,57 @@ public sealed class TriggerCatalogueTests
     /// 🔒 The narrowing parameters are the complement: absent means "not narrowed", and a kind with
     /// none of them written is a valid trigger.
     /// </summary>
+    /// <remarks>
+    /// 🔒 Derived from the catalogue rather than hand-listed (steering S3): a kind that gained a
+    /// constitutive parameter leaves this theory automatically, and a new kind joins it, so the row
+    /// set cannot drift away from the rule it states. <see cref="The_two_partitions_of_Requires_cover_all_23"/>
+    /// is the floor under both halves.
+    /// </remarks>
     [Theory]
-    [InlineData(TriggerKind.ALWAYS)]
-    [InlineData(TriggerKind.ON_BATTLE_START)]
-    [InlineData(TriggerKind.ON_BATTLE_END)]
-    [InlineData(TriggerKind.ON_ATTACK)]
-    [InlineData(TriggerKind.ON_HIT)]
-    [InlineData(TriggerKind.ON_CRIT)]
-    [InlineData(TriggerKind.ON_HIT_TAKEN)]
-    [InlineData(TriggerKind.ON_DODGE)]
-    [InlineData(TriggerKind.ON_BLOCK)]
-    [InlineData(TriggerKind.ON_KILL)]
-    [InlineData(TriggerKind.ON_DEATH)]
-    [InlineData(TriggerKind.ON_REVIVE)]
-    [InlineData(TriggerKind.ON_LETHAL)]
-    [InlineData(TriggerKind.ON_HEAL)]
-    [InlineData(TriggerKind.ON_TILE_RESOLVED)]
-    [InlineData(TriggerKind.ON_ROLL)]
-    [InlineData(TriggerKind.ON_PERK_TAKEN)]
-    [InlineData(TriggerKind.ON_STAGE_GATE)]
-    [InlineData(TriggerKind.ON_RUN_START)]
-    [InlineData(TriggerKind.ON_RUN_END)]
+    [MemberData(nameof(KindsWithNoConstitutiveParameter))]
     public void A_kind_with_only_narrowing_parameters_is_valid_bare(TriggerKind kind)
     {
         TriggerCatalogue.FactsOf(kind).Requires.ShouldBe(TriggerParameter.NONE);
 
         Should.NotThrow(() => TriggerCatalogue.Validate(new EffectTrigger { Kind = kind }));
+    }
+
+    /// <summary>Every kind `18` §3.1 calls fully narrowing — valid with nothing but its kind.</summary>
+    public static TheoryData<TriggerKind> KindsWithNoConstitutiveParameter
+    {
+        get
+        {
+            var data = new TheoryData<TriggerKind>();
+
+            foreach (var kind in TriggerCatalogue.All.Where(
+                         k => TriggerCatalogue.FactsOf(k).Requires == TriggerParameter.NONE))
+            {
+                data.Add(kind);
+            }
+
+            return data;
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The floor under both halves of `18` §3.1's narrowing/constitutive split: exactly three
+    /// kinds require a parameter, twenty do not, and together they are the 23.
+    /// </summary>
+    [Fact]
+    public void The_two_partitions_of_Requires_cover_all_23()
+    {
+        var constitutive = TriggerCatalogue.All
+            .Where(k => TriggerCatalogue.FactsOf(k).Requires != TriggerParameter.NONE)
+            .ToArray();
+
+        constitutive.ShouldBe(
+            new[] { TriggerKind.ON_LOW_HP, TriggerKind.PERIODIC, TriggerKind.ON_PHASE_ENTER },
+            ignoreOrder: true,
+            "18 §3.1: PERIODIC without an interval has no period, ON_LOW_HP without a threshold " +
+            "names no crossing, and ON_PHASE_ENTER without a phase cannot say which entry it means");
+
+        KindsWithNoConstitutiveParameter.Count.ShouldBe(
+            TriggerCatalogue.TriggerKindCount - constitutive.Length);
     }
 
     /// <summary>
@@ -278,7 +303,12 @@ public sealed class TriggerCatalogueTests
         var failure = Should.Throw<EffectContextException>(() => TriggerCatalogue.Validate(trigger));
 
         failure.Token.ShouldBe(kind.ToString());
-        failure.Message.ShouldContain(parameter, Case.Sensitive);
+
+        // 🔒 The fragment only the RANGE guard emits (steering S2). Asserting the parameter name
+        // alone would also pass for the surplus-parameter guard, which raises the same token and
+        // names the same parameter — so dropping `chance` from ON_HIT's Admits would leave this
+        // green while the range check for `chance` went untested.
+        failure.Message.ShouldContain($"its {parameter} is", Case.Sensitive);
     }
 
     /// <summary>

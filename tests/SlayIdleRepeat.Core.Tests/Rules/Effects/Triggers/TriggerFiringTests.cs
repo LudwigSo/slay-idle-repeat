@@ -25,36 +25,80 @@ public sealed class TriggerFiringTests
     /// every other test in this file (steering S3).
     /// </summary>
     /// <remarks>
-    /// <c>PERIODIC</c> is absent because it has no moment: it fires on a schedule, through
-    /// <c>PeriodicDue</c>, and <c>PeriodicAnchoringTests</c> owns it. Every other one of the 23 is
-    /// here or in a test below that names it.
+    /// <para>
+    /// 🔒 <b>Derived from <c>TriggerCatalogue.All</c>, not hand-listed</b> (steering S3). A
+    /// twenty-row <c>InlineData</c> block tied to <c>TriggerKind</c> by nothing would lose a kind's
+    /// firing coverage to a merge, or fail to gain it for a new kind, with every test in this file
+    /// still green — and <c>TriggerCatalogueTests</c>' 23-count check would not notice, because it
+    /// quantifies over the catalogue rather than over this theory.
+    /// </para>
+    /// <para>
+    /// The three exclusions are named once, in <see cref="KindsWithTheirOwnTest"/>, and each has a
+    /// test of its own below or in <c>PeriodicAnchoringTests</c>.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData(TriggerKind.ALWAYS)]
-    [InlineData(TriggerKind.ON_BATTLE_START)]
-    [InlineData(TriggerKind.ON_BATTLE_END)]
-    [InlineData(TriggerKind.ON_ATTACK)]
-    [InlineData(TriggerKind.ON_HIT)]
-    [InlineData(TriggerKind.ON_CRIT)]
-    [InlineData(TriggerKind.ON_HIT_TAKEN)]
-    [InlineData(TriggerKind.ON_DODGE)]
-    [InlineData(TriggerKind.ON_BLOCK)]
-    [InlineData(TriggerKind.ON_KILL)]
-    [InlineData(TriggerKind.ON_DEATH)]
-    [InlineData(TriggerKind.ON_REVIVE)]
-    [InlineData(TriggerKind.ON_LETHAL)]
-    [InlineData(TriggerKind.ON_HEAL)]
-    [InlineData(TriggerKind.ON_TILE_RESOLVED)]
-    [InlineData(TriggerKind.ON_ROLL)]
-    [InlineData(TriggerKind.ON_PERK_TAKEN)]
-    [InlineData(TriggerKind.ON_STAGE_GATE)]
-    [InlineData(TriggerKind.ON_RUN_START)]
-    [InlineData(TriggerKind.ON_RUN_END)]
+    [MemberData(nameof(UnnarrowedKinds))]
     public void An_unnarrowed_trigger_fires_on_its_own_moment(TriggerKind kind)
     {
         var (registry, id) = Registered(new EffectTrigger { Kind = kind });
 
         registry.Evaluate(id, TriggerTestBattle.Moment(kind, tick: 4)).ShouldBe(TriggerOutcome.FIRES);
+    }
+
+    /// <summary>
+    /// The three kinds that cannot be driven by a bare moment, each with its own test.
+    /// </summary>
+    /// <remarks>
+    /// <c>PERIODIC</c> has no moment at all — it fires on a schedule, through
+    /// <c>TriggerRegistry.PeriodicDue</c>, and <c>PeriodicAnchoringTests</c> owns it. The other two
+    /// carry a constitutive parameter (`18` §3.1) and are driven by
+    /// <see cref="ON_PHASE_ENTER_fires_only_on_its_own_phase"/> and the four <c>ON_LOW_HP</c> tests.
+    /// </remarks>
+    internal static readonly TriggerKind[] KindsWithTheirOwnTest =
+    {
+        TriggerKind.PERIODIC,
+        TriggerKind.ON_PHASE_ENTER,
+        TriggerKind.ON_LOW_HP,
+    };
+
+    /// <summary>Every `18` §3 kind that a bare trigger can express, straight off the catalogue.</summary>
+    public static TheoryData<TriggerKind> UnnarrowedKinds
+    {
+        get
+        {
+            var data = new TheoryData<TriggerKind>();
+
+            foreach (var kind in TriggerCatalogue.All.Where(k => !KindsWithTheirOwnTest.Contains(k)))
+            {
+                data.Add(kind);
+            }
+
+            return data;
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The floor under the theory above (steering S3): every one of `18` §11's 23 kinds is either
+    /// driven by it or named in <see cref="KindsWithTheirOwnTest"/>, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Without this the exclusion list is a place a kind can be parked to make a failure go away.
+    /// Adding a name here is deliberate and has to come with the test that name promises.
+    /// </remarks>
+    [Fact]
+    public void Every_one_of_the_23_kinds_is_driven_here_or_named_as_having_its_own_test()
+    {
+        UnnarrowedKinds.Count.ShouldBe(TriggerCatalogue.TriggerKindCount - KindsWithTheirOwnTest.Length);
+
+        KindsWithTheirOwnTest.Length.ShouldBe(
+            3,
+            "PERIODIC has no moment; ON_PHASE_ENTER and ON_LOW_HP carry a constitutive parameter");
+
+        UnnarrowedKinds.Cast<object[]>()
+                       .Select(row => (TriggerKind)row[0])
+                       .Concat(KindsWithTheirOwnTest)
+                       .ShouldBe(TriggerCatalogue.All, ignoreOrder: true);
     }
 
     /// <summary>And on nobody else's — a moment of another kind is <c>WRONG_KIND</c>, not silence.</summary>
@@ -228,6 +272,74 @@ public sealed class TriggerFiringTests
         HpChange(registry, id, 0.19).ShouldBe(TriggerOutcome.THRESHOLD_NOT_CROSSED);
         HpChange(registry, id, 0.60).ShouldBe(TriggerOutcome.THRESHOLD_NOT_CROSSED, "now armed");
         HpChange(registry, id, 0.05).ShouldBe(TriggerOutcome.FIRES);
+    }
+
+    /// <summary>
+    /// 🔒 A re-granted <c>ON_LOW_HP</c> is <b>re-armed</b> from the holder's HP now, not left holding
+    /// the flag its last grant ended on.
+    /// </summary>
+    /// <remarks>
+    /// The armed flag is stateful and <see cref="TriggerRegistry.Evaluate"/> refuses an inactive
+    /// instance before the crossing check ever runs — so an instance deactivated while armed, whose
+    /// holder then fell below the threshold, would fire on the next scratch: a crossing that never
+    /// happened. Exactly the case the constructor refuses to guess, arriving through the back door.
+    /// </remarks>
+    [Fact]
+    public void A_re_granted_ON_LOW_HP_is_re_armed_from_the_HP_it_is_granted_at()
+    {
+        var (registry, id) = Registered(
+            new EffectTrigger { Kind = TriggerKind.ON_LOW_HP, Threshold = 0.30 },
+            holderHpFraction: 0.66);
+
+        // The phase ends while the instance is still armed; the boss then falls below the threshold
+        // with nothing watching, and the effect is granted again.
+        registry.Deactivate(id);
+        registry.Activate(id, tick: 200, holderHpFraction: 0.20);
+
+        HpChange(registry, id, 0.19).ShouldBe(
+            TriggerOutcome.THRESHOLD_NOT_CROSSED,
+            "the re-grant found the holder already below the threshold, so nothing was crossed");
+
+        HpChange(registry, id, 0.55).ShouldBe(TriggerOutcome.THRESHOLD_NOT_CROSSED, "re-armed by the heal");
+        HpChange(registry, id, 0.05).ShouldBe(TriggerOutcome.FIRES);
+    }
+
+    /// <summary>A re-grant of an <c>ON_LOW_HP</c> without an HP reading is refused, as registration is.</summary>
+    [Fact]
+    public void A_re_granted_ON_LOW_HP_without_an_HP_reading_is_refused()
+    {
+        var (registry, id) = Registered(
+            new EffectTrigger { Kind = TriggerKind.ON_LOW_HP, Threshold = 0.30 },
+            holderHpFraction: 1.0);
+
+        registry.Deactivate(id);
+
+        Should.Throw<EffectContextException>(() => registry.Activate(id, tick: 200))
+              .Message.ShouldContain("HP fraction", Case.Sensitive);
+    }
+
+    /// <summary>An HP fraction outside <c>0..1</c> — or a NaN — is refused rather than silently disarming.</summary>
+    /// <remarks>
+    /// A NaN is the dangerous one: every comparison against it is false, so
+    /// <c>Round(fraction) &gt; Threshold</c> answers <c>false</c> and the instance starts quietly
+    /// disarmed. <c>PK_UNBREAKABLE</c> would then never fire, in a fight nobody replays.
+    /// </remarks>
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(-0.1)]
+    [InlineData(1.5)]
+    public void An_ON_LOW_HP_registered_at_an_impossible_HP_fraction_is_refused(double fraction)
+    {
+        var registry = TriggerTestBattle.Registry();
+
+        Should.Throw<EffectContextException>(() => registry.Register(
+                  TriggerTestBattle.Instance("HERO#0/PK_LAST_BREATH"),
+                  TriggerTestBattle.Effect(
+                      "PK_LAST_BREATH",
+                      new EffectTrigger { Kind = TriggerKind.ON_LOW_HP, Threshold = 0.3 }),
+                  activationTick: 0,
+                  holderHpFraction: fraction))
+              .Message.ShouldContain("HP fraction", Case.Sensitive);
     }
 
     // ------------------------------------------------------------------ once
@@ -443,13 +555,68 @@ public sealed class TriggerFiringTests
         Should.Throw<ArgumentException>(() => EffectInstanceId.Of(value));
     }
 
-    /// <summary>An <c>ON_LOW_HP</c> moment, at a tick that advances so the readings stay ordered.</summary>
+    /// <summary>
+    /// 🔒 And the registry refuses one too — <c>EffectInstanceId.Of</c>'s guard is a convenience, not
+    /// a guarantee.
+    /// </summary>
+    /// <remarks>
+    /// A <c>record struct</c>'s positional constructor is public and <c>default</c> carries a null
+    /// value, so both reach <c>Register</c> around <c>Of</c>. <c>default</c> is a perfectly good
+    /// dictionary key, so an unnamed instance would register cleanly and share one counter with every
+    /// other unnamed instance — the per-instance rule of `18` §3 failing in the direction that looks
+    /// like it works.
+    /// </remarks>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void An_instance_id_that_names_no_holding_is_refused_at_registration(string? value)
+    {
+        var registry = TriggerTestBattle.Registry();
+        var id = value is null ? default : new EffectInstanceId(value);
+
+        var failure = Should.Throw<EffectContextException>(() => registry.Register(
+            id,
+            TriggerTestBattle.Effect("PK_X", new EffectTrigger { Kind = TriggerKind.ON_HIT }),
+            activationTick: 0));
+
+        failure.Token.ShouldBe("PK_X");
+        failure.Message.ShouldContain("names no holding", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 A <c>cooldown</c> that is not a whole number of ticks is refused at <b>registration</b>,
+    /// not at the first firing.
+    /// </summary>
+    /// <remarks>
+    /// The schema types <c>cooldown</c> as any non-negative number, so this is the only thing that
+    /// catches it — and an earlier draft converted it inside the firing path, so
+    /// <c>{"kind":"ON_DODGE","cooldown":0.03}</c> passed the content build, passed registration, and
+    /// threw out of `05` §3.1 slot 4 on the first successful dodge of a live fight.
+    /// </remarks>
+    [Fact]
+    public void A_fractional_cooldown_is_refused_when_the_effect_is_registered()
+    {
+        var registry = TriggerTestBattle.Registry();
+
+        var failure = Should.Throw<EffectContextException>(() => registry.Register(
+            TriggerTestBattle.Instance("BOSS#0/BOSS_RIMEHOLD_P2_SHATTERBACK"),
+            TriggerTestBattle.Effect(
+                "BOSS_RIMEHOLD_P2_SHATTERBACK",
+                new EffectTrigger { Kind = TriggerKind.ON_HIT_TAKEN, Cooldown = 0.03 }),
+            activationTick: 0));
+
+        failure.Message.ShouldContain("fixed-tick", Case.Sensitive);
+        failure.Message.ShouldContain("cooldown", Case.Sensitive);
+    }
+
+    /// <summary>An <c>ON_LOW_HP</c> moment. The tick advances, as `05` §3.1's loop does.</summary>
     private static TriggerOutcome HpChange(TriggerRegistry registry, EffectInstanceId id, double fraction)
     {
         var moment = new TriggerOccurrence
         {
             Kind = TriggerKind.ON_LOW_HP,
-            Tick = 0,
+            Tick = registry[id].FireCount + 1,
             HpFraction = fraction,
         };
 

@@ -53,16 +53,26 @@ public sealed class TriggerScheduleTests
     /// 🔒 A span that cannot be a span at all is refused before the cast — an overflow that wrapped
     /// into a negative tick would read exactly like a trigger that fires immediately.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Each row names the fragment of the guard that must have fired (steering S2). Two different
+    /// rules are in play and the type alone cannot tell them apart: <c>NaN</c> and <c>∞</c> are
+    /// caught by the finite-arithmetic guard and never reach the fight-cap check at all, so a version
+    /// asserting only <c>EffectContextException</c> would stay green with the cap guard deleted.
+    /// </remarks>
     [Theory]
-    [InlineData(-1.0)]
-    [InlineData(90.05)]
-    [InlineData(1e18)]
-    [InlineData(double.NaN)]
-    [InlineData(double.PositiveInfinity)]
-    public void A_span_no_fight_can_reach_is_refused(double seconds)
+    [InlineData(-1.0, "caps a fight at 90 s")]
+    [InlineData(90.05, "caps a fight at 90 s")]
+    [InlineData(1e18, "caps a fight at 90 s")]
+    [InlineData(double.NaN, "finite ticks")]
+    [InlineData(double.PositiveInfinity, "finite ticks")]
+    public void A_span_no_fight_can_reach_is_refused(double seconds, string expected)
     {
-        Should.Throw<EffectContextException>(
+        var failure = Should.Throw<EffectContextException>(
             () => TriggerSchedule.Ticks(seconds, "startDelay", "PERIODIC"));
+
+        failure.Token.ShouldBe("PERIODIC");
+        failure.Message.ShouldContain("startDelay", Case.Sensitive);
+        failure.Message.ShouldContain(expected, Case.Sensitive);
     }
 
     /// <summary>
