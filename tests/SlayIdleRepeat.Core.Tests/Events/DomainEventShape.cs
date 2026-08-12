@@ -140,10 +140,16 @@ internal static class DomainEventShape
     /// <summary>
     /// 🔒 `30` §7 / `30` §3 — the event carries no clock reading. Empty means the rule holds.
     /// </summary>
+    /// <remarks>
+    /// The flattened types are de-duplicated per property. <c>Flatten</c> reaches a
+    /// <c>DateTimeOffset?</c> twice — once through <see cref="Nullable.GetUnderlyingType"/> and
+    /// once through the generic arguments of <c>Nullable&lt;T&gt;</c> — and reporting one property
+    /// as two violations would make any count-based assertion over this list read wrong.
+    /// </remarks>
     internal static IReadOnlyList<string> ClockReadingViolations(Type candidate) =>
         candidate
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .SelectMany(p => Flatten(p.PropertyType).Select(t => (Property: p, Type: t)))
+            .SelectMany(p => Flatten(p.PropertyType).Distinct().Select(t => (Property: p, Type: t)))
             .Where(x => ClockReadings.Contains(x.Type))
             .Select(x =>
                 $"{candidate.FullName}.{x.Property.Name} is typed {x.Type.Name}. An event must not stamp " +
@@ -156,21 +162,45 @@ internal static class DomainEventShape
     /// 🔒 `14` §7.1 / `14` §2.4 — the event is immutable. Empty means the rule holds.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// An <c>init</c> accessor is construction, not mutation, and is permitted — it is how a
     /// positional record is written. A real <c>set</c> is not: the same list is an append-only
     /// Postgres log, an analytics payload, a Feats counter input and the client's animation script,
     /// and a consumer that can rewrite it changes what the other three see.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Accessibility is not the test</b> — any non-<c>init</c> setter is. An
+    /// <c>internal set</c> is invisible from outside the assembly but perfectly reachable from the
+    /// code that would do the damage: the mutation this rule exists to prevent would be written
+    /// <i>in</i> <c>Core</c>, by a handler holding an event it has already emitted, and
+    /// <c>Core</c> also grants <c>InternalsVisibleTo</c> to this suite (`30` §11.3). Checking
+    /// <c>IsPublic</c> alone would let the one shape a real author would actually reach for pass.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> SettablePropertyViolations(Type candidate) =>
         candidate
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.SetMethod is { IsPublic: true } setter && !IsInitOnly(setter))
+            .Where(p => p.SetMethod is { } setter && !IsInitOnly(setter))
             .Select(p =>
-                $"{candidate.FullName}.{p.Name} has a public setter. A domain event is an immutable record of " +
-                "something that already happened — it is persisted append-only (14 §7.1), replayed as the " +
-                "client's animation script (14 §2.4) and counted by Feats (28 D). An 'init' accessor is fine; " +
-                "a 'set' is not.")
+                $"{candidate.FullName}.{p.Name} has a setter ({Accessibility(p.SetMethod!)}). A domain event is " +
+                "an immutable record of something that already happened — it is persisted append-only " +
+                "(14 §7.1), replayed as the client's animation script (14 §2.4) and counted by Feats (28 D). " +
+                "An 'init' accessor is fine; a 'set' is not, at any accessibility.")
             .ToArray();
+
+    /// <summary>
+    /// Whether a type is a <c>record</c>, read off the <c>&lt;Clone&gt;$</c> method the compiler
+    /// emits for every record and for nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Checked on <see cref="DomainEvent"/> rather than over <see cref="ConcreteEvents"/>, because
+    /// the base is the only place it can fail: C# forbids a class from deriving from a record, so
+    /// every subtype is a record for exactly as long as the base is one.
+    /// </remarks>
+    internal static bool IsRecord(Type candidate) =>
+        candidate
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Any(m => m.Name.Equals("<Clone>$", StringComparison.Ordinal));
 
     /// <summary>What a shape violation means, said once.</summary>
     internal const string Consequence =
@@ -186,6 +216,17 @@ internal static class DomainEventShape
         var parameters = constructor.GetParameters();
         return parameters.Length == 1 && parameters[0].ParameterType == declaring;
     }
+
+    /// <summary>How visible a setter is, so the message names the mutation surface it found.</summary>
+    private static string Accessibility(MethodInfo setter) => setter switch
+    {
+        { IsPublic: true } => "public",
+        { IsFamilyOrAssembly: true } => "protected internal",
+        { IsFamily: true } => "protected",
+        { IsAssembly: true } => "internal",
+        { IsFamilyAndAssembly: true } => "private protected",
+        _ => "private",
+    };
 
     /// <summary>An <c>init</c> accessor is a construction-time setter, not a mutation surface.</summary>
     private static bool IsInitOnly(MethodInfo setter) =>

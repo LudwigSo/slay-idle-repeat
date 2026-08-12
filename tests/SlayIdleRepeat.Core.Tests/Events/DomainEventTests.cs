@@ -80,6 +80,19 @@ public sealed class DomainEventTests
 
         offenders.ShouldBeEmpty();
 
+        // The "record" half of the name, checked on the BASE, which is the only place it can fail:
+        // C# forbids a class from deriving from a record, so every subtype is a record for exactly
+        // as long as DomainEvent is one. Quantifying over ConcreteEvents instead would be a rule
+        // the compiler already guarantees — true of every possible value, and therefore no rule.
+        DomainEventShape.IsRecord(typeof(DomainEvent)).ShouldBeTrue(
+            "a record, not a class. Value equality is what lets the economy log (14 §7.1) compare two rows, " +
+            "and the positional form is what SequenceParameterViolations reads 'the first constructor " +
+            "parameter' off. Rewrite DomainEvent as a class and both go, silently.");
+
+        // ...with a negative control, or the marker lookup could be answering true for everything.
+        DomainEventShape.IsRecord(typeof(DomainEventTests)).ShouldBeFalse(
+            "the record check must tell a record from a class, or the assertion above proves nothing.");
+
         DomainEventShape.ConcreteEvents.ShouldAllBe(
             t => t.Namespace == "SlayIdleRepeat.Core.Events",
             "30 §11.4's namespace list is closed — Every_Core_type_lives_under_a_documented_namespace " +
@@ -99,9 +112,13 @@ public sealed class DomainEventTests
             .ShouldBeEmpty();
     }
 
-    /// <summary>The teeth of the rule above: it accepts the real event and rejects both wrong shapes (`30` §7).</summary>
+    /// <summary>
+    /// The teeth of the rule above: it accepts the real event and rejects each of the three wrong
+    /// shapes — one per branch the predicate can take (`30` §7). A branch no fixture drives is a
+    /// branch that could return "no violation" for every input and never be noticed.
+    /// </summary>
     [Fact]
-    public void The_first_parameter_rule_recognises_a_compliant_event_and_two_that_are_not()
+    public void The_first_parameter_rule_recognises_a_compliant_event_and_three_that_are_not()
     {
         DomainEventShape.SequenceParameterViolations(typeof(CurrencyChanged)).ShouldBeEmpty();
 
@@ -112,6 +129,10 @@ public sealed class DomainEventTests
         DomainEventShape.SequenceParameterViolations(typeof(NonConformingEvents.TwoConstructors))
             .ShouldHaveSingleItem()
             .ShouldContain("does not declare exactly one constructor", Case.Sensitive);
+
+        DomainEventShape.SequenceParameterViolations(typeof(NonConformingEvents.NoConstructorParameters))
+            .ShouldHaveSingleItem()
+            .ShouldContain("takes no constructor parameters", Case.Sensitive);
     }
 
     /// <summary>
@@ -132,15 +153,36 @@ public sealed class DomainEventTests
             .ShouldBeEmpty();
     }
 
-    /// <summary>The teeth of the rule above: it accepts the real event and rejects a self-stamped one (`30` §3).</summary>
+    /// <summary>
+    /// The teeth of the rule above (`30` §3). A bare <c>DateTime</c> is the easy half; the half
+    /// that matters is a clock reading wrapped in a nullable, a collection or an array, because
+    /// that is how a real payload would carry one and because unwrapping it is the entire reason
+    /// <c>DomainEventShape.Flatten</c> exists.
+    /// </summary>
     [Fact]
-    public void The_clock_rule_recognises_a_compliant_event_and_a_self_stamped_one()
+    public void The_clock_rule_recognises_a_compliant_event_and_clock_readings_however_they_are_wrapped()
     {
         DomainEventShape.ClockReadingViolations(typeof(CurrencyChanged)).ShouldBeEmpty();
 
         DomainEventShape.ClockReadingViolations(typeof(NonConformingEvents.SelfStamped))
             .ShouldHaveSingleItem()
             .ShouldContain("OccurredAt is typed DateTime", Case.Sensitive);
+
+        var wrapped = DomainEventShape.ClockReadingViolations(typeof(NonConformingEvents.SelfStampedIndirectly));
+
+        // One per clock-carrying property, not one per path Flatten reaches it by: a nullable is
+        // reached twice, and a duplicated violation would make this count meaningless.
+        wrapped.Count.ShouldBe(
+            4,
+            "SelfStampedIndirectly carries exactly four clock readings — through a nullable, a generic " +
+            "argument, an array element and directly.");
+
+        var reported = string.Join(Environment.NewLine, wrapped);
+
+        reported.ShouldContain("Window is typed DateTimeOffset", Case.Sensitive);
+        reported.ShouldContain("Durations is typed TimeSpan", Case.Sensitive);
+        reported.ShouldContain("Days is typed DateOnly", Case.Sensitive);
+        reported.ShouldContain("Cutoff is typed TimeOnly", Case.Sensitive);
     }
 
     /// <summary>
@@ -157,16 +199,23 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// The teeth of the rule above (`14` §7.1). Note the two halves: it must reject a <c>set</c>
-    /// and it must <b>accept</b> an <c>init</c>, or it would forbid the positional-record shape
-    /// `30` §7 writes every event in and be unsatisfiable rather than strict.
+    /// The teeth of the rule above (`14` §7.1). Note the halves: it must reject a <c>set</c> at
+    /// <b>any</b> accessibility, and it must <b>accept</b> an <c>init</c>, or it would forbid the
+    /// positional-record shape `30` §7 writes every event in and be unsatisfiable rather than
+    /// strict.
     /// </summary>
     [Fact]
-    public void The_immutability_rule_rejects_a_setter_and_accepts_an_init_accessor()
+    public void The_immutability_rule_rejects_a_setter_at_any_accessibility_and_accepts_an_init_accessor()
     {
         DomainEventShape.SettablePropertyViolations(typeof(NonConformingEvents.Rewritable))
             .ShouldHaveSingleItem()
-            .ShouldContain("Note has a public setter", Case.Sensitive);
+            .ShouldContain("Note has a setter (public)", Case.Sensitive);
+
+        // The shape an author would actually reach for. The mutation this rule prevents would be
+        // written inside Core, where 'internal' is no protection at all.
+        DomainEventShape.SettablePropertyViolations(typeof(NonConformingEvents.InternallyRewritable))
+            .ShouldHaveSingleItem()
+            .ShouldContain("Note has a setter (internal)", Case.Sensitive);
 
         DomainEventShape.SettablePropertyViolations(typeof(NonConformingEvents.TwoConstructors)).ShouldBeEmpty();
         DomainEventShape.SettablePropertyViolations(typeof(CurrencyChanged)).ShouldBeEmpty();

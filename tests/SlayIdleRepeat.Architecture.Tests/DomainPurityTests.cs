@@ -190,7 +190,8 @@ public sealed class DomainPurityTests
     /// `30` §9 / §7 — every currency mutation emits `CurrencyChanged`. IL scan: a write
     /// to a currency-carrying field may only happen inside a method that also emits the
     /// event. Construction and rehydration are exempt — they rebuild state rather than
-    /// move currency (`30` §11.3). Vacuous until M1 adds the first currency field.
+    /// move currency (`30` §11.3). Vacuous until M1-04 adds the first field a currency is
+    /// <b>held</b> in — see <see cref="CurrencyFields"/> for why an event does not count.
     /// </summary>
     [Fact]
     public void Every_currency_mutation_emits_CurrencyChanged()
@@ -298,10 +299,27 @@ public sealed class DomainPurityTests
     /// halves are name-based on purpose — the rule must recognise its subject the day
     /// M1 writes it, without M1 having to opt in.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Events are excluded, and that exclusion is load-bearing.</b> A `DomainEvent`
+    /// is the *emission* of a currency movement, never the place one is held: its fields
+    /// are compiler-generated backing fields written only by its own constructors, which
+    /// `IsRehydrationOrConstruction` exempts regardless. Without this skip, M1-03's
+    /// `CurrencyChanged(int, CurrencyId Id, long, string)` alone made this set non-empty —
+    /// which does not wake the rule up, it just takes away the `count == 0` sentinel that
+    /// is the only visible signal the rule is still asleep. That is steering S3's failure
+    /// mode arriving through the front door: the set stays meaningfully empty until M1-04
+    /// puts a currency on the `Player` aggregate, and it must keep *saying* so.
+    /// </remarks>
     private static IEnumerable<string> CurrencyFields()
     {
         foreach (var type in Domain.CoreTypes)
         {
+            if (type.Name.Equals(Domain.DomainEventType, StringComparison.Ordinal) ||
+                Domain.DerivesFrom(type, Domain.DomainEventType))
+            {
+                continue;
+            }
+
             foreach (var field in type.Fields)
             {
                 if (field.IsLiteral || field.IsStatic)

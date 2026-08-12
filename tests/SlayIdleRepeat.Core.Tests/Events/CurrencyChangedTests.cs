@@ -14,10 +14,20 @@ namespace SlayIdleRepeat.Core.Tests.Events;
 /// <para>
 /// The rule that every currency <i>mutation</i> emits one is
 /// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c> (M0-08), an IL scan that
-/// has existed since before this type did. It is still <b>vacuous</b> after this commit and stays
-/// so until M1-04: it recognises its subjects through a hard-coded <c>CurrencyId</c> field-type
-/// name, and the first currency-carrying field arrives with the <c>Player</c> aggregate. What this
-/// commit changes is that the event half of that rule's predicate now names a real type.
+/// has existed since before this type did. 🔒 <b>It is still vacuous after this commit and stays so
+/// until M1-04</b>, and nothing here should be read as saying otherwise: it recognises its subjects
+/// through a hard-coded <c>CurrencyId</c> field-type name, and the first field a currency is
+/// actually <i>held</i> in arrives with the <c>Player</c> aggregate. What this commit changes is
+/// that the event half of that rule's predicate now names a real type.
+/// </para>
+/// <para>
+/// ⚠️ <b>Authoring this event very nearly switched that rule's own vacuity sentinel off.</b>
+/// <c>CurrencyChanged.Id</c> is a <c>CurrencyId</c>-typed instance property, so its
+/// compiler-generated backing field matched <c>CurrencyFields()</c> — which took the rule's
+/// <c>count == 0</c> early return away and left it looking awake a milestone before any currency is
+/// stored anywhere. It was still toothless (the only writes are in the record's own constructors,
+/// which the rule exempts), just no longer <i>visibly</i> so. <c>CurrencyFields()</c> now skips
+/// <c>DomainEvent</c> subtypes for that reason; an event is the emission, never the holder.
 /// </para>
 /// <para>
 /// The reason is what turns `21` §8.3's <c>income_attribution.csv</c> — the report answering risk
@@ -41,16 +51,28 @@ public sealed class CurrencyChangedTests
     }
 
     /// <summary>
-    /// It is a <c>DomainEvent</c>, which is the whole mechanism: `30` §7's four consumers read one
-    /// heterogeneous list, not four bespoke hooks.
+    /// It reaches its consumers as a <c>DomainEvent</c>, which is the whole mechanism: `30` §7's
+    /// four consumers read one heterogeneous list, not four bespoke hooks — so the ordinal they
+    /// order that list by has to be the <b>base</b>'s <c>Sequence</c>, carrying what the
+    /// constructor was handed.
     /// </summary>
     [Fact]
-    public void A_currency_change_is_a_DomainEvent()
+    public void A_currency_change_reaches_its_consumers_as_a_DomainEvent()
     {
+        // The assignment IS the derivation claim — it stops compiling if the base type goes.
+        // Asserting the runtime type of a variable that was just handed a `new CurrencyChanged`
+        // would be true of every possible value and could not fail for any bug.
         DomainEvent asEvent = new CurrencyChanged(7, CurrencyId.GOLD, -10, "shop_purchase");
 
-        asEvent.ShouldBeOfType<CurrencyChanged>();
-        asEvent.Sequence.ShouldBe(7);
+        asEvent.Sequence.ShouldBe(
+            7,
+            "a mis-forwarded base constructor — ': DomainEvent(0)' — would give every consumer the same " +
+            "ordinal while the derived record still read back correctly.");
+
+        typeof(CurrencyChanged).GetProperty(nameof(DomainEvent.Sequence))!.DeclaringType.ShouldBe(
+            typeof(DomainEvent),
+            "the consumers read Sequence off DomainEvent. A redeclared one on the subtype would shadow it, " +
+            "and the animation script (14 §2.4) and the economy log (14 §7.1) would order by the base's.");
     }
 
     /// <summary>

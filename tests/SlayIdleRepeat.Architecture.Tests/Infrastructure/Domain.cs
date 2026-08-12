@@ -58,6 +58,7 @@ internal static class Domain
     internal const string ApplyMethod = "Apply";
     internal const string GameCommandType = "GameCommand";
     internal const string InMemoryGameType = "InMemoryGame";
+    internal const string DomainEventType = "DomainEvent";
     internal const string CurrencyChangedEvent = "CurrencyChanged";
     internal const string CurrencyIdType = "CurrencyId";
     internal const string EntitlementsType = "Entitlements";

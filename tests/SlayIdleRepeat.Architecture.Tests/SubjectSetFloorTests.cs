@@ -99,9 +99,22 @@ public sealed class SubjectSetFloorTests
         // commit gives the rule a real type to look for and does not wake it — and a rename of the
         // event in the interval would leave it looking for a name nothing has, permanently green,
         // with no other test in the repository noticing.
+        //
+        // ⚠️ "Stays empty" is only true because CurrencyFields() now skips DomainEvent subtypes.
+        // CurrencyChanged.Id is CurrencyId-typed, so its backing field matched the by-type half and
+        // took the rule's own `count == 0` sentinel away — the rule stayed toothless (constructors
+        // are exempt) but stopped being able to SAY it was asleep. See the exclusion's remark in
+        // DomainPurityTests, and the DomainEvent entry below that keeps its name tracked.
         new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (still vacuous until M1-04 " +
             "declares the first currency field; this pins the event name the IL scan looks for)"),
+
+        // Tracked because CurrencyFields() excludes event types by this exact simple name. Rename
+        // the base and the exclusion silently stops matching, CurrencyChanged's CurrencyId-typed
+        // backing field re-enters the subject set, and the vacuity sentinel above goes with it.
+        new(Domain.DomainEventType, SubjectKind.CoreType, "M1-03",
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (the event-type exclusion " +
+            "that keeps its subject set genuinely empty until M1-04)"),
 
         // Moved out of Pending by M1-03 rather than deleted: Every_rule_subject_is_present_or_
         // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these two
@@ -133,7 +146,8 @@ public sealed class SubjectSetFloorTests
         // name Domain.CurrencyIdType, and nothing else in this suite would notice that constant
         // going stale. The rule itself is still VACUOUS today — it needs a non-static instance
         // field typed CurrencyId, and M1-04 brings the first — and that vacuity is tracked by the
-        // CurrencyChanged (M1-03) entry in Pending. This entry tracks the other half: the name.
+        // CurrencyChanged (M1-03) entry in Live above, which is where M1-03 moved it. This entry
+        // tracks the other half: the name.
         new("CurrencyId", SubjectKind.CoreType, "M1-01",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (vacuous until M1-04 " +
             "declares the first currency field; this pins the name it will be recognised by)"),

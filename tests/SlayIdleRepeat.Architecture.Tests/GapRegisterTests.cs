@@ -135,11 +135,17 @@ public sealed class GapRegisterTests
 
     /// <summary>
     /// `23` §6 — the teeth of the well-formedness check, one crafted entry per way of being
-    /// malformed.
+    /// malformed. Every branch of the predicate is driven: a branch no entry reaches could return
+    /// "well formed" for everything and no test here would notice.
     /// </summary>
     [Fact]
-    public void The_wellformedness_check_fires_on_a_missing_owner_predicate_or_reason()
+    public void The_wellformedness_check_fires_on_a_missing_subject_owner_predicate_or_reason()
     {
+        var noSubject = new GapRegister.Gap("  ", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+        GapRegister.Malformed(new[] { noSubject })
+            .ShouldHaveSingleItem()
+            .ShouldContain("names no subject", Case.Sensitive);
+
         var noOwner = new GapRegister.Gap("X", "later", "DieFace", "a reason long enough to be worth falsifying.");
         GapRegister.Malformed(new[] { noOwner })
             .ShouldHaveSingleItem()
