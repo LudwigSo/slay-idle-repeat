@@ -61,8 +61,6 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.HandlersNamespace, SubjectKind.CoreNamespace, "M1-09",
@@ -78,9 +76,10 @@ public sealed class SubjectSetFloorTests
     private static readonly PendingSubject[] Live =
     {
         // Arrived in M1-07, which is why it is no longer in Pending. It has to be tracked HERE, not
-        // nowhere: the rule keyed on it stays vacuous until M1-10 lands Core/Rules/, so a rename in
-        // the meantime would empty it permanently with the whole suite green — the exact silence
-        // Every_rule_subject_is_present_or_declared_pending exists to break.
+        // nowhere: a rename would empty the rule keyed on it permanently with the whole suite green
+        // — the exact silence Every_rule_subject_is_present_or_declared_pending exists to break.
+        // That rule was vacuous while Core/Rules/ was empty; M1-10 landed Core/Rules/Economy/, so it
+        // now quantifies over six real types (see the Rules namespace entry below).
         new(Domain.EntitlementsType, SubjectKind.CoreType, "M1-07",
             "IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
 
@@ -163,6 +162,23 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new("CanonicalStateWriter", SubjectKind.CoreType, "M0-07",
             "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests"),
+
+        // Moved out of Pending by M1-10, not deleted — same reason as Primitives above: every
+        // namespace 30 §11.4 enumerates has to appear in one of these two arrays.
+        //
+        // 🔒 The two rules keyed on Core/Rules/ were VACUOUS until this commit. The directory held
+        // nothing but .gitkeep, so Handlers_and_Rules_are_internal quantified over an empty set and
+        // Entitlements_are_unreachable_from_the_rules_and_the_power_computation had no rule to look
+        // inside. Core/Rules/Economy/ now holds the 10 §3 / 28 C energy math and both rules bite:
+        // every energy type is internal, and none of them names Entitlements. Proved by mutation in
+        // both directions before this landed.
+        //
+        // Placed HERE, directly after CanonicalStateWriter, and not at the end of the array:
+        // IMPLEMENTATION_TRACKER.md's carried-forward item 5 sends M1-03's CurrencyChanged entry
+        // "beside the CurrencyId row already there", and CurrencyId is the array's LAST entry. Two
+        // agents appending to the same tail is the conflict, not the fix.
+        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
 
         // Moved out of Pending by M1-01 rather than deleted, for the reason the type list exists:
         // DomainPurityTests.CurrencyFields() recognises a currency field by the hard-coded simple

@@ -67,8 +67,13 @@ public sealed class IsolationTests
     /// <remarks>
     /// Structural coverage: this asserts no type under `Core/Rules/` names `Entitlements`.
     /// It cannot prove the ad-cap rule reads only the cap, because "which field it reads"
-    /// is a semantic question — that stays a `Core.Tests` obligation. Vacuous until M1
-    /// declares `Entitlements` (`30` §3).
+    /// is a semantic question — that stays a `Core.Tests` obligation.
+    /// <para>
+    /// 🔒 <b>No longer vacuous.</b> It needed two things: <c>Entitlements</c>, which M1-07
+    /// declared, and a type under <c>Core/Rules/</c> to look inside, which M1-10 landed as
+    /// <c>Core/Rules/Economy/</c>. Both are here, and M1-10 proved the rule bites by naming
+    /// <c>Entitlements</c> from an energy rule on purpose and capturing the failure.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Entitlements_are_unreachable_from_the_rules_and_the_power_computation()

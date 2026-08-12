@@ -1,6 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.TestSupport;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
@@ -535,6 +536,65 @@ public sealed class CanonicalEncodingTests
         long v => new OneValueSnapshot<long>(v),
         _ => throw new InvalidOperationException($"No fixture for {value.GetType()}."),
     };
+
+    /// <summary>
+    /// 🔒 <c>EnergyBanks</c> (M1-10) has the positional shape `14` §16.6 requires, so
+    /// <c>PlayerSnapshot</c> can carry it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the case the type's <b>shape</b> exists for, and it is asserted rather than assumed.
+    /// <c>EnergyBanks</c> was first written as an <c>internal</c> record struct with <c>internal</c>
+    /// properties, which <see cref="CanonicalStateWriter.CanonicalProperties"/> refuses — a
+    /// <c>BindingFlags.Public</c> lookup finds neither property, the type falls off the closed
+    /// allowlist, and the first person to put one in a snapshot discovers it has no canonical
+    /// encoding. <c>PlayerId</c>'s remarks record the same trap; this pins the answer for the type
+    /// M1-04 will actually persist.
+    /// </para>
+    /// <para>
+    /// Two banks, two 8-byte little-endian fields, in <b>constructor</b> order — <c>Energy</c> then
+    /// <c>Reserve</c>. Swapping the two parameters moves these bytes, which is exactly the
+    /// <c>SchemaVersion</c> change `14` §16.6 wants to be impossible to make silently.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void CanonicalBytes_encodes_EnergyBanks_as_two_widened_fields()
+    {
+        CanonicalStateWriter.IsCanonicalRecord(typeof(EnergyBanks)).ShouldBeTrue(
+            "EnergyBanks is not a positional record by 14 §16.6's test — exactly one public " +
+            "constructor, every parameter matched by a public readable property of the same name " +
+            "and type, and no public property beyond them. PlayerSnapshot cannot carry it, and " +
+            "30 §11.5's 'Energy never exceeds max + reserve' has nothing to persist.");
+
+        CanonicalStateWriter.CanonicalFieldOrder(typeof(OneValueSnapshot<EnergyBanks>)).ShouldBe(
+            new[] { "Value.Energy:System.Int32", "Value.Reserve:System.Int32" });
+
+        Hex(CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<EnergyBanks>(new EnergyBanks(138, 200))))
+            .ShouldBe("8a00000000000000" + "c800000000000000");
+    }
+
+    /// <summary>
+    /// 🔒 The converse, and the reason a byte test beats a "does it throw" test: neither bank is
+    /// silently omitted. A field that contributed zero bytes would let two states record equality
+    /// calls different share a <c>stateHash</c> — the one failure a state hash may never have.
+    /// </summary>
+    [Fact]
+    public void CanonicalBytes_distinguishes_EnergyBanks_that_differ_in_either_bank()
+    {
+        var baseline = Hex(Bytes(new EnergyBanks(138, 200)));
+
+        Hex(Bytes(new EnergyBanks(139, 200))).ShouldNotBe(
+            baseline, "the main bar contributed no bytes.");
+        Hex(Bytes(new EnergyBanks(138, 201))).ShouldNotBe(
+            baseline, "the Energy Reserve contributed no bytes.");
+
+        // 🔒 And the two banks are not interchangeable: (138, 200) and (200, 138) hold different
+        // amounts of spendable Energy in different places and must not collide.
+        Hex(Bytes(new EnergyBanks(200, 138))).ShouldNotBe(baseline);
+
+        static byte[] Bytes(EnergyBanks banks) =>
+            CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<EnergyBanks>(banks));
+    }
 
     private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
 }
