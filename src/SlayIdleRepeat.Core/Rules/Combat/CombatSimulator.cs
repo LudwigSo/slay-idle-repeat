@@ -1,5 +1,6 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Combat.Bosses;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 using SlayIdleRepeat.Core.Rules.Stats;
@@ -176,6 +177,72 @@ public static class CombatSimulator
             RunCounters = new RunTriggerCounters(),
         });
     }
+
+    /// <summary>
+    /// 🔒 `05` §9 — one authored boss fight, which is what the balance harness's five live guardrails
+    /// are measured over.
+    /// </summary>
+    /// <param name="battleSeed">
+    /// `14` §8.1's <c>battleSeed</c>. One fight per seed; <c>05</c> §9 sweeps 10 000 of them per
+    /// <c>(chapter, tier, buildArchetype)</c>.
+    /// </param>
+    /// <param name="hero">The hero's `05` §1 block, before `18` §8.</param>
+    /// <param name="heroLevel">The hero's Legend Level — `05` §4's <c>20 * attackerLevel</c> term.</param>
+    /// <param name="bossId">
+    /// A script id in <c>content/bosses/bosses.json</c> — the nine `17` §2-§9 bosses plus
+    /// <c>BOSS_FTUE</c>. An unknown id throws.
+    /// </param>
+    /// <param name="bossPower">
+    /// 🔒 `02` §4.3's <c>EnemyPower(i)</c> for the boss node, with <c>StageMult.Boss = 2.20</c>
+    /// <b>already inside it</b>. `05` §6.3 and `17` §1: <em>"do not multiply by 2.20 again."</em> It
+    /// is a parameter rather than something this method derives precisely so that it cannot be
+    /// applied twice — the same reason every type under <c>Rules/Combat/Bosses/</c> takes it.
+    /// </param>
+    /// <param name="enemyLevel">
+    /// 🔒 `05` §6.0's <c>EnemyLevel(c, t)</c> — <em>"all enemies, Elites, Guardians and bosses in a
+    /// <c>(chapter, tier)</c> share this level"</em>, adds included.
+    /// </param>
+    /// <param name="content">The loaded, schema-validated content snapshot.</param>
+    /// <param name="firstClear">`17` §1 — the first time a player fights a boss, phase 1 lasts 20% longer.</param>
+    /// <exception cref="KeyNotFoundException"><paramref name="bossId"/> is not in the document.</exception>
+    /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
+    /// <exception cref="UnauthorisedTunableException">A constant the fight needs is <c>null</c> in the data.</exception>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why this is a second public method and not a second public type.</b> `05` §9 and `30`
+    /// §11.2 both have the harness call the simulator directly, and `30` §6 pins
+    /// <c>tools/BalanceHarness</c> to <c>SlayIdleRepeat.Core</c> with no package references — while
+    /// <c>Core.csproj</c> grants <c>InternalsVisibleTo</c> to <c>SlayIdleRepeat.Core.Tests</c> alone.
+    /// Everything a boss fight needs (<c>BossCatalogue</c>, <c>BossEncounterBuilder</c>,
+    /// <c>EnemyCatalogue</c>, <c>BattlePlan</c>, the six seams) is therefore unreachable from the
+    /// harness, and without an entry point of this shape `05` §9's v1 deliverable cannot exist at all.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>R16's enumerated closure is untouched.</b> Every type in this signature —
+    /// <see cref="ActorStats"/>, <see cref="SimulationResult"/>, <see cref="ContentSnapshot"/> and
+    /// primitives — is already public, so <c>Domain.PublicRuleTypes</c> still names exactly six. The
+    /// precedent is M2-09's, one method up: it widened the <em>parameter list</em> for the content
+    /// snapshot and recorded that <em>"it widens no public <b>type</b>"</em>. What stays inside is the
+    /// DSL — a caller cannot author an effect, reach a seam, or build a roster; it names a boss the
+    /// document already carries.
+    /// </para>
+    /// <para>
+    /// ⚠️ The composition itself lives in <see cref="BossFight"/>, whose remarks record what this
+    /// method's <em>sibling</em> still cannot do: <see cref="BattleSeams.For"/> leaves the status
+    /// engine unwired, so the plain overload above throws on the first `05` §5 status any fight
+    /// applies.
+    /// </para>
+    /// </remarks>
+    public static SimulationResult SimulateBossFight(
+        ulong battleSeed,
+        ActorStats hero,
+        int heroLevel,
+        string bossId,
+        double bossPower,
+        int enemyLevel,
+        ContentSnapshot content,
+        bool firstClear = false) =>
+        BossFight.Run(battleSeed, hero, heroLevel, bossId, bossPower, enemyLevel, content, firstClear);
 
     /// <summary>
     /// 🔒 The full entry point — the one a boss fight, a Ghost Duel or the balance harness uses.

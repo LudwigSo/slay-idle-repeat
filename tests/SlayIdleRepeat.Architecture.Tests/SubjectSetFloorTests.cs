@@ -144,13 +144,33 @@ public sealed class SubjectSetFloorTests
             "SlayIdleRepeat.Core.Rules.Combat.IPetAbilities and its NoPetAbilities default, which is " +
             "05 §3.1's slot 5 running and firing nothing"),
 
-        // The other member of Domain.PublicRuleTypes. Tracked for the same reason its sibling is:
-        // the list is a transcription of a 🔒 section, and a rule keyed on it must not be able to
-        // go quiet through a rename nobody notices. M2-07 is landing Rules/Stats/ and this is the
-        // type that directory exists for (`29` §1, `30` §11.2).
-        new("PowerCalculator", SubjectKind.CoreType, "M2-07",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — the exemption arm of the rule; " +
-            "Domain.PublicRuleTypes names it and nothing else pins that name"),
+        // 🔒 PowerCalculator's entry lived here and was DELETED by M2-16a — the third discharge, and
+        // the only one so far taken by a task that did not own the subject.
+        //
+        // The entry read: "the other member of Domain.PublicRuleTypes … M2-07 is landing Rules/Stats/
+        // and this is the type that directory exists for (`29` §1, `30` §11.2)." M2-07 landed
+        // Rules/Stats/ and did NOT land this type, so the entry survived its own milestone with a
+        // stale owner — steering S4's ⚠️ known limit, an exemption whose REASON went stale while it
+        // was still formally valid, which nothing detects mechanically.
+        //
+        // 🔒 M2-16a landed it because `05` §9 cannot be measured without it, not for tidiness. Two of
+        // the six balance guardrails are defined over PlayerPower and over nothing else: guardrail 1
+        // is "a player at exactly ParPower(c,t)", which `29` §2.5.3 reaches by BISECTING this
+        // function, and guardrail 6 is "top-3 by MARGINAL power", which is its partial derivative. A
+        // copy of `29` §2.3 inside tools/BalanceHarness would have made guardrail 6 grade the
+        // harness's own arithmetic instead of the game's — R30, one directory over, exists to stop
+        // exactly that drift between `05` §4's mitigation dials and `29` §2.3's.
+        //
+        // Nothing in Domain.PublicRuleTypes changed: the name has been in that list since M2-08, and
+        // this is the type finally arriving under it. Its Compute overload THROWS on the shipped data
+        // (tuning/power_model.json#/kPower is authored null and steering S6 forbids defaulting a
+        // hole); PowerIndex is the K-free member every ratio uses, and `29` §2.1 defines the constant
+        // by PlayerPower(referenceParBuild) := 1000, so a caller derives it rather than inventing it.
+        //
+        // The name it left behind is tracked in Live below rather than dropped, for the reason the
+        // entry itself gave: Domain.PublicRuleTypes is a transcription of a 🔒 section, and the
+        // exemption arm of Handlers_and_Rules_are_internal must not be able to go quiet through a
+        // rename nobody notices.
 
         // 🔒 Not a rule subject — a DEFERRAL, recorded in the one register the repo has so that it
         // expires by itself (steering S4). `18` §4 types the TIER condition "enum" and no tier enum
@@ -610,6 +630,18 @@ public sealed class SubjectSetFloorTests
             "through it; AuthoredBossScriptTests, AuthoredBossFightTests and BossCatalogueTests all " +
             "assert the shipped document through it, and tools/BalanceHarness builds its boss " +
             "encounters from it"),
+
+        // 🔒 The second member of Domain.PublicRuleTypes to arrive, moved out of Pending by M2-16a
+        // rather than deleted — CombatSimulator's entry above made the same move for the same reason.
+        // `30` §11.2 is 🔒 that these two are "the only two `Rules` types that are public", so the
+        // list is a transcription of a locked section: a rename that emptied it would make the
+        // EXEMPTION arm of Handlers_and_Rules_are_internal vacuous, and a vacuous exemption is
+        // silent rather than loud. See the discharge note in Pending above.
+        new("PowerCalculator", SubjectKind.CoreType, "M2-16a",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — the exemption arm of the " +
+            "rule; Domain.PublicRuleTypes names it and nothing else pins that name. It is also the " +
+            "single statement of `29` §2.3's PlayerPower, which `05` §9's guardrails 1 and 6 are " +
+            "both defined over"),
 
         // ── M2-10 ───────────────────────────────────────────────────────────────────────────
         //
