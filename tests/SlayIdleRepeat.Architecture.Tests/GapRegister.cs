@@ -279,7 +279,7 @@ internal static class GapRegister
         // now would buy nothing and would be the plausible-looking hole S6 forbids, sitting under
         // M12's duel and M14's guild rules for two milestones.
 
-        new("GuildView", "M14-01", "GuildId",
+        new(Domain.GuildViewType, "M14-01", "GuildId",
             "30 §4.1's third WorldSlice member, and 30 §5 fixes its shape before its contents: it is " +
             "a READ-ONLY PROJECTION, because 27 §11 makes guild quest counters and Guild Boss damage " +
             "the game's only contended writes — up to 30 simultaneous writers — so the domain returns " +
@@ -291,7 +291,7 @@ internal static class GapRegister
             "the reason. IsolationTests.GuildView_is_a_read_only_projection is already written " +
             "against it and holds vacuously until then."),
 
-        new("GhostSnapshot", "M12-01", "GhostId",
+        new(Domain.GhostSnapshotType, "M12-01", "GhostId",
             "30 §4.1's fourth WorldSlice member — the stored opponent a duel is fought against, and " +
             "'duels only'. 11 §2 makes a Ghost an immutable server-generated snapshot of a player's " +
             "PvP loadout: ghostId, rating, and a resolved build of gear, pets, mount, talents and " +
@@ -502,8 +502,8 @@ internal static class GapRegister
         {
             "Player",
             "Run",
-            "GuildView",
-            "GhostSnapshot",
+            Domain.GuildViewType,
+            Domain.GhostSnapshotType,
         }),
 
         // 🔒 M1-02, `14` §2.3 — THE CANONICAL COMMAND REGISTRY, transcribed whole.
