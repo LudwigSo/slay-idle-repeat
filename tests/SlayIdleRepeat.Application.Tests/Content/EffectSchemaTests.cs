@@ -215,10 +215,12 @@ public sealed class EffectSchemaTests
             """
         },
         {
-            "18 §7.4 — PK_UNBREAKABLE, ON_LETHAL once, no target",
+            // R7 / 18 §10 E4 — §7.4 now carries the valueMode. Without it "value": 1 read as a
+            // FRACTION of Max HP, i.e. full health, while 06 words the same perk "at 1 HP".
+            "18 §7.4 — PK_UNBREAKABLE, ON_LETHAL once, no target, FLAT 1 HP",
             """
             { "id": "PK_UNBREAKABLE_T1_SURVIVE", "op": "SURVIVE_LETHAL", "value": 1,
-              "trigger": {"kind":"ON_LETHAL","once":true} }
+              "valueMode": "FLAT", "trigger": {"kind":"ON_LETHAL","once":true} }
             """
         },
         {
@@ -566,18 +568,23 @@ public sealed class EffectSchemaTests
     /// Two documents differing in exactly one token, one accepted and one rejected, pins the rule
     /// that fired without depending on the reporting.
     /// </remarks>
+    /// <remarks>
+    /// ⚠️ The two extra rows carry the keys M2-03 made <b>required</b> under `18` §10 —
+    /// <c>toStat</c> on <c>STAT_CONVERT</c> and <c>capKind</c> on <c>STAT_CAP_OVERRIDE</c> — so that
+    /// the control really is valid and the stat token stays the only edit between the pair.
+    /// </remarks>
     [Theory]
-    [InlineData("STAT_SET")]
-    [InlineData("STAT_CONVERT")]
-    [InlineData("STAT_CAP_OVERRIDE")]
-    public void ALL_COMBAT_is_rejected_where_one_concrete_stat_is_required(string op)
+    [InlineData("STAT_SET", "")]
+    [InlineData("STAT_CONVERT", ", \"toStat\": \"ATK\"")]
+    [InlineData("STAT_CAP_OVERRIDE", ", \"capKind\": \"STAT_MAX\"")]
+    public void ALL_COMBAT_is_rejected_where_one_concrete_stat_is_required(string op, string requiredKeys)
     {
         Validate($$"""
-        { "id": "CP_GLASS_HEART_BAD", "op": "{{op}}", "stat": "MAX_HP", "value": 1.0 }
+        { "id": "CP_GLASS_HEART_BAD", "op": "{{op}}", "stat": "MAX_HP", "value": 1.0{{requiredKeys}} }
         """).ShouldBeEmpty($"the control: {op} over one concrete stat is valid");
 
         Validate($$"""
-        { "id": "CP_GLASS_HEART_BAD", "op": "{{op}}", "stat": "ALL_COMBAT", "value": 1.0 }
+        { "id": "CP_GLASS_HEART_BAD", "op": "{{op}}", "stat": "ALL_COMBAT", "value": 1.0{{requiredKeys}} }
         """).ShouldNotBeEmpty($"{op} needs one stat, not a group of fourteen — and the stat token is the only edit");
     }
 
@@ -605,6 +612,13 @@ public sealed class EffectSchemaTests
     [InlineData("\"sourceCapPct\": 0.2")]
     [InlineData("\"statusId\": \"BURN\"")]
     [InlineData("\"newFace\": {\"kind\":\"Star\"}")]
+    // The three keys M2-03 added under 18 §10. Each belongs to a closed set of ops, and a schema
+    // that admitted them everywhere would let {"op":"STAT_ADD_PCT","charges":3} validate with the 3
+    // meaning nothing — which is the exact failure the thirteen-, now fifteen-branch partition exists
+    // to prevent.
+    [InlineData("\"toStat\": \"ATK\"")]
+    [InlineData("\"charges\": 3")]
+    [InlineData("\"statusTag\": \"control\"")]
     public void An_op_specific_key_on_the_wrong_op_is_rejected(string extraKey)
     {
         Validate("""
@@ -746,7 +760,14 @@ public sealed class EffectSchemaTests
     [Fact]
     public void The_single_token_enums_agree_between_the_schema_and_the_C_sharp()
     {
-        Members("capKind").ShouldBe(Enum.GetNames<StatCapKind>());
+        // ⚠️ Ordered, like every other parity case above: `Members` sorts ordinally so that a
+        //    schema enum written in document order and a C# enum written in wire order still
+        //    compare. M2-01's version compared unordered because StatCapKind had one member;
+        //    M2-03's 18 §10 extension gave it three.
+        Members("capKind").ShouldBe(
+            Enum.GetNames<StatCapKind>().OrderBy(n => n, StringComparer.Ordinal),
+            Case.Sensitive,
+            "$defs/capKind and StatCapKind are two statements of one vocabulary");
 
         Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
         var dieFaceBranch = branches!.Items.Single(b =>
@@ -873,7 +894,10 @@ public sealed class EffectSchemaTests
     private static IEnumerable<string> BranchOps()
     {
         Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
-        branches!.Items.Count.ShouldBe(13, "18 §2's 43 ops partition into thirteen key shapes");
+        // 13 at M2-01; 15 since M2-03's 18 §10 extension split ATTACK_MULT_NEXT/FORCE_CRIT_NEXT out
+        // for `charges` and SURVIVE_LETHAL out for `valueMode`. The count is asserted, not merely
+        // implied by the partition below, so that a branch appearing or vanishing is a decision.
+        branches!.Items.Count.ShouldBe(15, "18 §2's 43 ops partition into fifteen key shapes");
 
         foreach (var branch in branches.Items)
         {

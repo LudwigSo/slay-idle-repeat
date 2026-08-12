@@ -613,5 +613,9 @@ public sealed class StatAggregationTests
 
         public StatCaps OverrideCaps(
             IReadOnlyList<EffectDefinition> overrides, StatCaps declared, IEffectValueReader values) => declared;
+
+        public IReadOnlyList<StatDelta> RedirectCappedExcess(
+            IReadOnlyList<EffectDefinition> overrides, ActorStats preCap, StatCaps effective,
+            IEffectValueReader values) => [];
     }
 }

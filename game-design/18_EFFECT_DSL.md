@@ -27,6 +27,8 @@ Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outc
 
 Every effect is the same eight-part shape: **op · trigger · condition · target · value · valueScale · duration · stacking**. Everything in the game is a combination of those. *(`valueScale` added by ruling in `16` A7.)*
 
+🔒 **`tags` is an open author-label set in which `drawback` is reserved.** `05` §4.1's ward **bypass list** (b) — *"self-inflicted costs (cursed-perk drawbacks such as `CP_BLOOD_PRICE` / `CP_TIMEBOUND`)"* — names no marker, and §7.5 authors `CP_BLOOD_PRICE` with `"tags": ["drawback"]`; the marker is defined by that one example, so it is reserved here. Any other tag is an author label with no engine meaning. ⚠️ This is **not** the same vocabulary as `REMOVE_STATUS`'s `statusTag` (§2.3), which labels a *status*.
+
 ### 1.1 `valueScale` — state-scaled values 🔒
 
 `valueScale` multiplies the effect's `value` by a whole number of *steps* read from live state:
@@ -72,8 +74,8 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 | `STAT_ADD_PCT` | Add to the additive percent bucket for a stat |
 | `STAT_MULT` | Multiply the stat after all additive aggregation (Legendary-tier only) |
 | `STAT_SET` | Force a stat to a value (`CP_GLASS_HEART` only) |
-| `STAT_CONVERT` | Convert a percentage of stat A into stat B (`PK_TURTLE`, `PK_JUGGERNAUT`) |
-| `STAT_CAP_OVERRIDE` | Raise or redirect a stat cap (`Perfect Strike` keystone) |
+| `STAT_CONVERT` | Convert `value` × the **source** stat (`stat`) into the **destination** stat (`toStat`) — `PK_TURTLE` (20% of DEF into ATK), `PK_JUGGERNAUT` (8% of Max HP into ATK). Two signed deltas, applied at §8 step 6 |
+| `STAT_CAP_OVERRIDE` | Raise or redirect a cap, per `capKind`: `STAT_MAX` replaces `05` §1's ceiling on `stat` with `value`; `REDIRECT_EXCESS` multiplies the amount by which `stat` overshot its ceiling by `value` and adds it to `toStat` (`Perfect Strike`); `HEAL_CEILING` bounds `Heal()` (`05` §4.3) at `value` × Max HP and touches no stat cap (`Avatar of War`) |
 
 Valid `stat` values: `MAX_HP · ATK · DEF · ASPD · CRIT · CDMG · LIFESTEAL · DODGE · BLOCK · PEN · DMG_PCT · DR_PCT · HEAL_PCT · THORNS`
 Plus the non-combat stats: `GOLD_PCT · CROWNS_PCT · DROP_CHANCE · RARITY_SHIFT · ENERGY_REGEN_PCT · PET_AURA_PCT · REROLL_CHARGES · TILE_PREVIEW · SHOP_PRICE_PCT · XP_PCT · BEAST_FEED_PCT · STONE_PCT`
@@ -104,7 +106,7 @@ The last two exist only inside `ON_HEAL` contexts (`05` §4.3): `HEAL_AMOUNT` is
 | Op | Meaning |
 |---|---|
 | `APPLY_STATUS` | Apply one of the 12 statuses from `05` §5 |
-| `REMOVE_STATUS` | Clear a status or a tag group |
+| `REMOVE_STATUS` | Clear one status (`statusId`) **or** every status carrying a tag (`statusTag`) — exactly one of the two. 🔒 `statusTag` labels a **status**; it is not the effect's own `tags` array (§1), which labels the effect and whose `drawback` member is reserved for `05` §4.1's ward-bypass list |
 | `EXTEND_STATUS` | Add duration to an existing status |
 | `IMMUNE_STATUS` | Grant immunity to a status for a duration |
 | `STATUS_POWER_PCT` | Scale the potency of statuses this actor applies |
@@ -115,10 +117,10 @@ The last two exist only inside `ON_HEAL` contexts (`05` §4.3): `HEAL_AMOUNT` is
 | Op | Meaning |
 |---|---|
 | `EXTRA_ATTACK` | Perform an additional attack immediately |
-| `ATTACK_MULT_NEXT` | Multiply the damage of the next N attacks |
-| `FORCE_CRIT_NEXT` | The next N attacks always crit |
+| `ATTACK_MULT_NEXT` | Multiply the damage of the next `charges` attacks by `value` (`PK_OPENER`'s ×3 first attack — `05` §4) |
+| `FORCE_CRIT_NEXT` | The next `charges` attacks always crit. Carries no `value` |
 | `REDUCE_COOLDOWN` | Reduce pet/boss ability cooldowns |
-| `SURVIVE_LETHAL` | Survive an otherwise-fatal hit at a given HP fraction |
+| `SURVIVE_LETHAL` | Survive an otherwise-fatal hit at the HP `value`/`valueMode` name — `PK_UNBREAKABLE` is `{"value": 1, "valueMode": "FLAT"}` = **1 HP**, per `06`. `valueMode` defaults to `SELF_MAXHP_PCT` here, not `ATK_MULT` |
 | `REVIVE` | Return from 0 HP at a given HP fraction |
 | `SUMMON` | Spawn N enemies of an archetype (boss use) |
 | `SET_TARGET_PRIORITY` | Adjust targeting weight (added for Sporequeen — `17` §8) |
@@ -265,7 +267,8 @@ Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all
 ### 7.4 A survival perk — `PK_UNBREAKABLE` Tier I
 ```json
 [
-  { "op":"SURVIVE_LETHAL", "value":1, "trigger":{"kind":"ON_LETHAL","once":true} },
+  { "op":"SURVIVE_LETHAL", "value":1, "valueMode":"FLAT",
+    "trigger":{"kind":"ON_LETHAL","once":true} },
   { "op":"SHIELD", "value":0.25, "valueMode":"SELF_MAXHP_PCT",
     "trigger":{"kind":"ON_LETHAL","once":true}, "target":"SELF" }
 ]
@@ -446,6 +449,25 @@ When a new design cannot be expressed:
 4. Add the op to the client/server parity test.
 
 **Never** add a `if (perkId == "PK_X")` branch. A single one of those is the beginning of the end for this system.
+
+### 10.1 Extensions taken under this procedure
+
+Every row below adds a **key or a token, never a number** — the numbers stay in authored content
+(`16` R6). Each landed with its op, its schema branch and its row in §2, in one commit.
+
+| # | Op(s) | What was missing | Key added | Why it was unimplementable |
+|---|---|---|---|---|
+| E1 | `STAT_CONVERT` | the destination stat | `toStat` | §2.1 says "stat A into stat B" and the shape carries one `stat`. `06`'s `PK_TURTLE` and `PK_JUGGERNAUT` share a destination and differ in source, so `stat` is the source |
+| E2 | `STAT_CAP_OVERRIDE` | a token for either half of "raise or redirect" | `capKind: STAT_MAX`, `capKind: REDIRECT_EXCESS`, `toStat` | the one authored `capKind`, `HEAL_CEILING`, is a ceiling on `Heal()` (`05` §4.3) and **not** one of `05` §1's six stat caps; the only stated redirect (`09` §4's *Perfect Strike*) has no JSON anywhere |
+| E3 | `ATTACK_MULT_NEXT`, `FORCE_CRIT_NEXT` | the N of "the next N attacks" | `charges` | both need a count, and `05` §4 already spends the one `value` on the multiplier |
+| E4 | `SURVIVE_LETHAL` | which unit `value` is in | `valueMode` | §2.4 says "HP fraction", §7.4 writes `"value": 1` (a *full-HP* fraction) and `06` says "at 1 HP". Reuses §2.2's existing modes rather than picking a reading |
+| E5 | `REMOVE_STATUS` | the tag group | `statusTag` | §2.3 offers "a status or a tag group" and named a key only for the first |
+
+⚠️ **Not taken, and recorded so nobody assumes it was.** `REVIVE` has E4's problem word for word —
+§2.4 gives it "at a given HP fraction" — and is deliberately left fraction-only: no authored content
+needs a flat revive, and a key nobody asked for is still a key nobody agreed. `17` §9's Dicelord
+*Roll of Fate* (a visible d6 with three weighted outcomes) has **no** DSL construct and is **not**
+given one here: a 44th op would break §11's pinned count, and the ruling belongs with the boss engine.
 
 ---
 

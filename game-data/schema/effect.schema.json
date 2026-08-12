@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/effect.schema.json",
   "title": "an EffectDefinition (18 §1)",
-  "description": "18 §1 — one authored effect. Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outcome, shrine buff, curse and boss mechanic is one or more of these, and there is no per-perk, per-talent or per-boss code. VOCABULARY schema, not a content schema: it governs no data file of its own, because an effect is always embedded in the thing that owns it. The content-type schemas M2 and M3 author (perks, talents, pets, bosses) restate this shape; this file is what they restate. The root is deliberately a oneOf over thirteen closed key-shapes rather than one permissive object, so that an op-specific key on the wrong op is a validation failure and not a field that silently means nothing. Adding a 44th op means adding a branch here, an EffectOp member and a row in 18 — all three, in the same commit (18 §10).",
+  "description": "18 §1 — one authored effect. Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outcome, shrine buff, curse and boss mechanic is one or more of these, and there is no per-perk, per-talent or per-boss code. VOCABULARY schema, not a content schema: it governs no data file of its own, because an effect is always embedded in the thing that owns it. The content-type schemas M2 and M3 author (perks, talents, pets, bosses) restate this shape; this file is what they restate. The root is deliberately a oneOf over fifteen closed key-shapes rather than one permissive object, so that an op-specific key on the wrong op is a validation failure and not a field that silently means nothing. Adding a 44th op means adding a branch here, an EffectOp member and a row in 18 — all three, in the same commit (18 §10).",
   "oneOf": [
     {
       "title": "18 §2.1 — STAT_ADD_FLAT / STAT_ADD_PCT / STAT_MULT",
@@ -47,14 +47,15 @@
     },
     {
       "title": "18 §2.1 — STAT_CONVERT",
-      "description": "18 §2.1 — converts a percentage of stat A into stat B (PK_TURTLE, PK_JUGGERNAUT). 🔒 The DESTINATION stat has no authored key name anywhere in 18, so none is declared here: a design that needs one takes 18 §10's route (write the JSON, let this schema fail, then add the key here, to EffectDefinition and to 18 in one commit). Inventing 'toStat' would have been a convention nobody agreed, in the file everything else keys on.",
+      "description": "18 §2.1 — converts a percentage of stat A into stat B (PK_TURTLE, PK_JUGGERNAUT). 🔒 M2-01 left the DESTINATION stat undeclared because 18 named no key for it; M2-03 adds it as 'toStat' under 18 §10's procedure (op + schema + document in one commit), because without it the op is unimplementable as authored. 'stat' is the SOURCE and 'toStat' the destination: 06's two named users, PK_TURTLE ('convert 20% of DEF into ATK') and PK_JUGGERNAUT ('convert 8% of Max HP into ATK'), share a destination and differ in source. Both keys are required — a conversion with one end unwritten converts nothing into nothing.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "op", "stat"],
+      "required": ["id", "op", "stat", "toStat"],
       "properties": {
         "id": { "$ref": "#/$defs/effectId" },
         "op": { "const": "STAT_CONVERT" },
         "stat": { "$ref": "#/$defs/stat" },
+        "toStat": { "$ref": "#/$defs/toStat" },
         "trigger": { "$ref": "#/$defs/trigger" },
         "condition": { "$ref": "#/$defs/condition" },
         "target": { "$ref": "#/$defs/target" },
@@ -67,15 +68,16 @@
     },
     {
       "title": "18 §2.1 — STAT_CAP_OVERRIDE",
-      "description": "18 §2.1 — raises or redirects a stat cap (the Perfect Strike keystone). 18 §7.6's Avatar of War is the worked example and the only authored capKind.",
+      "description": "18 §2.1 — raises or redirects a stat cap (the Perfect Strike keystone). 18 §7.6's Avatar of War is the worked example, and HEAL_CEILING was the only authored capKind — which is a ceiling on Heal() (05 §4.3), NOT one of 05 §1's six stat caps, so with that one token the op could neither raise a cap nor redirect one. M2-03 adds STAT_MAX (the raise) and REDIRECT_EXCESS (the redirect, 09 §4's Perfect Strike) under 18 §10, plus 'toStat' for the redirect's destination. 🔒 Keys only, never values: the new ceiling and the redirect ratio are both the effect's own 'value', so Perfect Strike's 1:4 stays in the talent catalogue.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "op", "stat"],
+      "required": ["id", "op", "stat", "capKind"],
       "properties": {
         "id": { "$ref": "#/$defs/effectId" },
         "op": { "const": "STAT_CAP_OVERRIDE" },
         "stat": { "$ref": "#/$defs/stat" },
         "capKind": { "$ref": "#/$defs/capKind" },
+        "toStat": { "$ref": "#/$defs/toStat" },
         "trigger": { "$ref": "#/$defs/trigger" },
         "condition": { "$ref": "#/$defs/condition" },
         "target": { "$ref": "#/$defs/target" },
@@ -173,14 +175,19 @@
     },
     {
       "title": "18 §2.3 — REMOVE_STATUS",
-      "description": "18 §2.3 — clears a status OR a tag group, which is why statusId is optional here and required on the other three: an effect that clears by tag names no status at all.",
+      "description": "18 §2.3 — clears a status OR a tag group, which is why statusId is optional here and required on the other three: an effect that clears by tag names no status at all. M2-03 adds 'statusTag' under 18 §10 — the tag-group form had no key at all, so only the first half of the op was authorable. 🔒 statusTag is a STATUS label and is NOT the effect's own 'tags' array: 18 §1's tags label the effect and reserve 'drawback' for 05 §4.1's ward bypass. Exactly one of statusId / statusTag, never both and never neither.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "op"],
+      "oneOf": [
+        { "title": "the status form", "required": ["statusId"] },
+        { "title": "the tag-group form", "required": ["statusTag"] }
+      ],
       "properties": {
         "id": { "$ref": "#/$defs/effectId" },
         "op": { "const": "REMOVE_STATUS" },
         "statusId": { "$ref": "#/$defs/statusId" },
+        "statusTag": { "$ref": "#/$defs/statusTag" },
         "trigger": { "$ref": "#/$defs/trigger" },
         "condition": { "$ref": "#/$defs/condition" },
         "target": { "$ref": "#/$defs/target" },
@@ -265,8 +272,48 @@
       }
     },
     {
+      "title": "18 §2.4 — ATTACK_MULT_NEXT / FORCE_CRIT_NEXT",
+      "description": "18 §2.4 — 'multiply the damage of the next N attacks' and 'the next N attacks always crit'. Both need an N, and the eight-part shape carries one 'value' which 05 §4 already spends on the multiplier (PK_OPENER's ×3 first attack). M2-03 adds 'charges' under 18 §10: without it neither op could say how many attacks it covers. FORCE_CRIT_NEXT has no multiplier at all and carries charges alone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "charges"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "enum": ["ATTACK_MULT_NEXT", "FORCE_CRIT_NEXT"] },
+        "charges": { "$ref": "#/$defs/charges" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — SURVIVE_LETHAL",
+      "description": "18 §2.4 — 'survive an otherwise-fatal hit at a given HP fraction'. 18 §7.4 authors PK_UNBREAKABLE with \"value\": 1, which as a fraction is FULL HP, while 06's row for the same perk reads 'survive a lethal hit at 1 HP'. M2-03 resolves the contradiction by giving the op a valueMode exactly as the 18 §2.2 damage ops have one, rather than by picking a reading: PK_UNBREAKABLE is {\"value\": 1, \"valueMode\": \"FLAT\"} = 1 HP. Recorded as errata against 18 §2.4 and §7.4. ⚠️ REVIVE has the identical shape and the identical wording and is deliberately NOT changed — no authored content needs a flat revive, and widening it too would be a key nobody asked for.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "SURVIVE_LETHAL" },
+        "valueMode": { "$ref": "#/$defs/valueMode" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
       "title": "18 §2.4 / §2.5 — the ops that carry no key beyond the eight-part shape",
-      "description": "Nine combat-flow ops (18 §2.4) and twelve run and board ops (18 §2.5) — twenty-one in all. Listed explicitly rather than as 'everything else': a 44th op must be placed in a branch deliberately, and an enum here is what makes forgetting one a validation failure instead of a silent admission.",
+      "description": "Six combat-flow ops (18 §2.4) and twelve run and board ops (18 §2.5) — eighteen in all. Listed explicitly rather than as 'everything else': a 44th op must be placed in a branch deliberately, and an enum here is what makes forgetting one a validation failure instead of a silent admission.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "op"],
@@ -275,10 +322,7 @@
         "op": {
           "enum": [
             "EXTRA_ATTACK",
-            "ATTACK_MULT_NEXT",
-            "FORCE_CRIT_NEXT",
             "REDUCE_COOLDOWN",
-            "SURVIVE_LETHAL",
             "REVIVE",
             "SET_TARGET_PRIORITY",
             "DAMAGE_TAKEN_MULT",
@@ -388,9 +432,32 @@
       ]
     },
 
+    "toStat": {
+      "description": "18 §2.1, added by M2-03 under 18 §10 — the DESTINATION stat of a STAT_CONVERT and of a REDIRECT_EXCESS cap override. 'stat' is the source. Never ALL_COMBAT and never HIGHEST_PCT_BONUS: a conversion writes to one concrete stat, and 18 §9.1's own ruling (CP_GLASS_HEART as two effects) is the precedent for why a group selector cannot stand in for one.",
+      "enum": [
+        "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
+        "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
+        "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
+        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT"
+      ]
+    },
+
+    "charges": {
+      "description": "18 §2.4, added by M2-03 under 18 §10 — the N of 'the next N attacks'. A whole number of attacks, so at least one: an effect granting zero charges is authored dead weight, not a design.",
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "statusTag": {
+      "description": "18 §2.3, added by M2-03 under 18 §10 — the tag group REMOVE_STATUS clears. 🔒 A STATUS label, a different vocabulary from the effect's own 'tags' array (18 §1), which labels the EFFECT and reserves 'drawback' for the ward-bypass list the combat document states. Not a closed set: the twelve statuses that document fixes carry no tags yet, and enumerating a guess would invent a taxonomy nobody agreed.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+
     "capKind": {
-      "description": "18 §7.6 — which cap a STAT_CAP_OVERRIDE raises or redirects. One member, because 18 authors exactly one token; a second takes 18 §10's route rather than being guessed at here.",
-      "enum": ["HEAL_CEILING"]
+      "description": "18 §7.6 — which cap a STAT_CAP_OVERRIDE raises or redirects. HEAL_CEILING is the one token 18 authors and is a ceiling on Heal() (05 §4.3), not one of 05 §1's six stat caps; M2-03 adds STAT_MAX and REDIRECT_EXCESS under 18 §10 so that §2.1's own 'raise or redirect' is expressible at all. 🔒 Keys, not values — the ceiling and the ratio are the effect's 'value'.",
+      "enum": ["HEAL_CEILING", "STAT_MAX", "REDIRECT_EXCESS"]
     },
 
     "statusId": {

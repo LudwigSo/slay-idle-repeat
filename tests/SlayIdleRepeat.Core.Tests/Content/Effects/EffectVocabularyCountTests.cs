@@ -116,15 +116,32 @@ public sealed class EffectVocabularyCountTests
     }
 
     /// <summary>
-    /// The two single-member enums, asserted so that a second member cannot be added without
-    /// somebody deciding it is authorised. Steering S6: `18` writes exactly one token for each.
+    /// The single-member enums, asserted so that a second member cannot be added without somebody
+    /// deciding it is authorised. Steering S6: `18` writes exactly one token for each.
     /// </summary>
     [Fact]
     public void The_single_token_enums_still_hold_exactly_the_one_token_18_authors()
     {
-        Enum.GetValues<StatCapKind>().ShouldBe([StatCapKind.HEAL_CEILING]);
         Enum.GetValues<DurationTerminator>().ShouldBe([DurationTerminator.WARD_BROKEN]);
         Enum.GetValues<DieFaceScope>().ShouldBe([DieFaceScope.NEXT_3_ROLLS]);
+    }
+
+    /// <summary>
+    /// 🔒 <see cref="StatCapKind"/> left that set in M2-03, and this is the decision that moved it.
+    /// </summary>
+    /// <remarks>
+    /// `18` writes one <c>capKind</c> — <c>HEAL_CEILING</c> (§7.6's <em>Avatar of War</em>) — and it
+    /// is a ceiling on <c>Heal()</c> (`05` §4.3), <b>not</b> one of `05` §1's six stat caps. With
+    /// only that token the op could satisfy neither half of its own §2.1 description, <em>"raise or
+    /// redirect a stat cap"</em>, and `09` §4's <em>Perfect Strike</em> — the one authored redirect
+    /// in the game — had no JSON anywhere. Both were added under `18` §10's procedure (op, schema
+    /// and document in one commit); the count is asserted so a fourth is a decision too.
+    /// </remarks>
+    [Fact]
+    public void There_are_three_cap_kinds_after_the_18_10_extension()
+    {
+        Enum.GetValues<StatCapKind>().ShouldBe(
+            [StatCapKind.HEAL_CEILING, StatCapKind.STAT_MAX, StatCapKind.REDIRECT_EXCESS]);
     }
 
     /// <summary>

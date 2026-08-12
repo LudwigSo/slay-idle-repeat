@@ -151,46 +151,34 @@ public sealed class StatAggregationSeamTests
 
     // ───────────────────────────────────────────── steps 6 and 9 · op behaviour (M2-03)
 
+    /// <summary>
+    /// The empty case, which is what the two ops' <b>content</b> set still is: no
+    /// <c>STAT_CONVERT</c> and no <c>STAT_CAP_OVERRIDE</c> is authored anywhere yet.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ M2-07's version of this test drove <c>UnimplementedStatOps</c>, the strict default that
+    /// refused both steps because neither op was implementable as authored. M2-03 closed both under
+    /// `18` §10 — <c>toStat</c>, <c>STAT_MAX</c>, <c>REDIRECT_EXCESS</c> — so that class is gone and
+    /// this drives the real behaviour. The two <c>*_is_refused_until_M2_03_*</c> tests it replaced
+    /// were the deferral, and a deferral that has been satisfied has to be deleted rather than left
+    /// asserting a refusal that no longer exists (steering S4).
+    /// </remarks>
     [Fact]
     public void No_conversions_and_no_cap_overrides_is_a_no_op()
     {
-        UnimplementedStatOps.Instance.Convert([], StatFixtures.Zeroed(), AuthoredEffectValue.Instance).ShouldBeEmpty();
+        StatOpBehaviour.Instance.Convert([], StatFixtures.Zeroed(), AuthoredEffectValue.Instance)
+                       .ShouldBeEmpty();
 
         var declared = StatFixtures.Caps();
 
-        UnimplementedStatOps.Instance.OverrideCaps([], declared, AuthoredEffectValue.Instance).ShouldBeSameAs(
+        StatOpBehaviour.Instance.OverrideCaps([], declared, AuthoredEffectValue.Instance).ShouldBeSameAs(
             declared, "with no overrides, step 9 uses 05 §1's table unchanged");
-    }
 
-    [Fact]
-    public void A_STAT_CONVERT_is_refused_until_M2_03_rules_on_which_stat_is_the_source()
-    {
-        var turtle = StatFixtures.Effect("PK_TURTLE_I", EffectOp.STAT_CONVERT, StatId.DEF, 0.10);
+        StatOpBehaviour.Instance
+            .RedirectCappedExcess([], StatFixtures.Zeroed(), declared, AuthoredEffectValue.Instance)
+            .ShouldBeEmpty();
 
-        var thrown = Should.Throw<NotSupportedException>(
-            () => StatAggregation.Aggregate(
-                StatFixtures.Zeroed(), [turtle], StatCaps.None, StatAggregationSeams.Strict));
-
-        thrown.Message.ShouldContain("18 §8 step 6", Case.Sensitive);
-        thrown.Message.ShouldContain("PK_TURTLE_I", Case.Sensitive);
-        thrown.Message.ShouldContain("M2-03", Case.Sensitive);
-    }
-
-    [Fact]
-    public void A_STAT_CAP_OVERRIDE_is_refused_until_M2_03_rules_on_HEAL_CEILING_and_Perfect_Strike()
-    {
-        var avatarOfWar = StatFixtures.Effect("TAL_AVATAR_OF_WAR", EffectOp.STAT_CAP_OVERRIDE, StatId.MAX_HP, 0.80)
-            with
-        { CapKind = StatCapKind.HEAL_CEILING };
-
-        var thrown = Should.Throw<NotSupportedException>(
-            () => StatAggregation.Aggregate(
-                StatFixtures.Zeroed(), [avatarOfWar], StatCaps.None, StatAggregationSeams.Strict));
-
-        thrown.Message.ShouldContain("18 §8 step 9", Case.Sensitive);
-        thrown.Message.ShouldContain("HEAL_CEILING", Case.Sensitive);
-        thrown.Message.ShouldContain("Perfect Strike", Case.Sensitive);
-        thrown.Message.ShouldContain("M2-03", Case.Sensitive);
+        StatOpBehaviour.HealCeilingFraction([], AuthoredEffectValue.Instance).ShouldBeNull();
     }
 
     /// <summary>
@@ -265,6 +253,10 @@ public sealed class StatAggregationSeamTests
 
         public StatCaps OverrideCaps(
             IReadOnlyList<EffectDefinition> overrides, StatCaps declared, IEffectValueReader values) => declared;
+
+        public IReadOnlyList<StatDelta> RedirectCappedExcess(
+            IReadOnlyList<EffectDefinition> overrides, ActorStats preCap, StatCaps effective,
+            IEffectValueReader values) => [];
     }
 
     private sealed class RaiseCritCap : IStatOpBehaviour
@@ -275,5 +267,9 @@ public sealed class StatAggregationSeamTests
         public StatCaps OverrideCaps(
             IReadOnlyList<EffectDefinition> overrides, StatCaps declared, IEffectValueReader values) =>
             overrides.Count == 0 ? declared : declared.With(StatId.CRIT, 0.90);
+
+        public IReadOnlyList<StatDelta> RedirectCappedExcess(
+            IReadOnlyList<EffectDefinition> overrides, ActorStats preCap, StatCaps effective,
+            IEffectValueReader values) => [];
     }
 }
