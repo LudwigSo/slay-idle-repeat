@@ -3,7 +3,7 @@ using SkiaSharp;
 namespace SlayIdleRepeat.AssetPipeline;
 
 /// <summary>
-/// The four numbers `15` actually authorises, and nothing else.
+/// The numbers `15` actually authorises, and nothing else.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -51,6 +51,12 @@ public static class Doc15Authorised
     /// The amount is authorised; the radius/sigma is not, and lives as an uncalibrated threshold.
     /// </summary>
     public const double SharpenAmount = 0.4d;
+
+    /// <summary>
+    /// `15` §A4: "fill it 100% black, <b>scale to 64 px</b>". The size of the silhouette mask —
+    /// stated by the doc, so it is a constant here and not a threshold.
+    /// </summary>
+    public const int SilhouetteMaskSize = 64;
 
     /// <summary>
     /// The authorised outline-width band at an arbitrary canvas width, scaled proportionally from

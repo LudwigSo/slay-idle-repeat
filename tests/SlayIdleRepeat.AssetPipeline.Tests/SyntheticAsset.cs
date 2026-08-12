@@ -80,6 +80,31 @@ internal sealed record PaletteFixture(
 internal sealed record CanvasFixture(SKBitmap Image, SKRectI ContentBounds, SKColor Colour);
 
 /// <summary>
+/// A filled square framed by an outline ring of an exactly known width, on a transparent canvas.
+/// </summary>
+/// <remarks>
+/// 🔒 A ring rather than the chibi blob, because `15` §A3 states the outline weight as a band that
+/// scales with the canvas (3-4 px at 512 px) and a rasterised circle's radial band is only
+/// approximately its nominal thickness. A square ring is exactly its thickness everywhere, so the
+/// case can state a band membership rather than a tolerance around one.
+/// </remarks>
+/// <param name="Image">The image, Rgba8888 / Unpremul.</param>
+/// <param name="Canvas">The square canvas's side, in pixels — what §A3's band scales against.</param>
+/// <param name="OutlineWidth">The ring's thickness, exact by construction.</param>
+/// <param name="OutlineColour">Exactly what the ring was painted.</param>
+/// <param name="OutlinePixels">Every ring pixel still painted (the gap's are not here).</param>
+/// <param name="InteriorPixels">Every pixel the ring encloses.</param>
+/// <param name="GapPixels">Ring pixels punched out to transparent, breaking the enclosure.</param>
+internal sealed record OutlinedBoxFixture(
+    SKBitmap Image,
+    int Canvas,
+    int OutlineWidth,
+    SKColor OutlineColour,
+    IReadOnlyList<SKPointI> OutlinePixels,
+    IReadOnlyList<SKPointI> InteriorPixels,
+    IReadOnlyList<SKPointI> GapPixels);
+
+/// <summary>
 /// Builds the fixture images this suite runs on, in code, at run time.
 /// </summary>
 /// <remarks>
@@ -112,6 +137,53 @@ internal static class SyntheticAsset
 
     /// <summary>How far the halo blends the edge toward white, as a fraction.</summary>
     internal const double HaloBlend = 0.5;
+
+    /// <summary>The palette fixture's canvas, square.</summary>
+    internal const int PaletteCanvas = 32;
+
+    /// <summary>
+    /// The outlined-box fixture's canvas, square.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Chosen so that `15` §A3's "3-4 px at 512 px canvas, scaled proportionally" lands on whole
+    /// pixels here: at 256 the band is exactly 1.5-2.0 px, and <see cref="OutlineBoxWidth"/> sits
+    /// inside it by construction rather than by rounding. 64 (the chibi's canvas) would put the
+    /// band at 0.375-0.5 px, where no whole-pixel ring can conform to §A3 at all.
+    /// </remarks>
+    internal const int OutlineBoxCanvas = 256;
+
+    /// <summary>
+    /// The outlined-box ring's thickness — inside `15` §A3's band at
+    /// <see cref="OutlineBoxCanvas"/>, exactly.
+    /// </summary>
+    internal const int OutlineBoxWidth = 2;
+
+    /// <summary>
+    /// A ring thickness far outside `15` §A3's band at <see cref="OutlineBoxCanvas"/> — four times
+    /// the band's upper bound, so no plausible uniformity tolerance rescues it.
+    /// </summary>
+    internal const int OutlineBoxWidthTooWide = 8;
+
+    /// <summary>How many pixels of the ring's top edge <see cref="OutlinedBox"/> punches out.</summary>
+    internal const int OutlineBoxGapLength = 6;
+
+    /// <summary>The alpha the halo fixture gives the subject's outermost band.</summary>
+    internal const byte FringeSubjectAlpha = 128;
+
+    /// <summary>The alpha the halo fixture gives the ring of background just outside the subject.</summary>
+    internal const byte FringeBackgroundAlpha = 64;
+
+    /// <summary>The side of the opaque block <see cref="ChibiCutOutWithCornerSignature"/> stamps.</summary>
+    internal const int CornerSignatureSize = 8;
+
+    /// <summary>The side of one blob <see cref="SeparatedBlobs"/> paints.</summary>
+    internal const int BlobSize = 8;
+
+    /// <summary>How many blobs fit across one row of the frame, at one blob's spacing between them.</summary>
+    internal const int BlobsPerRow = Canvas / (BlobSize * 2);
+
+    /// <summary>How many separated blobs the frame holds in total.</summary>
+    internal const int MaxBlobs = BlobsPerRow * BlobsPerRow;
 
     private const double BodyCentreX = 32d;
     private const double BodyCentreY = 40d;
@@ -202,32 +274,9 @@ internal static class SyntheticAsset
     /// <param name="palette">The biome palette, read from the shipped manifest row.</param>
     internal static PaletteFixture BiomePalette(Palette palette)
     {
-        const int size = 32;
-        const int half = size / 2;
-        var offPixel = new SKPointI(half, half);
-
+        var image = OnPalette(palette);
         var baseHue = SKColor.Parse(palette.Base);
-        var shadow = SKColor.Parse(palette.Shadow);
-        var accent = SKColor.Parse(palette.Accent);
-        var glow = SKColor.Parse(palette.Glow);
-
-        var image = NewBitmap(size, size);
-        for (var y = 0; y < size; y++)
-        {
-            for (var x = 0; x < size; x++)
-            {
-                var quadrant = (x < half, y < half) switch
-                {
-                    (true, true) => baseHue,
-                    (false, true) => shadow,
-                    (true, false) => accent,
-                    (false, false) => glow,
-                };
-
-                var onBorder = x == 0 || y == 0 || x == size - 1 || y == size - 1;
-                image.SetPixel(x, y, onBorder ? OutlineColour : quadrant);
-            }
-        }
+        var offPixel = new SKPointI(PaletteCanvas / 2, PaletteCanvas / 2);
 
         // Sixteen units off the base hue in every channel: far enough that it is genuinely not one
         // of the six, and near enough that base is unambiguously the closest of the six plus the
@@ -237,6 +286,45 @@ internal static class SyntheticAsset
         image.SetPixel(offPixel.X, offPixel.Y, off);
 
         return new PaletteFixture(image, palette, offPixel, off, baseHue);
+    }
+
+    /// <summary>
+    /// The same image with <b>no</b> off-palette pixel: every pixel is one of four `15` §A5 hues or
+    /// the §A3 outline colour, so `15` Part F item 5 has nothing to find.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The passing half of item 5's pair. Without it the only fixture item 5 could run on is the
+    /// one built to violate it, and a check hard-wired to fail would look correct.
+    /// </remarks>
+    /// <param name="palette">The biome palette, read from the shipped manifest row.</param>
+    internal static SKBitmap OnPalette(Palette palette)
+    {
+        const int half = PaletteCanvas / 2;
+
+        var baseHue = SKColor.Parse(palette.Base);
+        var shadow = SKColor.Parse(palette.Shadow);
+        var accent = SKColor.Parse(palette.Accent);
+        var glow = SKColor.Parse(palette.Glow);
+
+        var image = NewBitmap(PaletteCanvas, PaletteCanvas);
+        for (var y = 0; y < PaletteCanvas; y++)
+        {
+            for (var x = 0; x < PaletteCanvas; x++)
+            {
+                var quadrant = (x < half, y < half) switch
+                {
+                    (true, true) => baseHue,
+                    (false, true) => shadow,
+                    (true, false) => accent,
+                    (false, false) => glow,
+                };
+
+                var onBorder = x == 0 || y == 0 || x == PaletteCanvas - 1 || y == PaletteCanvas - 1;
+                image.SetPixel(x, y, onBorder ? OutlineColour : quadrant);
+            }
+        }
+
+        return image;
     }
 
     /// <summary>
@@ -287,6 +375,197 @@ internal static class SyntheticAsset
 
         image.SetPixel(probe.X, probe.Y, colour);
         return (image, probe, colour);
+    }
+
+    /// <summary>
+    /// The cut-out chibi with a genuine alpha fringe: the subject's outermost band and the ring of
+    /// frame just outside it painted white at partial alpha.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Distinct from <see cref="ChibiWithHalo"/>, which is fully opaque throughout and models the
+    /// halo `15` §B4 step 1 has to remove. `15` Part F item 6 grades what came out the other end, so
+    /// its fixture needs pixels that are neither fully on nor fully off — the "semi-transparent
+    /// fringe" the item names, which an opaque fixture cannot express at all.
+    /// </remarks>
+    internal static SyntheticFixture ChibiCutOutWithFringe()
+    {
+        var shape = LazyShape.Value;
+        var fixture = Paint("chibi with a semi-transparent white fringe", SKColors.Transparent);
+
+        foreach (var point in shape.SubjectEdge)
+        {
+            fixture.Image.SetPixel(point.X, point.Y, new SKColor(255, 255, 255, FringeSubjectAlpha));
+        }
+
+        foreach (var point in shape.BackgroundEdge)
+        {
+            fixture.Image.SetPixel(
+                point.X, point.Y, new SKColor(255, 255, 255, FringeBackgroundAlpha));
+        }
+
+        return fixture with
+        {
+            Description = "chibi with a semi-transparent white fringe",
+            HaloedEdgePixels = shape.SubjectEdge,
+            HaloedBackgroundPixels = shape.BackgroundEdge,
+        };
+    }
+
+    /// <summary>
+    /// The cut-out chibi with an opaque block stamped into the bottom-right corner of the otherwise
+    /// transparent frame — the signature-in-a-corner failure `15` Part F item 8's proxy looks for.
+    /// </summary>
+    /// <returns>The image and the exact rectangle that was stamped.</returns>
+    internal static (SKBitmap Image, SKRectI Signature) ChibiCutOutWithCornerSignature()
+    {
+        var image = ChibiCutOut().Image;
+        var signature = new SKRectI(
+            Canvas - CornerSignatureSize, Canvas - CornerSignatureSize, Canvas, Canvas);
+
+        for (var y = signature.Top; y < signature.Bottom; y++)
+        {
+            for (var x = signature.Left; x < signature.Right; x++)
+            {
+                image.SetPixel(x, y, OutlineColour);
+            }
+        }
+
+        return (image, signature);
+    }
+
+    /// <summary>
+    /// A transparent 64x64 frame carrying a stated number of separated opaque squares, in a row.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The blobs are <see cref="BlobSize"/> apart, which is more than one pixel in every
+    /// direction, so they are separate under 8-connectivity as well as 4-. A gap of one pixel would
+    /// make the expected component count depend on which connectivity the implementation chose,
+    /// and the case would then be pinning an accident.
+    /// </remarks>
+    /// <param name="count">How many blobs, 1 to <see cref="MaxBlobs"/>.</param>
+    /// <returns>The image and how many pixels it painted opaque.</returns>
+    internal static (SKBitmap Image, int OpaquePixelCount) SeparatedBlobs(int count)
+    {
+        if (count < 1 || count > MaxBlobs)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count), count, $"The {Canvas} px frame holds 1 to {MaxBlobs} separated blobs.");
+        }
+
+        var image = NewBitmap(Canvas, Canvas);
+        var painted = 0;
+
+        for (var blob = 0; blob < count; blob++)
+        {
+            var left = blob % BlobsPerRow * BlobSize * 2;
+            var top = blob / BlobsPerRow * BlobSize * 2;
+
+            for (var y = top; y < top + BlobSize; y++)
+            {
+                for (var x = left; x < left + BlobSize; x++)
+                {
+                    image.SetPixel(x, y, SubjectColour);
+                    painted++;
+                }
+            }
+        }
+
+        return (image, painted);
+    }
+
+    /// <summary>
+    /// An opaque rectangle placed exactly where a stated `15` §C pivot puts it on a square canvas.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The passing half of `15` Part F item 7's pair, and deliberately smaller than the canvas: a
+    /// subject filling the frame satisfies every pivot at once, so a check that ignored the pivot
+    /// entirely would pass on it.
+    /// </remarks>
+    /// <param name="canvas">The square canvas's side. Must exceed both content dimensions.</param>
+    /// <param name="contentWidth">The rectangle's width. Even, so centring lands on whole pixels.</param>
+    /// <param name="contentHeight">The rectangle's height.</param>
+    /// <param name="pivot">One of <see cref="Doc15Pivots.All"/>.</param>
+    internal static CanvasFixture PivotedSubject(
+        int canvas, int contentWidth, int contentHeight, string pivot)
+    {
+        var left = (canvas - contentWidth) / 2;
+        var top = pivot switch
+        {
+            Doc15Pivots.Center => (canvas - contentHeight) / 2,
+            Doc15Pivots.BottomCenter => canvas - contentHeight,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(pivot),
+                pivot,
+                $"`15` §C authorises {string.Join(" and ", Doc15Pivots.All)} and nothing else, so " +
+                "there is no correct placement for this one to be the fixture of."),
+        };
+
+        var image = NewBitmap(canvas, canvas);
+        for (var y = top; y < top + contentHeight; y++)
+        {
+            for (var x = left; x < left + contentWidth; x++)
+            {
+                image.SetPixel(x, y, SubjectColour);
+            }
+        }
+
+        return new CanvasFixture(
+            image, new SKRectI(left, top, left + contentWidth, top + contentHeight), SubjectColour);
+    }
+
+    /// <summary>
+    /// A filled square framed by a ring of exactly known thickness and colour, on a transparent
+    /// canvas — `15` Part F item 3's fixture.
+    /// </summary>
+    /// <param name="outlineWidth">The ring's thickness in pixels.</param>
+    /// <param name="outlineColour">
+    /// What to paint the ring. Null paints `15` §A3's #231A2E; anything else builds the
+    /// wrong-colour violation.
+    /// </param>
+    /// <param name="gapLength">
+    /// How many pixels of the ring's top edge to punch out to transparent, breaking the enclosure.
+    /// Zero leaves the ring continuous.
+    /// </param>
+    internal static OutlinedBoxFixture OutlinedBox(
+        int outlineWidth, SKColor? outlineColour = null, int gapLength = 0)
+    {
+        var ringColour = outlineColour ?? OutlineColour;
+        var image = NewBitmap(OutlineBoxCanvas, OutlineBoxCanvas);
+        var ring = new List<SKPointI>();
+        var interior = new List<SKPointI>();
+        var gap = new List<SKPointI>();
+        var gapLeft = (OutlineBoxCanvas / 2) - (gapLength / 2);
+
+        for (var y = 0; y < OutlineBoxCanvas; y++)
+        {
+            for (var x = 0; x < OutlineBoxCanvas; x++)
+            {
+                var point = new SKPointI(x, y);
+                var onRing = x < outlineWidth
+                             || y < outlineWidth
+                             || x >= OutlineBoxCanvas - outlineWidth
+                             || y >= OutlineBoxCanvas - outlineWidth;
+
+                if (!onRing)
+                {
+                    image.SetPixel(x, y, SubjectColour);
+                    interior.Add(point);
+                    continue;
+                }
+
+                if (y < outlineWidth && x >= gapLeft && x < gapLeft + gapLength)
+                {
+                    gap.Add(point);
+                    continue;
+                }
+
+                image.SetPixel(x, y, ringColour);
+                ring.Add(point);
+            }
+        }
+
+        return new OutlinedBoxFixture(
+            image, OutlineBoxCanvas, outlineWidth, ringColour, ring, interior, gap);
     }
 
     /// <summary>A solid opaque square, for the atlas packer, which cares only about sizes.</summary>
