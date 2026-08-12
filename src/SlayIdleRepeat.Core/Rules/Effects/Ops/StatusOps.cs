@@ -44,8 +44,12 @@ internal static class StatusOps
 
         foreach (var target in OpTargets.Resolve(effect, context))
         {
+            // 🔒 The holder travels with the application, and it is `05` §5 that requires it: BURN is
+            // "X% of ATTACKER ATK per second" and BLEED is "set at application as X% of the APPLIER's
+            // ATK". EffectOpContext.Holder is "the source of every op's number", and it is the only
+            // actor in reach here that answers to either word.
             context.Seams.Statuses.Apply(
-                target, statusId, potency, effect.Duration, effect.Stacking, effect.Id);
+                context.Holder, target, statusId, potency, effect.Duration, effect.Stacking, effect.Id);
         }
 
         return potency;

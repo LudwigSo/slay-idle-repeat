@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/statuses.schema.json",
+  "title": "content/statuses.json",
+  "description": "05 §5 — the twelve status effects the combat document fixes, and the constants it states for them. The section names twelve statuses, types each one, and gives five of them a stack ceiling; it writes two numbers as literals rather than as X (FREEZE's ASPD reduction and STUN's per-application cap and immunity window), and it carries one 📐 TUNABLE, which is BLEED's missing-HP scaling term. All of those live here. 🔒 What does NOT live here is the per-application X and D of any status: 05 §5 writes them as X and D precisely because they belong to the effect that applies the status, which authors them as value and duration under 18 §1 and 18 §6. A copy here would be a second, disagreeing statement of every perk's numbers. 🔒 The file sits under content/ rather than tuning/ for the reason combat_caps.json and enemies.json already record: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are combat balance constants rather than economy dials. ⚠️ Two neighbouring sections are deliberately NOT cited anywhere in this file. The section that catalogues the sixteen tuning files is itself a recorded out-of-scope 📐 baseline entry, and the section holding the per-chapter enemy-pool weights has a 📐 baseline entry owned by a later milestone; citing either — including by writing a bare document number, or a section range that spans it — would close an entry this change did not close. DocSection.Overlaps is hierarchical in both directions, so a parent section swallows its children.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "bleedMissingHpScaling", "stun", "statuses"],
+
+  "$defs": {
+    "statusId": {
+      "description": "05 §5 — the twelve statuses, as that section's table names them. The same closed set the effect vocabulary schema encloses for the op that applies one; it is restated here because this file is the catalogue those ids are drawn from, and the two are pinned equal by a test rather than by hope.",
+      "enum": [
+        "BURN", "POISON", "BLEED", "FREEZE", "STUN", "WEAKEN",
+        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN"
+      ]
+    },
+    "statusType": {
+      "description": "05 §5 — the Type column of the status table, verbatim: DoT, Debuff, Buff, HoT. It is not decoration. A DOT and a HOT are the two kinds 05 §3.1's one-second cadence drives, and the cadence rule routes a HOT tick through the healing path while a DOT tick is a damage event.",
+      "enum": ["DOT", "DEBUFF", "BUFF", "HOT"]
+    },
+    "potencyBasis": {
+      "description": "05 §5 — what the status's X is a fraction of, one token per unit the section writes. APPLIER_ATK_PCT_PER_SECOND is BURN's 'X% of attacker ATK per second' and BLEED's 'X% of the applier's ATK'; TARGET_MAX_HP_PCT_PER_SECOND is POISON's 'X% of target Max HP per second' and REGEN's 'Heal X% Max HP per second'; TARGET_STAT_PCT is the six statuses stated as a signed percentage of one of the target's stats; FLAT_HP is WARD's 'flat HP amount'; NONE is STUN, which has a duration and no magnitude at all. 🔒 The sign belongs to the authored number, not to the basis: 05 §5 writes WEAKEN as −X% ATK and RAGE as +X% ATK against the same basis, and the on-hit rows already author their potencies signed.",
+      "enum": [
+        "APPLIER_ATK_PCT_PER_SECOND",
+        "TARGET_MAX_HP_PCT_PER_SECOND",
+        "TARGET_STAT_PCT",
+        "FLAT_HP",
+        "NONE"
+      ]
+    },
+    "statId": {
+      "description": "18 §2.1 — the stat a TARGET_STAT_PCT status writes, by the name an effect writes. 05 §5's 'healing received' is HEAL_PCT, which 05 §2 bases at 1.0 as a multiplier on all healing received.",
+      "enum": ["ATK", "DEF", "ASPD", "HEAL_PCT"]
+    },
+    "stackingMode": {
+      "description": "18 §6 — the stacking mode. Only the two 05 §5 actually states appear: ADDITIVE for the four statuses it gives a ceiling to, and NONE for BLEED, which it states as 'does not stack; reapplication refreshes'. The other three modes 18 §6 declares have no user in 05 §5, and enumerating them here would offer an author a choice the combat document does not.",
+      "enum": ["ADDITIVE", "NONE"]
+    },
+    "seconds": {
+      "description": "A duration in seconds. Pinned to 05 §1.1's four-decimal-place form, because a duration that is not itself rounded puts an unrounded value into the tick arithmetic that converts it.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "multipleOf": 0.0001
+    }
+  },
+
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+
+    "bleedMissingHpScaling": {
+      "description": "📐 05 §5 — BLEED's missing-HP scaling term. The section states the tick as 'that amount × (1 + target's missing-HP fraction)', so the authored value is the coefficient the missing-HP fraction is multiplied by before the 1 is added, and 1.0 is that expression written out. 🔒 It is the one 📐 TUNABLE 05 §5 carries and the only free number in this file: it decides how hard a bleed scales into an execute, which is the whole character of the status. A 0 here would make BLEED a flat damage-over-time indistinguishable from BURN, and nothing else in the section would notice.",
+      "type": "number",
+      "minimum": 0,
+      "multipleOf": 0.0001
+    },
+
+    "stun": {
+      "description": "05 §5 — STUN's two literals and the ruling that goes with them: 'Cannot act for D s. Max 1.5 s per application, with a 3 s immunity window after', and then, in the section's own words, 'Stun immunity is mandatory. Without it, stun-locking becomes the only viable build.' 🔒 Both keys are required rather than optional: an absent cap is an uncapped stun and an absent window is no immunity, and either of those is the failure mode the section names.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "maxSecondsPerApplication", "immunityWindowSeconds"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "maxSecondsPerApplication": {
+          "description": "05 §5 — 'Max 1.5 s per application'. A ceiling on one application's duration, not on the total: two applications 3 s apart are two stuns, and the immunity window is what bounds their spacing.",
+          "$ref": "#/$defs/seconds"
+        },
+        "immunityWindowSeconds": {
+          "description": "05 §5 — 'with a 3 s immunity window after'. Measured from the moment the stun ends, not from the moment it was applied: the section writes 'after', and measuring from application would let a 1.5 s stun be followed by another 1.5 s later.",
+          "$ref": "#/$defs/seconds"
+        }
+      }
+    },
+
+    "statuses": {
+      "description": "05 §5's table, one row per status, in the order the section prints them. 🔒 Exactly twelve, and the count is asserted from both ends: minItems and maxItems here, and a test that the ids are exactly the twelve the effect vocabulary encloses. 05 §5 is the only place the set is fixed, and a thirteenth status or a lost one must be a build failure rather than a silently different game.",
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "potencyBasis"],
+        "properties": {
+          "id": { "$ref": "#/$defs/statusId" },
+          "type": { "$ref": "#/$defs/statusType" },
+          "potencyBasis": { "$ref": "#/$defs/potencyBasis" },
+
+          "stat": {
+            "description": "05 §5 — which stat a TARGET_STAT_PCT status writes: FREEZE and HASTE write ASPD, WEAKEN and RAGE write ATK, SUNDER writes DEF, SPORE writes HEAL_PCT. 🔒 Present on exactly those six rows and absent everywhere else — a status whose potency is damage, healing or a ward has no stat to name, and a key that was present-but-meaningless on six of twelve rows would be six chances to read the wrong one.",
+            "$ref": "#/$defs/statId"
+          },
+
+          "fixedPotency": {
+            "description": "05 §5 — the potency the section states as a literal instead of as X. FREEZE is the only such row: the table writes '−50% ASPD', not '−X% ASPD', so the number is the status's and not the applying effect's, and an effect that authored its own would be overriding a constant 05 §5 fixed. Absent on every other row, where X is the effect's value.",
+            "type": "number",
+            "multipleOf": 0.0001
+          },
+
+          "scalesWithTargetMissingHp": {
+            "description": "05 §5 — BLEED alone: 'each tick deals that amount × (1 + target's missing-HP fraction)'. Authored as a flag rather than inferred from the id, so that the one status whose per-tick amount is not simply potency × stacks says so in the data the engine reads. bleedMissingHpScaling is the coefficient it scales by.",
+            "type": "boolean"
+          },
+
+          "decayCurve": {
+            "description": "🔒 05 §5 says RAGE 'decays over D s' and states no curve — not linear, not stepped, not exponential — and no boss script, perk or on-hit row anywhere authors one either. So this is null, and null here means the design documents authorise no value: a plausible linear ramp would be a balance decision invented by the implementer and invisible afterwards. RAGE therefore holds its full potency for its duration, which is the only behaviour 18 §6 can express, and the missing decay is greppable rather than absent. It is the only row that carries this key, and it carries it for that reason. Anything reading it must fail loudly on the null rather than coerce it.",
+            "oneOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          },
+
+          "stacking": {
+            "description": "05 §5 — the stacking rule for the five statuses the section states one for: BURN 'stacks to 5', POISON 'stacks to 3', SUNDER 'stacks to 5', SPORE 'stacks to 4', and BLEED 'does not stack; reapplication refreshes'. 🔒 Absent on the other seven, and the absence is a statement: 05 §5 fixes no stacking for them, so 18 §6's per-effect block governs and this file must not pre-empt it. Where both this and an effect's own block exist, the effect's wins — 18 §6 is the per-application rule and this is the status's default.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode"],
+            "properties": {
+              "mode": { "$ref": "#/$defs/stackingMode" },
+              "maxStacks": {
+                "description": "05 §5 — the stack ceiling the section states, as a plain integer. 18 §6 makes a surplus application past the ceiling dropped rather than evicting, and still refreshing the duration if the mode asks. Absent under NONE, which has no ceiling to state.",
+                "type": "integer",
+                "minimum": 1
+              },
+              "refreshOnReapply": {
+                "description": "18 §6 — whether reapplication restarts the duration. Authored only where 05 §5 states it, which is BLEED's 'reapplication refreshes'. 🔒 It restarts the duration and nothing else: 05 §3.1 is explicit that reapplication never re-anchors a status's one-second cadence.",
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

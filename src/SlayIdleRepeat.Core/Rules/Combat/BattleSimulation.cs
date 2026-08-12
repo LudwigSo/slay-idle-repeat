@@ -973,9 +973,17 @@ internal sealed class BattleSimulation
         // fight until a STAT_COPY fires: this method runs for every state-dependent actor on every
         // one of 1800 ticks, and copying a constant list each time was measurable against `05`'s
         // < 5 ms budget.
+        //
+        // ⚠️ ONE PART OF THAT ABSENT HALF IS NOW WIRED, and only one: `05` §5's stat-modifying
+        // statuses, through IStatusTimeline.StatModifiers (M2-10). Six of §5's twelve are stat
+        // modifiers — FREEZE, WEAKEN, SUNDER, SPORE, RAGE, HASTE — and a status that never reached
+        // this aggregation would be a status that does nothing. They arrive in the same synthetic
+        // STAT_ADD_PCT shape as the STAT_COPY buckets and for the same reason. The rest of the
+        // absent half is still absent and still M2-02's.
         IReadOnlyList<EffectDefinition> effects;
+        var statuses = _seams.Timeline.StatModifiers(actor);
 
-        if (actor.Flow.PercentBuckets.Count == 0)
+        if (actor.Flow.PercentBuckets.Count == 0 && statuses.Count == 0)
         {
             effects = actor.StandingEffects;
         }
@@ -992,6 +1000,11 @@ internal sealed class BattleSimulation
                     Stat = StatSelector.Of(stat),
                     Value = fraction,
                 });
+            }
+
+            for (var i = 0; i < statuses.Count; i++)
+            {
+                withBuckets.Add(statuses[i]);
             }
 
             effects = withBuckets;

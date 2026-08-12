@@ -84,9 +84,6 @@
       "reason": "Dice animation timings and Fast Mode. Presentation: 04 §6 is named in M7-05's spec (Board S05 + Die Panel S12).",
       "closedBy": "M7-05" },
 
-    { "doc": "05", "section": "5", "kind": "specDebt",
-      "reason": "The BLEED missing-HP scaling term. A status-effect parameter; 05 §5 is M2-10's spec (12 status effects + the DoT/HoT cadence engine).",
-      "closedBy": "M2-10" },
     { "doc": "05", "section": "6.4", "kind": "specDebt",
       "reason": "Chapter enemy-pool weights. Authored per chapter under content/chapters/; M3-14 authors the 8 chapter data files and the pool/weight keys.",
       "closedBy": "M3-14" },

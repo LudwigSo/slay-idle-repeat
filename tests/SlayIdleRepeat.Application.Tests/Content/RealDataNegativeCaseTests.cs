@@ -450,13 +450,25 @@ public sealed class RealDataNegativeCaseTests
     /// use them, and both are asserted individually in <c>EnemiesDataTests</c>. Filling either is a
     /// design decision that changes this number in the same commit — which is what this guard is for.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>M2-10 opened the third, and it is the reason this number is now 99.</b>
+    /// <c>content/statuses.json#/statuses/8/decayCurve</c> — `05` §5 says <c>RAGE</c> is <em>"+X%
+    /// ATK, <b>decays over D s</b>"</em> and states no curve, not linear, not stepped, not
+    /// exponential; no boss script, perk row or on-hit row in the content set authors one either.
+    /// A plausible linear ramp would be a balance decision invented by the implementer and invisible
+    /// afterwards, so <c>RAGE</c> ships holding its full potency for its duration — the only shape
+    /// `18` §6 can express — and the missing decay is greppable rather than absent. It is the only
+    /// row in that file carrying the key, <c>StatusDefinition.RequireDecayCurve</c> throws by name if
+    /// anything tries to use it, and the obligation expires by itself through
+    /// <c>SubjectSetFloorTests.Pending</c>'s <c>StatusDecayCurve</c> entry.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_98_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_99_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(98,
+        CountUnauthorised(snapshot).ShouldBe(99,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -494,6 +506,10 @@ public sealed class RealDataNegativeCaseTests
     // FREEZE row and 05 §6.2 names no curse for CURSED; see the remarks on the total above.
     [InlineData("content/enemies/enemies.json", 2)]
     [InlineData("content/combat_caps.json", 0)]
+
+    // M2-10 — the third hole outside tuning/. 05 §5 says RAGE decays over D s and states no curve;
+    // see the remarks on the total above.
+    [InlineData("content/statuses.json", 1)]
     public void Each_shipped_file_carries_exactly_the_unauthorised_holes_it_is_recorded_as_carrying(
         string documentPath, int expected)
     {

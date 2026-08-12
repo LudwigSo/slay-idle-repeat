@@ -315,6 +315,50 @@ public sealed class SubjectSetFloorTests
             "'perks (in draft order)'. 06's 98 perks are M3-07's. ⚠️ '(in draft order)' is R5's " +
             "COLLECTION order; the application order is EffectResolutionOrder's, and is total"),
 
+        // ── M2-10 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Two DEFERRALS, not rule subjects — recorded in the one register the repo has so that each
+        // expires by itself (steering S4), on the precedent of the `Tier` and `RunController` entries
+        // above.
+        //
+        // 1. `05` §5 says RAGE is "+X% ATK, DECAYS OVER D s" and states no curve — not linear, not
+        //    stepped, not exponential — and no boss script, perk row or on-hit row in the content set
+        //    authors one either. Steering S6 forbids inventing it, so RAGE ships holding its full
+        //    potency for its duration (the only shape `18` §6 can express) and the missing decay is
+        //    an authored null at content/statuses.json#/statuses/8/decayCurve, counted by
+        //    RealDataNegativeCaseTests' hole guard and refused by name by
+        //    StatusDefinition.RequireDecayCurve.
+        //
+        // ⚠️ THE NAME IS AN INFERENCE, recorded as one. `05` §5 writes no noun for the curve, so the
+        // entry is keyed on the type a milestone would have to add to express one. If the milestone
+        // that rules on it picks another name, RENAME this entry rather than delete it: the subject
+        // being tracked is "something gives RAGE its decay", not the string. The inbound path is in
+        // PRODUCTION code — StatusDefinition.RequireDecayCurve's remarks name this entry — because a
+        // note addressed to a future milestone is worthless in a test file it will never open.
+        new("StatusDecayCurve", SubjectKind.CoreType, "unassigned — whoever rules on 05 §5's RAGE",
+            "SlayIdleRepeat.Core.Rules.Combat.Status.StatusDefinition.DecayCurve, which is null " +
+            "because 05 §5 states that RAGE decays and states no curve for the decay"),
+
+        // 2. `05` §5 defers WARD wholly to §4.1 — "full semantics: stacking, bypass, ordering,
+        //    WardBroken". §4.1's pool is one absorb pool of segments per actor and is M2-09's, so
+        //    M2-10's timeline routes an applied WARD straight to IAttackPipeline.GrantWard and keeps
+        //    NO second copy of the pool: two stores of one pool is how a ward broken by damage stays
+        //    "applied" in a condition.
+        //
+        // ⚠️ The consequence is a real gap, named rather than papered over: StatusTimeline.StacksOn
+        // answers 0 for WARD, so `18` §4's HAS_STATUS(WARD) and STATUS_STACKS(WARD) read false while a
+        // ward is up. No authored content reads either today. IAttackPipeline has no member that
+        // exposes the pool and M2-09 is in flight on that interface, so widening it was refused
+        // rather than done underneath a running task (steering S12).
+        //
+        // ⚠️ THE NAME IS AN INFERENCE. `05` §4.1 writes "one absorb pool per actor, made of
+        // segments"; WardPool is that noun PascalCased, on the RunController entry's precedent. The
+        // entry fires the moment M2-09 lands a type by that name, which is exactly when somebody has
+        // to decide whether StacksOn should read it. RENAME rather than delete if M2-09 picks another.
+        new("WardPool", SubjectKind.CoreType, "M2-09",
+            "SlayIdleRepeat.Core.Rules.Combat.Status.StatusTimeline.StacksOn, which answers 0 for " +
+            "WARD because 05 §4.1's pool is M2-09's and this timeline keeps no second copy of it"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -509,6 +553,37 @@ public sealed class SubjectSetFloorTests
             "the single reader of content/enemies/enemies.json — 05 §6's derivation constants, level " +
             "table, archetype rows, on-hit tables, elite modifiers and identities and chapter pools " +
             "all enter Core through it, and EnemiesDataTests asserts the document it names"),
+
+        // ── M2-10 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Tracked SEPARATELY from Domain.CombatRulesNamespace, for that entry's own stated reason:
+        // StatusCatalogueRuleTests keys on "SlayIdleRepeat.Core.Rules.Combat.Status", which Domain
+        // declares no constant for, so the inventory sweep at the foot of
+        // Every_rule_subject_is_present_or_declared_pending cannot reach it — that sweep walks
+        // Domain.PermittedCoreNamespaces, and the sub-namespaces are not in it.
+        //
+        // Without this entry: rename Core/Rules/Combat/Status/ and all three rules in that file
+        // report success over an empty set, while the CombatRulesNamespace entry above stays
+        // satisfied by BattleSimulation and friends (it is a PREFIX match). `05` §5 would then be
+        // free to become a switch statement again with nothing going red. The namespace constant is
+        // restated in the rule file rather than added to Domain.cs because M1-12 holds that file
+        // (steering S12), and that file's own pin keeps the restatement honest.
+        new(StatusCatalogueRuleTests.StatusNamespace, SubjectKind.CoreNamespace, "M2-10",
+            "StatusCatalogueRuleTests.No_status_id_is_named_in_code_outside_the_catalogue, " +
+            "The_only_status_the_engine_special_cases_is_the_one_05_section_5_rules_on, " +
+            "The_rules_subject_set_is_the_one_they_were_written_against"),
+
+        // 🔒 The catalogue, tracked by NAME as well as by namespace — the precedent is EnemyCatalogue
+        // and TriggerCatalogue, and the reason is theirs. The count floor in the rule file is stated
+        // over the namespace, so moving StatusCatalogue one directory up would leave it satisfied by
+        // the cadence, the stun window and the instance types while nothing read
+        // content/statuses.json at all, and every behaviour test went on passing over a fixture. It
+        // is also the type whose own rows carry `05` §5's twelve-status floor.
+        new("StatusCatalogue", SubjectKind.CoreType, "M2-10",
+            "the single reader of content/statuses.json — 05 §5's twelve statuses, their types, " +
+            "their units, the five stacking rules the section states, FREEZE's literal potency, " +
+            "STUN's cap and immunity window and BLEED's 📐 missing-HP term all enter Core through " +
+            "it, and StatusCatalogueTests states the twelve-row floor over its own rows"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

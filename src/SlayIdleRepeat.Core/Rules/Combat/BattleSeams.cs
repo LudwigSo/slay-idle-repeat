@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Ops;
 
@@ -125,6 +126,37 @@ internal interface IStatusTimeline
     /// <c>STATUS_STACKS</c> and <c>HAS_STATUS</c>.
     /// </summary>
     int StacksOn(BattleActor actor, string statusId);
+
+    /// <summary>
+    /// 🔒 `18` §8 step 1 — the <b>active</b> stat modifiers this actor's live `05` §5 statuses
+    /// contribute to its aggregation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>The fourth member, added by M2-10, and the wiring contract above is why it had to be.</b>
+    /// That contract lists three calls and says <em>"nothing else about statuses is the loop's"</em> —
+    /// which is true of the tick <em>order</em>, and this is not a slot. It is `18` §8: half of
+    /// §5's twelve are stat modifiers (<c>FREEZE</c> −50% ASPD, <c>WEAKEN</c> −X% ATK,
+    /// <c>SUNDER</c> −X% DEF, <c>SPORE</c> −X% healing received, <c>RAGE</c> +X% ATK, <c>HASTE</c>
+    /// +X% ASPD) and a status that never reaches the aggregation does nothing at all.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Why it could not go anywhere else.</b> <c>BattleSimulation.RefreshStats</c> aggregates
+    /// an actor's <b>untriggered standing</b> effects plus `18` §2.4's <c>STAT_COPY</c> percent
+    /// buckets, and records in its own comment that the other half of `18` §8 step 1 — <em>"a
+    /// triggered effect that has fired and whose duration has not ended"</em> — is not wired on that
+    /// branch. A live status is exactly one of those. The <c>STAT_COPY</c> buckets on
+    /// <c>CombatFlowState</c> were the near alternative and are the wrong home twice over: they carry
+    /// no duration, so nothing would ever expire a <c>FREEZE</c>, and R13 scopes them to
+    /// <c>STAT_COPY</c>, whose <c>HIGHEST_PCT_BONUS</c> reading would start seeing debuffs.
+    /// </para>
+    /// <para>
+    /// Returns synthetic <c>STAT_ADD_PCT</c> definitions under ids no authored effect can take, on
+    /// the precedent <c>RefreshStats</c> already set for the <c>STAT_COPY</c> buckets. Empty for an
+    /// actor carrying no stat-modifying status, which is every actor in every fight until one lands.
+    /// </para>
+    /// </remarks>
+    IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor);
 }
 
 /// <summary>
@@ -272,6 +304,9 @@ internal sealed class NoStatusTimeline : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
 /// <summary>
