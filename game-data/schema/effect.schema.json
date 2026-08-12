@@ -629,13 +629,25 @@
           }
         },
         {
-          "title": "18 §3 — ON_ATTACK / ON_KILL",
-          "description": "18 §3 — everyNth counters live on the effect instance: ON_ATTACK counters reset at battle start, ON_KILL counters persist across battles for the run.",
+          "title": "18 §3 — ON_ATTACK",
+          "description": "18 §3 — everyNth counters live on the effect instance, and ON_ATTACK's reset at battle start. ⚠️ chance is a ruled EXTENSION (R11), applied by 18 §10's procedure: 18 §3 gave ON_ATTACK only everyNth while the perks document authors per-attack random perks, and ON_HIT and ON_CRIT already carry chance — so this is a uniformity fix rather than a new concept. ON_KILL deliberately does NOT gain it, which is why the two kinds no longer share this branch.",
           "type": "object",
           "additionalProperties": false,
           "required": ["kind"],
           "properties": {
-            "kind": { "enum": ["ON_ATTACK", "ON_KILL"] },
+            "kind": { "const": "ON_ATTACK" },
+            "everyNth": { "type": "integer", "minimum": 1 },
+            "chance": { "$ref": "#/$defs/probability" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_KILL",
+          "description": "18 §3 — ON_KILL's everyNth counter persists across battles for the run, unlike ON_ATTACK's. It never fires in a duel, and a duel kill does not advance it either: the counter belongs to the run and a duel is not part of one.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_KILL" },
             "everyNth": { "type": "integer", "minimum": 1 }
           }
         },

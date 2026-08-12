@@ -156,7 +156,7 @@ These are resolved by the run controller, never by the combat simulator.
 | `ALWAYS` | Passive, always active | — |
 | `ON_BATTLE_START` | Once when a battle begins | — |
 | `ON_BATTLE_END` | Once when a battle ends | `onlyIfWon` |
-| `ON_ATTACK` | Each attack made | `everyNth` |
+| `ON_ATTACK` | Each attack made | `everyNth`, `chance` |
 | `ON_HIT` | Each successful hit landed | `chance` |
 | `ON_CRIT` | Each critical hit | `chance` |
 | `ON_HIT_TAKEN` | Each hit received | `chance`, `cooldown` |
@@ -175,7 +175,25 @@ These are resolved by the run controller, never by the combat simulator.
 | `ON_STAGE_GATE` | A stage boundary is crossed | — |
 | `ON_RUN_START` / `ON_RUN_END` | Run boundaries | — |
 
-`everyNth` counters live on the effect instance: `ON_ATTACK` counters reset at battle start; `ON_KILL` counters **persist across battles for the run** (`PK_MIDAS`'s "every 6th enemy killed"). Never fires in PvP (`05` §3.3).
+`everyNth` counters live on the effect instance: `ON_ATTACK` counters reset at battle start; `ON_KILL` counters **persist across battles for the run** (`PK_MIDAS`'s "every 6th enemy killed"). Never fires in PvP (`05` §3.3) — and a duel kill does not advance the counter either, because the counter belongs to the run and a duel is not part of one.
+
+### 3.1 Rulings on the trigger table 🔒
+
+Three rulings, recorded here so the trigger vocabulary has one statement rather than three.
+
+**R8 — a `PERIODIC`'s clock starts when its owning effect becomes active, and `startDelay` is measured from that anchor.** `17` §1.1 defines the boss mechanic as *"fires every N seconds from phase entry"*; §3 above defines the DSL trigger over battle time. They agree under one rule and no new parameter: an effect inside a boss phase block becomes active at `ON_PHASE_ENTER` and therefore anchors at **phase entry**; a perk periodic (`PK_AEGIS`, `PK_DEATHMARK`) becomes active at battle start and anchors **there**; `SYS_ENRAGE` is a `BATTLE`-scope built-in rather than a phase-scoped one, so its `startDelay: 70.0` is measured from **battle start** — which is what "a hard enrage at 70 s" means. The anchor is set **once**: `05` §3.1's phase check can enter two phases inside one tick and a live effect never re-anchors. Erratum on `17` §1.1's row.
+
+An **absent `startDelay` is one interval**, so the schedule is `anchor + startDelay + k × interval` for `k = 0, 1, 2, …`. `17` §1.1 reads *"every N seconds **from** phase entry"*, whose first firing is at `X + N`; and `17` §1 requires a 1.0–1.5 s telegraph before every damaging mechanic, which a periodic firing on the anchor tick has nowhere to put.
+
+**R9 — `ON_HP_THRESHOLD` *is* `ON_LOW_HP`; there is no 24th trigger.** `17` §1.1's mechanic vocabulary is boss-design shorthand, not the DSL. `ON_LOW_HP` — *"self HP crosses a threshold downward"*, params `threshold`, `once` — is the same sentence. The Ossuary King's `ON_HP_THRESHOLD 1%` Rise Again (`17` §4) is `{"kind":"ON_LOW_HP","threshold":0.01,"once":true}`. The count stays **23**. Erratum on `17` §1.1.
+
+Because `once` exists, `ON_LOW_HP` must be able to fire more than once — which means the threshold **re-arms** when HP goes back above it. Rise Again writes `once: true` precisely because it must not.
+
+**R11 — `ON_ATTACK` gains `chance`**, per §10's procedure (code, schema, this document and a test, in one commit). `06` authors per-attack random perks and `ON_HIT` and `ON_CRIT` already carry `chance`, so this is a uniformity fix rather than a new concept. ⚠️ `ON_KILL` does **not** gain it — §10 extends the DSL by the smallest step that expresses the design, and no design asks for a chancy kill trigger.
+
+**R2 — `once` is a boolean**, as §3 and §7.4 both write it. `05` §3.1's *"at most their authored `once` count"* is loose prose for "the authored limit". Erratum on `05` §3.1's wording.
+
+**Parameters that are constitutive rather than narrowing.** A parameter that narrows the row's own sentence means "not narrowed" when it is absent — `chance`, `everyNth`, `cooldown`, `onlyIfWon`, `tileType`, `faceKind`, `category`. Three cannot be read that way and are **refused** when absent rather than defaulted: `PERIODIC` without `interval` has no period, `ON_LOW_HP` without `threshold` names no crossing, and `ON_PHASE_ENTER` without `phase` cannot say which entry it means.
 
 ---
 

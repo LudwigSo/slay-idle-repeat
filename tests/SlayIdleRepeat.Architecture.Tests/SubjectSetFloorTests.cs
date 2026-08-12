@@ -120,6 +120,29 @@ public sealed class SubjectSetFloorTests
             "SlayIdleRepeat.Core.Rules.Effects.IRunStateView.Tier, which ships as an int ordinal " +
             "because 18 §4's 'enum' has no declared type to name"),
 
+        // 🔒 A DEFERRAL, not a rule subject — recorded here so it expires by itself (steering S4).
+        //
+        // `18` §3: "ON_KILL counters PERSIST ACROSS BATTLES FOR THE RUN (PK_MIDAS's 'every 6th enemy
+        // killed')." M2-04 owns the counter and its read/write seam
+        // (Rules.Effects.Triggers.IRunTriggerCounters, with RunTriggerCounters as the in-Core
+        // implementation and RunTriggerCountersContract as the shared suite, per steering S7). It
+        // does NOT own the persistence: the state has to live on the Run aggregate, which is M1-05
+        // in the other, unfinished milestone, and the controller that carries it between battles is
+        // M3. M2-04 deliberately built no placeholder run controller.
+        //
+        // ⚠️ Whoever lands `Run` therefore inherits an obligation: a run must hold ONE
+        // RunTriggerCounters for its whole length and hand the same instance to every battle's
+        // TriggerRegistry, and its snapshot must carry the pairs. Rebuilding it per battle resets
+        // PK_MIDAS every fight — a defect that produces a legal-looking log and is wrong in the only
+        // number that matters.
+        //
+        // This entry is the expiry: Every_rule_subject_is_present_or_declared_pending fails the
+        // moment a type named Run exists, which is exactly when the obligation lands.
+        new("Run", SubjectKind.CoreType, "M1-05",
+            "SlayIdleRepeat.Core.Rules.Effects.Triggers.IRunTriggerCounters — see the note above " +
+            "this entry: the ON_KILL counter is run-scoped state and the Run aggregate has to carry " +
+            "it across battle boundaries"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -205,6 +228,22 @@ public sealed class SubjectSetFloorTests
         new("BattleRoster", SubjectKind.CoreType, "M2-05",
             "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
             "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
+
+        // 🔒 M2-04's three named subjects. The namespace floors in IntraRulesLayeringRuleTests are
+        // not enough on their own: they are PREFIX counts over Rules.Effects, so moving the
+        // catalogue, the registry or the counter seam out of Rules/Effects/Triggers/ would leave
+        // those floors satisfied by the conditions and targeting types next door while the rules and
+        // suites keyed on these names quantified over nothing.
+        new("TriggerCatalogue", SubjectKind.CoreType, "M2-04",
+            "TriggerCatalogueTests — the 23-kind floor of 18 §11 and the parameter partition; the " +
+            "catalogue is built from its own rows precisely so the floor is an assertion"),
+        new("TriggerRegistry", SubjectKind.CoreType, "M2-04",
+            "PeriodicAnchoringTests (R8), EveryNthCounterTests, TriggerFiringTests — every trigger " +
+            "predicate is reached through it"),
+        new("IRunTriggerCounters", SubjectKind.CoreType, "M2-04",
+            "RunTriggerCountersContract — the shared contract suite every implementation of the " +
+            "run-scoped ON_KILL counter is run through (steering S7); paired with the Run entry in " +
+            "Pending, which is where its persistence lands"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
