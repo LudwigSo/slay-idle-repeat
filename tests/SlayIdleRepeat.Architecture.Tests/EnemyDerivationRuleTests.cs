@@ -249,6 +249,20 @@ public sealed class EnemyDerivationRuleTests
                     "— a cached table is wrong the moment the content snapshot it summarised is " +
                     "replaced (21 §3.3). `readonly` does not help: it pins the reference, not the " +
                     "contents.";
+                continue;
+            }
+
+            // 🔒 The second arm, and it is not redundant — it is the half the FIRST probe of this
+            // rule missed. `private static int _drawCount;` is of an immutable TYPE and is still
+            // state that survives a battle, so a rule stated only over field types reported success
+            // over it. Found by re-probing with a second shape, which is the whole reason the
+            // steering rules ask for one.
+            if (!field.IsInitOnly)
+            {
+                yield return
+                    $"{Il.Describe(field)} is a reassignable static field — 05 §6's derivation is a " +
+                    "function of (power, archetype, chapter, tier), and anything it remembers between " +
+                    "calls is a fifth input the section does not name.";
             }
         }
     }
@@ -258,9 +272,19 @@ public sealed class EnemyDerivationRuleTests
     /// enum, or a <c>readonly</c> value type all of whose instance fields are themselves immutable.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A <c>readonly struct</c> holding an array is still mutable by this test, because
     /// <c>readonly</c> pins the reference and not the contents. The recursion is depth-limited
     /// against a value type that reaches itself through a generic.
+    /// </para>
+    /// <para>
+    /// ⚠️ The <see cref="TypeSpecification"/> arm is not defensive tidiness, and
+    /// <c>EffectEvaluationPurityRuleTests</c> records why it had to plant a violation to find it:
+    /// Cecil resolves an array, pointer or by-ref reference to its <b>element</b> type, so
+    /// <c>double[]</c>.Resolve() is <c>System.Double</c> — a value type built out of a primitive,
+    /// and therefore immutable by every test below. A hand-rolled memo wrapping a <c>double[]</c>
+    /// would have been waved through while the plain <c>Dictionary</c> beside it was caught.
+    /// </para>
     /// </remarks>
     private static bool IsImmutable(TypeReference reference, int depth)
     {
@@ -272,6 +296,11 @@ public sealed class EnemyDerivationRuleTests
         if (reference.IsPrimitive || reference.FullName == "System.String")
         {
             return true;
+        }
+
+        if (reference is TypeSpecification)
+        {
+            return false;
         }
 
         var definition = reference.Resolve();
