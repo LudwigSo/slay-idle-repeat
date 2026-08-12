@@ -52,13 +52,8 @@ public sealed class SubjectSetFloorTests
     {
         new("GuildView", SubjectKind.CoreType, "M14",
             "IsolationTests.GuildView_is_a_read_only_projection"),
-        new("InMemoryGame", SubjectKind.CoreType, "M1-11",
-            "DomainPurityTests.The_whole_game_is_playable_from_Core_alone"),
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
-
-        new(Domain.TestingNamespace, SubjectKind.CoreNamespace, "M1-11",
-            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
     };
 
     /// <summary>
@@ -404,6 +399,54 @@ public sealed class SubjectSetFloorTests
             "this commit — before it, Core/Handlers/ was empty and that half quantified over nothing), " +
             "DomainPurityTests.Every_command_type_is_handled_by_Apply (the dispatch-surface half — " +
             "GameRules was the only type on that surface until this commit)"),
+
+        // ---------------------------------------------------------------- M1-11, 30 §6
+        //
+        // 🔒 MOVED out of Pending, not deleted — the reason M1-01 proved by experiment and every
+        // milestone since has repeated: Every_rule_subject_is_present_or_declared_pending fails BOTH
+        // ways, so a namespace 30 §11.4 enumerates that appears in neither array goes red, and a
+        // type-name constant of Domain's that appears in neither goes red with it.
+        //
+        // 🔒 WHAT WOKE UP WITH THEM, measured on this branch rather than assumed:
+        //
+        //  · The_whole_game_is_playable_from_Core_alone — `30` §9's own "load-bearing" rule — had been
+        //    VACUOUS SINCE M0-08 in the most literal sense available: it is stated over InMemoryGame's
+        //    assembly closure, and there was no InMemoryGame. Its BFS over Core's references ran and
+        //    found nothing, which is a true statement about an assembly nobody could play the game
+        //    from. Core/Testing/ now holds the harness, so everything it names ships in Core and the
+        //    closure claim is a claim about the real thing. Proved by mutation: a ProjectReference
+        //    from Core to Application, named from InMemoryGame, turns it red with
+        //    'SlayIdleRepeat.Core -> SlayIdleRepeat.Application'. Reverted; the literal output is in
+        //    the task report (S1).
+        //  · Core_internal_layering_holds gained a Testing ROW. ⚠️ It did not have one before, and
+        //    that is the pre-existing inaccuracy M1-09 flagged by name and this entry closes: the
+        //    Pending row for this namespace cited Core_internal_layering_holds, and that rule did not
+        //    key on Testing in EITHER direction — no row of the forbidden-pair table named it as a
+        //    layer, and it was not in mustNotReachTheRoot (correctly: the harness is ABOVE the root
+        //    and reaches GameRules, WorldSlice, GameContext and CommandResult by design). The rule
+        //    that has always keyed on this namespace is
+        //    Every_Core_type_lives_under_a_documented_namespace, through
+        //    Domain.PermittedCoreNamespaces. Both are now cited, and the citation is true of both.
+        //
+        // 🔒 The Testing row that was added is the SETTLED direction and no more (the reasoning the
+        // Events and Rules rows record for their open halves): Testing may not name Rules or
+        // Handlers, because 30 §11.2 makes GameRules.Apply the only public mutation and the harness
+        // is the artefact that demonstrates it — a harness calling BeginSession.Handle or
+        // EnergyMath.Grant directly would drive the domain behind Apply's back, which is the one
+        // thing it exists not to do. Every layer beneath gained Testing in its own forbidden list at
+        // the same time, in the direction M1-06's Commands row had to be widened for: a production
+        // aggregate or rule naming the test harness is a cycle under every reading.
+        new(Domain.InMemoryGameType, SubjectKind.CoreType, "M1-11",
+            "DomainPurityTests.The_whole_game_is_playable_from_Core_alone (it is stated OVER this " +
+            "type — the rule was vacuous from M0-08 until this commit, and the public-harness arm " +
+            "inside it had never run at all)"),
+
+        new(Domain.TestingNamespace, SubjectKind.CoreNamespace, "M1-11",
+            "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace (the rule " +
+            "that has ALWAYS keyed on this namespace, through Domain.PermittedCoreNamespaces — the " +
+            "Pending row this replaces cited a rule that did not key on it, which M1-09 flagged), " +
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (LIVE from this commit, when the " +
+            "Testing row was added: the harness may not name Rules or Handlers)"),
     };
 
     // ---------------------------------------------------------------- floors

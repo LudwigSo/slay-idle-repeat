@@ -651,6 +651,31 @@ internal static class GapRegister
         {
             "LoginCalendarRewards",
         }),
+
+        // 🔒 M1-11, `30` §6 — THE HARNESS, and this is a WHOLE transcription rather than a fragment:
+        // §6's table names two types and both are type names, so the arithmetic is exact and both
+        // are AUTHORED. Like `14` §2.3's registry above, it therefore has no Deferred companion, and
+        // it earns its place in the OTHER direction — delete InMemoryGame or VirtualClock, move
+        // either out of Core/Testing/, or rename one, and the undeclared check fails naming it.
+        //
+        // ⚠️ That direction is worth more here than almost anywhere else in this array, because of
+        // what these two types hold up. The_whole_game_is_playable_from_Core_alone is stated OVER
+        // InMemoryGame and reports success when it is absent — which is exactly the state it was in
+        // from M0-08 until this commit. SubjectSetFloorTests' InMemoryGame row catches the same
+        // disappearance from the other side; two mechanisms over two subject sets, on the pattern
+        // this file's `14` §2.3 entry records, because a rule whose whole point is "the game is
+        // playable from Core alone" going quiet is the most expensive silence in the repository.
+        //
+        // ⚠️ What §6's table enumerates BESIDES these two is not transcribed, and that is the honest
+        // limit rather than an omission: "a Dictionary<PlayerId, Player>", "a fixed seed" and "every
+        // DomainEvent accumulated and queryable" are MEMBERS of InMemoryGame, not types, and
+        // IsAuthoredUnder can only decide a type simple name — the same reason the Player- and
+        // Run-contents rows above are fragments. They are held by InMemoryGameTests instead.
+        new("30 §6 (the in-memory harness)", Domain.TestingNamespace, new[]
+        {
+            "InMemoryGame",
+            "VirtualClock",
+        }),
     };
 
     /// <summary>A milestone task id: <c>M14</c>, or <c>M3-04</c>.</summary>
