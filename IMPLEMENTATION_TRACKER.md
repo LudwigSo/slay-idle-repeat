@@ -193,7 +193,7 @@ These live across the whole project; they start in M0 and grow with every milest
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| M2-01 | `EffectDefinition` record + JSON schema (op·trigger·condition·target·value·valueScale·duration·stacking + extension fields) | 18 §1 | ⬜ |
+| M2-01 | `EffectDefinition` record + JSON schema (op·trigger·condition·target·value·valueScale·duration·stacking + extension fields) | 18 §1 | 🔄 wave 1 · `feature-M2-01-effect-definition` |
 | M2-02 | `EffectResolver` implementing the exact 10-step resolution order (collect → … → caps → 4-dp round) | 18 §8 | ⬜ |
 | M2-03 | All 43 ops in 5 families, each with unit tests | 18 §2 | ⬜ |
 | M2-04 | All 23 triggers, incl. `everyNth` counter semantics. **Combat-side triggers are wired into the tick loop; the six run-side ones (`ON_TILE_RESOLVED`, `ON_ROLL`, `ON_PERK_TAKEN`, `ON_STAGE_GATE`, `ON_RUN_START`/`ON_RUN_END`) are declared, validated and unit-tested at the resolver** against the read-only run-state view — the run controller that wires them is M3 (kickoff assumption) | 18 §4 | ⬜ |
