@@ -56,6 +56,7 @@ public sealed class EnergyAccrualPropertyTests
         var quoted = new List<string>();
         var failures = 0;
         var discriminating = 0;
+        var saturated = 0;
 
         for (var i = 0; i < Cases; i++)
         {
@@ -82,6 +83,10 @@ public sealed class EnergyAccrualPropertyTests
             {
                 discriminating++;
             }
+            else if (whole.Banks.Energy >= max && whole.Banks.Reserve >= reserveCapacity)
+            {
+                saturated++;
+            }
 
             if (banks == whole.Banks && anchor == whole.AnchorAdvance)
             {
@@ -97,15 +102,26 @@ public sealed class EnergyAccrualPropertyTests
 
         // 🔒 S3 — the floor, and it is not "did anything accrue". A span long enough to fill both
         // banks saturates whatever the split does, and a saturated case cannot tell a correct
-        // accrual from one that discards its remainder once per call — it passes either way. Drawn
-        // uniformly over 40 days, 99% of cases are exactly that, and this property caught the naive
-        // implementation in 21 of 2,000. The spans are sampled against each case's own headroom
-        // instead; this is what stops that drifting back.
+        // accrual from one that discards its remainder once per call — it passes either way.
+        //
+        // Measured, so the floor is set against a number rather than a guess. Drawn uniformly over
+        // 40 days, only ~1% of cases were discriminating and the naive anchor advance was caught in
+        // 21 of 2,000. Sampling each span against that case's own headroom instead gives 1,573
+        // discriminating and 407 saturated, and the same naive implementation now fails 1,487.
+        // The floor sits under the measured 79%, not under the old 1%.
         discriminating.ShouldBeGreaterThan(
-            Cases / 2,
+            Cases * 6 / 10,
             $"only {discriminating} of {Cases} randomised cases accrued something WITHOUT filling " +
             "both banks. The rest are saturated, and a saturated case proves nothing about the " +
             "remainder. The span sampling has drifted.");
+
+        // 🔒 The other half of the sampling, floored for the same reason: SampleSpan's docstring
+        // claims one case in five reaches the saturating regime and covers the Reserve cap under
+        // splitting. Break that branch and nothing else here would notice.
+        saturated.ShouldBeGreaterThan(
+            Cases / 10,
+            $"only {saturated} of {Cases} randomised cases filled both banks, so the saturating " +
+            "branch of SampleSpan has stopped reaching the Reserve cap.");
 
         failures.ShouldBe(
             0,

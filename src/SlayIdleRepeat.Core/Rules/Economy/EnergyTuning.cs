@@ -23,13 +23,32 @@ namespace SlayIdleRepeat.Core.Rules.Economy;
 /// had been treated as flat.
 /// </para>
 /// <para>
-/// ⚠️ <b>What this deliberately does not read.</b> <c>#/energy/dungeonCost</c> is authored and is
-/// not read here: Resource Dungeons are M10 and the entry cost is theirs to spend. The Soul Shard
-/// energy refill of `10` §3.1 is authored as "escalating cost", priced in `10` §5.1 at 300 Soul
-/// Shards +150 per use per day, and <b>no tuning file holds that ladder</b> — so it is absent here
-/// rather than invented, which is the whole of S6. <c>SlayIdleRepeat.Application.Tests</c>'
-/// <c>EnergyTuningMatchesTuningDataTests</c> pins the absence so it cannot be filled in quietly.
+/// ⚠️ <b>What this deliberately does not read, and who owns each.</b> The energy block authors more
+/// than the energy math needs, and every unread leaf is a deferral rather than an oversight:
 /// </para>
+/// <list type="bullet">
+///   <item><c>#/energy/dungeonCost</c> — Resource Dungeons are <b>M10</b>; the entry cost is theirs
+///   to spend. <see cref="EnergyMath.Spend"/> takes whatever cost it is handed.</item>
+///   <item><c>#/energy/sources/*</c> — the +40 / +20 / +10 amounts and their per-day caps
+///   (`10` §3.1). <see cref="EnergyMath.Grant"/> takes an amount; enforcing a cap needs a daily
+///   counter and the 05:00 UTC reset, which belong to the <b>granting command</b>, not to
+///   arithmetic. The numbers are pinned by <c>EnergyTuningMatchesTuningDataTests</c>.</item>
+///   <item><c>#/energy/reserveReceivesOverflowOnly</c>, <c>reserveRegeneratesOnItsOwn</c>,
+///   <c>regenWhileOffline</c> — structural facts the math is <em>written against</em> rather than
+///   branches it takes. Reading them would imply a code path for the false case, and `28` C2
+///   authors none. The same test pins all three.</item>
+///   <item><c>#/energy/medianSessionEnergyExhaustionAlarmShare</c> — a telemetry alarm threshold
+///   (`10` §3.2), not a rule input.</item>
+///   <item><b>The Soul Shard refill ladder</b> — <c>10</c> §3.1 calls it "escalating cost" and
+///   `10` §5.1 prices it at 300 Soul Shards +150 per use per day. It <b>is</b> authored, in
+///   <c>currencies.json#/soulShards/sinks/</c>, and is not read here because the escalation is
+///   per-use-per-day shop state. The energy side of that refill is
+///   <see cref="EnergyMath.RefillToFull"/>; the price is the Daily-tab command's.</item>
+///   <item><c>FT_VIGOR</c> (`09` §6, named by `28` C2 as the one thing that changes the
+///   regeneration rate) — +3% per rank, five ranks, and <b>no tuning key exists for it</b>. When
+///   talents land it arrives as a modified <see cref="RegenInterval"/> derived here, not as a
+///   second parameter on <see cref="EnergyMath.Accrue"/>, so no call site moves.</item>
+/// </list>
 /// </remarks>
 internal sealed class EnergyTuning
 {
@@ -169,7 +188,23 @@ internal sealed class EnergyTuning
     /// </remarks>
     private static TimeSpan ReadRegenInterval(ContentSnapshot content)
     {
+        // The largest interval TimeSpan can hold. Not a 📐 tunable and not a design number — it is
+        // the framework's own ceiling, derived rather than chosen, and it is guarded because
+        // everything past it throws OverflowException out of the decimal multiply or the checked
+        // (long) cast, escaping the ContentException family a composition root catches to report a
+        // bad data set. Every other tunable here has a bound; this one had only a floor.
+        var maxMinutes = TimeSpan.MaxValue.Ticks / (decimal)TimeSpan.TicksPerMinute;
+
         var minutes = content.ReadNumber(RegenMinutesPerPointReference);
+        if (minutes > maxMinutes)
+        {
+            throw new InvalidEnergyTuningException(
+                RegenMinutesPerPointReference,
+                "The regeneration interval of " + Render(minutes) + " minute(s) is longer than any " +
+                "span the runtime can represent, so no elapsed time would ever accrue a point. " +
+                "10 §3 authors 4 minutes.");
+        }
+
         if (minutes <= 0m)
         {
             throw new InvalidEnergyTuningException(

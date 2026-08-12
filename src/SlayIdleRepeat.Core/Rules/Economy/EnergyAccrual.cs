@@ -14,11 +14,20 @@ namespace SlayIdleRepeat.Core.Rules.Economy;
 /// anchor and now instead of being discarded once per command.
 /// </para>
 /// <para>
-/// That is why the accrual answers with a <em>span</em> and not an instant. `10` §3's regeneration
-/// is the only offline accrual in the game, and M1-08's <c>AdvanceTime</c> runs it as the first
-/// step of every command handler; a hundred commands in an hour must regenerate exactly what one
-/// command in that hour regenerates. Answering with an absolute anchor would require this rule to
-/// know what time it is, which `30` §9 forbids and `30` §3 makes unnecessary.
+/// `10` §3's regeneration is the only offline accrual in the game, and M1-08's <c>AdvanceTime</c>
+/// runs it as the first step of every command handler; a hundred commands in an hour must
+/// regenerate exactly what one command in that hour regenerates.
+/// </para>
+/// <para>
+/// ⚠️ <b>Why a span and not the new anchor, honestly.</b> Not because `30` §9 forbids an instant —
+/// it bans <em>reading</em> a clock, and <c>GameContext.NowUtc</c> is a <c>DateTimeOffset</c>
+/// handed to <c>Core</c> on every command, so <c>Accrue(…, anchor, now)</c> returning the new
+/// anchor would violate nothing. It is a trade, and the cost is real: returning a span leaves
+/// "never advance to now" as a caller obligation this API cannot enforce, and M1-08 is free to
+/// write <c>anchor = now</c> with every single-step test still green. What it buys is that the rule
+/// takes no instants at all, so it cannot grow a dependency on <em>which</em> instant, and the
+/// caller keeps one anchor rather than the rule and the caller each holding one. If M1-08 finds the
+/// obligation hard to hold, taking both instants is the fix and it costs this type nothing.
 /// </para>
 /// <para>
 /// <see cref="AnchorAdvance"/> moves even when <see cref="Banks"/> does not. A player idling at a

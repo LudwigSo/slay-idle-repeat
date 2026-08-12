@@ -191,6 +191,12 @@ public sealed class EnergyTuningTests
         tuning.PerLegendLevel.ShouldBe(0);
     }
 
+    /// <summary>
+    /// 🔒 S2 — three separate guards on <c>regenMinutesPerPoint</c> report the same
+    /// <c>Reference</c>, so each case pins the message fragment unique to <em>its</em> branch.
+    /// Asserting the reference alone, widening the <c>&lt;= 0</c> guard would make the other two
+    /// dead code with all three cases still green.
+    /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-4)]
@@ -199,6 +205,7 @@ public sealed class EnergyTuningTests
         var thrown = Refuses("regenMinutesPerPoint", ContentValue.Number(minutes));
 
         thrown.Reference.ShouldBe(EnergyTuning.RegenMinutesPerPointReference);
+        thrown.Message.ShouldMatchWildcard("*must be a positive span*");
     }
 
     /// <summary>
@@ -211,6 +218,23 @@ public sealed class EnergyTuningTests
         var thrown = Refuses("regenMinutesPerPoint", ContentValue.Number(0.0000000001m));
 
         thrown.Reference.ShouldBe(EnergyTuning.RegenMinutesPerPointReference);
+        thrown.Message.ShouldMatchWildcard("*shorter than one tick*");
+    }
+
+    /// <summary>
+    /// 🔒 The other end of the same span. Past <c>TimeSpan</c>'s ceiling the decimal multiply or the
+    /// checked <c>(long)</c> cast throws <see cref="OverflowException"/>, which is outside the
+    /// <see cref="ContentException"/> family a composition root catches to report a bad data set —
+    /// so the read would fail in a way nobody is listening for.
+    /// </summary>
+    [Fact]
+    public void A_regeneration_interval_longer_than_the_runtime_can_represent_is_refused()
+    {
+        var thrown = Refuses("regenMinutesPerPoint", ContentValue.Number(1_000_000_000_000_000m));
+
+        thrown.Reference.ShouldBe(EnergyTuning.RegenMinutesPerPointReference);
+        thrown.Message.ShouldMatchWildcard("*longer than any span the runtime can represent*");
+        thrown.ShouldBeAssignableTo<ContentException>();
     }
 
     [Theory]

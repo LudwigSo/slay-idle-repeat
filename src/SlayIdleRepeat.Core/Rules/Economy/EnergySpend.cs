@@ -33,9 +33,15 @@ internal readonly record struct EnergySpend(
     int DrawnFromReserve)
 {
     /// <summary>
-    /// 🔒 Renders with <see cref="CultureInfo.InvariantCulture"/>, replacing the synthesized
-    /// <c>PrintMembers</c>, which formats with the ambient culture (`14` §8.2).
+    /// Renders the split as a sentence, replacing the synthesized <c>PrintMembers</c>.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ This one is for <b>readability</b>, not for `14` §8.2: a <c>bool</c> and two non-negative
+    /// <c>int</c>s render identically under every culture, so there is no determinism argument here
+    /// — unlike <see cref="EnergyAccrual"/>, whose <see cref="TimeSpan"/> genuinely varies. The
+    /// provider is passed anyway so the three values of <c>Rules/Economy/</c> read the same way and
+    /// nobody has to work out which of them needed it.
+    /// </remarks>
     private bool PrintMembers(StringBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

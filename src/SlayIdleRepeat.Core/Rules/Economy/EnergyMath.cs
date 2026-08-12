@@ -33,8 +33,30 @@ internal static class EnergyMath
     /// `10` §3 — Max Energy: the base plus the per-Legend-Level increment, stopped at the cap.
     /// 120 (+2 per Legend Level, cap 200) as shipped.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>An open contradiction, implemented as the kickoff ruled and registered as a gap.</b>
+    /// The formula is <c>baseMax + perLegendLevel × legendLevel</c>, which the M1 kickoff authored
+    /// verbatim. <c>07</c> §1.1 starts a player at Legend <b>Level 1</b> and
+    /// <c>progression.json#/legendLevel/min</c> is 1, so under this formula the reachable minimum
+    /// Max Energy is <b>122</b>, not the 120 of `10` §3 — and three other `10` §3 numbers are
+    /// arithmetic on 120 rather than 122: "full refill time 8 hours from empty" (120 × 4 min),
+    /// "runs on a full tank 6" (120 / 20), and `10` §3.2's budget line "120 (start)".
+    /// </para>
+    /// <para>
+    /// <c>baseMax + perLegendLevel × (legendLevel − 1)</c> reconciles all four. It is <b>not</b>
+    /// implemented here, because the kickoff authored the other one and S6 does not license a rule
+    /// to renumber the economy on its own reading. The conflict is registered for a ruling; until it
+    /// lands, the cases in <c>EnergyMathTests</c> pin both the shipped arithmetic and the fact that
+    /// Legend Level 0 — where the base 120 actually appears — is a level no player occupies.
+    /// </para>
+    /// </remarks>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
-    /// <param name="legendLevel">The player's Legend Level (`07` §1.1). Never negative.</param>
+    /// <param name="legendLevel">
+    /// The player's Legend Level (`07` §1.1 runs it 1..200; the aggregate holds that range, `30`
+    /// §11.5). Zero is accepted as the formula's base rather than as a player state — see the
+    /// remarks.
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
     internal static int MaxEnergy(EnergyTuning tuning, int legendLevel)
@@ -57,8 +79,15 @@ internal static class EnergyMath
     /// </summary>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
     /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
     internal static int ReserveCapacity(EnergyTuning tuning, int legendLevel)
     {
+        // Explicit, though MaxEnergy below would also catch it: without this the type is null-safe
+        // only because C# evaluates the call before the tuning.ReserveMultipleOfMax read, which is
+        // a guarantee a reordering silently removes.
+        ArgumentNullException.ThrowIfNull(tuning);
+
         var capacity = (long)MaxEnergy(tuning, legendLevel) * tuning.ReserveMultipleOfMax;
 
         return (int)Math.Min(capacity, int.MaxValue);
@@ -88,9 +117,23 @@ internal static class EnergyMath
     /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
     /// <param name="banks">The two banks before the accrual.</param>
     /// <param name="sinceAnchor">
-    /// Wall-clock time from the player's stored accrual anchor to now. Never negative — an anchor
-    /// in the future is a clock or a persistence defect, not a rule's business to smooth over.
+    /// Wall-clock time from the player's stored accrual anchor to now. Never negative.
+    /// <para>
+    /// 🔒 <b>The negative case is the caller's, and the ruling is recorded here rather than left
+    /// implicit.</b> `30` §2.1 P3 requires every command on every state to return a result — an
+    /// exception out of <c>Apply</c> is a P3 violation, and a persisted anchor microseconds ahead of
+    /// <c>NowUtc</c> (host clock skew) would produce one on every command until the clock caught up.
+    /// So <b>M1-08's <c>AdvanceTime</c> clamps</b>: <c>Math.Max(TimeSpan.Zero, now - anchor)</c>, and
+    /// a backwards clock costs the player nothing and grants them nothing. This guard is an
+    /// assertion for direct callers, which after that clamp means a programming error rather than
+    /// an environmental one. Clamping <em>here</em> instead would silently make a persistence defect
+    /// — an anchor stored in the future, which never self-corrects — indistinguishable from skew.
+    /// </para>
     /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="legendLevel"/> is negative, or <paramref name="sinceAnchor"/> is.
+    /// </exception>
     internal static EnergyAccrual Accrue(
         EnergyTuning tuning, int legendLevel, EnergyBanks banks, TimeSpan sinceAnchor)
     {
@@ -127,6 +170,10 @@ internal static class EnergyMath
     /// How much to grant. Never negative — taking Energy away is a spend, and a spend can be
     /// refused (see <see cref="Spend"/>), which a negative grant could not be.
     /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="legendLevel"/> is negative, or <paramref name="amount"/> is.
+    /// </exception>
     internal static EnergyBanks Grant(
         EnergyTuning tuning, int legendLevel, EnergyBanks banks, int amount)
     {
@@ -158,22 +205,41 @@ internal static class EnergyMath
     /// nothing, and therefore overflows nothing.
     /// </para>
     /// <para>
-    /// The alternative reading — that a refill grants a whole Max Energy regardless of what the bar
-    /// holds, so a player at maximum banks an entire second tank — would require inventing an
-    /// amount (<c>+max</c>) that no document authors, and S6 forbids filling a hole with a
-    /// plausible value. `28` C2's list is naming the sources that route through the overflow
-    /// cascade rather than claiming each one always produces overflow; regeneration, quest grants
-    /// and ad grants demonstrably do, which is enough to make the sentence true.
+    /// ⚠️ <b>State the cost of that plainly:</b> the deficit is by construction exactly the bar's
+    /// headroom, so under this reading a daily refill and a level-up refill can <b>never</b>
+    /// overflow — not "not always", but never, in any reachable state. Two of the six sources
+    /// `28` C2 lists as filling the Reserve are dead entries in that list. And `10` §3.2's
+    /// free-player budget counts <c>+120 (daily refill)</c> as flat daily income, which a player
+    /// logging in with a full bar does not receive. Both are real costs of the reading, not
+    /// objections it answers.
     /// </para>
     /// <para>
-    /// It routes through <see cref="Grant"/> rather than assigning the bar directly, so a future
-    /// source whose amount happens to exceed the deficit overflows correctly without a second
-    /// cascade being written.
+    /// Two alternatives were considered and rejected. <b>"+max regardless"</b> — a full-bar player
+    /// banks an entire second tank — invents an amount no document authors, which S6 forbids.
+    /// <b>"To full means both banks full"</b>, granting
+    /// <c>(max − energy) + (reserveCapacity − reserve)</c>, invents nothing (both capacities are
+    /// authored) and would make `28` C2's sentence non-vacuous — but it contradicts `28` C2's own
+    /// "Fills: <em>only while the main bar is at maximum</em>" by topping the Reserve up from a
+    /// source that was never overflow, and it turns the daily refill into a 400-Energy grant that
+    /// `10` §3.2's budget does not describe either. It is the strongest rival and it is rejected on
+    /// those two grounds, not overlooked.
+    /// </para>
+    /// <para>
+    /// 🔒 This is a live contradiction between `10` §3.1/§3.2 and `28` C2, not a settled rule.
+    /// Implemented the conservative way — the one that grants least and invents nothing — and
+    /// <b>registered for a ruling</b> (S16) rather than closed here. If the ruling goes the other
+    /// way, only the <c>deficit</c> expression below changes.
+    /// </para>
+    /// <para>
+    /// It routes through <see cref="Grant"/> rather than assigning the bar directly, so whichever
+    /// amount the ruling picks overflows correctly without a second cascade being written.
     /// </para>
     /// </remarks>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
     /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
     /// <param name="banks">The two banks before the refill.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
     internal static EnergyBanks RefillToFull(EnergyTuning tuning, int legendLevel, EnergyBanks banks)
     {
         ArgumentNullException.ThrowIfNull(tuning);
@@ -195,6 +261,7 @@ internal static class EnergyMath
     /// </remarks>
     /// <param name="banks">The two banks before the spend.</param>
     /// <param name="cost">What the action costs. Never negative; zero is a legal no-op.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cost"/> is negative.</exception>
     internal static EnergySpend Spend(EnergyBanks banks, int cost)
     {
         if (cost < 0)
@@ -265,7 +332,8 @@ internal static class EnergyMath
                 legendLevel,
                 "A Legend Level is never negative — 07 §1.1 runs it from 1 to 200, and the range " +
                 "itself is the Player aggregate's invariant to hold (30 §11.5). A negative one here " +
-                "would shrink Max Energy below the base 120 that 10 §3 authors.");
+                "would shrink Max Energy below the base 120 that 10 §3 authors. Zero is permitted " +
+                "as the arithmetic base of MaxEnergy's formula, not as a player state.");
         }
     }
 }
