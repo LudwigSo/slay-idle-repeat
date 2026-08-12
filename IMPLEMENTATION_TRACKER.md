@@ -23,7 +23,7 @@ This is the single tracking document for turning the design set in [`game-design
 | M5 | Application layer, server backbone & inbox | 2, 3, 4 | ⬜ |
 | M6 | Power model & economy simulator | 5 (∥ from end of M4) | ⬜ |
 | M7 | Godot client vertical slice | 6 | ⬜ |
-| M8 | Art & audio pipeline + Chapter 1 assets | 7 (∥ workstream) | ⬜ |
+| M8 | Art & audio pipeline + Chapter 1 assets | 7 (∥ workstream) | 🔄 kicked off 2026-08-12 · **split**: 4 pipeline tasks dispatchable on `milestone/M8`, 6 generation tasks ⛔ capability-blocked (no agent can run Midjourney/Suno) |
 | M9 | Meta screens & **First Playable** (Ch 1–3) | 8 | ⬜ |
 | M10 | Resource Dungeons | 9 | ⬜ |
 | M11 | Content fill: chapters 4–8, full catalogues & asset batches | 10 | ⬜ |
@@ -347,24 +347,56 @@ These live across the whole project; they start in M0 and grow with every milest
 ## M8 — Art & audio pipeline + Chapter 1 assets ∥
 
 **Goal:** the generation pipeline proven end-to-end and the assets that unblock screens and the vertical slice. Runs as a parallel workstream from M5 onward.
-**Exit:** anchor sheet locked; UI kit + Ch1 biome + core SFX shipped through the full post-processing/QA pipeline.
+**Exit (as authored):** anchor sheet locked; UI kit + Ch1 biome + core SFX shipped through the full post-processing/QA pipeline.
 
-**Kickoff decisions**
-1. ⚠️ Confirm **commercial licence terms in writing** for Midjourney and every audio tool before generating anything; provenance record format.
-2. **O7** — layered gear rigging spike result: shared-skeleton overlays vs the 20-composited-looks fallback.
-3. **O8** — VFX method: procedural in-engine (recommended) vs generated sheets.
-4. UI clicks: AI vs CC0 pack for the ~20 weakest sounds.
+🔒 **Split at the 2026-08-12 kickoff into a *pipeline* half and a *generation* half.** Six of the eight
+original tasks are asset **generation** — they need a paid image/audio model **and human aesthetic
+iteration** ("iterate until it is exactly right", the §A4 silhouette test, the Part F side-by-side drift
+check). No autonomous agent can perform them; a `feature-oneshot` run cannot produce a Midjourney render
+or a Suno loop. They are ⛔ **capability-blocked**, not merely unscheduled, and the milestone row stays 🔄
+until a human generation session runs.
+
+**Scoped exit for this run:** the asset manifest exists as machine-readable data; the 7-step
+post-processing pipeline, the 11-item QA checklist and the silhouette gate run in CI; every delivered
+asset carries a provenance record; and a full placeholder set is generatable for every runtime asset
+slot. In doc `15` §B2/§B4 order this is correct — **the QA gate is built before the first batch**, not
+after it.
+
+**Kickoff decisions** — resolved 2026-08-12 (record: `.claude/.milestone-runs/M8/kickoff.md`)
+
+1. **Licences (⚠️ partially open).** ✅ **Midjourney paid plan held** — art generation is licence-clear
+   once the §G terms are confirmed in writing. 🔴 **No Suno/Udio and no ElevenLabs licence** — all 106
+   audio assets are blocked on both licence *and* capability. The written confirmation itself is a legal
+   act the **product owner owns**; it is not delegable to an agent. Provenance record format is
+   M8-01a's deliverable and covers procedurally-generated assets too (`kind: procedural`, generator +
+   commit in place of job ID + seed).
+2. **O7 — deferred with M8-04.** The ruling is only obtainable from a real Midjourney spike (generate
+   overlays on a ghosted body, measure alignment against the shared skeleton). Nothing in this run
+   depends on it. Owner: the M8-04 generation session.
+3. **O8 — ✅ RULED: procedural in-engine VFX.** Doc `15` §G's recommendation is formally accepted.
+   **All 32 E19 sprite sheets are cut from the manifest (975 → 943)**, retiring one of the three High
+   risks in Part G outright. VFX becomes Godot particle/shader work in M7/M9 rather than an art batch —
+   **carry this into the M7 and M9 kickoffs.** → fold into `16` Part B as **O8 closed**.
+4. **UI clicks (AI vs CC0) — deferred with M8-07.** Rides with the audio session; blocked identically.
+5. **Art sourcing re-confirmed:** doc `15` §B0's 🔒 Midjourney lock stands for v1. Code-authored vector
+   art was considered for the UI/icon register (E8/E14/E15/E16/E17/E20 = 182 assets, where exact square
+   9-slice corners and exact palette conformance are *guaranteed* rather than merely checked) and
+   **declined** — it would override a locked doc and put the UI's look in a different hand from the
+   anchor sheet's. Code-drawn output is confined to **placeholders**, which every real asset overwrites.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| M8-01 | Licence confirmations + provenance tooling (job ID, prompt, seed, sref, date per asset) | 15 §B0, 20 §2.1 | ⬜ |
-| M8-02 | **Style Anchor Sheet** (6 characters in one image) + locked seed family — gates all other art | 15 §B2 | ⬜ |
-| M8-03 | UI kit E17 (12 panels, 18 buttons, frames, bars, tabs, card backs — square corners) — unblocks all screen implementation | 15 §E17 | ⬜ |
-| M8-04 | Hero body poses + one full gear family at all 5 rarities — validates rigging (O7) and the rarity language | 15 §E2 | ⬜ |
-| M8-05 | Chapter-1 batch: 14 tile icons, board pieces, Ch1 enemies (8×2), Thornmaw (4 poses), Greenwood backdrop layers | 15 Part H step 4 | ⬜ |
-| M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate | 15 §C–D, F | ⬜ |
-| M8-07 | Audio: `mus_home` (defines the palette), core combat SFX, dice SFX, UI SFX; bus structure, ducking (incl. mandatory full duck around ads), polyphony caps | 20 §2, §4–5 | ⬜ |
-| M8-08 | Currency, status and misc icon sets | 15 §E14–E15, E20 | ⬜ |
+| M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | ⬜ |
+| M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | ⬜ |
+| M8-01b | **Licence confirmations in writing** — Midjourney §G terms; audio tools not yet licensed | 15 §G, 20 §2.1 | ⛔ **product owner owns this** — a legal act, not an engineering task |
+| M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | ⬜ |
+| M8-10 | **Placeholder generator** — renders a correctly-named, correctly-sized, correctly-pivoted, ID-stamped placeholder for every runtime slot in M8-09, drives them through M8-06's full pipeline into the §D2 atlases, and asserts the QA gate passes. Output is a **build artifact, never committed** (binary churn, and it must not enter the Godot checkout). Answers M7's open placeholder-asset-policy decision in advance | 15 §C–D, §D2, F | ⬜ |
+| M8-02 | **Style Anchor Sheet** (6 characters in one image) + locked seed family — gates all other art | 15 §B2 | ⛔ **generation** — needs a human Midjourney session |
+| M8-03 | UI kit E17 (12 panels, 18 buttons, frames, bars, tabs, card backs — square corners) — unblocks all screen implementation | 15 §E17 | ⛔ **generation** — blocked behind M8-02 |
+| M8-04 | Hero body poses + one full gear family at all 5 rarities — validates rigging (O7) and the rarity language | 15 §E2 | ⛔ **generation** — blocked behind M8-02; carries the O7 ruling |
+| M8-05 | Chapter-1 batch: 14 tile icons, board pieces, Ch1 enemies (8×2), Thornmaw (4 poses), Greenwood backdrop layers | 15 Part H step 4 | ⛔ **generation** — blocked behind M8-02 |
+| M8-07 | Audio: `mus_home` (defines the palette), core combat SFX, dice SFX, UI SFX; bus structure, ducking (incl. mandatory full duck around ads), polyphony caps | 20 §2, §4–5 | ⛔ **no audio-tool licence** *and* the bus/ducking half is Godot client work that M7-01 has not created yet |
+| M8-08 | Currency, status and misc icon sets | 15 §E14–E15, E20 | ⛔ **generation** — blocked behind M8-02 |
 
 ---
 
@@ -588,8 +620,8 @@ Quick index of every open item from `16_DECISION_LOG.md` Part B to the kickoff t
 | O4 | Server cost model | M18 kickoff (estimate before launch) |
 | O5 | Push transport | M5 kickoff |
 | O6 | Postgres hosting | M18 (deploy time) |
-| O7 | Gear overlay rigging | M8 kickoff |
-| O8 | VFX method | M8 kickoff |
+| O7 | Gear overlay rigging | ⛔ **Deferred at the M8 kickoff (2026-08-12).** Only obtainable from a real Midjourney spike (overlays on a ghosted body, alignment measured against the shared skeleton) — no agent can run one. Owner: the M8-04 generation session |
+| O8 | VFX method | ✅ **CLOSED at the M8 kickoff (2026-08-12): procedural in-engine.** Doc `15` §G's recommendation formally accepted; **all 32 E19 sprite sheets cut (975 → 943)**, retiring a High risk outright. VFX becomes Godot particle/shader work — **carry into the M7 and M9 kickoffs** |
 | O10 | 8 → 7 currencies? | Post-playtest review (scheduled in M18) |
 | O11 | Preset slot count | M9 kickoff; re-review M18 |
 | O12 | Revenue validation | M15 kickoff (store-page test) |
