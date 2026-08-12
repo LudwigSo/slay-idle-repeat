@@ -66,7 +66,7 @@ internal static class StatCopyOp
         // 🔴 R13 — these are the copy SOURCES, not the recipients. The recipient is `holder`.
         foreach (var source in OpTargets.Resolve(effect, context))
         {
-            var stat = StatOf(selector, source, context);
+            var stat = StatOf(effect, selector, source, context);
             var amount = OpRounding.Round(
                 factor * context.Seams.Stats.FinalStat(source, stat), effect.Id, $"copied {stat}");
 
@@ -88,7 +88,10 @@ internal static class StatCopyOp
     /// stats — which would turn Recalibrate into a copy of the hero's entire stat block.
     /// </remarks>
     private static StatId StatOf(
-        StatSelector selector, IEffectActorView source, EffectOpContext context) => selector.Kind switch
+        EffectDefinition effect,
+        StatSelector selector,
+        IEffectActorView source,
+        EffectOpContext context) => selector.Kind switch
     {
         StatSelectorKind.SINGLE => selector.Stat!.Value,
 
@@ -96,8 +99,11 @@ internal static class StatCopyOp
         // stat", so which bucket is largest is a fact about the actor being copied.
         StatSelectorKind.HIGHEST_PCT_BONUS => context.Seams.Stats.HighestPercentBonusStat(source),
 
+        // 🔒 The EFFECT id, not the op name. Every other throw in this layer names the effect, and
+        // EffectContextException.Token is what a test pins to say which rule fired (steering S2) —
+        // an op name here would be the one failure that could not be traced to a content row.
         _ => throw new EffectContextException(
-            nameof(EffectOp.STAT_COPY),
+            effect.Id,
             $"its stat selector is {selector}",
             "18 §2.4 admits 'a stat name or HIGHEST_PCT_BONUS'. ALL_COMBAT would copy fourteen " +
             "stats at once, which no clause authorises, and the schema's statCopySelector does not " +

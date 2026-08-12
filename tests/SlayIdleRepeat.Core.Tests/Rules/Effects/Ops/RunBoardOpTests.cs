@@ -134,8 +134,13 @@ public sealed class RunBoardOpTests
     public void Every_run_and_board_op_is_authorable_with_the_eight_part_shape_alone()
     {
         var offenders = new List<string>();
+        var runOps = EffectOps.All.Where(EffectOps.IsRunAndBoard).ToArray();
 
-        foreach (var op in EffectOps.All.Where(EffectOps.IsRunAndBoard))
+        // S3 — the floor. EffectOps.FamilyOf is a hand-written switch; edit one arm and this loop
+        // runs zero times and reports success over nothing.
+        runOps.Length.ShouldBe(13, "18 §2.5");
+
+        foreach (var op in runOps)
         {
             var effect = OpFixtures.Effect($"TILE_{op}", op, 1.0, EffectTarget.RUN) with
             {

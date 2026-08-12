@@ -31,14 +31,11 @@ public sealed class EffectTaggingTests
     [Fact]
     public void An_author_tag_and_a_status_tag_are_different_types_over_the_same_spelling()
     {
-        typeof(AuthorTag).ShouldNotBe(typeof(StatusTag));
-
-        // Same text, and neither is assignable to the other's slot: this compiles only because the
-        // two members below have the types they have.
-        var author = new AuthorTag("control");
+        // 🔒 The type separation itself is the COMPILER's to enforce — asserting that two declared
+        //    types differ is a test that cannot fail. What can go wrong at run time is the two
+        //    vocabularies leaking into each other, and that is what is asserted below.
         var status = new StatusTag("control");
-
-        author.Value.ShouldBe(status.Value);
+        var author = new AuthorTag("control");
 
         var effect = new EffectDefinition
         {
@@ -50,6 +47,25 @@ public sealed class EffectTaggingTests
 
         EffectTagging.StatusTagOf(effect).ShouldBe(status);
         EffectTagging.AuthorTags(effect).ShouldBe([author]);
+    }
+
+    /// <summary>
+    /// 🔒 The leak that matters: a status tag spelled <c>drawback</c> must NOT satisfy `05` §4.1's
+    /// ward bypass. Under one shared string vocabulary it would.
+    /// </summary>
+    [Fact]
+    public void A_status_tag_spelled_drawback_does_not_satisfy_the_ward_bypass()
+    {
+        var effect = new EffectDefinition
+        {
+            Id = "PK_X",
+            Op = EffectOp.REMOVE_STATUS,
+            Target = EffectTarget.SELF,
+            StatusTag = new StatusTag(AuthorTag.Drawback.Value),
+        };
+
+        EffectTagging.IsDrawback(effect).ShouldBeFalse();
+        EffectTagging.IsSelfInflictedCost(effect).ShouldBeFalse();
     }
 
     /// <summary>

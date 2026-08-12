@@ -49,7 +49,7 @@ public sealed class EffectOpResolverTests
 
             try
             {
-                EffectOpResolver.Resolve(Exemplar(op), context);
+                EffectOpResolver.Resolve(OpFixtures.Exemplar(op), context);
             }
             catch (EffectContextException e) when (e.Message.Contains("is not one of 18 §2's 43", StringComparison.Ordinal))
             {
@@ -96,7 +96,7 @@ public sealed class EffectOpResolverTests
             };
 
             var outcome = EffectOpResolver.Resolve(
-                Exemplar(op),
+                OpFixtures.Exemplar(op),
                 bench.Context(evaluation, damageDealt: 100.0, healAmount: 50.0, overhealAmount: 10.0));
 
             if (outcome.Disposition != expected)
@@ -117,10 +117,16 @@ public sealed class EffectOpResolverTests
     {
         var hero = EffectTestBattle.Hero();
         var bench = new OpTestBench();
+        var statOps = EffectOps.All.Where(o => EffectOps.FamilyOf(o) == EffectOpFamily.STAT).ToArray();
 
-        foreach (var op in EffectOps.All.Where(o => EffectOps.FamilyOf(o) == EffectOpFamily.STAT))
+        // S3 — the floor, and it matters twice over here: both assertions below are "empty", so an
+        // empty SUBJECT set would be doubly invisible.
+        statOps.Length.ShouldBe(6, "18 §2.1");
+
+        foreach (var op in statOps)
         {
-            EffectOpResolver.Resolve(Exemplar(op), bench.Context(EffectTestBattle.Context(hero, hero)));
+            EffectOpResolver.Resolve(
+                OpFixtures.Exemplar(op), bench.Context(EffectTestBattle.Context(hero, hero)));
         }
 
         bench.Calls.ShouldBeEmpty();
@@ -137,45 +143,5 @@ public sealed class EffectOpResolverTests
         Should.Throw<ArgumentNullException>(() => EffectOpResolver.Resolve(null!, context));
         Should.Throw<ArgumentNullException>(
             () => EffectOpResolver.Resolve(OpFixtures.Effect("X", EffectOp.DAMAGE, 1.0), null!));
-    }
-
-    /// <summary>
-    /// A minimal well-formed effect for each op — the shape its `18` §2 row and the schema branch
-    /// require, and nothing more.
-    /// </summary>
-    private static EffectDefinition Exemplar(EffectOp op)
-    {
-        var effect = OpFixtures.Effect($"EX_{op}", op, 1.0, EffectTarget.CURRENT_TARGET);
-
-        return op switch
-        {
-            EffectOp.STAT_ADD_FLAT or EffectOp.STAT_ADD_PCT or EffectOp.STAT_MULT or EffectOp.STAT_SET =>
-                effect with { Stat = StatSelector.Of(StatId.ATK) },
-
-            EffectOp.STAT_CONVERT =>
-                effect with { Stat = StatSelector.Of(StatId.DEF), ToStat = StatId.ATK },
-
-            EffectOp.STAT_CAP_OVERRIDE =>
-                effect with { Stat = StatSelector.Of(StatId.CRIT), CapKind = StatCapKind.STAT_MAX },
-
-            EffectOp.STAT_COPY =>
-                effect with { Stat = StatSelector.Of(StatId.CRIT) },
-
-            EffectOp.HEAL_LEECH => effect with { Value = 0.2 },
-
-            EffectOp.APPLY_STATUS or EffectOp.EXTEND_STATUS or EffectOp.IMMUNE_STATUS =>
-                effect with { StatusId = "BURN", Value = 2.0 },
-
-            EffectOp.REMOVE_STATUS => effect with { StatusId = "BURN" },
-
-            EffectOp.ATTACK_MULT_NEXT => effect with { Charges = 1 },
-            EffectOp.FORCE_CRIT_NEXT => effect with { Value = null, Charges = 1 },
-
-            EffectOp.SUMMON => effect with { Archetype = "SWARM", Value = 2.0 },
-
-            EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
-
-            _ => effect,
-        };
     }
 }

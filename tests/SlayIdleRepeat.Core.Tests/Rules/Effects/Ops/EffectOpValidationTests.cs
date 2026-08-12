@@ -12,11 +12,18 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 public sealed class EffectOpValidationTests
 {
     /// <summary>
-    /// 🔒 S3's floor: <b>every</b> one of the 43 ops has a validation opinion, so a new op cannot
-    /// arrive with no shape rule and be reported well-formed whatever it carries.
+    /// 🔒 S3's floor: <b>every</b> one of the 43 ops reaches a deliberate arm of the validator,
+    /// rather than its <c>default</c>.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ What this does <b>not</b> claim, said plainly: a forty-fourth op added as
+    /// <c>case NEW_OP: break;</c> would report no problems and pass here. Nothing short of a
+    /// per-op expected-shape table could catch that, and such a table would be a third statement of
+    /// the partition <c>effect.schema.json</c> and <see cref="EffectOpValidation"/> already make.
+    /// What is caught is the op that reaches no arm at all.
+    /// </remarks>
     [Fact]
-    public void Every_op_is_covered_and_a_bare_effect_of_each_gets_a_verdict()
+    public void No_op_falls_through_to_the_validators_default_arm()
     {
         EffectOps.All.Count.ShouldBe(43, "18 §11 — the floor under the loop");
 
@@ -91,7 +98,9 @@ public sealed class EffectOpValidationTests
                           .ShouldBeEmpty();
 
         EffectOpValidation.Problems(Minimal(EffectOp.STAT_ADD_PCT) with { Stat = StatSelector.HighestPctBonus })
-                          .ShouldNotBeEmpty();
+                          .ShouldContain(
+                              p => p.Contains("names the HIGHEST_PCT_BONUS selector", StringComparison.Ordinal),
+                              "S2 — the selector rule fired, not one of the other six the op could break");
     }
 
     /// <summary>The five keys `18` §10 added are each required where their op needs them.</summary>
@@ -112,6 +121,21 @@ public sealed class EffectOpValidationTests
 
         EffectOpValidation.Problems(Minimal(EffectOp.REMOVE_STATUS) with { StatusId = null })
                           .ShouldContain(p => p.Contains("names neither", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 🔒 Every exemplar the three op suites share is well-formed — so the seam, resolver and
+    /// validation suites cannot disagree about what an authorable effect looks like.
+    /// </summary>
+    [Fact]
+    public void Every_exemplar_the_op_suites_share_is_well_formed()
+    {
+        EffectOps.All.Count.ShouldBe(43, "the floor under the loop");
+
+        EffectOps.All
+                 .SelectMany(op => EffectOpValidation.Problems(OpFixtures.Exemplar(op))
+                                                     .Select(p => $"{op}: {p}"))
+                 .ShouldBeEmpty();
     }
 
     /// <summary>`18` §7's worked examples all validate, as authored.</summary>

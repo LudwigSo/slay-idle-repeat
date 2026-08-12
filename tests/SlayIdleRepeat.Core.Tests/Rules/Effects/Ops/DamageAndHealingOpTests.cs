@@ -56,7 +56,57 @@ public sealed class DamageAndHealingOpTests
         var evaluation = EffectTestBattle.Context(hero, hero, primary, other) with { CurrentTarget = primary };
         DamageAndHealingOps.Damage(cleave, bench.Context(evaluation));
 
-        bench.Calls.ShouldBe(["ResolveAttack(HERO->EN_OTHER, 0.4)"], Case.Sensitive);
+        bench.Calls.ShouldBe(["ResolveAttack(HERO->EN_OTHER, 0.4, PK_CLEAVE_T1)"], Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 <c>DAMAGE</c> reports the HP actually lost — `05` §4 step 9's post-absorption number —
+    /// summed over its targets, and <b>not</b> step 8's pre-absorption basis.
+    /// </summary>
+    /// <remarks>
+    /// The two differ on any warded target, and the wrong one here would feed a wrong
+    /// <c>DAMAGE_DEALT_PCT</c> to whatever leech read it. The bench answers a miss by default
+    /// precisely so that a test which forgot to state an outcome cannot assert 0 and look meaningful.
+    /// </remarks>
+    [Fact]
+    public void DAMAGE_reports_the_HP_actually_lost_summed_over_its_targets()
+    {
+        var hero = EffectTestBattle.Hero();
+        var first = EffectTestBattle.Enemy("EN_1", 1);
+        var second = EffectTestBattle.Enemy("EN_2", 2);
+        var bench = new OpTestBench().WithAttackOutcome(basis: 120.0, hpLost: 90.0);
+
+        var cleave = OpFixtures.Effect("PK_CLEAVE_T1", EffectOp.DAMAGE, 0.40, EffectTarget.ALL_ENEMIES);
+
+        DamageAndHealingOps.Damage(cleave, bench.Context(EffectTestBattle.Context(hero, hero, first, second)))
+                           .ShouldBe(180.0, "two hits at 90 HP lost each — the basis of 120 is step 8's, not this");
+    }
+
+    /// <summary>
+    /// 🔒 `05` §1.1 — every op rounds to 4 dp <b>at each accumulation point</b>: per target, and
+    /// again over the total.
+    /// </summary>
+    /// <remarks>
+    /// The other cases in this file all multiply to values that are exact in IEEE double, so none of
+    /// them is load-bearing on the rounding. This one is: <c>0.12345 × 3.0</c> is <c>0.37035</c>,
+    /// which rounds to <c>0.3704</c> — and two of them sum to <c>0.7408</c>, not to the
+    /// <c>0.7407</c> an unrounded accumulation would give.
+    /// </remarks>
+    [Fact]
+    public void An_ops_number_is_rounded_to_4_dp_per_target_and_again_over_the_total()
+    {
+        var boss = EffectTestBattle.Enemy("BOSS_X", 1);
+        var first = EffectTestBattle.Hero() with { Id = "HERO_A", Index = 0 };
+        var second = EffectTestBattle.Hero() with { Id = "HERO_B", Index = 2 };
+        var bench = new OpTestBench().WithStat(boss, StatId.ATK, 3.0);
+
+        var tick = OpFixtures.Effect("BOSS_X_ROT", EffectOp.DAMAGE_TRUE, 0.12345, EffectTarget.ALL_ENEMIES);
+
+        DamageAndHealingOps.DamageTrue(
+                               tick, bench.Context(EffectTestBattle.Context(boss, boss, first, second)))
+                           .ShouldBe(0.7408, "0.37035 rounds to 0.3704 per target; unrounded the sum is 0.7407");
+
+        bench.Amounts.Select(a => a.Amount).ShouldBe([0.3704, 0.3704]);
     }
 
     /// <summary>
@@ -347,6 +397,9 @@ public sealed class DamageAndHealingOpTests
 
         bench.OnlyAmount("AddThorns").ShouldBe(
             0.25, "under 18 §2.2's blanket ATK_MULT default this would be 225 — a thorns FRACTION of 225");
+
+        // 🔒 05 §4.2: "adds to THORN FOR ITS DURATION" — the second half of the row.
+        bench.OnlyLifetime("AddThorns").Duration!.Scope.ShouldBe(DurationScope.BATTLE);
     }
 
     /// <summary>An op that resolves against an empty enemy set does nothing, and that is not a failure.</summary>

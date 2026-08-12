@@ -20,6 +20,14 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// impossible in the tests.
 /// </para>
 /// <para>
+/// 🔒 <b>Every argument is captured, including the ones no assertion happens to read yet.</b> A
+/// recorder that dropped <c>duration</c>, <c>stacking</c> or <c>sourceEffectId</c> would let an op
+/// pass <c>null</c>, <c>null</c> and <c>""</c> with the whole suite green — and all three are
+/// load-bearing: `18` §2.4 copies <em>"for <c>duration</c>"</em>, `05` §4 consumes
+/// <c>ATTACK_MULT_NEXT</c> charges <em>"in ascending effect-id order"</em>, and `05` §4.1 measures
+/// <c>sourceCapPct</c> against the ward segment's <c>sourceEffectId</c>.
+/// </para>
+/// <para>
 /// The stat reader is <b>frozen by construction</b> — a dictionary handed in once — which is how
 /// <c>StatCopyOpTests</c> exhibits `18` §2.4's <em>"reads the start-of-tick snapshot, so mutual
 /// copies cannot recurse"</em> rather than asserting the doc comment.
@@ -30,11 +38,20 @@ internal sealed class OpTestBench
     private readonly Dictionary<(string Actor, StatId Stat), double> _stats = new();
     private readonly Dictionary<string, StatId> _highestBucket = new(StringComparer.Ordinal);
 
-    /// <summary>Every seam call, in order, as <c>member(actor, numbers…)</c>.</summary>
+    /// <summary>Every seam call, in order, as <c>member(actor, number, effectId)</c>.</summary>
     internal List<string> Calls { get; } = [];
 
     /// <summary>The heal/ward/damage numbers, by member, for the numeric assertions.</summary>
     internal List<(string Member, string Actor, double Amount)> Amounts { get; } = [];
+
+    /// <summary>
+    /// The `18` §6 lifetime each seam call carried — the half of an effect no <see cref="Amounts"/>
+    /// row can show.
+    /// </summary>
+    internal List<(string Member, EffectDuration? Duration, EffectStacking? Stacking)> Lifetimes { get; } = [];
+
+    /// <summary>The `18` §8 effect id each seam call carried.</summary>
+    internal List<string> EffectIds { get; } = [];
 
     /// <summary>Whether a <c>DAMAGE_MAXHP_PCT</c> reported `05` §4.1's bypass class (b).</summary>
     internal List<bool> WardBypasses { get; } = [];
@@ -48,8 +65,15 @@ internal sealed class OpTestBench
     /// <summary>The percent-bucket writes <c>STAT_COPY</c> made, and who they landed on.</summary>
     internal List<(string Holder, StatId Stat, double Fraction)> PercentBuckets { get; } = [];
 
-    /// <summary>What <see cref="IAttackPipeline.ResolveAttack"/> answers. Set per test.</summary>
-    internal AttackResolution AttackAnswer { get; set; } = new(false, false, false, 0.0, 0.0);
+    /// <summary>
+    /// What <see cref="IAttackPipeline.ResolveAttack"/> answers.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The default is a <b>miss</b>, deliberately: a default carrying HP would make
+    /// <c>DAMAGE</c>'s "the target set was empty" and "two attacks landed" indistinguishable in any
+    /// test that forgot to set it. A test asserting <c>DAMAGE</c>'s return sets it explicitly.
+    /// </remarks>
+    internal AttackResolution AttackAnswer { get; set; } = new(Missed: true, false, false, 0.0, 0.0);
 
     /// <summary>The frozen start-of-tick stat snapshot <c>STAT_COPY</c> and <c>ATK_MULT</c> read.</summary>
     internal OpTestBench WithStat(IEffectActorView actor, StatId stat, double value)
@@ -63,6 +87,14 @@ internal sealed class OpTestBench
     internal OpTestBench WithHighestBucket(IEffectActorView actor, StatId stat)
     {
         _highestBucket[actor.Id] = stat;
+
+        return this;
+    }
+
+    /// <summary>What every <c>ResolveAttack</c> on this bench answers.</summary>
+    internal OpTestBench WithAttackOutcome(double basis, double hpLost)
+    {
+        AttackAnswer = new AttackResolution(Missed: false, Crit: false, Blocked: false, basis, hpLost);
 
         return this;
     }
@@ -92,20 +124,43 @@ internal sealed class OpTestBench
         };
 
     /// <summary>The one amount a member was called with, when exactly one call was expected.</summary>
-    internal double OnlyAmount(string member)
+    internal double OnlyAmount(string member) => Only(member).Amount;
+
+    /// <summary>The one call a member was made with, when exactly one was expected.</summary>
+    internal (string Member, string Actor, double Amount) Only(string member)
     {
         var matches = Amounts.Where(a => string.Equals(a.Member, member, StringComparison.Ordinal)).ToArray();
 
         return matches.Length == 1
-            ? matches[0].Amount
+            ? matches[0]
             : throw new InvalidOperationException(
                 $"expected exactly one {member} call, saw {matches.Length}: {string.Join(" | ", Calls)}");
     }
 
-    private void Record(string member, string actor, double amount)
+    /// <summary>The `18` §6 lifetime the one call to a member carried.</summary>
+    internal (EffectDuration? Duration, EffectStacking? Stacking) OnlyLifetime(string member)
+    {
+        var matches = Lifetimes.Where(l => string.Equals(l.Member, member, StringComparison.Ordinal)).ToArray();
+
+        return matches.Length == 1
+            ? (matches[0].Duration, matches[0].Stacking)
+            : throw new InvalidOperationException(
+                $"expected exactly one {member} call, saw {matches.Length}: {string.Join(" | ", Calls)}");
+    }
+
+    private void Record(
+        string member,
+        string actor,
+        double amount,
+        string sourceEffectId,
+        EffectDuration? duration = null,
+        EffectStacking? stacking = null)
     {
         Amounts.Add((member, actor, amount));
-        Calls.Add($"{member}({actor}, {amount.ToString("R", CultureInfo.InvariantCulture)})");
+        Lifetimes.Add((member, duration, stacking));
+        EffectIds.Add(sourceEffectId);
+        Calls.Add(
+            $"{member}({actor}, {amount.ToString("R", CultureInfo.InvariantCulture)}, {sourceEffectId})");
     }
 
     private sealed class RecordingAttackPipeline(OpTestBench bench) : IAttackPipeline
@@ -113,34 +168,34 @@ internal sealed class OpTestBench
         public AttackResolution ResolveAttack(
             IEffectActorView attacker, IEffectActorView defender, double attackMultiplier, string sourceEffectId)
         {
-            bench.Record(nameof(ResolveAttack), $"{attacker.Id}->{defender.Id}", attackMultiplier);
+            bench.Record(nameof(ResolveAttack), $"{attacker.Id}->{defender.Id}", attackMultiplier, sourceEffectId);
 
             return bench.AttackAnswer;
         }
 
         public void DealTrueDamage(IEffectActorView target, double amount, string sourceEffectId) =>
-            bench.Record(nameof(DealTrueDamage), target.Id, amount);
+            bench.Record(nameof(DealTrueDamage), target.Id, amount, sourceEffectId);
 
         public void DealMaxHpPctDamage(
             IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId)
         {
             bench.WardBypasses.Add(bypassesWards);
-            bench.Record(nameof(DealMaxHpPctDamage), target.Id, amount);
+            bench.Record(nameof(DealMaxHpPctDamage), target.Id, amount, sourceEffectId);
         }
 
         public void Heal(IEffectActorView target, double amount, string sourceEffectId) =>
-            bench.Record(nameof(Heal), target.Id, amount);
+            bench.Record(nameof(Heal), target.Id, amount, sourceEffectId);
 
         public void GrantWard(
             IEffectActorView target, double amount, double? sourceCapPct, string sourceEffectId)
         {
             bench.SourceCaps.Add(sourceCapPct);
-            bench.Record(nameof(GrantWard), target.Id, amount);
+            bench.Record(nameof(GrantWard), target.Id, amount, sourceEffectId);
         }
 
         public void AddThorns(
             IEffectActorView target, double fraction, EffectDuration? duration, string sourceEffectId) =>
-            bench.Record(nameof(AddThorns), target.Id, fraction);
+            bench.Record(nameof(AddThorns), target.Id, fraction, sourceEffectId, duration);
     }
 
     private sealed class RecordingStatusEngine(OpTestBench bench) : IStatusEngine
@@ -148,77 +203,77 @@ internal sealed class OpTestBench
         public void Apply(
             IEffectActorView target, string statusId, double potency, EffectDuration? duration,
             EffectStacking? stacking, string sourceEffectId) =>
-            bench.Record($"{nameof(Apply)}:{statusId}", target.Id, potency);
+            bench.Record($"{nameof(Apply)}:{statusId}", target.Id, potency, sourceEffectId, duration, stacking);
 
         public void Remove(IEffectActorView target, string statusId, string sourceEffectId) =>
-            bench.Record($"{nameof(Remove)}:{statusId}", target.Id, 0.0);
+            bench.Record($"{nameof(Remove)}:{statusId}", target.Id, 0.0, sourceEffectId);
 
         public void RemoveByTag(IEffectActorView target, StatusTag tag, string sourceEffectId) =>
-            bench.Record($"{nameof(RemoveByTag)}:{tag.Value}", target.Id, 0.0);
+            bench.Record($"{nameof(RemoveByTag)}:{tag.Value}", target.Id, 0.0, sourceEffectId);
 
         public void Extend(IEffectActorView target, string statusId, double seconds, string sourceEffectId) =>
-            bench.Record($"{nameof(Extend)}:{statusId}", target.Id, seconds);
+            bench.Record($"{nameof(Extend)}:{statusId}", target.Id, seconds, sourceEffectId);
 
         public void GrantImmunity(
             IEffectActorView target, string statusId, EffectDuration? duration, string sourceEffectId) =>
-            bench.Record($"{nameof(GrantImmunity)}:{statusId}", target.Id, 0.0);
+            bench.Record($"{nameof(GrantImmunity)}:{statusId}", target.Id, 0.0, sourceEffectId, duration);
 
         public void ScaleOutgoingPower(
             IEffectActorView target, double fraction, EffectDuration? duration, string sourceEffectId) =>
-            bench.Record(nameof(ScaleOutgoingPower), target.Id, fraction);
+            bench.Record(nameof(ScaleOutgoingPower), target.Id, fraction, sourceEffectId, duration);
 
         public void ScaleIncomingDuration(
             IEffectActorView target, double fraction, EffectDuration? duration, string sourceEffectId) =>
-            bench.Record(nameof(ScaleIncomingDuration), target.Id, fraction);
+            bench.Record(nameof(ScaleIncomingDuration), target.Id, fraction, sourceEffectId, duration);
     }
 
     private sealed class RecordingCombatFlow(OpTestBench bench) : ICombatFlowSink
     {
         public void ExtraAttack(
             IEffectActorView attacker, IEffectActorView target, int attacks, string sourceEffectId) =>
-            bench.Record(nameof(ExtraAttack), $"{attacker.Id}->{target.Id}", attacks);
+            bench.Record(nameof(ExtraAttack), $"{attacker.Id}->{target.Id}", attacks, sourceEffectId);
 
         public void GrantAttackMultiplierCharges(
             IEffectActorView holder, double multiplier, int charges, string sourceEffectId)
         {
-            bench.Record(nameof(GrantAttackMultiplierCharges), holder.Id, multiplier);
+            bench.Record(nameof(GrantAttackMultiplierCharges), holder.Id, multiplier, sourceEffectId);
             bench.Calls.Add($"charges={charges.ToString(CultureInfo.InvariantCulture)}");
         }
 
         public void GrantForcedCritCharges(IEffectActorView holder, int charges, string sourceEffectId) =>
-            bench.Record(nameof(GrantForcedCritCharges), holder.Id, charges);
+            bench.Record(nameof(GrantForcedCritCharges), holder.Id, charges, sourceEffectId);
 
         public void ReduceCooldowns(IEffectActorView target, double fraction, string sourceEffectId) =>
-            bench.Record(nameof(ReduceCooldowns), target.Id, fraction);
+            bench.Record(nameof(ReduceCooldowns), target.Id, fraction, sourceEffectId);
 
         public void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId) =>
-            bench.Record(nameof(ArmSurviveLethal), holder.Id, hp);
+            bench.Record(nameof(ArmSurviveLethal), holder.Id, hp, sourceEffectId);
 
         public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId) =>
-            bench.Record(nameof(ArmRevive), holder.Id, hp);
+            bench.Record(nameof(ArmRevive), holder.Id, hp, sourceEffectId);
 
         public void Summon(
             IEffectActorView summoner, string archetype, int count, int? maxAlive, string sourceEffectId)
         {
-            bench.Record($"{nameof(Summon)}:{archetype}", summoner.Id, count);
+            bench.Record($"{nameof(Summon)}:{archetype}", summoner.Id, count, sourceEffectId);
             bench.Calls.Add($"maxAlive={maxAlive?.ToString(CultureInfo.InvariantCulture) ?? "null"}");
         }
 
         public void ClearSummons(IEffectActorView owner, string sourceEffectId) =>
-            bench.Record(nameof(ClearSummons), owner.Id, 0.0);
+            bench.Record(nameof(ClearSummons), owner.Id, 0.0, sourceEffectId);
 
         public void SetTargetPriority(IEffectActorView target, double priority, string sourceEffectId) =>
-            bench.Record(nameof(SetTargetPriority), target.Id, priority);
+            bench.Record(nameof(SetTargetPriority), target.Id, priority, sourceEffectId);
 
         public void AddDamageTakenMultiplier(
             IEffectActorView target, double multiplier, EffectDuration? duration, string sourceEffectId) =>
-            bench.Record(nameof(AddDamageTakenMultiplier), target.Id, multiplier);
+            bench.Record(nameof(AddDamageTakenMultiplier), target.Id, multiplier, sourceEffectId, duration);
 
         public void AddPercentBucket(
             IEffectActorView holder, StatId stat, double fraction, EffectDuration? duration, string sourceEffectId)
         {
             bench.PercentBuckets.Add((holder.Id, stat, fraction));
-            bench.Record($"{nameof(AddPercentBucket)}:{stat}", holder.Id, fraction);
+            bench.Record($"{nameof(AddPercentBucket)}:{stat}", holder.Id, fraction, sourceEffectId, duration);
         }
     }
 
@@ -266,4 +321,50 @@ internal static class OpFixtures
             Value = value,
             Target = target,
         };
+
+    /// <summary>
+    /// A minimal well-formed effect for one op — the keys its `18` §2 row and its schema branch
+    /// require, and nothing more.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Shared by the resolver, seam and validation suites so that the three cannot disagree about
+    /// what an authorable effect of a given op looks like. Every shape here satisfies
+    /// <c>EffectOpValidation</c>, which
+    /// <c>EffectOpValidationTests.Every_exemplar_the_op_suites_share_is_well_formed</c> asserts.
+    /// </remarks>
+    internal static EffectDefinition Exemplar(
+        EffectOp op, string? id = null, EffectTarget? target = EffectTarget.CURRENT_TARGET)
+    {
+        var effect = Effect(id ?? $"EX_{op}", op, 1.0, target);
+
+        return op switch
+        {
+            EffectOp.STAT_ADD_FLAT or EffectOp.STAT_ADD_PCT or EffectOp.STAT_MULT or EffectOp.STAT_SET =>
+                effect with { Stat = StatSelector.Of(StatId.ATK) },
+
+            EffectOp.STAT_CONVERT =>
+                effect with { Stat = StatSelector.Of(StatId.DEF), ToStat = StatId.ATK },
+
+            EffectOp.STAT_CAP_OVERRIDE =>
+                effect with { Stat = StatSelector.Of(StatId.CRIT), CapKind = StatCapKind.STAT_MAX },
+
+            EffectOp.STAT_COPY => effect with { Stat = StatSelector.Of(StatId.CRIT) },
+
+            EffectOp.HEAL_LEECH => effect with { Value = 0.2 },
+
+            EffectOp.APPLY_STATUS or EffectOp.EXTEND_STATUS or EffectOp.IMMUNE_STATUS =>
+                effect with { StatusId = "BURN", Value = 2.0 },
+
+            EffectOp.REMOVE_STATUS => effect with { StatusId = "BURN" },
+
+            EffectOp.ATTACK_MULT_NEXT => effect with { Charges = 1 },
+            EffectOp.FORCE_CRIT_NEXT => effect with { Value = null, Charges = 1 },
+
+            EffectOp.SUMMON => effect with { Archetype = "SWARM", Value = 2.0 },
+
+            EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
+
+            _ => effect,
+        };
+    }
 }

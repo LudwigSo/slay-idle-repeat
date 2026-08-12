@@ -18,49 +18,40 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// </remarks>
 public sealed class EffectOpSeamTests
 {
-    /// <summary>Every `18` §2.2 op names M2-09 rather than resolving to nothing.</summary>
+    /// <summary>
+    /// Every `18` §2.2 op names <b>M2-09</b> rather than resolving to nothing.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The families are <b>enumerated</b>, not hand-listed. A hand-written <c>InlineData</c> list
+    /// is a subject set that silently loses a member: this suite shipped one short of §2.2 and one
+    /// short of §2.4 until the review counted them, so <c>HEAL_LEECH</c>'s and <c>STAT_COPY</c>'s
+    /// unwired paths were untested while the summary claimed "every op".
+    /// </remarks>
     [Theory]
-    [InlineData(EffectOp.DAMAGE)]
-    [InlineData(EffectOp.DAMAGE_TRUE)]
-    [InlineData(EffectOp.DAMAGE_MAXHP_PCT)]
-    [InlineData(EffectOp.HEAL)]
-    [InlineData(EffectOp.SHIELD)]
-    [InlineData(EffectOp.REFLECT)]
-    public void An_unwired_damage_or_healing_op_names_M2_09(EffectOp op)
-    {
-        var thrown = Should.Throw<EffectContextException>(() => Resolve(op));
+    [MemberData(nameof(DamageAndHealingOps))]
+    public void An_unwired_damage_or_healing_op_names_M2_09(EffectOp op) => Unwired(op, "M2-09");
 
-        thrown.Message.ShouldContain("M2-09", Case.Sensitive);
-        thrown.Message.ShouldContain(EffectContextException.Marker, Case.Sensitive);
-    }
-
-    /// <summary>Every `18` §2.3 op names M2-10.</summary>
+    /// <summary>Every `18` §2.3 op names <b>M2-10</b>.</summary>
     [Theory]
-    [InlineData(EffectOp.APPLY_STATUS)]
-    [InlineData(EffectOp.REMOVE_STATUS)]
-    [InlineData(EffectOp.EXTEND_STATUS)]
-    [InlineData(EffectOp.IMMUNE_STATUS)]
-    [InlineData(EffectOp.STATUS_POWER_PCT)]
-    [InlineData(EffectOp.STATUS_DURATION_PCT)]
-    public void An_unwired_status_op_names_M2_10(EffectOp op) =>
-        Should.Throw<EffectContextException>(() => Resolve(op))
-              .Message.ShouldContain("M2-10", Case.Sensitive);
+    [MemberData(nameof(StatusOps))]
+    public void An_unwired_status_op_names_M2_10(EffectOp op) => Unwired(op, "M2-10");
 
-    /// <summary>Every `18` §2.4 flow op names M2-08.</summary>
+    /// <summary>
+    /// Every `18` §2.4 op names <b>M2-08</b> — including <c>STAT_COPY</c>, whose unwired path is the
+    /// stat-snapshot reader rather than the flow sink.
+    /// </summary>
     [Theory]
-    [InlineData(EffectOp.EXTRA_ATTACK)]
-    [InlineData(EffectOp.ATTACK_MULT_NEXT)]
-    [InlineData(EffectOp.FORCE_CRIT_NEXT)]
-    [InlineData(EffectOp.REDUCE_COOLDOWN)]
-    [InlineData(EffectOp.SURVIVE_LETHAL)]
-    [InlineData(EffectOp.REVIVE)]
-    [InlineData(EffectOp.SUMMON)]
-    [InlineData(EffectOp.SET_TARGET_PRIORITY)]
-    [InlineData(EffectOp.DAMAGE_TAKEN_MULT)]
-    [InlineData(EffectOp.CLEAR_SUMMONS)]
-    public void An_unwired_combat_flow_op_names_M2_08(EffectOp op) =>
-        Should.Throw<EffectContextException>(() => Resolve(op))
-              .Message.ShouldContain("M2-08", Case.Sensitive);
+    [MemberData(nameof(CombatFlowOps))]
+    public void An_unwired_combat_flow_op_names_M2_08(EffectOp op) => Unwired(op, "M2-08");
+
+    /// <summary>`18` §2.2's seven, off the family classifier.</summary>
+    public static TheoryData<EffectOp> DamageAndHealingOps() => Family(EffectOpFamily.DAMAGE_AND_HEALING, 7);
+
+    /// <summary>`18` §2.3's six.</summary>
+    public static TheoryData<EffectOp> StatusOps() => Family(EffectOpFamily.STATUS, 6);
+
+    /// <summary>`18` §2.4's eleven.</summary>
+    public static TheoryData<EffectOp> CombatFlowOps() => Family(EffectOpFamily.COMBAT_FLOW, 11);
 
     /// <summary>`18` §1.1's <c>valueScale</c> still names M2-06 — M2-03 owns only the value mode.</summary>
     [Fact]
@@ -75,9 +66,11 @@ public sealed class EffectOpSeamTests
             ValueScale = new ValueScale { Fn = ConditionFunction.GOLD_HELD, Per = 100 },
         };
 
-        Should.Throw<EffectContextException>(
-                  () => EffectOpResolver.Resolve(scaled, bench.Context(EffectTestBattle.Context(hero, hero))))
-              .Message.ShouldContain("M2-06", Case.Sensitive);
+        var thrown = Should.Throw<EffectContextException>(
+            () => EffectOpResolver.Resolve(scaled, bench.Context(EffectTestBattle.Context(hero, hero))));
+
+        thrown.Message.ShouldContain("M2-06", Case.Sensitive);
+        thrown.Message.ShouldNotContain("M2-03", Case.Sensitive, "the name in the title is half the claim");
     }
 
     /// <summary>An effect with no value is refused rather than read as zero (steering S6).</summary>
@@ -93,9 +86,13 @@ public sealed class EffectOpSeamTests
             ValueMode = ValueMode.FLAT,
         };
 
-        Should.Throw<EffectContextException>(
-                  () => EffectOpResolver.Resolve(valueless, bench.Context(EffectTestBattle.Context(hero, hero))))
-              .Token.ShouldBe("PK_NO_VALUE");
+        var thrown = Should.Throw<EffectContextException>(
+            () => EffectOpResolver.Resolve(valueless, bench.Context(EffectTestBattle.Context(hero, hero))));
+
+        // S2 — the token alone is not the identity: the missing-value rule, the valueScale rule, the
+        // missing-target rule and every unwired seam all carry it.
+        thrown.Token.ShouldBe("PK_NO_VALUE");
+        thrown.Message.ShouldContain("with no value", Case.Sensitive);
     }
 
     /// <summary>
@@ -117,31 +114,59 @@ public sealed class EffectOpSeamTests
         bench.Calls.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// 🔒 S3 — every family is read off <see cref="EffectOps.FamilyOf"/> with a floor, so a member
+    /// cannot go missing from a theory without the count going red first.
+    /// </summary>
+    private static TheoryData<EffectOp> Family(EffectOpFamily family, int expected)
+    {
+        var ops = EffectOps.All.Where(op => EffectOps.FamilyOf(op) == family).ToArray();
+
+        ops.Length.ShouldBe(expected, $"18 §2 tabulates {expected} ops in {family}");
+
+        var data = new TheoryData<EffectOp>();
+        foreach (var op in ops)
+        {
+            data.Add(op);
+        }
+
+        return data;
+    }
+
+    /// <summary>Resolves one op against the strict seams and asserts the owner it names.</summary>
+    private static void Unwired(EffectOp op, string owner)
+    {
+        var thrown = Should.Throw<EffectContextException>(() => Resolve(op));
+
+        thrown.Message.ShouldContain(owner, Case.Sensitive);
+        thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
+    }
+
     private static void Resolve(EffectOp op)
     {
         var hero = EffectTestBattle.Hero();
         var enemy = EffectTestBattle.Enemy("EN_1", 1);
 
-        var effect = new EffectDefinition
-        {
-            Id = $"EX_{op}",
-            Op = op,
-            Value = op == EffectOp.FORCE_CRIT_NEXT ? null : 1.0,
-            Target = EffectTarget.CURRENT_TARGET,
-            // FLAT keeps the basis out of the assertion for the ops that admit it. The four that do
-            // not each take their own default — DAMAGE's value IS the multiplier, HEAL_LEECH reads
-            // the damage basis, DAMAGE_MAXHP_PCT and REVIVE are Max-HP fractions — so those are left
-            // unset rather than forced into a mode their own 18 §2 row rules out.
-            ValueMode = op is EffectOp.DAMAGE or EffectOp.HEAL_LEECH
-                             or EffectOp.DAMAGE_MAXHP_PCT or EffectOp.REVIVE
-                ? null
-                : ValueMode.FLAT,
-            StatusId = "BURN",
-            Charges = 1,
-            Archetype = "SWARM",
-        };
+        // 🔒 The SAME exemplar table the resolver and validation suites use, so the three cannot
+        //    disagree about what an authorable effect of a given op looks like — and so no exemplar
+        //    here carries a key the schema would reject.
+        var effect = OpFixtures.Exemplar(op);
 
-        var evaluation = EffectTestBattle.Context(hero, hero, enemy) with { CurrentTarget = enemy };
+        // FLAT keeps the basis out of the assertion for the ops that admit it. The four that do not
+        // each take their own default — DAMAGE's value IS the multiplier, HEAL_LEECH reads the damage
+        // basis, DAMAGE_MAXHP_PCT and REVIVE are Max-HP fractions — so those are left unset rather
+        // than forced into a mode their own 18 §2 row rules out.
+        if (op is not (EffectOp.DAMAGE or EffectOp.HEAL_LEECH
+                       or EffectOp.DAMAGE_MAXHP_PCT or EffectOp.REVIVE or EffectOp.FORCE_CRIT_NEXT))
+        {
+            effect = effect with { ValueMode = ValueMode.FLAT };
+        }
+
+        var evaluation = EffectTestBattle.Context(hero, hero, enemy) with
+        {
+            CurrentTarget = enemy,
+            Attacker = enemy,
+        };
 
         EffectOpResolver.Resolve(
             effect,

@@ -48,6 +48,9 @@ public sealed class StatCopyOpTests
             [("PET_WOLF", StatId.CRIT, 0.62)],
             "18 §2.4 copies the SOURCE's final resolved stat ONTO THE HOLDER — inverting it would " +
             "give the hero the pet's 0.0 crit, which is what PK_PACK_LEADER must not do");
+
+        // 🔒 "as a percent-bucket add FOR DURATION" — the bucket is not permanent.
+        bench.OnlyLifetime("AddPercentBucket:CRIT").Duration!.Scope.ShouldBe(DurationScope.BATTLE);
     }
 
     /// <summary>The <c>value</c> is a factor on the copied stat, not a replacement for it.</summary>
@@ -156,8 +159,14 @@ public sealed class StatCopyOpTests
 
         var evaluation = EffectTestBattle.Context(hero, hero, enemy) with { CurrentTarget = enemy };
 
-        Should.Throw<EffectContextException>(() => StatCopyOp.Resolve(group, bench.Context(evaluation)))
-              .Message.ShouldContain("copy fourteen", Case.Sensitive);
+        var thrown = Should.Throw<EffectContextException>(
+            () => StatCopyOp.Resolve(group, bench.Context(evaluation)));
+
+        // 🔒 The EFFECT id, not the op name — every other refusal in the layer names the effect, and
+        //    the review found this one throwing "STAT_COPY" instead, which is the one failure that
+        //    could not be traced back to a content row.
+        thrown.Token.ShouldBe("PK_X");
+        thrown.Message.ShouldContain("copy fourteen", Case.Sensitive);
 
         bench.PercentBuckets.ShouldBeEmpty();
     }

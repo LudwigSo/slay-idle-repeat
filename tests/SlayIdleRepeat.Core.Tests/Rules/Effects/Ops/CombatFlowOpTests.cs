@@ -22,7 +22,7 @@ public sealed class CombatFlowOpTests
         var evaluation = EffectTestBattle.Context(hero, hero, enemy) with { CurrentTarget = enemy };
         CombatFlowOps.ExtraAttack(flurry, bench.Context(evaluation));
 
-        bench.Calls.ShouldBe(["ExtraAttack(HERO->EN_1, 1)"], Case.Sensitive);
+        bench.Calls.ShouldBe(["ExtraAttack(HERO->EN_1, 1, PK_FLURRY_T1)"], Case.Sensitive);
     }
 
     /// <summary>A fractional count is refused: 1.9 extra attacks is not one, and not two.</summary>
@@ -61,7 +61,7 @@ public sealed class CombatFlowOpTests
         CombatFlowOps.AttackMultiplierCharges(opener, bench.Context(EffectTestBattle.Context(hero, hero)));
 
         bench.Calls.ShouldBe(
-            ["GrantAttackMultiplierCharges(HERO, 3)", "charges=1"],
+            ["GrantAttackMultiplierCharges(HERO, 3, PK_OPENER_T1)", "charges=1"],
             Case.Sensitive,
             "05 §4 consumes ATTACK_MULT_NEXT charges in ascending effect-id order, so both travel");
     }
@@ -139,7 +139,7 @@ public sealed class CombatFlowOpTests
 
         CombatFlowOps.ReduceCooldown(relentless, bench.Context(EffectTestBattle.Context(hero, hero, pet)));
 
-        bench.Calls.ShouldBe(["ReduceCooldowns(PET_STORMFANG, 0.15)"], Case.Sensitive);
+        bench.Calls.ShouldBe(["ReduceCooldowns(PET_STORMFANG, 0.15, TAL_RELENTLESS)"], Case.Sensitive);
     }
 
     /// <summary>
@@ -183,7 +183,7 @@ public sealed class CombatFlowOpTests
     /// a <c>FLAT</c> revive is refused rather than quietly meaning 1 HP.
     /// </summary>
     [Fact]
-    public void REVIVE_returns_at_a_fraction_of_max_HP_and_admits_no_other_mode()
+    public void REVIVE_returns_at_a_fraction_of_max_HP()
     {
         var hero = EffectTestBattle.Hero(currentHp: 0, maxHp: 1200);
         var bench = new OpTestBench();
@@ -192,12 +192,28 @@ public sealed class CombatFlowOpTests
         CombatFlowOps.Revive(revive, bench.Context(EffectTestBattle.Context(hero, hero)));
 
         bench.OnlyAmount("ArmRevive").ShouldBe(360.0);
+    }
 
-        var flat = revive with { Id = "PK_BAD_REVIVE", ValueMode = ValueMode.FLAT };
+    /// <summary>
+    /// 🔒 <c>REVIVE</c> admits no other mode. `18` §10's E4 was taken for <c>SURVIVE_LETHAL</c>
+    /// alone, so a <c>FLAT</c> revive is refused rather than quietly meaning 1 HP.
+    /// </summary>
+    [Fact]
+    public void REVIVE_admits_no_value_mode_but_the_max_HP_fraction_18_2_4_words()
+    {
+        var hero = EffectTestBattle.Hero(currentHp: 0, maxHp: 1200);
+        var bench = new OpTestBench();
+
+        var flat = OpFixtures.Effect("PK_BAD_REVIVE", EffectOp.REVIVE, 1.0) with
+        {
+            ValueMode = ValueMode.FLAT,
+        };
 
         Should.Throw<EffectContextException>(
                   () => CombatFlowOps.Revive(flat, bench.Context(EffectTestBattle.Context(hero, hero))))
               .Message.ShouldContain("does not admit valueMode FLAT", Case.Sensitive);
+
+        bench.Calls.ShouldBeEmpty();
     }
 
     /// <summary>A save that leaves the actor at 0 HP has not saved anybody.</summary>
@@ -229,7 +245,7 @@ public sealed class CombatFlowOpTests
 
         CombatFlowOps.Summon(summon, bench.Context(EffectTestBattle.Context(boss, boss)));
 
-        bench.Calls.ShouldBe(["Summon:SWARM(BOSS_THORNMAW, 2)", "maxAlive=3"], Case.Sensitive);
+        bench.Calls.ShouldBe(["Summon:SWARM(BOSS_THORNMAW, 2, BOSS_THORNMAW_P3_SWARM)", "maxAlive=3"], Case.Sensitive);
     }
 
     /// <summary>
@@ -246,7 +262,7 @@ public sealed class CombatFlowOpTests
 
         CombatFlowOps.ClearSummons(riseAgain, bench.Context(EffectTestBattle.Context(king, king)));
 
-        bench.Calls.ShouldBe(["ClearSummons(BOSS_OSSUARY_KING, 0)"], Case.Sensitive);
+        bench.Calls.ShouldBe(["ClearSummons(BOSS_OSSUARY_KING, 0, BOSS_OSSUARY_RISE_AGAIN)"], Case.Sensitive);
     }
 
     /// <summary>
@@ -277,11 +293,15 @@ public sealed class CombatFlowOpTests
         var bench = new OpTestBench();
 
         var stalwart = OpFixtures.Effect(
-            "PK_STALWART_T1", EffectOp.DAMAGE_TAKEN_MULT, 0.80, EffectTarget.SELF);
+            "PK_STALWART_T1", EffectOp.DAMAGE_TAKEN_MULT, 0.80, EffectTarget.SELF) with
+        {
+            Duration = new EffectDuration { Scope = DurationScope.BATTLE },
+        };
 
         CombatFlowOps.DamageTakenMultiplier(stalwart, bench.Context(EffectTestBattle.Context(hero, hero)));
 
         bench.OnlyAmount("AddDamageTakenMultiplier").ShouldBe(0.80);
+        bench.OnlyLifetime("AddDamageTakenMultiplier").Duration!.Scope.ShouldBe(DurationScope.BATTLE);
     }
 
     /// <summary>

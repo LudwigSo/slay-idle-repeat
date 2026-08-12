@@ -30,7 +30,17 @@ public sealed class StatusOpTests
 
         StatusOps.Apply(rage, bench.Context(EffectTestBattle.Context(hero, hero, first, second)));
 
-        bench.Calls.ShouldBe(["Apply:RAGE(EN_1, 0.3)", "Apply:RAGE(EN_2, 0.3)"], Case.Sensitive);
+        bench.Calls.ShouldBe(
+            [
+                "Apply:RAGE(EN_1, 0.3, BOSS_THORNMAW_P3_RAGE)",
+                "Apply:RAGE(EN_2, 0.3, BOSS_THORNMAW_P3_RAGE)",
+            ],
+            Case.Sensitive);
+
+        // 🔒 The 18 §6 block travels with the status. Without this the op could pass null and every
+        //    RAGE in the game would last a tick.
+        bench.Lifetimes.ShouldAllBe(l => l.Duration!.Seconds == 999 && l.Duration.Scope == DurationScope.BATTLE);
+        bench.Lifetimes.Count.ShouldBe(2, "ShouldAllBe passes on an empty collection");
     }
 
     /// <summary>`18` §1.1's <c>valueScale</c> is still refused by the strict reader — M2-06's half.</summary>
@@ -66,7 +76,7 @@ public sealed class StatusOpTests
 
         StatusOps.Remove(cleanse, bench.Context(EffectTestBattle.Context(hero, hero)));
 
-        bench.Calls.ShouldBe(["Remove:FREEZE(HERO, 0)"], Case.Sensitive);
+        bench.Calls.ShouldBe(["Remove:FREEZE(HERO, 0, PK_CLEANSE)"], Case.Sensitive);
     }
 
     /// <summary>
@@ -91,7 +101,7 @@ public sealed class StatusOpTests
 
         StatusOps.Remove(cleanse, bench.Context(EffectTestBattle.Context(hero, hero)));
 
-        bench.Calls.ShouldBe(["RemoveByTag:control(HERO, 0)"], Case.Sensitive);
+        bench.Calls.ShouldBe(["RemoveByTag:control(HERO, 0, PK_PURIFY)"], Case.Sensitive);
         EffectTagging.IsDrawback(cleanse).ShouldBeTrue("the author tag is untouched by the status form");
     }
 
@@ -175,7 +185,12 @@ public sealed class StatusOpTests
 
         StatusOps.GrantImmunity(immunity, bench.Context(EffectTestBattle.Context(hero, hero)));
 
-        bench.Calls.ShouldBe(["GrantImmunity:STUN(HERO, 0)"], Case.Sensitive);
+        bench.Calls.ShouldBe(["GrantImmunity:STUN(HERO, 0, PK_STEADFAST)"], Case.Sensitive);
+
+        // 🔒 IMMUNE_STATUS carries no magnitude at all — its ONLY number is how long the immunity
+        //    lasts, so a recorder that dropped the duration would leave this op with no numeric
+        //    assertion whatever.
+        bench.OnlyLifetime("GrantImmunity:STUN").Duration!.Seconds.ShouldBe(3.0);
     }
 
     /// <summary>
@@ -197,7 +212,7 @@ public sealed class StatusOpTests
             OpFixtures.Effect("PK_TENACITY", EffectOp.STATUS_DURATION_PCT, -0.35, EffectTarget.SELF), context);
 
         bench.Calls.ShouldBe(
-            ["ScaleOutgoingPower(HERO, 0.2)", "ScaleIncomingDuration(HERO, -0.35)"], Case.Sensitive);
+            ["ScaleOutgoingPower(HERO, 0.2, TAL_KINDLING)", "ScaleIncomingDuration(HERO, -0.35, PK_TENACITY)"], Case.Sensitive);
     }
 
     /// <summary>The three status-naming ops refuse an effect with no <c>statusId</c>.</summary>
