@@ -282,7 +282,14 @@ public sealed class BeginSessionIdempotenceTests
         // the marker on the way in.
         var nextDay = BeginSessions.Send(first.NewState, Worlds.NextDay(BeginSessions.Morning));
 
-        nextDay.Events.ShouldNotBeEmpty(
+        // 🔴 S1 — COUNTED BY REASON, not by "the list is not empty". Twenty-four hours is 360
+        // regeneration intervals, so GameRules.AdvanceTime publishes an energy_regen row whatever
+        // this handler does — A6 is explicit that the anchor moves and the row goes out even on a
+        // full tank. `ShouldNotBeEmpty` was therefore true of a handler that granted NOTHING, which
+        // is precisely the case this test exists to rule out. Third instance of the regen-interval
+        // trap on this branch.
+        nextDay.Events.Count(IsRefill).ShouldBe(
+            1,
             "a new game day pays the free refill again — 10 §3.1 authors it as daily, not as a " +
             "one-off, and 19 G's calendar runs a 28-day cycle that a once-ever grant could never " +
             "walk.");

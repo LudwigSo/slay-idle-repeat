@@ -93,6 +93,17 @@ public sealed class BeginSessionRefillTests
             "'to full' of a bar that is already full is ZERO (M1-10). The rival reading — top the " +
             "Reserve up too — makes this refill 400 rather than 120 and swings 10 §3.2's free-player " +
             "daily budget by about 2.3x.");
+
+        // 🔒 …AND THE ZERO-DELTA ROW IS PUBLISHED, NOT FILTERED — recorded assumption A6's ruling,
+        // one command on. This is the only fixture in the suite that produces a zero deficit, so
+        // without these three lines a handler carrying `if (delta == 0) return Accept();` passes
+        // every test in the repository. 21 §8.3 needs to see the refill was TAKEN: a missing row and
+        // a row of zero are the difference between "the player did not log in" and "the player
+        // logged in full", which is the engagement question the report answers.
+        var row = result.Events.OfType<CurrencyChanged>().ShouldHaveSingleItem();
+
+        row.Reason.ShouldBe(BeginSession.DailyRefillReason);
+        row.Delta.ShouldBe(0, "nothing moved — and the row says so, rather than being absent.");
     }
 
     // ---------------------------------------------------------------- 30 §7 · the attribution row

@@ -94,6 +94,12 @@ public sealed class PlayerRehydrateTests
     /// </remarks>
     [Theory]
     [InlineData(0)]
+
+    // 🔒 The version this build ORPHANS. M1-09 bumped 1 -> 2 with no migration, so a row stamped 1
+    // is real on-disk data this build cannot read — the exact case SnapshotSchema's history
+    // paragraph and SnapshotFieldOrder.json's preamble both claim is "refused loudly". Nothing
+    // asserted it until the M1-09 review asked.
+    [InlineData(SnapshotSchema.SchemaVersion - 1)]
     [InlineData(SnapshotSchema.SchemaVersion + 1)]
     [InlineData(int.MaxValue)]
     public void An_unknown_SchemaVersion_hard_fails_and_says_no_migration_exists(int schemaVersion)

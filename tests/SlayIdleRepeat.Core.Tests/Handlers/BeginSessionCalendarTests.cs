@@ -1,6 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Tests.Content;
+using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
@@ -116,31 +117,51 @@ public sealed class BeginSessionCalendarTests
     /// closest thing in M1 to what <b>M1-11</b> will do with a multi-day player.
     /// </para>
     /// <para>
+    /// 🔴 <b>The loop carries the AGGREGATE, not just the day number, and the first draft did
+    /// not.</b> It minted a fresh player at the day under test on every iteration, which made it 28
+    /// independent applications of <c>LoginCalendarTuning.DayAfter</c> — exactly the shape the
+    /// paragraph above claims it improves on, and already covered by the theory above. The state that
+    /// walks the cycle is now the same twenty-two snapshot fields throughout, so an implementation
+    /// that advanced correctly from a constructed day but disturbed the pointer on some other path
+    /// fails here.
+    /// </para>
+    /// <para>
     /// The claim between days is the rehydration door again, and it stands in for M4-09's
-    /// <c>CLAIM_CALENDAR</c>. What it must NOT do is skip the advance itself, which is why each step
-    /// goes through <c>Apply</c>.
+    /// <c>CLAIM_CALENDAR</c> — it rewrites <em>one</em> field of the player the previous command
+    /// returned. What it must NOT do is skip the advance itself, which is why each step goes through
+    /// <c>Apply</c>.
     /// </para>
     /// </remarks>
     [Fact]
     public void Twenty_eight_claimed_days_walk_the_whole_cycle_and_return_to_day_one()
     {
-        var day = LoginCalendarTuning.FirstDay;
+        var player = Worlds.Rehydrated(
+            PlayerSnapshots.With(
+                energyAnchorUtc: BeginSessions.Morning,
+                lastAppliedAtUtc: BeginSessions.Morning,
+                dailyPeriodStartUtc: BeginSessions.Today,
+                loginCalendarDay: LoginCalendarTuning.FirstDay,
+                loginCalendarDayClaimed: true));
+
         var at = BeginSessions.Morning;
         var seen = new List<int>();
 
         for (var i = 0; i < TuningDocuments.ShippedCycleDays; i++)
         {
-            seen.Add(day);
+            seen.Add(player.LoginCalendarDay);
 
-            // The player claims the open day (M4-09's command, stood in for by the persisted row),
-            // then the next game day's BEGIN_SESSION advances it.
-            var result = BeginSessions.Send(
-                BeginSessions.Slice(loginCalendarDay: day, loginCalendarDayClaimed: true),
-                at);
+            var result = BeginSessions.Send(new WorldSlice(player, null), at);
 
-            day = result.NewState.Player.LoginCalendarDay;
+            // The player claims the newly opened day (M4-09's CLAIM_CALENDAR, stood in for by the
+            // persisted row) — ONE field of the aggregate the command just returned, so everything
+            // else walks the cycle unchanged.
+            player = Worlds.Rehydrated(
+                result.NewState.Player.ToSnapshot() with { LoginCalendarDayClaimed = true });
+
             at = Worlds.NextDay(at);
         }
+
+        var day = player.LoginCalendarDay;
 
         seen.ShouldBe(
             Enumerable.Range(LoginCalendarTuning.FirstDay, TuningDocuments.ShippedCycleDays).ToArray(),

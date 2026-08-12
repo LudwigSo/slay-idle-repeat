@@ -102,13 +102,28 @@ public sealed class BeginSessionDrawSeamTests
     // ------------------------------------------------------------------ determinism in the seed
 
     /// <summary>
-    /// 🔒 The same seed produces the same result, byte for byte — asserted on the <c>stateHash</c>,
-    /// which is `14` §16.6's canonical encoding of the whole aggregate.
+    /// 🔒 Two applications of one seed produce one state, byte for byte — asserted on the
+    /// <c>stateHash</c>, which is `14` §16.6's canonical encoding of the whole aggregate.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The hash rather than a field-by-field comparison, because the claim is about <b>everything</b>
     /// the command wrote: a draw that landed in some field this test forgot to name would be exactly
     /// the non-determinism the assertion is for.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Today this is a guard against AMBIENT non-determinism — a clock read, a
+    /// <c>Guid.NewGuid()</c>, a <c>Random.Shared</c> — and not yet a claim about the seed</b>, and
+    /// the M1-09 review was right to ask. Its sibling
+    /// <see cref="Two_different_CommandSeeds_address_different_draws"/> asserts the hashes are equal
+    /// for two <em>different</em> seeds, because nothing is drawn yet, which makes "equal for the same
+    /// seed" trivially true as well. Both invert together at M4-09: on the commit that lands the
+    /// draws, this case starts distinguishing "deterministic in the seed" from "the seed is ignored",
+    /// and that one starts requiring two slates. It is kept rather than folded in because the ambient
+    /// guard is worth having on its own — `14` §8.1's ban on <c>System.Random</c> and
+    /// <c>DateTime.Now</c> is enforced by a grep, and a grep does not see a handler that read
+    /// <c>Player.Id.GetHashCode()</c>.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_same_CommandSeed_produces_the_same_state()

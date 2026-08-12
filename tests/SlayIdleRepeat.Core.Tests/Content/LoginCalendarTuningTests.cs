@@ -25,13 +25,39 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// </remarks>
 public sealed class LoginCalendarTuningTests
 {
-    /// <summary>🔒 The shipped cycle length is `19` G's 28 days.</summary>
-    [Fact]
-    public void The_shipped_cycle_is_twenty_eight_days()
+    /// <summary>
+    /// 🔒 The reader reads the pointer `19` G's cycle length is authored at — proved by moving the
+    /// value, not by agreeing with the fixture's own constant.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The first version of this case was a tautology and the M1-09 review caught it.</b> It
+    /// asserted <c>Read(Shipped).CycleDays == TuningDocuments.ShippedCycleDays</c> — and the fixture
+    /// authors the leaf <em>from</em> that same <c>const</c>, so both sides were one number and the
+    /// case could only fail if <c>ContentSnapshot.ReadInt32</c> broke. It said nothing about `19` G
+    /// and nothing about <c>game-data/</c>.
+    /// </para>
+    /// <para>
+    /// What is decidable <em>here</em> is that the reader is wired to the right pointer, so that is
+    /// what this asserts: author a value the shipped file does not carry and the reader must answer
+    /// it. That the shipped file carries <b>28</b>, and that 28 matches the twenty-eight authored
+    /// reward rows, is <c>SlayIdleRepeat.Application.Tests</c>'
+    /// <c>LoginCalendarTuningMatchesTuningDataTests</c>, which reads the real file — the half
+    /// <c>Core.Tests</c> cannot do and stay hermetic, and the half that was missing entirely.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(365)]
+    public void The_reader_answers_the_cycle_length_the_document_authors(int authored)
     {
-        LoginCalendarTuning.Read(TuningDocuments.Shipped).CycleDays.ShouldBe(
-            TuningDocuments.ShippedCycleDays,
-            "19 G authors a 28-day cycle; the fixture mirrors game-data/tuning/currencies.json.");
+        LoginCalendarTuning.Read(TuningDocuments.CurrenciesOnly(ContentValue.Number(authored)))
+            .CycleDays.ShouldBe(
+                authored,
+                "the reader must resolve currencies.json#/loginCalendar/cycleDays and answer what it " +
+                "finds there — not a number compiled into Core. 21 §3.1: a 📐 TUNABLE that is not in " +
+                "game-data/tuning/ is a bug.");
     }
 
     /// <summary>🔒 `19` G — the next day is the next one, and day 1 once the cycle is spent.</summary>

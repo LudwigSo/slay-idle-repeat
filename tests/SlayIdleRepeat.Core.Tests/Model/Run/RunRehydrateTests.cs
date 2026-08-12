@@ -89,6 +89,11 @@ public sealed class RunRehydrateTests
     /// </remarks>
     [Theory]
     [InlineData(0)]
+
+    // 🔒 The version M1-09 orphans — see PlayerRehydrateTests' case of the same name. RunSnapshot's
+    // own layout did not move at that bump, which is the point: the pin is per VERSION, so a v1
+    // RunSnapshot is unreadable too.
+    [InlineData(SnapshotSchema.SchemaVersion - 1)]
     [InlineData(SnapshotSchema.SchemaVersion + 1)]
     [InlineData(int.MaxValue)]
     public void An_unknown_SchemaVersion_hard_fails_and_says_no_migration_exists(int schemaVersion)

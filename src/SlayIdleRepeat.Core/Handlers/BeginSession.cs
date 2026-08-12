@@ -201,7 +201,7 @@ internal static class BeginSession
         // DomainPurityTests.A_currency_event_is_never_discarded_at_its_call_site fails the build for
         // a producer whose return is popped, and M1-08 proved the softer failure — a row constructed,
         // satisfied by the IL rule, and never reaching CommandResult.Events — leaves 62/62 green.
-        // BeginSessionEventTests asserts it actually arrives.
+        // BeginSessionRefillTests asserts it actually arrives.
         //
         // ⚠️ ZERO-DELTA IS PUBLISHED, NOT FILTERED, and it is the same call as recorded assumption
         // A6. A player who logs in with a full bar receives a deficit of zero, and the CurrencyChanged
