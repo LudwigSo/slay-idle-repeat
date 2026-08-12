@@ -109,6 +109,17 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — the exemption arm of the rule; " +
             "Domain.PublicRuleTypes names it and nothing else pins that name"),
 
+        // 🔒 Not a rule subject — a DEFERRAL, recorded in the one register the repo has so that it
+        // expires by itself (steering S4). `18` §4 types the TIER condition "enum" and no tier enum
+        // exists anywhere in the repository; `02` §2's runSeed derivation is the only place tierId is
+        // even named. Steering S6 forbids inventing the members, so M2-05's IRunStateView.Tier ships
+        // as the tier's ORDINAL, which is what a numeric ConditionTerm can actually compare against.
+        // The milestone that declares the enum is not yet assigned; when it does, this entry fails
+        // and whoever added the type has to decide whether IRunStateView.Tier should become it.
+        new("Tier", SubjectKind.CoreType, "unassigned — difficulty tiers",
+            "SlayIdleRepeat.Core.Rules.Effects.IRunStateView.Tier, which ships as an int ordinal " +
+            "because 18 §4's 'enum' has no declared type to name"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -151,7 +162,8 @@ public sealed class SubjectSetFloorTests
         // branch. Whichever milestone merges first wins; the loser's entry is a duplicate to delete,
         // not a second subject. Recorded so the M1+M2 merge does not read it as a conflict of substance.
         new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M2-15",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_" +
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, AccessibilityBoundaryTests." +
+            "Core_internal_layering_holds, IsolationTests.Entitlements_are_" +
             "unreachable_from_the_rules_and_the_power_computation"),
 
         // 🔒 Tracked SEPARATELY from Domain.RulesNamespace, and it has to be.
@@ -174,6 +186,25 @@ public sealed class SubjectSetFloorTests
         // Core/Rules/Stats/ that left Core/Rules/ non-empty would leave the entry above satisfied.
         new(Domain.StatsRulesNamespace, SubjectKind.CoreNamespace, "M2-07",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal (the 05 §1-2 stat block and the 18 §8 aggregation)"),
+
+
+        // 🔒 The two evaluators, tracked by NAME as well as by namespace. The count floors below are
+        // not enough on their own: ConditionEvaluationTypeFloor is 1, and moving ConditionEvaluator
+        // one directory up would leave ConditionArguments — a three-field record struct — satisfying
+        // it while both purity rules quantified over nothing but that. These entries are what turn
+        // the move into a build failure instead of two permanently green rules.
+        new("ConditionEvaluator", SubjectKind.CoreType, "M2-05",
+            "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
+            "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
+        new("TargetResolver", SubjectKind.CoreType, "M2-05",
+            "ConditionPurityRuleTests.The_18_5_target_resolver_holds_no_writable_static_state"),
+
+        // Governed by ConditionPurityRuleTests.ReachedByAConditionByName, which is a hard-coded full
+        // name: rename this type and the condition rules stop covering the shared roster predicate
+        // that ENEMY_COUNT and every 18 §5 enemy token read through, with nothing going red.
+        new("BattleRoster", SubjectKind.CoreType, "M2-05",
+            "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
+            "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
@@ -222,6 +253,16 @@ public sealed class SubjectSetFloorTests
     // test edit.
     private const int OrderingCallSiteFloor = 10;
 
+    // ConditionPurityRuleTests (M2-05) is stated over the types under
+    // SlayIdleRepeat.Core.Rules.Effects.Conditions — a namespace FILTER, which is the shape this
+    // whole file exists to watch. Rename the folder, move the evaluator one directory up, or let
+    // M2-06 fold it into a neighbouring namespace, and both of that file's rules report success over
+    // nothing while 18 §4's "pure functions of current state" goes unguarded. There were 2 types on
+    // the commit the rules landed (ConditionEvaluator, ConditionArguments); the floor is 1, because
+    // the claim being made is that the namespace still REACHES the evaluator, not that it holds a
+    // particular number of helpers.
+    private const int ConditionEvaluationTypeFloor = 1;
+
     /// <summary>
     /// `23` §6 — the subject sets these rules quantify over are the ones they were written
     /// against. Pins a floor under every set whose emptiness would be reported as success:
@@ -253,6 +294,19 @@ public sealed class SubjectSetFloorTests
             "StringOrderingRuleTests.No_production_code_orders_strings_with_the_default_comparer is stated over them. " +
             "An empty set means nothing is stopping a bare OrderBy(x => x.Id) from putting the ambient collation back " +
             "into 18 §8's effect-id order.");
+
+        Floor(offenders, "types under " + ConditionPurityRuleTests.ConditionsNamespace,
+            ConditionPurityRuleTests.SubjectCount, ConditionEvaluationTypeFloor,
+            "ConditionPurityRuleTests' two rules — A_condition_never_draws_and_never_reads_a_clock and " +
+            "A_condition_never_mutates_anything — are stated over them. An empty set means the 18 §4 " +
+            "evaluator has moved out of that namespace and nothing is stopping the next edit from " +
+            "memoising a reading or drawing inside a condition.");
+
+        Floor(offenders, "types under " + ConditionPurityRuleTests.TargetingNamespace,
+            ConditionPurityRuleTests.TargetSubjectCount, ConditionEvaluationTypeFloor,
+            "ConditionPurityRuleTests.The_18_5_target_resolver_holds_no_writable_static_state is stated " +
+            "over them. An empty set means the 18 §5 resolver has moved and nothing is stopping the " +
+            "next edit from caching a candidate list that is wrong on the next death.");
 
         Floor(offenders, "ports under " + Domain.PortsNamespace, Domain.Ports.Count, PortFloor,
             "DependencyRuleTests.Every_port_has_at_least_two_implementations and No_port_signature_exposes_a_vendor_type " +
