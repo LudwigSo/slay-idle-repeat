@@ -40,9 +40,36 @@ internal static class GameCalendar
     /// 🔒 The UTC time of day every game day begins at: <b>05:00</b> (`30` §2.3).
     /// </summary>
     /// <remarks>
-    /// Not a 📐 tunable. `30` §2.3 writes 05:00 UTC into the reset rule itself — <em>"quest expiry,
-    /// the wheel's free spin, ad caps and dungeon entries all reset at 05:00 UTC whether or not
-    /// anyone logs in"</em> — and no <c>tuning/</c> document authors it as a dial.
+    /// <para>
+    /// Not a 📐 tunable. `30` §2.3 writes 05:00 UTC into the reset <em>rule</em> itself —
+    /// <em>"quest expiry, the wheel's free spin, ad caps and dungeon entries all reset at 05:00 UTC
+    /// whether or not anyone logs in"</em> — so it is the boundary the design is written against
+    /// rather than a dial someone turns, and `21` §3.1's build check enumerates 📐 markers against
+    /// schema keys, of which this has none.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>But it is <em>not</em> true that no <c>tuning/</c> document mentions this instant, and
+    /// saying so would be a claim a reader can falsify in one grep.</b> Four authored keys carry it
+    /// today: <c>dungeons.json</c>'s <c>entries.refreshUtc</c>, <c>events.json</c>'s
+    /// <c>calendar.startEndUtc</c>, <c>guilds.json</c>'s <c>quests.drawUtc</c> — all
+    /// <c>"05:00"</c> — and <c>guilds.json</c>'s <c>boss.weekStartUtc</c>, <c>"Monday 05:00"</c>,
+    /// which is <see cref="WeekStart"/> as well. Each of those is <em>its own system's</em> dial
+    /// (`25`, `26` §8, `27` §3/§4) and none of them is the game calendar; nothing in `Core` reads
+    /// any of them, and nothing can — <c>Primitives</c> may not name <c>Content</c>
+    /// (<c>Core_internal_layering_holds</c>), so a calendar that read a tuning document could not
+    /// live at the one layer both <c>Model</c> and <c>Rules</c> can see, which is the whole reason
+    /// this type is here.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The consequence, stated rather than discovered later.</b> Those four keys and this
+    /// constant are two spellings of one instant with nothing checking that they agree — the same
+    /// drift this type exists to remove from <c>Core</c>, one boundary further out. It is not
+    /// M1-08's to close: the drift becomes reachable on the commit that first <em>reads</em> one of
+    /// them, which is M4-09 (the guild/dungeon dailies) and M13-01 (the event windows), and closing
+    /// it needs a ruling on which side is authoritative — a `21` §3.1 amendment making the reset
+    /// hour a schema key the calendar is validated against, or a `30` §2.3 amendment saying the
+    /// tuning keys merely restate the rule. Whoever rules, rules at that milestone's kickoff.
+    /// </para>
     /// </remarks>
     internal static readonly TimeSpan DayStart = TimeSpan.FromHours(5);
 
@@ -50,6 +77,11 @@ internal static class GameCalendar
     /// 🔒 The weekday every game week begins on: <b>Monday</b> (milestone assumption <b>A2</b>,
     /// derived from `27` §4).
     /// </summary>
+    /// <remarks>
+    /// ⚠️ `27` §4 also authors this as data — <c>guilds.json</c>'s <c>boss.weekStartUtc</c>, the
+    /// literal <c>"Monday 05:00"</c>. See <see cref="DayStart"/>'s remarks for why that key is the
+    /// guild boss cadence's dial rather than this constant's, and for who owns reconciling the two.
+    /// </remarks>
     internal const DayOfWeek WeekStart = DayOfWeek.Monday;
 
     /// <summary>

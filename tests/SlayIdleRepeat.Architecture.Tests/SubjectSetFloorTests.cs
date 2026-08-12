@@ -80,9 +80,24 @@ public sealed class SubjectSetFloorTests
         // Moved out of Pending by M1-01 rather than deleted: Every_rule_subject_is_present_or_
         // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these
         // two lists, so a namespace that has arrived is TRACKED here, not dropped. Primitives is
-        // the bottom layer of Core_internal_layering_holds' five-row table — the row that forbids
-        // it from naming Content, Rng, Model, Rules or Handlers was quantifying over nothing until
-        // this commit.
+        // the bottom layer of Core_internal_layering_holds' forbidden-pair table — the row that
+        // forbids it from naming Content, Rng, Model, Rules or Handlers was quantifying over
+        // nothing until this commit.
+        //
+        // 🔒 M1-08 corrected two facts in the sentence above rather than leaving them to rot (S4's
+        // known limit, which this milestone has now hit three times). The table is SIX rows, not
+        // five: M1-06 added the Commands row, and it added Commands to this row's forbidden list at
+        // the same time — so what Primitives may not name is Content, Rng, Model, Rules, Commands
+        // or Handlers. Both halves were re-derived from the table itself, not from this comment.
+        //
+        // 🔒 M1-08 also made this row's subject set load-bearing in a way it had not been. It landed
+        // Primitives/GameCalendar — 30 §2.3's 05:00 UTC day and Monday week — precisely BECAUSE
+        // Primitives is the one layer both Model and Rules can see, so Player's boundary invariants
+        // and GameRules.AdvanceTime's boundary computation read one definition instead of two
+        // transcriptions. That placement is only sound while this row is awake: a Primitives type
+        // that reached Content for a tuning value, or reached the Core root for GameContext, is
+        // exactly what the row forbids, and the calendar's own remarks cite it as the reason it
+        // cannot read a tuning document.
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
 
@@ -113,10 +128,22 @@ public sealed class SubjectSetFloorTests
         // EmitsCurrencyChanged answer false for every emission and turn the now-live rule into a
         // wall of false failures — or, if the field predicate were renamed in the same commit,
         // permanently green with no other test noticing.
+        //
+        // 🔒 M1-08 put a SECOND rule on this same name and it is recorded here rather than left for
+        // the next reader to discover: A_currency_event_is_never_discarded_at_its_call_site matches
+        // Domain.CurrencyChangedEvent against a CALL'S RETURN TYPE (and the set of Core methods
+        // that return one) where the older rule matches it against a newobj. ⚠️ The failure mode is
+        // the OPPOSITE of this file's usual one, which is why it is worth writing down: renaming the
+        // event without renaming the constant empties that rule's producer set, and it goes RED —
+        // Assert.NotEmpty plus an identity floor naming Player::MoveCurrency, Player::SetEnergy,
+        // Player::AccrueEnergy and Run::MoveCurrency — rather than going quiet. Tracked all the same,
+        // because the row is what tells whoever does the rename which rules they have just moved.
         new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (LIVE since M1-04 declared " +
             "Player._wallet; this pins the event name the IL scan looks for when deciding whether a " +
-            "currency write emitted anything)"),
+            "currency write emitted anything), DomainPurityTests." +
+            "A_currency_event_is_never_discarded_at_its_call_site (M1-08 — the same name, matched on a " +
+            "call's RETURN type rather than on a newobj)"),
 
         // Tracked because two rules key on this exact simple name: Domain.IsDomainEvent (the
         // CurrencyFields() exclusion) and Contracts_never_redeclares_a_domain_type's derivation
@@ -210,7 +237,9 @@ public sealed class SubjectSetFloorTests
         new("Player", SubjectKind.CoreType, "M1-04",
             "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the aggregate half, live " +
             "from this commit — before it, the rule's subject set was empty while the Model namespace " +
-            "was not)"),
+            "was not), DomainPurityTests.A_currency_event_is_never_discarded_at_its_call_site (M1-08 " +
+            "names Player::MoveCurrency, Player::SetEnergy and Player::AccrueEnergy in its identity " +
+            "floor, so a rename of the aggregate turns that rule red rather than quiet)"),
 
         // And the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests, whose subject set was empty
         // until PlayerSnapshot. It is tracked HERE as well as by its own floor because the pin lives
@@ -233,7 +262,9 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the aggregate half — Player " +
             "was its only subject until this commit), DomainPurityTests." +
             "Every_currency_mutation_emits_CurrencyChanged (Run::_wallet is the second currency field " +
-            "in the repository and has its own floor row in that rule)"),
+            "in the repository and has its own floor row in that rule), DomainPurityTests." +
+            "A_currency_event_is_never_discarded_at_its_call_site (M1-08 names Run::MoveCurrency in " +
+            "its identity floor)"),
 
         // And the field-order pin's second record. Tracked HERE as well as by its own floor because
         // the pin lives in a different suite: making RunSnapshot internal, nesting it, or moving it

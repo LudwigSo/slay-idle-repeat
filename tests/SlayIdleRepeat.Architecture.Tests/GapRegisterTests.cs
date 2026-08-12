@@ -307,6 +307,35 @@ public sealed class GapRegisterTests
                 "ends in 'Command' and none of them is the abstract base. Core/Commands/ also holds " +
                 "GameCommand and CommandPayload, and either would satisfy the count and the " +
                 "undeclared check while quietly taking a real row's place.");
+
+        // 🔒 M1-08. The floor under `30` §2.3's transcription, on the M1-02 and M1-05 pattern and
+        // for the reason those two record: a literal, never the transcription's own Count.
+        //
+        // ⚠️ It is NOT redundant with the unanchored direction, which is the first thing a reader
+        // checks. Unanchored fires on a subject that leaves this list while its Deferred entry
+        // stays — so trimming the transcription ALONE is already red. What nothing else catches is
+        // the edit that removes a subject from BOTH lists at once: Expired is silent (the type
+        // still does not exist), Undeclared is silent (nothing asks for it any more), Unanchored is
+        // silent (no entry is left dangling), and the boundary 30 §2.3 specifies is then deferred
+        // by nobody with the whole suite green. That is the shape this file's other floors exist
+        // for, and it is the one direction a register cannot notice about itself.
+        var catchUpBoundaries = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("30 §2.3", StringComparison.Ordinal));
+
+        catchUpBoundaries.Subjects.Count.ShouldBe(
+            3,
+            "30 §2.3 enumerates five catch-up boundaries — Energy regeneration accrual, the 05:00 UTC " +
+            "daily resets, weekly boundaries, Plus expiry, event-window state. M1-08 BUILT three of " +
+            "them (the accrual, the daily reset mechanism with the ad caps, dungeon entries and wheel " +
+            "free spin that hang off it, and the weekly boundary), RULED Plus expiry off (12 §2.1 puts " +
+            "entitlement on the session, so there is no aggregate state to roll forward), and this " +
+            "transcription is the remainder: the two items inside the daily-reset parenthetical that " +
+            "act on state nobody has authored — quest expiry and daily-shop stock expiry — plus the " +
+            "whole of event-window state. So every one of the five is accounted for: three built, one " +
+            "ruled off, one deferred outright, and the deferred half of a built one. If this shrinks, " +
+            "the dropped boundary is deferred by nobody.");
+
+        catchUpBoundaries.Namespace.ShouldBe(Domain.ModelNamespace);
     }
 
     /// <summary>
