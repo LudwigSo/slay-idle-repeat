@@ -1,3 +1,4 @@
+using System.Globalization;
 using Shouldly;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
@@ -173,6 +174,64 @@ public sealed class CurrencyChangedTests
         first.ShouldNotBe(new CurrencyChanged(4, CurrencyId.GOLD, 100, "daily_login"));
         first.ShouldNotBe(new CurrencyChanged(4, CurrencyId.CROWNS, 101, "daily_login"));
         first.ShouldNotBe(new CurrencyChanged(4, CurrencyId.CROWNS, 100, "Daily_Login"));
+    }
+
+    /// <summary>
+    /// 🔒 `14` §8.2 — the event renders identically under every culture, and a <b>negative</b>
+    /// delta is what makes that a real claim.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Carried-forward item 9, closed by M1-06. A record's <em>synthesized</em> <c>PrintMembers</c>
+    /// appends every member through <c>StringBuilder.Append(object)</c>, which formats with the
+    /// <b>ambient</b> culture: under <c>sv-SE</c> a delta of −10 renders with U+2212 MINUS SIGN,
+    /// against U+002D HYPHEN-MINUS in the CI container. The boxing hides that from
+    /// <c>AmbientApiTests.Core_and_Application_contain_no_culture_sensitive_formatting</c>, whose IL
+    /// scan matches a call whose declaring type is <c>System.Int64</c>.
+    /// </para>
+    /// <para>
+    /// 🔒 Swedish rather than German, and that is the whole point of the fixture: <c>de-DE</c>
+    /// renders a negative integer with an ordinary hyphen, so a test written against it would pass
+    /// on the synthesized <c>PrintMembers</c> and prove nothing. The sign character is asserted
+    /// explicitly for the same reason.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ToString_renders_identically_under_any_culture()
+    {
+        var swedish = new CultureInfo("sv-SE");
+
+        (-10L).ToString(swedish).ShouldNotBe(
+            (-10L).ToString(CultureInfo.InvariantCulture),
+            "this assertion is only meaningful if the runtime actually has a Swedish culture. Under " +
+            "globalization-invariant mode new CultureInfo(\"sv-SE\") silently returns the invariant " +
+            "culture, and the comparison below would then hold over nothing.");
+
+        var spend = new CurrencyChanged(2, CurrencyId.GOLD, -10L, "shrine_purchase");
+
+        Render(spend, swedish).ShouldBe(Render(spend, CultureInfo.InvariantCulture));
+
+        Render(spend, CultureInfo.InvariantCulture)
+            .ShouldContain("Sequence = 2, Id = GOLD, Delta = -10, Reason = shrine_purchase", Case.Sensitive);
+
+        Render(spend, swedish).ShouldNotContain("−", Case.Sensitive,
+            "U+2212 MINUS SIGN is what sv-SE renders a negative integer with. If it appears here the " +
+            "hand-written PrintMembers is gone and the synthesized one is back.");
+    }
+
+    private static string Render(CurrencyChanged evt, CultureInfo culture)
+    {
+        var previous = CultureInfo.CurrentCulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = culture;
+            return evt.ToString();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
     }
 
     /// <summary>The `10` §1 wallet, read off the enum rather than transcribed.</summary>

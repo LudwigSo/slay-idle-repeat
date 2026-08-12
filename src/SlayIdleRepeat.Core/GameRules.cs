@@ -129,13 +129,39 @@ public static class GameRules
     /// aggregate does not round-trip through its own snapshot, a handler hand-wrote an RNG stream
     /// position, or a handler stamped an event's <c>Sequence</c> itself.
     /// </exception>
-    public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context)
+    public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>
+        Execute(Dispatch, state, command, context);
+
+    /// <summary>
+    /// <see cref="Apply"/>'s body, over an explicit dispatch table.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Parameterised for the reason <c>GapRegister.Expired(entries)</c> and
+    /// <c>SnapshotFieldOrderPin.Violations(...)</c> are</b>: the domain suite has to drive these
+    /// rules against shapes that must <b>never</b> be committed to <c>Core</c> — a handler that
+    /// hand-writes an RNG counter, a handler that stamps its own <c>Sequence</c>, a command whose
+    /// system does not exist. Against the real table, which is empty until M1-02 lands the
+    /// vocabulary, every one of those rules would be asserted over nothing and would report success
+    /// forever (steering <b>S3</b>).
+    /// </para>
+    /// <para>
+    /// ⚠️ It is <c>internal</c> and it is not a second entry point. `30` §11.2's <em>"the only public
+    /// way to change state in this game is <c>GameRules.Apply</c>"</em> is unchanged and still
+    /// mechanically checked — <c>Apply_is_the_only_public_mutation</c> requires every method named
+    /// <c>Apply</c> to be public and static, and <c>InternalsVisibleTo</c> reaches exactly one
+    /// assembly (`30` §11.3).
+    /// </para>
+    /// </remarks>
+    internal static CommandResult Execute(
+        CommandDispatch dispatch, WorldSlice state, GameCommand command, GameContext context)
     {
+        ArgumentNullException.ThrowIfNull(dispatch);
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(context);
 
-        var registration = Dispatch.For(command.GetType());
+        var registration = dispatch.For(command.GetType());
 
         // 🔒 P3 (total). An unregistered command type does NOT throw — it is refused, with the
         // domain-tier catch-all. 14 §16.2's UNKNOWN_COMMAND_TYPE is a TRANSPORT value: the server
