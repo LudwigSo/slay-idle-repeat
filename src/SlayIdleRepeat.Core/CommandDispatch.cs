@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using SlayIdleRepeat.Core.Commands;
 
 namespace SlayIdleRepeat.Core;
@@ -45,9 +44,6 @@ internal sealed class CommandDispatch
     /// the M5 wire envelope will read it rather than declare a second table.
     /// </remarks>
     internal IReadOnlyDictionary<string, Type> TypesByWireName { get; }
-
-    /// <summary>Every registration, in the order it was declared.</summary>
-    internal IReadOnlyList<CommandRegistration> Registrations => _byType.Values.ToArray();
 
     internal CommandDispatch() =>
         TypesByWireName = new WireNameView(_byWireName);
@@ -140,21 +136,29 @@ internal sealed class CommandDispatch
                 "TTL moves, so an undefined one is not a default to fall back on.");
         }
 
-        if (!_byType.TryAdd(registration.CommandType, registration))
+        // 🔒 BOTH refusals run before EITHER index is written — the same construction, and the same
+        // reason, as Run.CommitStreamPositions. A row that added itself by type and then threw on
+        // its wire name would leave the table half registered, which matters wherever the throw is
+        // caught rather than fatal: the domain suite builds tables, asserts the refusal, and keeps
+        // using the table.
+        if (_byType.ContainsKey(registration.CommandType))
         {
             throw new InvalidOperationException(
                 registration.CommandType.FullName + " is registered twice. 30 §2.2 puts one handler " +
                 "behind one command; two rows would make which rule runs depend on declaration order.");
         }
 
-        if (!_byWireName.TryAdd(registration.WireName, registration))
+        if (_byWireName.TryGetValue(registration.WireName, out var claimant))
         {
             throw new InvalidOperationException(
                 "The wire name '" + registration.WireName + "' is registered twice — by " +
-                _byWireName[registration.WireName].CommandType.FullName + " and by " +
-                registration.CommandType.FullName + ". 14 §2.3 is ONE vocabulary: two types claiming " +
-                "one name make the envelope ambiguous in both directions.");
+                claimant.CommandType.FullName + " and by " + registration.CommandType.FullName +
+                ". 14 §2.3 is ONE vocabulary: two types claiming one name make the envelope " +
+                "ambiguous in both directions.");
         }
+
+        _byType.Add(registration.CommandType, registration);
+        _byWireName.Add(registration.WireName, registration);
 
         return this;
     }

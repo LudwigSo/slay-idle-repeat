@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
@@ -85,6 +86,16 @@ public static class GameRules
     /// </para>
     /// </remarks>
     private static readonly CommandDispatch Dispatch = new();
+
+    /// <summary>
+    /// The shared empty event list. It is what an accepted command that produced nothing returns, so
+    /// the no-op path allocates nothing — and, less obviously, it is what stops <see cref="Stamp"/>
+    /// handing a <b>handler's own</b> empty list on as the result's: a handler that returned a
+    /// <c>List&lt;DomainEvent&gt;</c> it still holds could otherwise append to
+    /// <c>CommandResult.Events</c> after <c>Apply</c> returned.
+    /// </summary>
+    private static readonly ReadOnlyCollection<DomainEvent> NoEvents =
+        Array.AsReadOnly(Array.Empty<DomainEvent>());
 
     /// <summary>
     /// 🔒 Every registered command type, by the `14` §2.3 wire name its dispatch row declares — the
@@ -199,9 +210,23 @@ public static class GameRules
             ? new RunRngScope(working.Run!.RunSeed, working.Run.RngStreamPositions)
             : null;
 
+        // 🔒 The baseline FoldRngPositions compares against, read HERE: after the clone and the
+        // catch-up, and before the handler. Run.RngStreamPositions is a frozen view that
+        // CommitStreamPositions replaces wholesale, so this reference is the positions as they stood
+        // the instant before the handler ran — which makes "these two differ" mean exactly one
+        // thing, that the HANDLER called that seam. Reading it off the caller's run instead would
+        // also be reading it from before AdvanceTime, and would name the handler for a write M1-08's
+        // catch-up had made.
+        var committedPositions = working.Run?.RngStreamPositions;
+
         var handled = registration.IsHandled
             ? registration.Handler!(command, new HandlerInput(working, context, rng))
-            : Unimplemented(registration);
+
+            // A command whose row exists but whose SYSTEM arrives in a later milestone. See
+            // CommandDispatch.Deferred for why this is ILLEGAL_STATE rather than a new 14 §16.2
+            // value, and why registration.DeferredTo is mirrored by a GapRegister entry that makes
+            // the deferral expire by itself.
+            : HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
 
         if (!handled.Accepted)
         {
@@ -211,7 +236,7 @@ public static class GameRules
             return CommandResult.Reject(handled.Rejection!.Value, state);
         }
 
-        FoldRngPositions(state.Run, working.Run, rng, registration);
+        FoldRngPositions(committedPositions, working.Run, rng, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
         return CommandResult.Accept(working, Stamp(handled.Events));
@@ -313,13 +338,22 @@ public static class GameRules
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Why the comparison is against the <em>caller's</em> run.</b> The working copy starts life
-    /// with exactly the positions the caller's run carries, and <c>Run.CommitStreamPositions</c> is
-    /// the only thing that can change them. So a difference here means one thing only: the handler
-    /// called that seam itself. That is a determinism defect rather than a rejection — the scope's
-    /// positions and the hand-written ones disagree about how many draws this command took, and
-    /// whichever is stored, some later draw repeats a sequence the player has already played
-    /// (`14` §8.1).
+    /// <b>What the comparison is against.</b> <paramref name="committed"/> is the working run's own
+    /// position map, read the instant before the handler ran, and
+    /// <c>Run.CommitStreamPositions</c> is the only thing that can change it. So a difference here
+    /// means one thing only: the handler called that seam itself. That is a determinism defect
+    /// rather than a rejection — the scope's positions and the hand-written ones disagree about how
+    /// many draws this command took, and whichever is stored, some later draw repeats a sequence the
+    /// player has already played (`14` §8.1).
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The check runs for a <c>CommandKind.Meta</c> command too; only the fold is a run
+    /// command's.</b> A meta command is dispatched perfectly happily with a run in the slice — a
+    /// player can open the shop without leaving — and <c>HandlerInput.Run</c> hands it that run. It
+    /// has no scope to fold (`30` §3 puts out-of-run draws on <c>GameContext.CommandSeed</c> with no
+    /// persisted counter), but it can still reach <c>CommitStreamPositions</c>, and a check that
+    /// returned early on a null scope would have left exactly that route to a silently
+    /// unreproducible run open.
     /// </para>
     /// <para>
     /// ⚠️ M1-05's seam already refuses the <em>partial</em> version of the same mistake: it takes the
@@ -333,18 +367,25 @@ public static class GameRules
     /// caught: there is nothing for a handler to forget.
     /// </para>
     /// </remarks>
+    /// <param name="committed">
+    /// The working run's stream positions as they stood before the handler ran, or <c>null</c> when
+    /// the slice carries no run.
+    /// </param>
+    /// <param name="working">The run the handler was given, or <c>null</c> when the slice carries none.</param>
+    /// <param name="rng">The scope this command drew through, or <c>null</c> for a meta command.</param>
+    /// <param name="registration">The dispatch row, for the message.</param>
     private static void FoldRngPositions(
-        Run? original, Run? working, RunRngScope? rng, CommandRegistration registration)
+        IReadOnlyDictionary<string, ulong>? committed,
+        Run? working,
+        RunRngScope? rng,
+        CommandRegistration registration)
     {
-        if (rng is null || working is null)
+        if (working is null || committed is null)
         {
             return;
         }
 
-        var committed = original!.RngStreamPositions;
-        var carried = working.RngStreamPositions;
-
-        if (!SamePositions(committed, carried))
+        if (!SamePositions(committed, working.RngStreamPositions))
         {
             throw new InvalidOperationException(
                 "The handler for '" + registration.WireName + "' wrote the run's 14 §8.1 stream " +
@@ -355,10 +396,18 @@ public static class GameRules
                 "about that count, and whichever is stored, some later draw repeats a sequence the " +
                 "player has already played. That is a DETERMINISM DEFECT, not a rejection: a " +
                 "RejectionReason would hand the corrupt scope back to the player as a polite 'no' " +
-                "and leave the run in it. Draw through HandlerInput.Rng and write nothing.");
+                "and leave the run in it. Draw through HandlerInput.Rng and write nothing. If this " +
+                "is a CommandKind.Meta command it has no scope at all — 30 §3 draws out of a run " +
+                "from GameContext.CommandSeed, with no persisted counter — so it may READ the run it " +
+                "was handed mid-run and must never move its counters.");
         }
 
-        working.CommitStreamPositions(rng.FinalPositions());
+        // Only a run command has a scope to fold back. A meta command reached this far to be
+        // CHECKED, not to commit anything.
+        if (rng is not null)
+        {
+            working.CommitStreamPositions(rng.FinalPositions());
+        }
     }
 
     /// <summary>
@@ -427,7 +476,11 @@ public static class GameRules
     {
         if (events.Count == 0)
         {
-            return events;
+            // 🔒 The SHARED empty list, not the handler's own. A handler that returned a
+            // List<DomainEvent> it still holds could otherwise append to CommandResult.Events after
+            // Apply had returned — the same hole The_event_list_cannot_be_written_through closes on
+            // the non-empty path, where the stamped array is wrapped.
+            return NoEvents;
         }
 
         var stamped = new DomainEvent[events.Count];
@@ -460,21 +513,6 @@ public static class GameRules
         }
 
         return Array.AsReadOnly(stamped);
-    }
-
-    /// <summary>
-    /// The answer for a command that is registered but whose <b>system</b> arrives in a later
-    /// milestone.
-    /// </summary>
-    /// <remarks>
-    /// See <c>CommandDispatch.Deferred</c> for why this is <c>ILLEGAL_STATE</c> and not a new
-    /// `14` §16.2 value, and why every deferred row also carries a <c>GapRegister</c> entry.
-    /// </remarks>
-    private static HandlerResult Unimplemented(CommandRegistration registration)
-    {
-        _ = registration.DeferredTo;
-
-        return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
     }
 
     /// <summary>Whether two stream-position maps carry exactly the same rows.</summary>

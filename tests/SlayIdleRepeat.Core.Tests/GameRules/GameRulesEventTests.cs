@@ -152,6 +152,36 @@ public sealed class GameRulesEventTests
     }
 
     /// <summary>
+    /// 🔒 …and the <b>empty</b> list is not written through either: <c>Apply</c> hands back its own
+    /// shared empty list, never the one the handler happened to return.
+    /// </summary>
+    /// <remarks>
+    /// The rule above only covers the path where a stamped array is built and wrapped. A handler
+    /// that returned a <c>List&lt;DomainEvent&gt;</c> it still holds — the natural shape for one
+    /// that builds events conditionally and this time built none — could otherwise append to
+    /// <c>CommandResult.Events</c> after <c>Apply</c> had returned, and `14` §7.1's economy log
+    /// would carry rows for a command that never produced them.
+    /// </remarks>
+    [Fact]
+    public void An_empty_event_list_is_not_the_handlers_own_list()
+    {
+        var handlers = new List<DomainEvent>();
+
+        var result = SlayIdleRepeat.Core.GameRules.Execute(
+            Worlds.MetaTable((_, _) => HandlerResult.Accept(handlers)),
+            Worlds.OutsideARun(),
+            new Worlds.MetaFixtureCommand(),
+            Worlds.Context);
+
+        result.Events.ShouldBeEmpty();
+        result.Events.ShouldNotBeSameAs(handlers);
+
+        handlers.Add(Unstamped(1L, "appended_after_Apply_returned"));
+
+        result.Events.ShouldBeEmpty("the result's list is Apply's, not the handler's.");
+    }
+
+    /// <summary>
     /// 🔒 The stamp is applied through <c>with</c>, which reaches every subtype through the abstract
     /// record's virtual <c>&lt;Clone&gt;$</c> — and every other component survives it unchanged.
     /// </summary>

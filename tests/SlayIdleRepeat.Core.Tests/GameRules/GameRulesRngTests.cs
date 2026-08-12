@@ -371,6 +371,47 @@ public sealed class GameRulesRngTests
     }
 
     /// <summary>
+    /// 🔒 A <b>meta</b> handler that hand-writes the run's stream positions is the same defect as a
+    /// run handler doing it — even though a meta command has no scope to fold.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the route the check would have left open if it had returned early on a null
+    /// <c>RunRngScope</c>. A meta command <em>is</em> dispatched with a run in the slice — a player
+    /// can open the shop without leaving one, which
+    /// <c>GameRulesDispatchTests.A_meta_command_runs_with_a_run_in_the_slice</c> pins — and
+    /// <c>HandlerInput.Run</c> hands it that run quite happily. Reaching
+    /// <c>CommitStreamPositions</c> from there would move `14` §8.1's counters with nothing
+    /// watching, and the run would replay differently for the rest of its life.
+    /// </para>
+    /// <para>
+    /// The refusal names the meta regime explicitly (steering <b>S2</b>): the fix is not "use the
+    /// scope" — a meta command has none — it is "read the run, never write its counters".
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_meta_handler_that_hand_writes_a_stream_position_is_a_defect_too()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => SlayIdleRepeat.Core.GameRules.Execute(
+            Worlds.MetaTable((_, input) =>
+            {
+                input.Run.CommitStreamPositions(new Dictionary<string, ulong>(StringComparer.Ordinal)
+                {
+                    [RngStreams.Dice] = 99UL,
+                });
+
+                return HandlerResult.Accept();
+            }),
+            Worlds.InARun(),
+            new Worlds.MetaFixtureCommand(),
+            Worlds.Context));
+
+        thrown.Message.ShouldContain("wrote the run's 14 §8.1 stream positions itself", Case.Sensitive);
+        thrown.Message.ShouldContain(Worlds.MetaWireName, Case.Sensitive);
+        thrown.Message.ShouldContain("CommandKind.Meta command it has no scope at all", Case.Sensitive);
+    }
+
+    /// <summary>
     /// 🔒 A meta command's slice keeps the run's counters exactly as they were: the meta regime does
     /// not touch `14` §8.1's counters at all.
     /// </summary>

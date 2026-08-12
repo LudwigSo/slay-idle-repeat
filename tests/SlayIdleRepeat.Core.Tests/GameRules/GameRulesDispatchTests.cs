@@ -268,6 +268,34 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
+    /// 🔒 A refused registration leaves the table <b>exactly as it was</b>, rather than half added.
+    /// </summary>
+    /// <remarks>
+    /// The two indices are written together or not at all — the same construction, and the same
+    /// reason, as <c>Run.CommitStreamPositions</c> validating the whole incoming map before writing
+    /// any of it. A row that indexed itself by type and then threw on its wire name would leave a
+    /// dispatch that answered <c>For(type)</c> for a command no wire name can reach, and the
+    /// registrar's own retry under a corrected name would then fail as a duplicate type.
+    /// </remarks>
+    [Fact]
+    public void A_refused_registration_leaves_the_table_untouched()
+    {
+        var table = new CommandDispatch()
+            .Deferred<Worlds.MetaFixtureCommand>(Worlds.MetaWireName, CommandKind.Meta, "M4-09");
+
+        Should.Throw<InvalidOperationException>(() =>
+            table.Deferred<Worlds.RunFixtureCommand>(Worlds.MetaWireName, CommandKind.Run, "M3-15"));
+
+        table.For(typeof(Worlds.RunFixtureCommand)).ShouldBeNull(
+            "the wire name was refused, so the type must not have been indexed either.");
+
+        table.Deferred<Worlds.RunFixtureCommand>(Worlds.RunWireName, CommandKind.Run, "M3-15");
+
+        table.For(typeof(Worlds.RunFixtureCommand))!.WireName.ShouldBe(Worlds.RunWireName);
+        table.TypesByWireName.Count.ShouldBe(2);
+    }
+
+    /// <summary>
     /// 🔒 `14` §2.3's ids are <c>SCREAMING_SNAKE</c>. This is the one place a command's wire name is
     /// declared, so a typo here is a wire-contract break nothing else would see.
     /// </summary>
