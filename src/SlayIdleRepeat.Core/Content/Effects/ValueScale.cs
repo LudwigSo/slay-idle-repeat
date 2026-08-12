@@ -84,6 +84,44 @@ public sealed record ValueScale
     }
 
     /// <summary>
+    /// The `05` §5 status <c>HAS_STATUS</c> and <c>STATUS_STACKS</c> read (`18` §4: <em>"by status
+    /// id"</em>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Added by `18` §10's extension route, and it closes a gap `18` §1.1 shipped with.</b>
+    /// §1.1 offers <c>fn</c> <em>"any condition function from §4"</em> and its own worked list names
+    /// <c>STATUS_STACKS</c> and <c>DIE_FACE_COUNT</c> — but §4 types those <em>"by status id"</em> and
+    /// <em>"by face kind"</em>, and §1.1's table declared no field to carry either. A scale over
+    /// either was therefore unexpressible, and the two functions were offered for something the
+    /// vocabulary could not do. Recorded as an erratum against §1.1.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The same three keys a `18` §4 condition term already carries, with the same names, types
+    /// and meanings.</b> No new vocabulary is introduced: <c>game-data/schema/effect.schema.json</c>
+    /// points <c>valueScale</c>'s three at the very <c>$defs</c> its <c>conditionTerm</c> uses.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Why three loose keys rather than M2-05's <c>ConditionArguments</c>.</b> That type is
+    /// <c>internal</c> in <c>Core.Rules.Effects.Conditions</c>, and `30` §11.4 forbids
+    /// <c>Content</c> from naming <c>Rules</c> — a record here cannot hold one. The seam is still
+    /// reused rather than duplicated: <c>ConditionArguments.Of(ValueScale)</c> converts these three
+    /// into the <em>same</em> arguments the condition path builds, so one argument type reads them
+    /// and a function can never answer differently to a scale than to a condition.
+    /// </para>
+    /// </remarks>
+    public string? StatusId { get; init; }
+
+    /// <summary>
+    /// The `06` §2 perk category <c>PERK_COUNT</c> restricts to (`18` §4: <em>"optionally by
+    /// category"</em>). Optional here for the same reason it is optional there.
+    /// </summary>
+    public string? Category { get; init; }
+
+    /// <summary>The `04` §1 face kind <c>DIE_FACE_COUNT</c> counts (`18` §4: <em>"by face kind"</em>).</summary>
+    public string? FaceKind { get; init; }
+
+    /// <summary>
     /// `18` §1.1's <c>steps = min( floor( fn / per ), cap )</c>, with <paramref name="functionValue"/>
     /// rounded to 4 decimal places before the division.
     /// </summary>
