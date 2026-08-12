@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Model.Snapshots;
 
@@ -60,11 +61,28 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// &lt; 5 ms budget is per fight, and the balance harness parallelises across fights, not within
 /// one).
 /// </para>
+/// <para>
+/// ⚠️ <b>This is a stateful builder under <c>Rules/</c>, which `30` §11.4 annotates as
+/// <em>"internal, static, stateless calculators"</em>.</b> Recorded rather than hidden. The
+/// accumulator has to live somewhere: `05` §3.1 step 7 requires events to be appended as they
+/// happen, across every step of a 1800-tick loop, so a stateless function would have to take and
+/// return the whole log on every call. It is per-battle, owned by exactly one caller, never shared
+/// and never static, so it carries none of the properties that annotation exists to protect — but
+/// it is a departure, and M2-08's simulator inherits the instance.
+/// </para>
 /// </remarks>
 internal sealed class CombatLog
 {
+    /// <summary>🔒 `05` §3 — the tick rate: <c>TICK = 0.05 s</c>.</summary>
+    public const int TicksPerSecond = 20;
+
     /// <summary>🔒 `05` §3 — 90 s at 20 ticks/second. Ticks run <c>0..1799</c>.</summary>
-    public const int MaxTicks = 1800;
+    /// <remarks>
+    /// ⚠️ This is the <b>PvE</b> cap. `05` §3.3 gives a duel a 60 s cap (<c>pvpMaxFightSeconds</c>,
+    /// `11` §4.3) — 1200 ticks — which this class does not enforce, because it has no way to know
+    /// which kind of fight it is logging. M2-14 owns the duel and inherits that bound.
+    /// </remarks>
+    public const int MaxTicks = 90 * TicksPerSecond;
 
     /// <summary>🔒 `17` §1 — the shortest wind-up a damaging mechanic may have.</summary>
     public const double MinTelegraphSeconds = 1.0;
@@ -81,6 +99,12 @@ internal sealed class CombatLog
     /// <summary>The specification quoted in every refusal, so a failure says which rule it broke.</summary>
     private const string Specification = "05 §3.1 step 7";
 
+    /// <summary>
+    /// How far a telegraph's lead may sit from a whole tick before it is a fractional lead rather
+    /// than the residue of multiplying a decimal by 20.
+    /// </summary>
+    private const double WholeTickTolerance = 1e-9;
+
     private readonly List<CombatEvent> _events = [];
 
     private int _lastTick;
@@ -88,7 +112,12 @@ internal sealed class CombatLog
     private bool _started;
 
     /// <summary>The events appended so far, in emission order.</summary>
-    public IReadOnlyList<CombatEvent> Events => _events;
+    /// <remarks>
+    /// A read-only view, not the list itself: a caller that could cast this back to
+    /// <c>List&lt;CombatEvent&gt;</c> could append past the seal <see cref="Complete"/> applies, or
+    /// reorder events that are already inside a computed <c>LogHash</c>.
+    /// </remarks>
+    public IReadOnlyList<CombatEvent> Events => _events.AsReadOnly();
 
     /// <summary>How many events have been appended.</summary>
     public int Count => _events.Count;
@@ -102,6 +131,28 @@ internal sealed class CombatLog
     /// finite number, or the event breaks a rule stated on <see cref="CombatEventType"/>.
     /// </exception>
     public void Append(CombatEvent entry)
+    {
+        // 🔒 The members with rules of their own are routed to the method that enforces them,
+        // rather than each caller being trusted to remember. Same reasoning as BattleEnd in
+        // AppendCore; checked HERE rather than there so the two helpers can still reach the core.
+        if (entry.Type is CombatEventType.Telegraph or CombatEventType.RunEffectQueued)
+        {
+            throw new InvalidOperationException(
+                $"A {entry.Type} was appended through {nameof(Append)}, which cannot enforce the rules that " +
+                $"member carries — `17` §1's 1.0–1.5 s wind-up band for Telegraph, and the RUN target of " +
+                $"`18` §5 for RunEffectQueued. Use {nameof(AppendTelegraph)} or " +
+                $"{nameof(AppendRunEffectQueued)}, so those rules hold by construction rather than by everyone " +
+                "remembering them.");
+        }
+
+        AppendCore(entry);
+    }
+
+    /// <summary>
+    /// Every rule that governs <b>any</b> event, applied to one entry. The helpers that enforce a
+    /// member's own extra rules reach the log through here, having applied them.
+    /// </summary>
+    private void AppendCore(CombatEvent entry)
     {
         if (_sealed)
         {
@@ -128,6 +179,23 @@ internal sealed class CombatLog
                 "flushed out of order, which also changes LogHash.");
         }
 
+        // 🔒 The vocabulary is closed (`05` §7). An undefined value would hash as its ordinal and
+        // replay as nothing — a log the client and the server would agree on and neither could draw.
+        if (!Enum.IsDefined(entry.Type))
+        {
+            throw new InvalidOperationException(
+                $"{(int)entry.Type} is not a CombatEventType. `05` §7 is a closed vocabulary of " +
+                $"{Enum.GetValues<CombatEventType>().Length} members; an undefined value would still be hashed " +
+                "into LogHash, so client and server would agree on an event no replayer can draw.");
+        }
+
+        if (entry.Type == CombatEventType.BattleEnd)
+        {
+            throw new InvalidOperationException(
+                $"BattleEnd was appended directly. It is {nameof(Complete)}'s to emit, so that \"the last event " +
+                "of every log is BattleEnd\" holds by construction rather than by everyone remembering.");
+        }
+
         RequireLoggableValue(entry);
 
         if (entry.Type == CombatEventType.BattleStart)
@@ -147,14 +215,19 @@ internal sealed class CombatLog
                     "all carry tick 0.");
             }
 
-            _started = true;
-        }
+            // 🔒 Both slots must be None. BattleStart names no actor, and if M2-08 emitted
+            // (Hero, None) while `11` §6's server-side re-run emitted (None, None), the two sides
+            // would compute different LogHashes for an identical fight and the duel would be
+            // discarded as tampering.
+            if (entry.SourceId != CombatActor.None || entry.TargetId != CombatActor.None)
+            {
+                throw new InvalidOperationException(
+                    $"BattleStart names actors ({entry.SourceId}, {entry.TargetId}). It names none — both slots " +
+                    "are CombatActor.None. This is inside LogHash, so a client that filled them and a server " +
+                    "that did not would disagree about an identical fight (`11` §6).");
+            }
 
-        if (entry.Type == CombatEventType.BattleEnd)
-        {
-            throw new InvalidOperationException(
-                $"BattleEnd was appended directly. It is {nameof(Complete)}'s to emit, so that \"the last event " +
-                "of every log is BattleEnd\" holds by construction rather than by everyone remembering.");
+            _started = true;
         }
 
         _events.Add(entry);
@@ -246,7 +319,7 @@ internal sealed class CombatLog
     /// </para>
     /// </remarks>
     public void AppendRunEffectQueued(int tick, byte sourceId, ushort effectIndex, double argument = 0.0) =>
-        Append(new CombatEvent(
+        AppendCore(new CombatEvent(
             tick, CombatEventType.RunEffectQueued, sourceId, CombatActor.None, argument, effectIndex));
 
     /// <summary>
@@ -264,14 +337,26 @@ internal sealed class CombatLog
     /// too long stops reading as a wind-up, so both ends are real.
     /// </param>
     /// <remarks>
+    /// <para>
     /// The wind-up is expressed in <b>seconds</b> rather than ticks because `17` §1 states the band
     /// in seconds and the replayer scales it by the ×1/×2/×3 speed toggle (`05` §8); the tick it
-    /// lands on is <c>tick + leadSeconds × 20</c>, which the replayer can compute and the simulator
-    /// does not need to restate.
+    /// lands on is <c>tick + leadSeconds × 20</c>, which the replayer computes and the simulator
+    /// does not restate.
+    /// </para>
+    /// <para>
+    /// 🔒 Which is exactly why the lead must be a <b>whole number of ticks</b>. The simulation is
+    /// fixed-tick (`05` §3), so the mechanic lands on an integer tick; a lead of <c>1.0001 s</c>
+    /// would put the announced landing at <c>tick + 20.002</c> — between two ticks, and therefore
+    /// on neither the event it announces nor any other. 1.0–1.5 s is 20–30 ticks.
+    /// </para>
     /// </remarks>
     public void AppendTelegraph(int tick, byte sourceId, byte targetId, ushort effectIndex, double leadSeconds)
     {
-        if (leadSeconds < MinTelegraphSeconds || leadSeconds > MaxTelegraphSeconds)
+        // NaN first, and explicitly: `NaN < Min` and `NaN > Max` are BOTH false, so a NaN lead
+        // would sail through the band check below and be caught downstream by the rounding guard,
+        // reporting the wrong rule (S2).
+        if (double.IsNaN(leadSeconds) ||
+            leadSeconds < MinTelegraphSeconds || leadSeconds > MaxTelegraphSeconds)
         {
             throw new InvalidOperationException(
                 $"A telegraph at tick {tick} announces a {Format(leadSeconds)} s wind-up, outside `17` §1's " +
@@ -280,7 +365,20 @@ internal sealed class CombatLog
                 "one that is too long stops reading as a wind-up at all.");
         }
 
-        Append(new CombatEvent(tick, CombatEventType.Telegraph, sourceId, targetId, leadSeconds, effectIndex));
+        // Compared with a tolerance, not for exact equality: `1.2 * 20` is not bit-exactly 24.0 for
+        // every value in the band, and the defect being caught (a lead of 1.0001 s → 20.002 ticks)
+        // misses by 2e-3 — six orders of magnitude outside anything rounding can explain.
+        var leadTicks = leadSeconds * TicksPerSecond;
+        if (Math.Abs(leadTicks - Math.Round(leadTicks)) > WholeTickTolerance)
+        {
+            throw new InvalidOperationException(
+                $"A telegraph at tick {tick} announces a {Format(leadSeconds)} s wind-up, which is " +
+                $"{Format(leadTicks)} ticks. `05` §3's simulation is fixed-tick, so the mechanic it announces " +
+                "lands on a whole tick — a fractional lead points between two ticks and therefore at nothing. " +
+                $"Use a multiple of {Format(1.0 / TicksPerSecond)} s.");
+        }
+
+        AppendCore(new CombatEvent(tick, CombatEventType.Telegraph, sourceId, targetId, leadSeconds, effectIndex));
     }
 
     /// <summary>
@@ -330,14 +428,32 @@ internal sealed class CombatLog
 
         RequireRoundedFinite(heroHpRemaining, nameof(heroHpRemaining));
 
-        _events.Add(new CombatEvent(
-            endTick, CombatEventType.BattleEnd, CombatActor.None, CombatActor.None, 0.0, NoDataId));
+        if (heroHpRemaining < 0.0)
+        {
+            throw new InvalidOperationException(
+                $"The hero is reported with {Format(heroHpRemaining)} HP remaining. `05` §4's damage pipeline and " +
+                "§4.3's healing keep HP at or above 0 by construction, so a negative value is an unclamped " +
+                "subtraction upstream, not an outcome to record.");
+        }
+
+        // 🔒 Build the finished log and hash it BEFORE mutating, so a refusal from the writer
+        // leaves the builder untouched and Complete stays retryable — the same discipline every
+        // guard above follows.
+        var log = _events.Append(new CombatEvent(
+                endTick, CombatEventType.BattleEnd, CombatActor.None, CombatActor.None, 0.0, NoDataId))
+            .ToArray();
+
+        var logHash = CanonicalStateWriter.HashCombatLog(log);
+
+        _events.Add(log[^1]);
         _lastTick = endTick;
         _sealed = true;
 
-        var log = _events.ToArray();
-
-        return new SimulationResult(heroWon, durationTicks, heroHpRemaining, log, CanonicalStateWriter.HashCombatLog(log));
+        // 🔒 Wrapped, not handed over raw. `05` §8's skip is safe because "the outcome is already
+        // determined"; a caller that could cast the result's Log back to CombatEvent[] and write
+        // through it could edit a replay after its LogHash was computed.
+        return new SimulationResult(
+            heroWon, durationTicks, heroHpRemaining, new ReadOnlyCollection<CombatEvent>(log), logHash);
     }
 
     /// <summary>

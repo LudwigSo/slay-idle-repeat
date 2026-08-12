@@ -381,9 +381,15 @@ public sealed class CanonicalStateWriterTests
 
         var thrown = Should.Throw<NotSupportedException>(act);
 
-        thrown.Message.ShouldMatchWildcard("*16.6*");
-        thrown.Message.ShouldMatchWildcard("*ZERO BYTES*");
-        thrown.Message.ShouldMatchWildcard("*public instance FIELD*");
+        thrown.Message.ShouldContain("16.6", Case.Sensitive);
+        thrown.Message.ShouldContain("ZERO BYTES", Case.Sensitive);
+
+        // S2 — the generic rule list names BOTH the property-shape and the field-shape reason, so a
+        // fragment of it cannot tell the two branches apart. This sentence is emitted only by the
+        // field branch, and it names the offending fields.
+        thrown.Message.ShouldContain(
+            "SPECIFICALLY: CombatEventAsDocumented declares the public instance field(s) [SourceId, Value]",
+            Case.Sensitive);
     }
 
     /// <summary>
@@ -419,7 +425,23 @@ public sealed class CanonicalStateWriterTests
         var act = () => CanonicalStateWriter.CanonicalBytes(
             UnsupportedSnapshots.WithReadonlyPublicField.With(3, 4));
 
-        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*ZERO BYTES*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldContain(
+            "SPECIFICALLY: WithReadonlyPublicField declares the public instance field(s) [SourceId]",
+            Case.Sensitive);
+    }
+
+    /// <summary>
+    /// And the property-shape refusal does <b>not</b> claim a field problem — the two branches are
+    /// distinguishable in both directions (S2).
+    /// </summary>
+    [Fact]
+    public void The_property_shape_refusal_does_not_name_a_field()
+    {
+        var thrown = Should.Throw<NotSupportedException>(
+            () => CanonicalStateWriter.CanonicalBytes(
+                new UnsupportedSnapshots.WithPropertyOutsideTheConstructor(1, 3) { RevivesUsed = 99 }));
+
+        thrown.Message.ShouldNotContain("SPECIFICALLY", Case.Sensitive);
     }
 
     /// <summary>

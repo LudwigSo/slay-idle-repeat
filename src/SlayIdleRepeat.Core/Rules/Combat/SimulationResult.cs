@@ -41,14 +41,24 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// one thing `05` §8's <em>"the outcome is already determined"</em> depends on not being possible.
 /// </para>
 /// <para>
-/// ⚠️ <b>Accessibility.</b> `30` §11.2 makes <c>CombatSimulator</c> one of the two public
-/// <c>Rules</c> types, so this type and <see cref="CombatEvent"/> must be public the moment a
-/// public <c>Simulate</c> returns one — an internal return type on a public method does not
-/// compile. They are <c>internal</c> today because M2-15 ships no simulator, and the flip is
-/// pinned to arrive with one: <c>CombatSimulator</c> is declared pending in
-/// <c>SubjectSetFloorTests</c>, whose rule fails the moment the type exists, and the entry says
-/// what to do. Doing the flip now would mean editing
-/// <c>Domain.PublicRuleTypes</c>, which another milestone is holding.
+/// ⚠️ <b>Accessibility — an unresolved contradiction between two documents, not a naming choice.</b>
+/// `05` §7 declares this type and <see cref="CombatEvent"/> <b>public</b>, and `30` §11.2 makes
+/// <c>CombatSimulator</c> public, so a public <c>Simulate</c> returning an internal
+/// <c>SimulationResult</c> would not even compile. But `30` §11.2 is 🔒 and reads <em>"The only
+/// two <c>Rules</c> types that are public"</em>, naming <c>CombatSimulator</c> and
+/// <c>PowerCalculator</c> — and <c>Domain.PublicRuleTypes</c> transcribes exactly that closed list.
+/// The two documents disagree, and widening the list is a change to a <b>locked</b> section rather
+/// than a mechanical edit.
+/// <para>
+/// They are <c>internal</c> today because M2-15 ships no simulator, so nothing yet forces the
+/// question — and they are fully tested through the `30` §11.3 <c>InternalsVisibleTo</c> grant, so
+/// only the visibility is deferred, not the verification. 🔒 <b>Landing
+/// <c>CombatSimulator</c> requires a ruling on the `05` §7 / `30` §11.2 conflict first</b>, and
+/// then both halves in one commit: these types public, and their names added to
+/// <c>Domain.PublicRuleTypes</c>. The deferral expires by itself —
+/// <c>SubjectSetFloorTests</c> declares <c>CombatSimulator</c> pending and its rule fails the
+/// moment a type by that name exists.
+/// </para>
 /// </para>
 /// </remarks>
 internal sealed record SimulationResult(

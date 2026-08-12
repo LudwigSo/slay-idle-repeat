@@ -282,6 +282,19 @@ public static class CanonicalStateWriter
     {
         ArgumentNullException.ThrowIfNull(log);
 
+        // 🔒 The root must be a LIST. The other two modes take a record and cannot be handed the
+        // wrong shape without the allowlist noticing; this one is the mode whose root kind actually
+        // varies, and a bare event or a map would hash without a count prefix and return a
+        // perfectly plausible ulong that is not a LogHash of anything.
+        if (PlanFor(log.GetType()).Kind != PlanKind.List)
+        {
+            throw new NotSupportedException(
+                $"A combat log must be a list of events, not {log.GetType().FullName} ({Specification}, `05` §7). " +
+                "LogHash is defined over the serialised EVENT LIST — its 4-byte element count is what stops two " +
+                "different fights sharing a hash — so a single event or a map would hash to a plausible-looking " +
+                "value that pins nothing.");
+        }
+
         var buffer = new CanonicalBuffer();
         WriteRoot(buffer, log);
 
@@ -1067,8 +1080,31 @@ public static class CanonicalStateWriter
         return $"{name}<{string.Join(",", type.GetGenericArguments().Select(DescribeType))}>";
     }
 
-    /// <summary>The refusal at the bottom of the allowlist, said the same way every time.</summary>
-    private static NotSupportedException Unsupported(Type type) => new(
+    /// <summary>
+    /// The refusal at the bottom of the allowlist, said the same way every time — plus the one
+    /// sentence that names <b>which</b> shape rule the type broke, when that is knowable.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The generic message lists every rule, so a test asserting a fragment of it cannot tell
+    /// the property-shape refusal from the field-shape refusal — both branches produce the same
+    /// string. Naming the offending fields makes the field branch identifiable, which is what lets
+    /// a test pin <i>which rule fired</i> rather than merely that something did.
+    /// </remarks>
+    private static NotSupportedException Unsupported(Type type)
+    {
+        var publicFields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+        return new NotSupportedException(
+            GenericRefusal(type) +
+            (publicFields.Length == 0
+                ? string.Empty
+                : $" SPECIFICALLY: {type.Name} declares the public instance field(s) " +
+                  $"[{string.Join(", ", publicFields.Select(f => f.Name))}], which is the shape that hashes as " +
+                  "zero bytes. Move them into the primary constructor."));
+    }
+
+    /// <summary>The rule list every refusal carries.</summary>
+    private static string GenericRefusal(Type type) =>
         $"{type.FullName} has no canonical encoding ({Specification}). The encoding covers " +
         "integers, booleans, enums, strings, doubles, timestamps, optionals, lists " +
         "(IReadOnlyList<T>), maps (IReadOnlyDictionary<TKey, TValue>) and positional records — " +
@@ -1080,7 +1116,7 @@ public static class CanonicalStateWriter
         "the SchemaVersion field-order pin would never see it. Move it into the primary constructor. " +
         "A public instance FIELD is refused for exactly that reason too, and is the more dangerous " +
         "shape because it is neither a parameter nor a property and so slips past both checks — " +
-        "`05` §7's CombatEvent is written that way and would hash to nothing.");
+        "`05` §7's CombatEvent is written that way and would hash to nothing.";
 
     /// <summary>Which branch of the closed allowlist a declared type falls into.</summary>
     private enum PlanKind

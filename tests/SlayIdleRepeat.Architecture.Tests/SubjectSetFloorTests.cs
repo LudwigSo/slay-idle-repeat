@@ -38,9 +38,20 @@ namespace SlayIdleRepeat.Architecture.Tests;
 public sealed class SubjectSetFloorTests
 {
     /// <summary>
-    /// Subjects the rules key on that M1 and later create. Each one is absent today, and
-    /// each is the reason some rule is currently vacuous.
+    /// Subjects the rules key on that M1 and later create. Each one is absent today, and each is
+    /// either the reason some rule is currently vacuous, or — since M2-15 — a name whose
+    /// <b>arrival</b> forces a change here that must not be forgotten.
     /// </summary>
+    /// <remarks>
+    /// The second kind reads oddly against "the reason some rule is vacuous" and is called out so
+    /// nobody prunes it as mis-filed. <c>CombatSimulator</c> and <c>PowerCalculator</c> are the two
+    /// names <c>Domain.PublicRuleTypes</c> exempts from
+    /// <c>Handlers_and_Rules_are_internal</c>. That rule is <b>not</b> vacuous — it quantifies over
+    /// every type under <c>Rules/</c> — but its <i>exemption</i> arm is, and a vacuous exemption
+    /// makes a rule stricter rather than silent. What these entries buy is different: the arrival
+    /// of either type is the moment a decision has to be made, and this array is the only mechanism
+    /// in the repo that fires on an arrival.
+    /// </remarks>
     /// <remarks>
     /// 🔒 Deleting an entry when the subject arrives is not optional — the rule below fails
     /// on a declared-pending subject that exists. That is the whole mechanism: it converts
@@ -62,28 +73,41 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        // 🔒 The accessibility flip M2-15 could not make, parked where it expires by itself.
+        // 🔒 An UNRESOLVED DOC CONTRADICTION, parked where it expires by itself. It is not a
+        // file-contention deferral, and the difference matters to whoever picks it up.
         //
-        // `30` §11.2 names CombatSimulator one of the two Rules types that may be public, and
-        // `05` §7 declares its result types — CombatEvent, CombatEventType, SimulationResult —
-        // public alongside it, because `05` §8 has the CLIENT replay the log and `11` §6 has the
-        // PvP backend recompute LogHash over it. C# agrees: a public Simulate returning an
+        // `05` §7 declares CombatEvent, CombatEventType and SimulationResult PUBLIC, because
+        // `05` §8 has the client replay the log and `11` §6 has the PvP backend recompute LogHash
+        // over it. C# forces the same conclusion: a public CombatSimulator.Simulate returning an
         // internal SimulationResult does not compile.
         //
-        // M2-15 authored those three types and left them INTERNAL, because making them public
-        // means appending them to Domain.PublicRuleTypes — and M1-12 was holding Domain.cs. The
-        // types are fully tested through the 30 §11.3 InternalsVisibleTo grant in the meantime,
-        // so nothing is unverified; what is deferred is only the visibility.
+        // But `30` §11.2 is 🔒 and reads "The only two `Rules` types that are public", naming
+        // CombatSimulator and PowerCalculator — and Domain.PublicRuleTypes is a faithful
+        // transcription of that closed list. So the two documents disagree, and widening the list
+        // is a change to a LOCKED section, not a mechanical edit.
         //
-        // This entry is the expiry. Handlers_and_Rules_are_internal is keyed on
-        // Domain.PublicRuleTypes, which names CombatSimulator and nothing it returns, so whoever
-        // lands the simulator must do BOTH halves in that commit: make the three result types
-        // public, and add them to Domain.PublicRuleTypes. This rule goes red the moment
-        // CombatSimulator exists, which is exactly when that becomes possible and necessary.
+        // ⚠️ Whoever lands CombatSimulator must therefore get a CONDUCTOR RULING on the `05` §7 /
+        // `30` §11.2 conflict first, and then do both halves in one commit: make the three result
+        // types public, and add them to Domain.PublicRuleTypes. M2-15 left them internal — fully
+        // tested through the `30` §11.3 InternalsVisibleTo grant, so nothing is unverified; only
+        // the visibility is deferred. (M1-12 was also holding Domain.cs at the time, but that is
+        // the lesser reason and it will have passed.)
+        //
+        // This entry is the expiry: Every_rule_subject_is_present_or_declared_pending fails the
+        // moment a type named CombatSimulator exists, which is exactly when the ruling is needed.
         new("CombatSimulator", SubjectKind.CoreType, "M2-08",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — see the note above this entry: " +
-            "landing CombatSimulator requires making CombatEvent, CombatEventType and SimulationResult public " +
-            "and adding them to Domain.PublicRuleTypes in the same commit"),
+            "landing CombatSimulator needs a ruling on the `05` §7 / `30` §11.2 contradiction, then makes " +
+            "CombatEvent, CombatEventType and SimulationResult public and adds them to Domain.PublicRuleTypes " +
+            "in the same commit"),
+
+        // The other member of Domain.PublicRuleTypes. Tracked for the same reason its sibling is:
+        // the list is a transcription of a 🔒 section, and a rule keyed on it must not be able to
+        // go quiet through a rename nobody notices. M2-07 is landing Rules/Stats/ and this is the
+        // type that directory exists for (`29` §1, `30` §11.2).
+        new("PowerCalculator", SubjectKind.CoreType, "M2-07",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — the exemption arm of the rule; " +
+            "Domain.PublicRuleTypes names it and nothing else pins that name"),
 
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
@@ -118,15 +142,26 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
 
         // Moved out of Pending by M2-15, which landed Core/Rules/Combat/ — the combat log format,
-        // `05` §7. Three rules stopped quantifying over nothing on that commit:
-        // Handlers_and_Rules_are_internal, Entitlements_are_unreachable_from_the_rules_and_the_
-        // power_computation, and IsolationTests.Guild_state_is_unreachable_from_the_combat_path,
-        // whose subject set is Domain.CombatRulesNamespace plus every type named *Combat*/*Battle*
-        // and had been empty since M0-08 wrote it.
+        // `05` §7. Two rules stated over Domain.RulesNamespace stopped quantifying over nothing on
+        // that commit.
         new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M2-15",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_" +
-            "unreachable_from_the_rules_and_the_power_computation, IsolationTests.Guild_state_is_unreachable_" +
-            "from_the_combat_path"),
+            "unreachable_from_the_rules_and_the_power_computation"),
+
+        // 🔒 Tracked SEPARATELY from Domain.RulesNamespace, and it has to be.
+        //
+        // Guild_state_is_unreachable_from_the_combat_path keys on Domain.CombatRulesNamespace — a
+        // different constant, and one the inventory check at the foot of
+        // Every_rule_subject_is_present_or_declared_pending cannot reach, because that check walks
+        // Domain.PermittedCoreNamespaces and the sub-namespaces are not in it.
+        //
+        // Without this entry: rename Core/Rules/Combat/ and drop "Combat"/"Battle" from the type
+        // names, and the rule's subject set is permanently empty while the RulesNamespace entry
+        // above stays satisfied by any other Rules/ subfolder (it is a PREFIX match). Nothing goes
+        // red, and the game's only contended write is free to reach its hottest path again.
+        // Empty since M0-08 wrote the rule; non-empty since M2-15.
+        new(Domain.CombatRulesNamespace, SubjectKind.CoreNamespace, "M2-15",
+            "IsolationTests.Guild_state_is_unreachable_from_the_combat_path"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

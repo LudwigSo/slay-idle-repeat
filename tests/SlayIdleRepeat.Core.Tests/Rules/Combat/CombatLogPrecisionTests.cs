@@ -19,9 +19,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// "restoring" the documented type.
 /// </para>
 /// <para>
-/// The cost of the widening is four bytes per event — see
-/// <see cref="A_double_costs_four_bytes_per_event_over_a_float"/>, which measures it rather than
-/// waving at it.
+/// The cost of the widening is nothing on the wire — see
+/// <see cref="The_widening_costs_nothing_on_the_wire"/>, which measures it rather than waving at it.
 /// </para>
 /// </remarks>
 public sealed class CombatLogPrecisionTests
@@ -166,8 +165,129 @@ public sealed class CombatLogPrecisionTests
         CanonicalStateWriter.CanonicalBytes(new[] { Hit(1.0) }).Length.ShouldBe(4 + 48);
         CanonicalStateWriter.CanonicalBytes(new[] { Hit(1.0), Hit(2.0) }).Length.ShouldBe(4 + (48 * 2));
 
-        sizeof(double).ShouldBe(sizeof(float) + 4, "the whole in-memory cost, and all of it");
+        // The double's own eight canonical bytes, in isolation: the same width every other scalar
+        // in the §16.6 table occupies, which is why the widening is free on the wire.
+        CanonicalStateWriter.CanonicalBytes(new[] { 1.0 }).Length.ShouldBe(4 + 8);
     }
+
+    /// <summary>
+    /// 🔒 <see cref="CombatLog"/>'s value guard and <c>CanonicalStateWriter</c>'s accept and refuse
+    /// exactly the same doubles.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// They are two separate implementations of the same four rules — finite, not NaN, not
+    /// <c>-0.0</c>, rounded to 4 dp — and that duplication is deliberate: the writer can only name
+    /// the value, while the log names the <b>event</b> that carried it, which is the difference
+    /// between a bug report and a search (S2). But nothing else pins them together, and the failure
+    /// mode of drift is silent in the worst direction: a value the log accepts and the writer
+    /// refuses turns a finished battle into an exception at hash time, and a value the log refuses
+    /// and the writer accepts is a determinism rule enforced in only one of the two places.
+    /// </para>
+    /// <para>
+    /// This is the same discipline <c>CanonicalStateWriter</c>'s own remarks apply to its
+    /// relationship with <c>Rng/Hash64</c>: <em>"those five rows must move together or not at
+    /// all"</em>.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// <c>MemberData</c> rather than <c>InlineData</c>: <c>-0.0 == 0.0</c>, so xUnit's analyser
+    /// rejects the two as duplicate rows — and negative zero is the single most important value in
+    /// this theory, being the one where the two guards would most plausibly disagree.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(GuardAgreementValues))]
+    public void The_logs_value_guard_and_the_writers_agree_exactly(double value)
+    {
+        var log = new CombatLog();
+        log.Append(0, CombatEventType.BattleStart, CombatActor.None, CombatActor.None);
+
+        var logAccepts = true;
+        try
+        {
+            log.Append(1, CombatEventType.Hit, CombatActor.Hero, CombatActor.FirstEnemy, value);
+        }
+        catch (InvalidOperationException)
+        {
+            logAccepts = false;
+        }
+
+        var writerAccepts = true;
+        try
+        {
+            CanonicalStateWriter.HashCombatLog(new[] { Hit(value) });
+        }
+        catch (NotSupportedException)
+        {
+            writerAccepts = false;
+        }
+
+        writerAccepts.ShouldBe(
+            logAccepts,
+            $"CombatLog and CanonicalStateWriter disagree about {value.ToString("R", CultureInfo.InvariantCulture)}");
+    }
+
+    /// <summary>
+    /// The agreement theory above compares two guards to each other, so it would also pass if both
+    /// were deleted. This is the floor that stops that: the shared value set really does contain
+    /// both accepted and refused values.
+    /// </summary>
+    [Fact]
+    public void The_guard_agreement_theory_covers_both_outcomes()
+    {
+        var log = new CombatLog();
+        log.Append(0, CombatEventType.BattleStart, CombatActor.None, CombatActor.None);
+
+        var accepted = 0;
+        var refused = 0;
+
+        foreach (var value in GuardAgreementSet)
+        {
+            try
+            {
+                new CombatLog().Append(new CombatEvent(0, CombatEventType.Hit, 0, 1, value, 0));
+                accepted++;
+            }
+            catch (InvalidOperationException)
+            {
+                refused++;
+            }
+        }
+
+        accepted.ShouldBeGreaterThanOrEqualTo(5, "a set nothing accepts would make the agreement vacuous");
+        refused.ShouldBeGreaterThanOrEqualTo(4, "a set nothing refuses would make the agreement vacuous");
+    }
+
+    /// <summary>
+    /// Values straddling every rule the two guards share: admissible, unrounded, non-finite, and
+    /// negative zero.
+    /// </summary>
+    public static TheoryData<double> GuardAgreementValues()
+    {
+        var data = new TheoryData<double>();
+        foreach (var value in GuardAgreementSet)
+        {
+            data.Add(value);
+        }
+
+        return data;
+    }
+
+    /// <summary>The one list behind both the theory and its coverage floor.</summary>
+    private static readonly double[] GuardAgreementSet =
+    [
+        0.0,
+        1.0,
+        -0.5,
+        41.2536,
+        8388609.0001,
+        0.00005,
+        41.25361234,
+        double.NegativeZero,
+        double.NaN,
+        double.PositiveInfinity,
+        double.NegativeInfinity,
+    ];
 
     private static CombatEvent Hit(double value) =>
         new(1200, CombatEventType.Hit, CombatActor.Hero, CombatActor.FirstEnemy, value, 0);

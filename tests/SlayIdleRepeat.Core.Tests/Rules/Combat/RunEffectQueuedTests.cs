@@ -144,21 +144,34 @@ public sealed class RunEffectQueuedTests
     }
 
     /// <summary>
-    /// The effect index spans the whole <see cref="ushort"/> range, so the battle's effect table
-    /// can hold 65 536 entries — far more than `18`'s 43 ops across 98 perks, 60 talents and 8
-    /// bosses could ever put in one fight.
+    /// 🔒 The effect index is stored verbatim across the whole <see cref="ushort"/> range —
+    /// including <c>0</c>, which is a legitimate <b>first effect</b> and not "no content".
     /// </summary>
-    [Theory]
-    [InlineData((ushort)0)]
-    [InlineData((ushort)1)]
-    [InlineData((ushort)65534)]
-    [InlineData((ushort)65535)]
-    public void The_effect_index_spans_the_whole_ushort_range(ushort effectIndex)
+    /// <remarks>
+    /// The zero case is the one that matters: <see cref="CombatLog.NoDataId"/> is also <c>0</c>, so
+    /// a consumer that treated <c>DataId == 0</c> as "names nothing" would silently drop the first
+    /// effect's queued ops. <see cref="CombatEvent"/>'s slot table states that
+    /// <see cref="CombatEvent.DataId"/>'s meaning is a function of
+    /// <see cref="CombatEvent.Type"/> alone.
+    /// </remarks>
+    [Fact]
+    public void The_effect_index_is_stored_verbatim_including_zero()
     {
         var log = Started();
 
-        Should.NotThrow(() => log.AppendRunEffectQueued(880, Dicelord, effectIndex, 0.0));
-        log.Events[^1].DataId.ShouldBe(effectIndex);
+        foreach (var effectIndex in new ushort[] { 0, 1, 65534, 65535 })
+        {
+            log.AppendRunEffectQueued(880, Dicelord, effectIndex);
+            log.Events[^1].DataId.ShouldBe(effectIndex);
+        }
+
+        // Index 0 is a real effect, and it moves the hash exactly as index 1 does.
+        var withZero = Started();
+        withZero.AppendRunEffectQueued(880, Dicelord, 0);
+        var withoutAny = Started();
+
+        withZero.Complete(heroWon: true, 900, 40.0).LogHash
+            .ShouldNotBe(withoutAny.Complete(heroWon: true, 900, 40.0).LogHash);
     }
 
     /// <summary>

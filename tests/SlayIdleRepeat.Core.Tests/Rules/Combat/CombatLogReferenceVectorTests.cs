@@ -166,10 +166,56 @@ public sealed class CombatLogReferenceVectorTests
 
         var row = CombatLogReferenceVectors.Row("every-event-type");
         row.EventCount.ShouldBe(members.Length,
-            "the every-event-type row is the only pin on the enum's ordinals; a member missing from it " +
-            "is an ordinal nothing is watching");
+            "the every-event-type row is the only pin on the enum's SIZE; a member missing from it is an " +
+            "ordinal nothing is watching");
 
-        ReferenceLogs.AllEventTypes.Select(e => e.Type).ShouldBe(members.OrderBy(m => (int)m));
+        // The row's construction rule, which nothing else checks: the i-th event carries tick i and
+        // DataId i, so the committed bytes pin the ordinals as NUMBERS rather than merely as a set.
+        ReferenceLogs.AllEventTypes
+            .Select(e => (e.Tick, (int)e.DataId, (int)e.Type))
+            .ShouldBe(Enumerable.Range(0, members.Length).Select(i => (i, i, i)));
+    }
+
+    /// <summary>
+    /// 🔒 The <c>completed-battle</c> row is produced by <see cref="CombatLog.Complete"/>, so the
+    /// terminal <see cref="CombatEventType.BattleEnd"/>'s own six fields are inside a committed
+    /// hash.
+    /// </summary>
+    /// <remarks>
+    /// Every other row is written out by hand, which is what the table is for — it must be able to
+    /// express shapes the builder forbids. The consequence was that <c>Complete</c>'s
+    /// <c>BattleEnd</c> — the last event of every log in the game, and inside the <c>LogHash</c>
+    /// `11` §6 compares between client and server — was pinned by nothing at all: changing its
+    /// actor ids and <c>DataId</c> left the entire suite green.
+    /// </remarks>
+    [Fact]
+    public void The_terminal_BattleEnd_is_pinned_by_a_row_built_through_Complete()
+    {
+        var row = CombatLogReferenceVectors.Row("completed-battle");
+        var events = ReferenceLogs.Instance(row.Id);
+
+        events[^1].ShouldBe(new CombatEvent(
+            9, CombatEventType.BattleEnd, CombatActor.None, CombatActor.None, 0.0, CombatLog.NoDataId));
+
+        CanonicalStateWriter.HashCombatLog(events).ShouldBe(row.Hash, $"'{row.Id}' pins {row.Why}");
+    }
+
+    /// <summary>
+    /// A log stored as a <see cref="List{T}"/> encodes identically to one stored as an array.
+    /// </summary>
+    /// <remarks>
+    /// Every reference row is an array, but `11` §6 has the <b>server</b> rebuild the fight and
+    /// hash its own log, and nothing obliges it to reach the same container type. `14` §16.6's list
+    /// rule is a count and the elements, so both shapes must agree — asserted rather than assumed,
+    /// because a divergence here reads as tampering and discards a real duel.
+    /// </remarks>
+    [Fact]
+    public void A_list_and_an_array_of_the_same_events_hash_identically()
+    {
+        var events = ReferenceLogs.Instance("completed-battle");
+
+        CanonicalStateWriter.HashCombatLog(events.ToList())
+            .ShouldBe(CanonicalStateWriter.HashCombatLog(events.ToArray()));
     }
 
     /// <summary>
@@ -180,6 +226,7 @@ public sealed class CombatLogReferenceVectorTests
     [Theory]
     [InlineData("empty-log")]
     [InlineData("battle-start-only")]
+    [InlineData("hit-single")]
     [InlineData("two-events-ordered")]
     [InlineData("two-events-swapped")]
     [InlineData("duplicate-events")]
@@ -190,10 +237,29 @@ public sealed class CombatLogReferenceVectorTests
     [InlineData("tick-ceiling")]
     [InlineData("large-damage-value")]
     [InlineData("enrage-stack")]
+    [InlineData("status-stack-then-expire")]
+    [InlineData("completed-battle")]
     [InlineData("negative-value")]
     public void The_reference_table_still_covers_every_load_bearing_rule(string rowId)
     {
         CombatLogReferenceVectors.Rows.Where(row => row.Id == rowId).ShouldHaveSingleItem();
+    }
+
+    /// <summary>
+    /// And the coverage list above names every row the table actually has, so a row added to the
+    /// JSON without a guard here cannot be deleted again unnoticed.
+    /// </summary>
+    [Fact]
+    public void The_coverage_list_names_every_committed_row()
+    {
+        var guarded = typeof(CombatLogReferenceVectorTests)
+            .GetMethod(nameof(The_reference_table_still_covers_every_load_bearing_rule))!
+            .GetCustomAttributes(typeof(InlineDataAttribute), inherit: false)
+            .Cast<InlineDataAttribute>()
+            .Select(data => (string)data.GetData(null!).Single().Single()!)
+            .ToArray();
+
+        guarded.ShouldBe(CombatLogReferenceVectors.Rows.Select(row => row.Id), ignoreOrder: true);
     }
 
     /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
@@ -228,8 +294,54 @@ public sealed class CombatLogReferenceVectorTests
     [Fact]
     public void The_reference_table_is_not_empty()
     {
-        CombatLogReferenceVectors.Rows.Count.ShouldBeGreaterThanOrEqualTo(14);
+        CombatLogReferenceVectors.Rows.Count.ShouldBeGreaterThanOrEqualTo(16);
         CombatLogReferenceVectors.Published.Count.ShouldBeGreaterThanOrEqualTo(15);
+    }
+
+    /// <summary>
+    /// 🔒 <c>HashCombatLog</c> refuses a root that is not a list.
+    /// </summary>
+    /// <remarks>
+    /// Its parameter is <see cref="object"/> — it has to be, because `30` §11.4 forbids
+    /// <c>Model</c> from naming a type in <c>Rules</c> — so this is the one hashing mode whose root
+    /// kind actually varies. A single event would hash its 48 record bytes with no element count
+    /// and return a perfectly plausible <see cref="ulong"/> that is the <c>LogHash</c> of nothing.
+    /// </remarks>
+    [Fact]
+    public void HashCombatLog_refuses_a_root_that_is_not_a_list()
+    {
+        var single = new CombatEvent(3, CombatEventType.Hit, CombatActor.Hero, CombatActor.FirstEnemy, 1.0, 0);
+
+        Should.Throw<NotSupportedException>(() => CanonicalStateWriter.HashCombatLog(single))
+            .Message.ShouldContain("must be a list of events", Case.Sensitive);
+
+        Should.Throw<NotSupportedException>(
+            () => CanonicalStateWriter.HashCombatLog(new Dictionary<int, int> { [1] = 2 }));
+
+        // And the shape it is for still works.
+        Should.NotThrow(() => CanonicalStateWriter.HashCombatLog(new[] { single }));
+    }
+
+    /// <summary>A null log is an argument error, not a hash of nothing.</summary>
+    [Fact]
+    public void HashCombatLog_refuses_a_null_log()
+    {
+        Should.Throw<ArgumentNullException>(() => CanonicalStateWriter.HashCombatLog(null!));
+        Should.Throw<ArgumentNullException>(() => CombatLog.FirstIndexAtOrAfter(null!, 0));
+    }
+
+    /// <summary>An empty log hashes, and to something other than the bare FNV offset basis.</summary>
+    /// <remarks>
+    /// The 4-byte element count is what separates them. Without it an empty log would hash to the
+    /// offset basis itself — the value every empty byte stream in the game shares.
+    /// </remarks>
+    [Fact]
+    public void An_empty_log_hashes_to_more_than_the_offset_basis()
+    {
+        var empty = CanonicalStateWriter.HashCombatLog(Array.Empty<CombatEvent>());
+
+        empty.ShouldBe(CombatLogReferenceVectors.Row("empty-log").Hash);
+        empty.ShouldNotBe(CombatLogReferenceVectors.OffsetBasis);
     }
 
     private static byte[] BytesFor(CombatLogReferenceVectors.LogRow row) =>

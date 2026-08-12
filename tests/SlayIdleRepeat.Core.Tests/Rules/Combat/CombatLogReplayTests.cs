@@ -11,12 +11,17 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// <remarks>
 /// <para>
 /// <b>How sufficiency is verified here.</b> <see cref="Replayer"/> below is a deliberately blunt
-/// consumer: it holds nothing but the roster sizes and the log, has no access to stat blocks,
-/// effect definitions, the RNG or any simulator type, and never recomputes a number. It
-/// reconstructs, tick by tick, everything `05` §8 says the battle screen draws — each actor's HP
-/// bar, who is alive, which statuses are up, the boss's phase band, and the queued run effects. If
-/// it can do that, the log is sufficient for display; if it needed one value the log does not
-/// carry, this file would not compile.
+/// consumer. It reconstructs, tick by tick, everything `05` §8 and `13` §5 say the battle screen
+/// draws — each actor's HP bar, who is alive, which statuses are up <b>and at how many stacks</b>,
+/// the boss's phase band, the telegraphs, and the queued run effects.
+/// </para>
+/// <para>
+/// ⚠️ <b>What it legitimately holds besides the log</b>, stated so the claim is not read as broader
+/// than it is: the two sides' <b>starting HP</b> — which `05` §8's pre-battle banner already shows
+/// the player — and the roster it is drawing. It holds <b>no</b> stat block, <b>no</b> effect
+/// definition, <b>no</b> status content table, <b>no</b> RNG and <b>no</b> simulator type, and it
+/// recomputes nothing: every number it displays is read straight out of an event, and a DoT tick is
+/// told from a HoT tick by the <i>sign</i> of <see cref="CombatEvent.Value"/> alone.
 /// </para>
 /// <para>
 /// That is the real content of the claim. M7-06 builds the actual renderer, and there is no Godot
@@ -53,7 +58,10 @@ public sealed class CombatLogReplayTests
         log.Append(20, CombatEventType.Attack, CombatActor.Hero, Enemy1);
         log.Append(20, CombatEventType.Miss, CombatActor.Hero, Enemy1);
 
-        log.Append(30, CombatEventType.StatusTick, Enemy0, CombatActor.Hero, 5.0, StatusBurn);
+        // 🔒 A DoT tick and a HoT tick, distinguished by the SIGN of Value alone — the replayer
+        // branches on nothing else, which is what makes StatusTick self-describing.
+        log.Append(30, CombatEventType.StatusTick, Enemy0, CombatActor.Hero, -5.0, StatusBurn);
+        log.Append(30, CombatEventType.StatusTick, CombatActor.Hero, CombatActor.Hero, 2.5, StatusRegen);
         log.Append(30, CombatEventType.Heal, CombatActor.Hero, CombatActor.Hero, 12.5);
 
         log.AppendTelegraph(40, Enemy0, CombatActor.Hero, EffectAllIn, 1.5);
@@ -71,6 +79,7 @@ public sealed class CombatLogReplayTests
     }
 
     private const ushort StatusBurn = 1;
+    private const ushort StatusRegen = 2;
     private const ushort EffectScramble = 41;
     private const ushort EffectAllIn = 42;
 
@@ -85,12 +94,21 @@ public sealed class CombatLogReplayTests
 
         var replay = Replayer.Play(result.Log, heroStartingHp: 200.0, enemyStartingHp: 100.0);
 
-        // HP bars: hero took 30 + a 5 burn tick, healed 12.5.
-        replay.Hp[CombatActor.Hero].ShouldBe(200.0 - 30.0 - 5.0 + 12.5);
+        // HP bars: hero took 30 and a -5 burn tick, gained a +2.5 regen tick and healed 12.5.
+        replay.Hp[CombatActor.Hero].ShouldBe(200.0 - 30.0 - 5.0 + 2.5 + 12.5);
+
+        // The two status ticks are told apart by sign alone, with no content table consulted.
+        replay.StatusTicks.ShouldBe([(StatusBurn, -5.0), (StatusRegen, 2.5)]);
 
         // Enemy 0 took 40 then 60; enemy 1 took 25 and died.
         replay.Hp[Enemy0].ShouldBe(100.0 - 40.0 - 60.0);
+
+        // 🔒 ActorDeath names the dying actor in TargetId, per CombatEvent's slot table. Asserted
+        // rather than left to convention: SourceId is the killer, and a replayer that read the
+        // wrong slot would delete the wrong sprite.
         replay.Dead.ShouldBe([Enemy1]);
+        result.Log.Single(e => e.Type == CombatEventType.ActorDeath)
+            .ShouldBe(new CombatEvent(90, CombatEventType.ActorDeath, CombatActor.Hero, Enemy1, 0.0, 0));
 
         // The opening ward, the status that came and went, the boss band, the telegraph.
         replay.WardGranted[CombatActor.Hero].ShouldBe(100.0);
@@ -170,21 +188,54 @@ public sealed class CombatLogReplayTests
     /// </para>
     /// </remarks>
     [Theory]
-    [InlineData(1, 10, 170.0)]
-    [InlineData(2, 20, 170.0)]
-    [InlineData(3, 30, 177.5)]
+    [InlineData(1, 20, 170.0)]
+    [InlineData(2, 40, 180.0)]
+    [InlineData(3, 60, 180.0)]
     public void The_speed_toggle_only_changes_how_much_log_a_second_consumes(
         int speed, int expectedTick, double expectedHeroHp)
     {
-        const double halfASecond = 0.5;
+        const double oneSecond = 1.0;
         var result = Fight();
 
-        // 20 ticks/second (`05` §3), consumed `speed` times as fast.
-        var tick = (int)(halfASecond * 20 * speed);
+        // 20 ticks/second (`05` §3), consumed `speed` times as fast. The window is one second
+        // because a half second put ×1 and ×2 in the same event-free stretch of the fight, so two
+        // of the three rows could not have distinguished anything.
+        var tick = (int)(oneSecond * CombatLog.TicksPerSecond * speed);
         tick.ShouldBe(expectedTick);
 
         Replayer.Play(result.Log, 200.0, 100.0, tick).Hp[CombatActor.Hero].ShouldBe(expectedHeroHp);
     }
+
+    /// <summary>
+    /// 🔒 `13` §5 — <em>"status effect icons sit under each HP bar <b>with stack counts</b>"</em>.
+    /// The stack count is reconstructible from the log alone.
+    /// </summary>
+    /// <remarks>
+    /// This is why <see cref="CombatEventType.StatusApplied"/> carries the resulting stack count
+    /// rather than the potency. Counting <c>StatusApplied</c> events cannot substitute:
+    /// reapplication may add a stack or merely refresh (`18` §6), and the two are indistinguishable
+    /// by counting — the fourth application below is a refresh at max stacks and must not read as a
+    /// fourth stack.
+    /// </remarks>
+    [Fact]
+    public void The_log_alone_reconstructs_a_statuss_stack_count()
+    {
+        var events = ReferenceLogs.Instance("status-stack-then-expire");
+
+        StacksAfter(events, upToTick: 20).ShouldBe(1);
+        StacksAfter(events, upToTick: 40).ShouldBe(2);
+        StacksAfter(events, upToTick: 60).ShouldBe(3, "the fourth application is a refresh at max stacks");
+        StacksAfter(events, upToTick: 100).ShouldBe(2, "one stack decayed");
+        StacksAfter(events, upToTick: 120).ShouldBe(0, "the status is gone");
+    }
+
+    /// <summary>The stack count a replayer would draw at a given tick, read out of the log.</summary>
+    private static int StacksAfter(IReadOnlyList<CombatEvent> events, int upToTick) =>
+        events
+            .Where(e => e.Tick <= upToTick)
+            .Where(e => e.Type is CombatEventType.StatusApplied or CombatEventType.StatusExpired)
+            .Select(e => (int)e.Value)
+            .LastOrDefault();
 
     /// <summary>
     /// 🔒 Nothing in the log refers to simulator state. Every field is an integer tick, an
@@ -232,6 +283,8 @@ public sealed class CombatLogReplayTests
 
         public List<(ushort EffectIndex, double Argument)> QueuedRunEffects { get; } = [];
 
+        public List<(ushort StatusId, double Delta)> StatusTicks { get; } = [];
+
         public bool Finished { get; private set; }
 
         public int LastTick { get; private set; } = -1;
@@ -271,8 +324,15 @@ public sealed class CombatLogReplayTests
             switch (entry.Type)
             {
                 case CombatEventType.Hit:
-                case CombatEventType.StatusTick:
                     Hp[entry.TargetId] -= entry.Value;
+                    break;
+
+                case CombatEventType.StatusTick:
+                    // Signed: negative is a DoT, positive a HoT. The replayer needs no status
+                    // content table to tell them apart, which is what `05` §8's purple-for-DoT
+                    // floating text depends on.
+                    Hp[entry.TargetId] += entry.Value;
+                    StatusTicks.Add((entry.DataId, entry.Value));
                     break;
 
                 case CombatEventType.Heal:

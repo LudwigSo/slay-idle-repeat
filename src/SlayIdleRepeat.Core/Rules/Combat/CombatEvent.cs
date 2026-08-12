@@ -11,50 +11,108 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// tick 0, and there is no tick <c>-1</c>.
 /// </param>
 /// <param name="Type">Which state change. See <see cref="CombatEventType"/>.</param>
-/// <param name="SourceId">Who caused it, or <see cref="CombatActor.None"/>. See <see cref="CombatActor"/>.</param>
-/// <param name="TargetId">Who it happened to, or <see cref="CombatActor.None"/>.</param>
-/// <param name="Value">
-/// The event's one number — <em>"damage / heal / duration"</em> (`05` §7), rounded to 4 decimal
-/// places (`05` §1.1). Per member:
-/// <list type="bullet">
-///   <item><see cref="CombatEventType.Hit"/>: the HP actually lost, <b>after</b> ward absorption
-///         (`05` §4 step 9) — the number the replayer draws as floating combat text.</item>
-///   <item><see cref="CombatEventType.Heal"/>: the amount actually healed, overheal excluded
-///         (`05` §4.3).</item>
-///   <item><see cref="CombatEventType.Shield"/>: the ward amount granted, after the pool cap
-///         (`05` §4.1).</item>
-///   <item><see cref="CombatEventType.StatusApplied"/> / <see cref="CombatEventType.StatusTick"/>:
-///         the potency applied on this application or tick.</item>
-///   <item><see cref="CombatEventType.StatusExpired"/>: <c>0</c>.</item>
-///   <item><see cref="CombatEventType.PhaseChange"/>: the phase entered (<c>1</c>, <c>2</c> or
-///         <c>3</c> — `05` §6.3).</item>
-///   <item><see cref="CombatEventType.Telegraph"/>: the wind-up in <b>seconds</b>, which `17` §1
-///         bounds to <c>1.0..1.5</c>.</item>
-///   <item><see cref="CombatEventType.RunEffectQueued"/>: the queued op's one runtime-resolved
-///         argument — see <see cref="CombatLog.AppendRunEffectQueued"/>.</item>
-///   <item><see cref="CombatEventType.Attack"/>, <see cref="CombatEventType.Crit"/>,
-///         <see cref="CombatEventType.Miss"/>, <see cref="CombatEventType.Block"/>,
-///         <see cref="CombatEventType.WardBroken"/>, <see cref="CombatEventType.ActorDeath"/>,
-///         <see cref="CombatEventType.BattleStart"/>, <see cref="CombatEventType.BattleEnd"/>:
-///         <c>0</c>.</item>
-/// </list>
-/// </param>
-/// <param name="DataId">
-/// The content id the event names, or <c>0</c> where it names none: a status id for the
-/// <c>Status*</c> members, an ability id for <see cref="CombatEventType.PetAbility"/>, and the
-/// battle-local effect index for <see cref="CombatEventType.RunEffectQueued"/> and
-/// <see cref="CombatEventType.Telegraph"/>.
-/// </param>
+/// <param name="SourceId">Who caused it, or <see cref="CombatActor.None"/>. See the table below.</param>
+/// <param name="TargetId">Who it happened to, or <see cref="CombatActor.None"/>. See the table below.</param>
+/// <param name="Value">The event's one number, rounded to 4 dp (`05` §1.1). See the table below.</param>
+/// <param name="DataId">The content id the event names, or <c>0</c>. See the table below.</param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>This is a wire contract.</b> `05` §8 makes the visual battle a replay of this log, `11` §6
-/// has the PvP backend recompute <c>LogHash</c> over it and compare, and M5-12 runs the same hash
-/// on x64 and two ARM64 devices as the determinism gate. Its shape is not an implementation detail
-/// that a later milestone may adjust.
+/// and `27` §11 have the backend recompute <c>LogHash</c> over it and compare, and `14` §8.2 runs
+/// the same hash on Linux x64 and Android ARM64 as the determinism gate. Its shape is not an
+/// implementation detail that a later milestone may adjust.
+/// </para>
+///
+/// <para>
+/// ═══ <b>WHAT EVERY MEMBER PUTS IN EVERY SLOT</b> 🔒 ═══
 /// </para>
 /// <para>
-/// <b>⚠️ Two deliberate departures from `05` §7's declaration, both stated rather than made
-/// quietly.</b>
+/// Stated exhaustively, member by member, because a slot left to each emitter's judgement is a slot
+/// on which the client and the server can disagree — and `11` §6 reads that disagreement as
+/// tampering. <c>—</c> means <see cref="CombatActor.None"/>; <c>0</c> means the literal zero.
+/// </para>
+/// <list type="table">
+///   <listheader><term>Member</term><description>SourceId · TargetId · Value · DataId</description></listheader>
+///   <item><term><see cref="CombatEventType.BattleStart"/></term>
+///     <description>— · — · <c>0</c> · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Attack"/></term>
+///     <description>attacker · defender · <c>0</c> · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Hit"/></term>
+///     <description>whoever dealt it · <b>who lost the HP</b> · the HP actually lost, after ward
+///       absorption (`05` §4 step 9) · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Crit"/></term>
+///     <description>attacker · defender · <c>0</c> · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Miss"/></term>
+///     <description>attacker · the dodger · <c>0</c> · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Block"/></term>
+///     <description>attacker · the blocker · <c>0</c> · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Heal"/></term>
+///     <description>the healer (the lifesteal attacker, or the target itself for a HoT) · <b>who
+///       gained the HP</b> · the amount actually healed, overheal excluded (`05` §4.3) ·
+///       <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Shield"/></term>
+///     <description>the granter · the warded actor · the ward granted, after the pool cap
+///       (`05` §4.1) · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.StatusApplied"/></term>
+///     <description>the applier · the afflicted · <b>the resulting stack count</b> (≥ 1) ·
+///       status id</description></item>
+///   <item><term><see cref="CombatEventType.StatusExpired"/></term>
+///     <description>the applier · the afflicted · <b>the stacks remaining</b> (<c>0</c> = gone
+///       entirely) · status id</description></item>
+///   <item><term><see cref="CombatEventType.StatusTick"/></term>
+///     <description>the applier · the afflicted · <b>the HP delta, signed</b>: negative for a DoT,
+///       positive for a HoT · status id</description></item>
+///   <item><term><see cref="CombatEventType.PetAbility"/></term>
+///     <description>the pet · the ability's target, or — for an untargeted or AoE ability ·
+///       <c>0</c> · ability id</description></item>
+///   <item><term><see cref="CombatEventType.WardBroken"/></term>
+///     <description>whoever broke it · <b>whose pool emptied</b> · <c>0</c> · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.RunEffectQueued"/></term>
+///     <description>the emitting actor · <b>— always</b> (`18` §5's <c>RUN</c> is not an actor) ·
+///       the one runtime-resolved argument · battle-local effect index</description></item>
+///   <item><term><see cref="CombatEventType.ActorDeath"/></term>
+///     <description>the killer, or — on a non-combat death · <b>the actor that died</b> · <c>0</c> ·
+///       <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.PhaseChange"/></term>
+///     <description>the boss · the boss · the phase entered (<c>1</c>, <c>2</c> or <c>3</c> —
+///       `05` §6.3) · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.BattleEnd"/></term>
+///     <description>— · — · <c>0</c> · <c>0</c></description></item>
+///   <item><term><see cref="CombatEventType.Telegraph"/></term>
+///     <description>the winding-up actor · who it will hit, or — for an AoE · the wind-up in
+///       <b>seconds</b>, <c>1.0..1.5</c> (`17` §1) · battle-local effect index</description></item>
+/// </list>
+/// <para>
+/// 🔒 <b><see cref="DataId"/>'s namespace is a function of <see cref="Type"/> alone.</b> It is a
+/// status id for the three <c>Status*</c> members, an ability id for
+/// <see cref="CombatEventType.PetAbility"/>, and a battle-local effect index for
+/// <see cref="CombatEventType.RunEffectQueued"/> and <see cref="CombatEventType.Telegraph"/>.
+/// ⚠️ <b>The effect index is 0-based, so <c>DataId == 0</c> is a legitimate first effect</b> — a
+/// consumer that treats <c>0</c> as "no content" for those two members silently drops it.
+/// <see cref="CombatLog.NoDataId"/> means "names no content" only for the members whose row above
+/// says <c>0</c>.
+/// </para>
+/// <para>
+/// ⚠️ <b><see cref="CombatEventType.StatusApplied"/> carries the stack count, not the potency.</b>
+/// `13` §5 requires <em>"status effect icons … with stack counts"</em> under every HP bar, and the
+/// log is the only thing the replayer has. Potency is recoverable from the status content tables
+/// and the stack count; a stack count is recoverable from nothing else — reapplication may add a
+/// stack or merely refresh (`18` §6), and the two are indistinguishable by counting events. The
+/// per-tick number the player actually sees is <see cref="CombatEventType.StatusTick"/>'s.
+/// </para>
+/// <para>
+/// ⚠️ <b>`05` §7's third stated meaning of <see cref="Value"/>, "duration", is deliberately
+/// unused.</b> The comment reads <c>// damage / heal / duration</c>, but no member above carries a
+/// status duration and one cannot be added — the slot is spent, and the stack count is worth more.
+/// Nothing is lost: <see cref="CombatEventType.StatusExpired"/> marks the end of a status exactly,
+/// so a replayer knows how long every status lasted without being told in advance, and `13` §5 asks
+/// for stack counts, not countdown timers. The one duration the log does carry is
+/// <see cref="CombatEventType.Telegraph"/>'s wind-up, which must be known <i>ahead</i> of the event
+/// it announces and so cannot be recovered from a later event. Recorded as errata.
+/// </para>
+///
+/// <para>
+/// ═══ <b>TWO DELIBERATE DEPARTURES FROM `05` §7's DECLARATION</b> ═══
 /// </para>
 /// <para>
 /// <b>1. Properties, not public fields — because public fields hash as zero bytes.</b> `05` §7
@@ -88,18 +146,19 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 ///     <c>LogHash</c> is defined as a hash over this list.
 ///   </item>
 ///   <item>
-///     <b>It breaks `05` §1.1's own rounding rule at the log boundary.</b> All combat math is
-///     <c>double</c> rounded to 4 dp. Narrowing a rounded double to <c>float</c> un-rounds it:
-///     <c>1234.5678</c> becomes <c>1234.5677490234375</c>, which fails
-///     <c>Math.Round(x, 4) == x</c> — the guard `14` §8.2 makes the writer apply to every double
-///     it sees. Every damage figure in the game would trip it.
+///     <b>It contradicts `05` §1.1 and breaks its rounding rule at the log boundary.</b> `05` §1.1
+///     and `14` §8.2 both open with <em>"all combat math uses <c>double</c>"</em>, rounded to 4 dp.
+///     Narrowing a rounded double to <c>float</c> un-rounds it: <c>1234.5678</c> becomes
+///     <c>1234.5677490234375</c>, which fails <c>Math.Round(x, 4) == x</c> — the guard `14` §8.2
+///     makes the writer apply to every double it sees. Every damage figure in the game would trip
+///     it.
 ///   </item>
 ///   <item>
 ///     <b>It would make the determinism gate lie.</b> A <c>float</c> holds about seven significant
 ///     digits, so above <c>2^23</c> it has no fractional resolution at all:
 ///     <c>8388609.0001</c> and <c>8388609.0002</c> — two damage figures `05` §1.1 calls distinct —
 ///     are the <b>same</b> <c>float</c>. Narrowing at the log boundary would erase exactly the
-///     low-order divergence M5-12 runs on x64 and ARM64 to detect, and exactly the tampering
+///     low-order divergence `14` §8.2 runs on x64 and ARM64 to detect, and exactly the tampering
 ///     `11` §6 compares hashes to catch. The gate would go green <i>because</i> precision was
 ///     thrown away.
 ///   </item>

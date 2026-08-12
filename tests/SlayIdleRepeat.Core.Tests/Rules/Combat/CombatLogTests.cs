@@ -104,6 +104,11 @@ public sealed class CombatLogTests
     }
 
     /// <summary>NaN and the infinities are not combat numbers.</summary>
+    /// <remarks>
+    /// S2 — the message is asserted, not just the exception type. <c>Math.Round(NaN, 4) != NaN</c>
+    /// is <b>true</b>, so the 4-dp guard also throws on a NaN, with the same type and the wrong
+    /// explanation: deleting the finiteness guard entirely left the NaN case green.
+    /// </remarks>
     [Theory]
     [InlineData(double.NaN)]
     [InlineData(double.PositiveInfinity)]
@@ -113,7 +118,8 @@ public sealed class CombatLogTests
         var log = Started();
 
         Should.Throw<InvalidOperationException>(
-            () => log.Append(3, CombatEventType.Hit, CombatActor.Hero, Enemy0, value));
+                () => log.Append(3, CombatEventType.Hit, CombatActor.Hero, Enemy0, value))
+            .Message.ShouldContain("A combat number is finite", Case.Sensitive);
     }
 
     /// <summary>
@@ -230,9 +236,94 @@ public sealed class CombatLogTests
         result.DurationTicks.ShouldBe(10);
         result.HeroHpRemaining.ShouldBe(214.5);
         result.Log.Count.ShouldBe(4);
-        result.Log[^1].Type.ShouldBe(CombatEventType.BattleEnd);
-        result.Log[^1].Tick.ShouldBe(9);
+
+        // 🔒 The WHOLE record, not just Type and Tick. BattleEnd is the last event of every log in
+        // the game and is inside the LogHash `11` §6 compares between client and server — with only
+        // two of its six fields asserted, its actor ids and DataId could be changed to anything and
+        // the entire suite stayed green.
+        result.Log[^1].ShouldBe(new CombatEvent(
+            9, CombatEventType.BattleEnd, CombatActor.None, CombatActor.None, 0.0, CombatLog.NoDataId));
+
         result.LogHash.ShouldBe(CanonicalStateWriter.HashCombatLog(result.Log));
+    }
+
+    /// <summary>
+    /// 🔒 `05` §7 is a closed vocabulary — an undefined value would be hashed as its ordinal and
+    /// replay as nothing.
+    /// </summary>
+    [Fact]
+    public void An_undefined_event_type_is_refused()
+    {
+        var log = Started();
+
+        Should.Throw<InvalidOperationException>(
+                () => log.Append(1, (CombatEventType)42, CombatActor.Hero, Enemy0))
+            .Message.ShouldMatchWildcard("*42 is not a CombatEventType*closed vocabulary*");
+    }
+
+    /// <summary>
+    /// 🔒 The two members with rules of their own cannot be smuggled past those rules through the
+    /// general <see cref="CombatLog.Append"/>.
+    /// </summary>
+    /// <remarks>
+    /// Without this, <c>Append(new CombatEvent(t, Telegraph, s, d, 99.0, e))</c> put a 99-second
+    /// wind-up in the log with `17` §1's band never consulted, and a <c>RunEffectQueued</c> could
+    /// name an actor target that `18` §5's <c>RUN</c> has no meaning for.
+    /// </remarks>
+    [Theory]
+    [InlineData(nameof(CombatEventType.Telegraph))]
+    [InlineData(nameof(CombatEventType.RunEffectQueued))]
+    public void A_member_with_its_own_rules_may_not_be_appended_directly(string member)
+    {
+        var log = Started();
+        var type = Enum.Parse<CombatEventType>(member, ignoreCase: false);
+
+        Should.Throw<InvalidOperationException>(() => log.Append(1, type, Enemy0, CombatActor.Hero, 99.0, 7))
+            .Message.ShouldMatchWildcard("*was appended through Append*Use AppendTelegraph or AppendRunEffectQueued*");
+    }
+
+    /// <summary>
+    /// 🔒 <see cref="CombatEventType.BattleStart"/> names no actor. Enforced because a client that
+    /// filled the slots and a server that did not would compute different <c>LogHash</c>es for an
+    /// identical fight, and `11` §6 reads that as tampering.
+    /// </summary>
+    [Theory]
+    [InlineData(CombatActor.Hero, CombatActor.None)]
+    [InlineData(CombatActor.None, CombatActor.Hero)]
+    [InlineData(CombatActor.Hero, CombatActor.Hero)]
+    public void BattleStart_naming_an_actor_is_refused(byte sourceId, byte targetId)
+    {
+        var log = new CombatLog();
+
+        Should.Throw<InvalidOperationException>(
+                () => log.Append(0, CombatEventType.BattleStart, sourceId, targetId))
+            .Message.ShouldMatchWildcard("*BattleStart names actors*`11` §6*");
+    }
+
+    /// <summary>The events view cannot be cast back to something appendable.</summary>
+    /// <remarks>
+    /// <c>Complete</c>'s seal is only as strong as the collection it hands out: a caller that could
+    /// cast <see cref="CombatLog.Events"/> to <c>List&lt;CombatEvent&gt;</c> could append past it,
+    /// and one that could cast <see cref="SimulationResult.Log"/> to <c>CombatEvent[]</c> could
+    /// rewrite a replay after its hash was computed.
+    /// </remarks>
+    [Fact]
+    public void The_log_is_not_writable_through_the_collections_it_hands_out()
+    {
+        var log = Started();
+        var result = log.Complete(heroWon: true, 10, 100.0);
+
+        // Neither is the underlying mutable container, so neither can be cast back to one.
+        log.Events.ShouldNotBeAssignableTo<List<CombatEvent>>();
+        result.Log.ShouldNotBeAssignableTo<CombatEvent[]>();
+        result.Log.ShouldNotBeAssignableTo<List<CombatEvent>>();
+
+        // A ReadOnlyCollection<T> does implement IList<T> — so the guarantee that matters is that
+        // writing through it fails rather than that the interface is absent.
+        var asList = (IList<CombatEvent>)result.Log;
+        Should.Throw<NotSupportedException>(() => asList[0] = default);
+        Should.Throw<NotSupportedException>(() => asList.Add(default));
+        Should.Throw<NotSupportedException>(() => ((IList<CombatEvent>)log.Events).Add(default));
     }
 
     /// <summary>
@@ -278,13 +369,50 @@ public sealed class CombatLogTests
     }
 
     /// <summary>A duration outside the 90 s cap is refused (`05` §3).</summary>
+    /// <remarks>
+    /// S2 — the message is asserted. <c>0</c> and <c>-1</c> also trip the <i>later</i>
+    /// "shorter than the log it summarises" guard, so without pinning the message two of the three
+    /// cases passed with the range guard deleted.
+    /// </remarks>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
     [InlineData(CombatLog.MaxTicks + 1)]
     public void A_duration_outside_the_fight_is_refused(int durationTicks)
     {
-        Should.Throw<InvalidOperationException>(() => Started().Complete(heroWon: true, durationTicks, 100.0));
+        Should.Throw<InvalidOperationException>(
+                () => Started().Complete(heroWon: true, durationTicks, 100.0))
+            .Message.ShouldContain($"outside 1..{CombatLog.MaxTicks}", Case.Sensitive);
+    }
+
+    /// <summary>The hero's remaining HP obeys every rule a logged number does (`05` §1.1).</summary>
+    /// <remarks>
+    /// The <c>Complete</c> path had only the unrounded case; NaN, the infinities and negative zero
+    /// reach the same guard by different branches and each has its own message.
+    /// </remarks>
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(-0.0)]
+    public void A_hero_hp_that_is_not_a_logged_number_is_refused(double heroHpRemaining)
+    {
+        Should.Throw<InvalidOperationException>(
+                () => Started().Complete(heroWon: true, 10, heroHpRemaining))
+            .Message.ShouldContain("heroHpRemaining", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// A negative HP total is an unclamped subtraction upstream, not an outcome (`05` §4's floor
+    /// and §4.3 keep HP at or above 0).
+    /// </summary>
+    [Fact]
+    public void A_negative_hero_hp_is_refused()
+    {
+        Should.Throw<InvalidOperationException>(() => Started().Complete(heroWon: false, 10, -5.0))
+            .Message.ShouldContain("unclamped subtraction", Case.Sensitive);
+
+        Should.NotThrow(() => Started().Complete(heroWon: false, 10, 0.0));
     }
 
     /// <summary>The hero's remaining HP is rounded like every other combat number (`05` §1.1).</summary>
@@ -336,6 +464,7 @@ public sealed class CombatLogTests
     [InlineData(0.9)]
     [InlineData(1.6)]
     [InlineData(3.0)]
+    [InlineData(double.NaN)]
     public void A_telegraph_outside_the_documented_band_is_refused(double leadSeconds)
     {
         var log = Started();
@@ -343,6 +472,27 @@ public sealed class CombatLogTests
         Should.Throw<InvalidOperationException>(
                 () => log.AppendTelegraph(600, Enemy0, CombatActor.Hero, 41, leadSeconds))
             .Message.ShouldMatchWildcard("*wind-up*`17` §1*1–1.5 s band*");
+    }
+
+    /// <summary>
+    /// 🔒 A wind-up must be a whole number of ticks. `05` §3's simulation is fixed-tick, so the
+    /// mechanic being announced lands on an integer tick; a fractional lead points between two.
+    /// </summary>
+    /// <remarks>
+    /// The band is stated in seconds and 4 dp are admissible, so <c>1.0001</c> is inside it — and
+    /// <c>1.0001 × 20 = 20.002</c> ticks announces nothing.
+    /// </remarks>
+    [Theory]
+    [InlineData(1.0001)]
+    [InlineData(1.234)]
+    [InlineData(1.4999)]
+    public void A_telegraph_that_is_not_a_whole_number_of_ticks_is_refused(double leadSeconds)
+    {
+        var log = Started();
+
+        Should.Throw<InvalidOperationException>(
+                () => log.AppendTelegraph(600, Enemy0, CombatActor.Hero, 41, leadSeconds))
+            .Message.ShouldMatchWildcard("*fixed-tick*between two ticks*");
     }
 
     // ---------------------------------------------------------------- seeking

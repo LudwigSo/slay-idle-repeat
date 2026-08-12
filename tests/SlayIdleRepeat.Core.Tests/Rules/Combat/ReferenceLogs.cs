@@ -21,6 +21,33 @@ internal static class ReferenceLogs
 {
     private const byte Enemy0 = CombatActor.FirstEnemy;
 
+    /// <summary>A status id, standing in for `05` §5's <c>BURN</c>.</summary>
+    private const ushort Burn = 1;
+
+    /// <summary>
+    /// 🔒 The one reference row whose events are produced by <see cref="CombatLog"/> itself rather
+    /// than written out — so the terminal <see cref="CombatEventType.BattleEnd"/>'s own six fields
+    /// are inside the committed hash.
+    /// </summary>
+    /// <remarks>
+    /// Every other row bypasses the builder, which is what the table is for (it must be able to
+    /// express shapes the builder forbids). But that left <c>Complete</c>'s <c>BattleEnd</c> — the
+    /// last event of every log in the game, and inside the <c>LogHash</c> `11` §6 compares —
+    /// pinned by nothing: its actor ids and <c>DataId</c> could be changed to anything and the
+    /// whole suite stayed green.
+    /// </remarks>
+    internal static IReadOnlyList<CombatEvent> CompletedBattle()
+    {
+        var log = new CombatLog();
+
+        log.Append(0, CombatEventType.Shield, CombatActor.Hero, CombatActor.Hero, 100.0);
+        log.Append(0, CombatEventType.BattleStart, CombatActor.None, CombatActor.None);
+        log.Append(4, CombatEventType.Hit, CombatActor.Hero, Enemy0, 41.2536);
+        log.Append(9, CombatEventType.ActorDeath, CombatActor.Hero, Enemy0);
+
+        return log.Complete(heroWon: true, 10, 214.5).Log;
+    }
+
     /// <summary>The event list behind one committed row.</summary>
     internal static IReadOnlyList<CombatEvent> Instance(string rowId) => rowId switch
     {
@@ -84,6 +111,19 @@ internal static class ReferenceLogs
 
         "enrage-stack" => EnrageStack,
 
+        "status-stack-then-expire" =>
+        [
+            new CombatEvent(20, CombatEventType.StatusApplied, Enemy0, CombatActor.Hero, 1.0, Burn),
+            new CombatEvent(40, CombatEventType.StatusApplied, Enemy0, CombatActor.Hero, 2.0, Burn),
+            new CombatEvent(60, CombatEventType.StatusApplied, Enemy0, CombatActor.Hero, 3.0, Burn),
+            new CombatEvent(60, CombatEventType.StatusApplied, Enemy0, CombatActor.Hero, 3.0, Burn),
+            new CombatEvent(80, CombatEventType.StatusTick, Enemy0, CombatActor.Hero, 37.5, Burn),
+            new CombatEvent(100, CombatEventType.StatusExpired, Enemy0, CombatActor.Hero, 2.0, Burn),
+            new CombatEvent(120, CombatEventType.StatusExpired, Enemy0, CombatActor.Hero, 0.0, Burn),
+        ],
+
+        "completed-battle" => CompletedBattle(),
+
         "negative-value" =>
         [
             new CombatEvent(9, CombatEventType.Heal, CombatActor.Hero, CombatActor.Hero, -0.5, 0),
@@ -113,9 +153,13 @@ internal static class ReferenceLogs
     /// <c>SYS_ENRAGE</c> firing at 1 Hz from 70 s (`05` §3.1) — the first five of the twenty ticks
     /// the 90 s cap admits.
     /// </summary>
+    /// <remarks>
+    /// <see cref="CombatEvent.Value"/> is the resulting <b>stack count</b>, per
+    /// <see cref="CombatEvent"/>'s slot table — <c>1..5</c>, not the ×1.08 multiplier.
+    /// </remarks>
     internal static IReadOnlyList<CombatEvent> EnrageStack { get; } =
         Enumerable.Range(0, 5)
             .Select(i => new CombatEvent(
-                1400 + (20 * i), CombatEventType.StatusApplied, Enemy0, Enemy0, 1.08, 900))
+                1400 + (20 * i), CombatEventType.StatusApplied, Enemy0, Enemy0, i + 1, 9))
             .ToArray();
 }
