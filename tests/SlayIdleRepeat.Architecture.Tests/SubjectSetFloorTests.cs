@@ -42,9 +42,17 @@ namespace SlayIdleRepeat.Architecture.Tests;
 public sealed class SubjectSetFloorTests
 {
     /// <summary>
-    /// Subjects the rules key on that M1 and later create. Each one is absent today, and
-    /// each is the reason some rule is currently vacuous.
+    /// Subjects the rules key on that a later milestone creates. Each one is absent today, and each
+    /// is the reason some rule is currently vacuous — <b>by design, and the milestone that ends it
+    /// is on the row</b>.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>M1-12 corrected "that M1 and later create".</b> M1 is finished and created none of
+    /// these: what is left is <c>GuildView</c> (M14) and <c>GhostSnapshot</c> (M12). The distinction
+    /// this array now carries is the one M1-12's brief turns on — a rule whose subject arrives in
+    /// M2–M16 is <em>correctly</em> documented as vacuous, and deleting that note would be as wrong
+    /// as leaving a false one.
+    /// </remarks>
     /// <remarks>
     /// 🔒 Deleting an entry when the subject arrives is not optional — the rule below fails
     /// on a declared-pending subject that exists. That is the whole mechanism: it converts

@@ -71,9 +71,16 @@ internal static class SnapshotFieldOrderPin
             .ToArray();
 
     /// <summary>
-    /// Every public snapshot record in <c>Core/Model/Snapshots/</c>. Was empty until M1-04; holds
-    /// <c>PlayerSnapshot</c> from that commit and must never be empty again.
+    /// Every public snapshot record in <c>Core/Model/Snapshots/</c>. Was empty until M1-04 and must
+    /// never be empty again.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ M1-12 dropped "holds <c>PlayerSnapshot</c> from that commit" rather than extending it to
+    /// name <c>RunSnapshot</c> too. It was true and incomplete from M1-05 onwards, which is the
+    /// shape that goes stale silently — a list of members in prose beside the list that computes
+    /// them. What is durable is the claim: this set is non-empty, and every record in it is pinned.
+    /// The identities are floored in <c>SubjectSetFloorTests</c>, where a rename goes red.
+    /// </remarks>
     internal static IReadOnlyList<Type> SnapshotRecords { get; } =
         PublicTypesUnderSnapshots
             .Where(CanonicalStateWriter.IsCanonicalRecord)

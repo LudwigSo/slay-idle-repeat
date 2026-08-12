@@ -15,11 +15,12 @@ namespace SlayIdleRepeat.Core.Tests.Events;
 /// <para>
 /// The rule that every currency <i>mutation</i> emits one is
 /// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c> (M0-08), an IL scan that
-/// has existed since before this type did. 🔒 <b>It is still vacuous after this commit and stays so
-/// until M1-04</b>, and nothing here should be read as saying otherwise: it recognises its subjects
-/// through a hard-coded <c>CurrencyId</c> field-type name, and the first field a currency is
-/// actually <i>held</i> in arrives with the <c>Player</c> aggregate. What this commit changes is
-/// that the event half of that rule's predicate now names a real type.
+/// has existed since before this type did. 🔒 <b>M1-12 deleted the claim that used to be here —
+/// "it is still vacuous after this commit and stays so until M1-04"</b> — which was true when M1-03
+/// wrote it and false from the commit after. The rule is <b>live</b>, over three currency-carrying
+/// fields: <c>Player::_wallet</c>, <c>Run::_wallet</c> and <c>PlayerSnapshot</c>'s <c>Wallet</c>
+/// component. What M1-03 contributed is still what this paragraph says it is: the event half of that
+/// rule's predicate names a real type from this commit.
 /// </para>
 /// <para>
 /// ⚠️ <b>Authoring this event very nearly switched that rule's own vacuity sentinel off.</b>

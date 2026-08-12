@@ -10,10 +10,36 @@ namespace SlayIdleRepeat.Architecture.Tests;
 
 /// <summary>
 /// `30` §9 — the rules that keep the domain playable in memory.
-/// Every rule here is written against its final subject; the subjects M1 creates
-/// simply yield an empty set today, so each rule turns into a real assertion the
-/// moment the type it names appears.
 /// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>M1-12 deleted the sentence that used to be this summary's second half</b>, and it is worth
+/// recording what it said because it was the most misleading line in the file: <em>"the subjects M1
+/// creates simply yield an empty set today, so each rule turns into a real assertion the moment the
+/// type it names appears."</em> True when M0-08 wrote it, false from the day M1 populated the
+/// subjects, and sitting on the <em>class</em> — so a reader arriving at any rule in this file was
+/// told, before reading it, that the whole file was asleep. Steering <b>S4</b>'s known limit:
+/// <em>"an exemption whose reason went stale while still formally valid is not mechanically
+/// detectable."</em>
+/// </para>
+/// <para>
+/// 🔒 <b>Every rule here quantifies over real subjects.</b> Measured on this branch, not assumed:
+/// 128 types in <c>Core</c> (117 author-written), 49 concrete <c>GameCommand</c> subtypes against a
+/// two-type dispatch surface, 3 currency-carrying fields, 2 aggregates, 4 types under
+/// <c>Handlers/</c> and <c>Rules/</c>, and a public <c>InMemoryGame</c>. Each rule was made to fail
+/// on purpose, arm by arm, and the literal output is in M1-12's report (steering <b>S1</b>).
+/// </para>
+/// <para>
+/// ⚠️ <b>What remains vacuous, and it is by design rather than by neglect.</b> Three arms have no
+/// subject and must not: <c>Domain_has_no_ambient_time_or_randomness</c>' two <c>IClockPort</c> arms
+/// (that name must NEVER appear in <c>Core</c> — permanently subject-less by intent, not "not
+/// yet"), and <c>Domain_references_no_port_interface</c>' <c>Application.Ports</c> arm, which is
+/// unreachable because the assembly-reference arm one line above it fires first and a C# TypeRef
+/// cannot exist without an AssemblyRef to scope it. The
+/// <c>Handlers_and_Rules_are_internal</c> exception list is the fourth: <c>CombatSimulator</c> (M2)
+/// and <c>PowerCalculator</c> (`29` §1) do not exist, so the exemption exempts nothing yet.
+/// </para>
+/// </remarks>
 public sealed class DomainPurityTests
 {
     /// <summary>Types that make a signature asynchronous. `30` §9 bans all of them from `Core`.</summary>
