@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
@@ -93,6 +94,30 @@ internal sealed class BattleServices
     internal EffectEvaluationContext ContextFor(
         BattleActor holder, BattleActor? target = null, BattleActor? attacker = null) =>
         _simulation.ContextFor(holder, target, attacker);
+
+    /// <summary>
+    /// 🔒 `05` §3.1 — the <c>ON_PHASE_ENTER</c> sweep a phase entry owes, over the boss's own
+    /// instances in ascending effect-id order.
+    /// </summary>
+    /// <param name="boss">The boss that just entered a phase.</param>
+    /// <param name="phase">The phase entered, <c>1..3</c>.</param>
+    /// <remarks>
+    /// Routed through the loop for <see cref="AfterHpDecrease"/>'s reason: <see cref="IBossPhases"/>
+    /// owns <em>when</em> a phase is entered, and `18` §2.5's routing, `05` §3.1's cascade bound and
+    /// the op seams the entry's effects resolve through are all the loop's. A seam that resolved them
+    /// itself would be a second, quieter copy of all three.
+    /// </remarks>
+    internal void FirePhaseEntry(BattleActor boss, int phase) =>
+        _simulation.FirePhaseEntry(boss, phase);
+
+    /// <summary>
+    /// 🔒 `18` §10.1 E6 — resolves the one effect a <c>RANDOM_OUTCOME</c> drew, once
+    /// <see cref="IBossOutcomes"/> has found it among the holder's holdings.
+    /// </summary>
+    /// <param name="holder">The actor whose roll it was.</param>
+    /// <param name="effect">The winning row's effect. It carries no trigger of its own.</param>
+    internal void ResolveOutcome(BattleActor holder, EffectDefinition effect) =>
+        _simulation.ResolveOutcome(holder, effect);
 
     /// <summary>
     /// 🔒 `05` §3.1's phase check — <em>"runs immediately after <b>every</b> boss HP decrease

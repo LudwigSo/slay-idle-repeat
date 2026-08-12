@@ -841,6 +841,20 @@ internal static class BuildPermutationGenerator
                 MaxAlive = 1 + rng.Range(0, 4),
             },
 
+            // 🔒 `18` §10.1 E6 — the table IS the op, and it carries no value. Two rows because one
+            //    outcome is not a choice, and both weights positive because `14` §8.0's walk has no
+            //    row to pick otherwise: an emitted effect EffectOpValidation would refuse is an
+            //    effect the resolver will never actually be handed.
+            EffectOp.RANDOM_OUTCOME => effect with
+            {
+                Value = null,
+                Outcomes = new[]
+                {
+                    new RandomOutcomeEntry($"{id}_OUTCOME_A", 1 + rng.Range(0, 4)),
+                    new RandomOutcomeEntry($"{id}_OUTCOME_B", 1 + rng.Range(0, 4)),
+                },
+            },
+
             EffectOp.STAT_COPY => effect with
             {
                 Stat = rng.Range(0, 2) == 0

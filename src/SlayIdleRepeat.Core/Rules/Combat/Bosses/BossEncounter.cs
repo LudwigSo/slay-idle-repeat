@@ -2,6 +2,7 @@ using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 using SlayIdleRepeat.Core.Rules.Effects;
+using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
@@ -164,10 +165,27 @@ internal sealed record BossEncounterRequest
 /// </list>
 /// <para>
 /// 🔒 <b>Every refusal is an <see cref="EffectContextException"/> naming the boss, the phase and the
-/// mechanic, and carrying the rule's own marker</b> — <c>T1</c>, <c>T2</c> or <c>T3</c> for the
-/// telegraph rules (steering S2: a failure has to say <em>which</em> rule fired, not merely that
-/// something was wrong). <c>CombatLog.AppendTelegraph</c> enforces T1 again at emission time and is
-/// the second line of defence; the message here is the better one because it knows the authoring.
+/// mechanic, and carrying the rule's own marker</b> (steering S2: a failure has to say <em>which</em>
+/// rule fired, not merely that something was wrong). <c>CombatLog.AppendTelegraph</c> enforces T1
+/// again at emission time and is the second line of defence; the message here is the better one
+/// because it knows the authoring.
+/// </para>
+/// <para>
+/// ═══ 🔒 <b>THE MARKER REGISTER — grep for one and find the rule, its message and its cases</b> ═══
+/// </para>
+/// <list type="table">
+///   <item><term><c>A1</c></term><description>the phase blocks are not 1, 2, 3 in order.</description></item>
+///   <item><term><c>A2</c></term><description>a mechanic names an effect the script does not declare.</description></item>
+///   <item><term><c>A3</c></term><description>a script authors one of the three <see cref="BossBuiltIns"/>.</description></item>
+///   <item><term><c>A4</c></term><description>a phase-2 or phase-3 block carries <c>ON_BATTLE_START</c>.</description></item>
+///   <item><term><c>A5</c></term><description>a <c>SUMMON</c> authors a <c>maxAlive</c> above <see cref="BossAdds.MaxAlive"/>.</description></item>
+///   <item><term><c>T1</c>, <c>T2</c>, <c>T3</c></term><description>the wind-up rules — see <see cref="BossTelegraphs"/>.</description></item>
+///   <item><term><c>O1</c></term><description>a <c>RANDOM_OUTCOME</c> row names a non-sibling effect id.</description></item>
+/// </list>
+/// <para>
+/// ⚠️ The <c>A</c> markers are M2-12's implementation phase's, added so that all eight rules are
+/// discriminable the same way rather than four of them being. A refusal a reader cannot tell from its
+/// neighbour sends M2-13 looking in the wrong place.
 /// </para>
 /// </remarks>
 internal static class BossEncounterBuilder
@@ -178,24 +196,58 @@ internal static class BossEncounterBuilder
     /// </summary>
     /// <param name="request">The script and its encounter.</param>
     /// <returns>The resolved encounter.</returns>
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <exception cref="EffectContextException">One of the eight authoring rules refused.</exception>
     internal static BossEncounter Build(BossEncounterRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        throw new NotSupportedException(
-            $"BossEncounterBuilder.Build('{request.Script.Id}') is declared and not written yet — " +
-            "M2-12's IMPLEMENTATION phase owns the body. It must derive the statline through " +
-            "EnemyDerivation.Derive(request.Power, StatlineRow(...), request.Derivation) with the " +
-            "power AS HANDED IN (05 §6.3 and 17 §1: StageMult.Boss = 2.20 is already inside it), put " +
-            "every phase block's mechanics AND the three BossBuiltIns onto ActorPlan.Effects under " +
-            "explicit instance ids, and refuse the seven authoring rules on this class — the phase " +
-            "block shape, the unresolvable mechanic id, the phase-2/3 ON_BATTLE_START ban, the " +
-            "built-in names, T1/T2/T3 and O1 (a RANDOM_OUTCOME row naming a non-sibling id) — each " +
-            "with a message naming its own marker, the boss, the phase and the effect. Returning a " +
-            "plan with no mechanics would be a boss the balance harness reads as weak rather than " +
-            "as unwired (steering S6).");
+        var script = request.Script;
+
+        RequirePhaseShape(script);
+
+        var holdings = new List<HeldEffect>();
+        var phaseOfInstance = new Dictionary<EffectInstanceId, int>();
+        var leadSecondsOfInstance = new Dictionary<EffectInstanceId, double>();
+
+        foreach (var block in script.Phases)
+        {
+            foreach (var mechanic in block.Mechanics)
+            {
+                var effect = ResolveMechanic(script, block.Phase, mechanic, request.Effects);
+                var instance = BossBuiltIns.PhaseInstance(script.Id, block.Phase, effect.Id);
+
+                RequireNoOpenerOutsidePhase1(script, block.Phase, effect);
+                RequireSummonCap(script, block.Phase, effect);
+                RequireSiblingOutcomes(script, block.Phase, effect, request.Effects);
+                RequireWindUp(script, block.Phase, effect, mechanic.TelegraphSeconds);
+
+                holdings.Add(new HeldEffect(effect, instance));
+                phaseOfInstance[instance] = block.Phase;
+
+                if (mechanic.TelegraphSeconds is { } lead)
+                {
+                    leadSecondsOfInstance[instance] = lead;
+                }
+            }
+        }
+
+        // 🔒 `17` §11 — attached here, once, for every boss, and deliberately NOT in the phase map:
+        // nothing a transition walks can reach SYS_ENRAGE, so nothing can re-anchor its R8 clock.
+        foreach (var builtIn in BossBuiltIns.All)
+        {
+            holdings.Add(new HeldEffect(builtIn, BossBuiltIns.BuiltInInstance(script.Id, builtIn.Id)));
+        }
+
+        return new BossEncounter
+        {
+            BossId = script.Id,
+            Plan = PlanFor(request, holdings),
+            FirstClear = request.FirstClear,
+            Phase2HpFraction = BossPhaseRules.Phase2HpFraction(request.FirstClear),
+            Phase3HpFraction = BossPhaseRules.Phase3HpFraction,
+            PhaseOfInstance = phaseOfInstance,
+            LeadSecondsOfInstance = leadSecondsOfInstance,
+        };
     }
 
     /// <summary>
@@ -204,19 +256,229 @@ internal static class BossEncounterBuilder
     /// </summary>
     /// <param name="coefficients">`17` §1.2's per-boss row.</param>
     /// <param name="baseline">The authored baseline row.</param>
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <returns>The row `05` §6's derivation is run over.</returns>
     internal static ArchetypeRow StatlineRow(BossCoefficients coefficients, ArchetypeRow baseline)
     {
         ArgumentNullException.ThrowIfNull(baseline);
 
-        throw new NotSupportedException(
-            "BossEncounterBuilder.StatlineRow is declared and not written yet — M2-12's " +
-            "IMPLEMENTATION phase owns the body. It is `baseline with { HpCoef = coefficients.Hp, " +
-            "AtkCoef = coefficients.Atk, DefCoef = coefficients.Def, AspdCoef = coefficients.Aspd }` " +
-            "— 17 §1.2's 'a per-boss coefficient row instead of a shared archetype', with the " +
-            $"baseline's secondaries kept (it was handed hpCoef " +
-            $"{coefficients.Hp.ToString("R", CultureInfo.InvariantCulture)}). Keeping the baseline's " +
-            "coefficients instead would give every boss the same shape.");
+        return baseline with
+        {
+            HpCoef = coefficients.Hp,
+            AtkCoef = coefficients.Atk,
+            DefCoef = coefficients.Def,
+            AspdCoef = coefficients.Aspd,
+        };
     }
+
+    /// <summary>
+    /// 🔒 `05` §6.3 / `17` §1 — the statline is derived from <see cref="BossEncounterRequest.Power"/>
+    /// <b>as handed in</b>: <c>StageMult.Boss = 2.20</c> is already inside it.
+    /// </summary>
+    private static ActorPlan PlanFor(BossEncounterRequest request, IReadOnlyList<HeldEffect> holdings) =>
+        new()
+        {
+            Id = request.Script.Id,
+            Index = request.Index,
+            LogId = request.LogId,
+            Side = BattleSide.ENEMY,
+            Kind = EffectActorKind.ENEMY,
+            BaseStats = EnemyDerivation.Derive(
+                request.Power,
+                StatlineRow(request.Script.Coefficients, request.Baseline),
+                request.Derivation),
+            Level = request.Level,
+            IsBoss = true,
+            Effects = holdings,
+        };
+
+    /// <summary>🔒 <b>A1</b> — `17` §1's <em>"exactly 3"</em>, numbered 1, 2, 3, in that order.</summary>
+    private static void RequirePhaseShape(BossScript script)
+    {
+        var authored = script.Phases.Select(p => p.Phase).ToArray();
+
+        if (authored.Length == BossScript.PhaseCount &&
+            authored[0] == 1 && authored[1] == 2 && authored[2] == 3)
+        {
+            return;
+        }
+
+        throw new EffectContextException(
+            script.Id,
+            $"A1 — its authored phases are [{string.Join(", ", authored.Select(Number))}]",
+            "`17` §1 gives every boss exactly three phases, numbered 1, 2, 3 in that order. A block " +
+            "out of order, repeated or missing would leave BossPhaseController with a phase it can " +
+            "enter and no block to activate — a boss whose mechanics are silently absent, which the " +
+            "balance harness reads as a boss that is weak.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>A2</b> and <b>A3</b> — the mechanic is a sibling of this script, and it is not one of
+    /// the three universal built-ins.
+    /// </summary>
+    private static EffectDefinition ResolveMechanic(
+        BossScript script,
+        int phase,
+        BossMechanic mechanic,
+        IReadOnlyDictionary<string, EffectDefinition> effects)
+    {
+        foreach (var builtIn in BossBuiltIns.All)
+        {
+            if (string.Equals(builtIn.Id, mechanic.EffectId, StringComparison.Ordinal))
+            {
+                throw new EffectContextException(
+                    mechanic.EffectId,
+                    $"A3 — '{script.Id}' phase {Number(phase)} authors it, and it is a built-in",
+                    "`17` §11 has the encounter builder attach the 70 s enrage and the two phase-3 " +
+                    "immunities to EVERY boss — 'implemented once, applied to all bosses'. A script " +
+                    "that authored one would be a second, disagreeing copy under a second instance " +
+                    "id, and the phase map would then reach the copy at every transition.");
+            }
+        }
+
+        if (effects.TryGetValue(mechanic.EffectId, out var effect))
+        {
+            return effect;
+        }
+
+        throw new EffectContextException(
+            mechanic.EffectId,
+            $"A2 — '{script.Id}' phase {Number(phase)} names it and the script declares no such effect",
+            "A mechanic is a SIBLING reference: an effect is embedded in the content that owns it, so " +
+            "the scope an id resolves in is this script's own effect set and there is no wider one. " +
+            "Deferring the check would surface as a boss whose mechanic silently never fired.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>A4</b> — `05` §3.1's 0b sweep runs <b>before</b> 0c, so an <c>ON_BATTLE_START</c> in a
+    /// phase-2 or phase-3 block fires while the boss is still in phase 1.
+    /// </summary>
+    private static void RequireNoOpenerOutsidePhase1(BossScript script, int phase, EffectDefinition effect)
+    {
+        if (phase == BossPhaseRules.FirstPhase ||
+            effect.Trigger is not { Kind: TriggerKind.ON_BATTLE_START })
+        {
+            return;
+        }
+
+        throw new EffectContextException(
+            effect.Id,
+            $"A4 — '{script.Id}' phase {Number(phase)} carries an ON_BATTLE_START trigger",
+            "`05` §3.1 sweeps ON_BATTLE_START at pre-tick 0b and enters phase 1 at 0c, so such a " +
+            "mechanic lands while the boss is still in phase 1 — a phase-3 mechanic at battle start, " +
+            "in a fight that looks entirely legal. Phase 1 may carry one, because 0b runs for the " +
+            "phase the boss is actually in.");
+    }
+
+    /// <summary>🔒 <b>A5</b> — `17` §1's <em>"capped at 3 alive at once"</em>, checked at authoring.</summary>
+    private static void RequireSummonCap(BossScript script, int phase, EffectDefinition effect)
+    {
+        if (effect.Op != EffectOp.SUMMON || effect.MaxAlive is not { } maxAlive ||
+            maxAlive <= BossAdds.MaxAlive)
+        {
+            return;
+        }
+
+        throw new EffectContextException(
+            effect.Id,
+            $"A5 — '{script.Id}' phase {Number(phase)} summons up to {Number(maxAlive)} adds at once",
+            $"`17` §1 caps a boss's adds at {Number(BossAdds.MaxAlive)} alive. The cap is `18` §2.4's " +
+            "authored maxAlive and BattleSimulation enforces whatever the effect authors, so the " +
+            "authoring is what has to agree with the document — a fourth add is a fight nobody tuned.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>O1</b> — every <c>RANDOM_OUTCOME</c> row names a <b>sibling</b> of this same script.
+    /// </summary>
+    private static void RequireSiblingOutcomes(
+        BossScript script,
+        int phase,
+        EffectDefinition effect,
+        IReadOnlyDictionary<string, EffectDefinition> effects)
+    {
+        if (effect.Outcomes is not { } outcomes)
+        {
+            return;
+        }
+
+        foreach (var row in outcomes)
+        {
+            if (effects.ContainsKey(row.EffectId))
+            {
+                continue;
+            }
+
+            throw new EffectContextException(
+                effect.Id,
+                $"O1 — '{script.Id}' phase {Number(phase)} rolls it and its row '{row.EffectId}' is " +
+                "not an effect this script declares",
+                "`18` §10.1 E6's outcome rows are effect ids, and an effect is embedded in the " +
+                "content that owns it — so the scope a row resolves in is the owning script's own " +
+                "effect set, and there is no registry to reach past it into. Deferring the check " +
+                "would surface as BossOutcomes throwing mid-fight on whichever roll drew the bad " +
+                "row: a defect that appears in one fight in three and never in the same place twice.");
+        }
+    }
+
+    /// <summary>
+    /// 🔒 <b>T1</b>, <b>T2</b> and <b>T3</b> — the three rules a mechanic's wind-up has to satisfy.
+    /// See <see cref="BossTelegraphs"/> for what each one is protecting.
+    /// </summary>
+    private static void RequireWindUp(
+        BossScript script, int phase, EffectDefinition effect, double? leadSeconds)
+    {
+        if (leadSeconds is not { } lead)
+        {
+            if (!BossTelegraphs.RequiresLead(effect))
+            {
+                return;
+            }
+
+            throw new EffectContextException(
+                effect.Id,
+                $"T3 — '{script.Id}' phase {Number(phase)} lands damage on a schedule and authors no " +
+                "wind-up",
+                "`17` §1: 'every damaging mechanic has a visible 1.0-1.5 s wind-up … they must be " +
+                "able to read what is happening, or the fight feels arbitrary', and `17` §11 makes " +
+                "the emission a deliverable. An ON_PHASE_ENTER burst is exempt (the entry is " +
+                "HP-driven) and so is a period short enough to have nowhere to put one.");
+        }
+
+        var exactTicks = BossTelegraphs.ExactLeadTicks(lead);
+
+        if (lead < BossTelegraphs.MinLeadSeconds || lead > BossTelegraphs.MaxLeadSeconds ||
+            exactTicks != Math.Floor(exactTicks))
+        {
+            throw new EffectContextException(
+                effect.Id,
+                $"T1 — '{script.Id}' phase {Number(phase)} authors a wind-up of {Format(lead)} s, " +
+                $"which is {Format(exactTicks)} ticks",
+                $"`17` §1's band is {Format(BossTelegraphs.MinLeadSeconds)}-" +
+                $"{Format(BossTelegraphs.MaxLeadSeconds)} s AND `05` §3's simulation is fixed-tick, " +
+                "so a legal wind-up is a whole number of ticks inside it. One outside the band " +
+                "cannot be read as a wind-up; one between two ticks announces a landing at neither.");
+        }
+
+        if (effect.Trigger is not { Kind: TriggerKind.PERIODIC } trigger)
+        {
+            return;
+        }
+
+        var intervalTicks = TriggerSchedule.IntervalTicks(trigger);
+
+        if (intervalTicks > BossTelegraphs.LeadTicks(lead))
+        {
+            return;
+        }
+
+        throw new EffectContextException(
+            effect.Id,
+            $"T2 — '{script.Id}' phase {Number(phase)} fires every {Number(intervalTicks)} ticks and " +
+            $"winds up over {Format(exactTicks)} of them",
+            "The period must EXCEED the wind-up: otherwise firing k+1 is announced before firing k " +
+            "lands, and two wind-ups become indistinguishable in a log that IS the replay (`05` §7).");
+    }
+
+    private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
 }

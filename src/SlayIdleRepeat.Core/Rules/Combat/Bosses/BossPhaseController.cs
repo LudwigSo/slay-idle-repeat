@@ -1,4 +1,7 @@
-using System.Globalization;
+using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Effects;
+using SlayIdleRepeat.Core.Rules.Effects.Targeting;
+using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
@@ -16,19 +19,36 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 /// and <em>"phases never revert — healing back above a threshold does not re-enter an earlier
 /// phase."</em> Both sentences are about what already happened, so no function of the roster's
 /// present HP can answer them: a boss at 70% HP that has been to phase 3 is in phase 3, and a boss
-/// at 70% HP that has not is in phase 1. <see cref="BossPhaseRules.PhaseFor"/> is the stateless
-/// half; this is the half that remembers. It is enumerated on
-/// <c>StatefulRuleTypeRuleTests.Stateful</c> for exactly that reason.
+/// at 70% HP that has not is in phase 1. <see cref="BossPhaseRules.PhaseFor(double, double, double)"/>
+/// is the stateless half; this is the half that remembers. It is enumerated on
+/// <c>StatefulRuleTypeRuleTests.Stateful</c> for exactly that reason, and it is the <b>only</b> field
+/// that accumulates anything — the wind-up pass below deliberately remembers nothing.
 /// </para>
 /// <para>
 /// ⚠️ <b>Resolved lazily, never in the constructor.</b> <c>BattleServices.Actors</c> is empty when
 /// the seam factory runs — the roster does not exist until the simulation builds it — so the boss is
 /// found on the first <see cref="EnterInitialPhase"/> and not before.
 /// </para>
+///
 /// <para>
-/// 🔴 <b>PHASE 1b — every member below except the two readings is a declared, named stub.</b>
-/// M2-12's implementation phase owns the bodies; each refusal says what it must do and what the
-/// silent alternative would cost.
+/// ═══ 🔒 <b>ONE ENTRY, IN FOUR STEPS, AND EVERY ONE OF THEM MATTERS</b> ═══
+/// </para>
+/// <list type="number">
+///   <item><b>End the phase being left</b> — <c>Deactivate</c> every instance of phase <c>p−1</c>,
+///   which is `18` §6's <c>PHASE</c> scope <em>"ending when the boss exits the phase in which the
+///   effect was applied"</em>.</item>
+///   <item><b>Start the phase being entered</b> — <c>Activate</c> every instance of phase <c>p</c> at
+///   the entry tick, which is R8's anchor and therefore `17` §1.1's <em>"fires every N seconds from
+///   phase entry"</em>. 🔴 <c>Activate</c> is documented as leaving a <b>live</b> instance untouched,
+///   so it is step 1 — and pre-tick 0c's blanket de-anchoring — that does the work here.</item>
+///   <item><b>Record it</b>, and append <c>CombatEventType.PhaseChange</c> at the moment of the
+///   change (`05` §3.1 step 7).</item>
+///   <item><b>Sweep <c>ON_PHASE_ENTER</c></b> for that phase, in ascending effect-id order.</item>
+/// </list>
+/// <para>
+/// 🔒 <b><c>SYS_ENRAGE</c> is reached by none of it</b>, because it is not in
+/// <see cref="BossEncounter.PhaseOfInstance"/> at all. That is structural rather than remembered: a
+/// transition walks the map, and what is not in the map cannot be re-anchored by one.
 /// </para>
 /// </remarks>
 internal sealed class BossPhaseController : IBossPhases
@@ -54,10 +74,17 @@ internal sealed class BossPhaseController : IBossPhases
     }
 
     /// <summary>
-    /// The phase a boss is in, or <c>0</c> before pre-tick 0c has entered phase 1.
+    /// The phase a boss is in, or <c>null</c> before pre-tick 0c has entered phase 1.
     /// </summary>
     /// <param name="bossId">The boss's actor id.</param>
-    internal int CurrentPhaseOf(string bossId) => _phase.TryGetValue(bossId, out var phase) ? phase : 0;
+    /// <remarks>
+    /// 🔒 <b>One spelling of "no phase yet", and it is <c>null</c>.</b> This reading and
+    /// <see cref="CurrentPhase"/> answered <c>0</c> and <c>null</c> respectively while they were two
+    /// methods; they are one lookup now, because two spellings of an absent phase is two things a
+    /// caller has to test for and one of them will eventually be forgotten.
+    /// </remarks>
+    internal int? CurrentPhaseOf(string bossId) =>
+        _phase.TryGetValue(bossId, out var phase) ? phase : null;
 
     /// <inheritdoc />
     /// <remarks>
@@ -70,82 +97,290 @@ internal sealed class BossPhaseController : IBossPhases
     {
         ArgumentNullException.ThrowIfNull(actor);
 
-        return _phase.TryGetValue(actor.Id, out var phase) ? phase : null;
+        return CurrentPhaseOf(actor.Id);
     }
 
     /// <inheritdoc />
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <remarks>
+    /// 🔴 <b>The de-anchoring, and it is the half of this method that does the work.</b> Pre-tick 0a
+    /// registers <b>every</b> plan effect at activation tick 0 — phase-2 and phase-3 blocks
+    /// included, because they have to be on the plan for the battle's effect table to name them — so
+    /// a phase-2 8 s <c>PERIODIC</c> left alone would tick from <c>t = 8 s</c> while the boss is
+    /// still in phase 1, which is an R8 violation in a fight nobody authored.
+    /// </remarks>
     public void EnterInitialPhase(BattleActor actor, int tick)
     {
         ArgumentNullException.ThrowIfNull(actor);
 
-        throw new NotSupportedException(
-            $"BossPhaseController.EnterInitialPhase('{actor.Id}' at tick " +
-            $"{tick.ToString(CultureInfo.InvariantCulture)}) is declared and not written yet — " +
-            "M2-12's IMPLEMENTATION phase owns the body. It must refuse a boss it has no " +
-            $"BossEncounter for (it holds {_encounters.Count.ToString(CultureInfo.InvariantCulture)}), " +
-            "then DEACTIVATE every phase-2 and phase-3 instance in BossEncounter.PhaseOfInstance " +
-            "before entering phase 1 — pre-tick 0a registered ALL of them at activation tick 0, so a " +
-            "phase-2 8 s PERIODIC left alone ticks from t = 8 s while the boss is still in phase 1 " +
-            "(R8). Entering phase 1 is then Enter(): Activate the entering phase's instances, record " +
-            "the phase, Append CombatEventType.PhaseChange, and EvaluateAll the ON_PHASE_ENTER " +
-            "occurrence. 🔴 Activate ALONE is documented as a no-op on a LIVE instance, so the " +
-            "Deactivate is the half that does the work and the half a test must probe through " +
-            "AnchorTick (steering S1).");
+        var encounter = EncounterOf(actor.Id) ?? throw Unscripted(actor);
+
+        foreach (var (instance, phase) in encounter.PhaseOfInstance)
+        {
+            if (phase > BossPhaseRules.FirstPhase)
+            {
+                Deactivate(instance);
+            }
+        }
+
+        Enter(actor, encounter, BossPhaseRules.FirstPhase, tick);
     }
 
     /// <inheritdoc />
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <remarks>
+    /// 🔒 `05` §3.1's loop, <em>"while <c>currentPhase &lt; PhaseFor(hp)</c>, enter the next phase in
+    /// order"</em> — so a burst from 70% to 20% fires phase 2's entry and <b>then</b> phase 3's, both
+    /// inside this one call, and a heal enters nothing because the loop only ever walks upward.
+    /// </remarks>
     public void AfterHpDecrease(BattleActor actor, int tick)
     {
         ArgumentNullException.ThrowIfNull(actor);
 
         if (!actor.IsBoss)
         {
-            // 🔒 Not a stub. `05` §3.1 hands the check EVERY HP decrease of EVERY actor and says
-            // "'is this a boss' is the controller's question" — answering nothing for a minion is the
-            // implemented behaviour, not a hole, and it is what keeps the refusal below about bosses.
+            // 🔒 Not a hole. `05` §3.1 hands the check EVERY HP decrease of EVERY actor and says
+            // "'is this a boss' is the controller's question" — answering nothing for a minion is
+            // the implemented behaviour.
             return;
         }
 
-        throw new NotSupportedException(
-            $"BossPhaseController.AfterHpDecrease('{actor.Id}' at tick " +
-            $"{tick.ToString(CultureInfo.InvariantCulture)}, hp fraction " +
-            $"{actor.HpFraction.ToString("R", CultureInfo.InvariantCulture)}) is declared and not " +
-            "written yet — M2-12's IMPLEMENTATION phase owns the body. It is `05` §3.1's loop: " +
-            "`while (currentPhase < PhaseFor(hp, firstClear)) Enter(currentPhase + 1)`, so a burst " +
-            "from 70% to 20% fires phase 2's entry and THEN phase 3's, both at this tick, in that " +
-            "order — and phases never revert, so a heal enters nothing. Each entry Deactivates the " +
-            "exiting phase's instances (`18` §6's PHASE-scope end) and Activates the entering " +
-            "phase's, which re-anchors their R8 clock here. Reading the phase straight off HP " +
-            "instead would silently re-enter phase 1 on every heal (steering S6).");
+        if (EncounterOf(actor.Id) is not { } encounter)
+        {
+            // 🔒 A boss with no encounter never gets this far: EnterInitialPhase refuses it at
+            // pre-tick 0c, which is the one place a wiring gap can be reported before a fight runs.
+            return;
+        }
+
+        var reading = BossPhaseRules.PhaseFor(
+            actor.HpFraction, encounter.Phase2HpFraction, encounter.Phase3HpFraction);
+
+        while (CurrentPhaseOf(actor.Id) is { } current && current < reading)
+        {
+            Enter(actor, encounter, current + 1, tick);
+        }
     }
 
     /// <inheritdoc />
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <remarks>
+    /// <para>
+    /// 🔒 `17` §1's wind-up pass: for every <b>active</b> <c>PERIODIC</c> instance of the boss's
+    /// <b>current</b> phase that carries an authored lead, one <c>Telegraph</c> on the tick
+    /// <c>NextFiringTick − leadTicks</c>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>"Once per firing" is a property of the arithmetic, not of a remembered set.</b> Between
+    /// two firings <c>NextFiringTick</c> does not move, so <c>tick == next − lead</c> is true on
+    /// exactly one tick; slot 3 then advances the schedule and the next window opens once. That is
+    /// why this controller accumulates nothing but the phase.
+    /// </para>
+    /// </remarks>
     public void AdvanceTick(BattleActor actor, int tick)
     {
         ArgumentNullException.ThrowIfNull(actor);
 
         if (!actor.IsBoss)
         {
-            // 🔒 Not a stub either, and it is the assertion `17` §11's "a new slot perturbs no
-            // existing fight" rests on: the loop walks this slot for every actor of every tick, and a
-            // fight with no boss must hash identically with and without it.
+            // 🔒 The assertion `17` §11's "a new slot perturbs no existing fight" rests on: the loop
+            // walks this slot for every actor of every tick, and a fight with no boss must hash
+            // identically with and without it.
             return;
         }
 
-        throw new NotSupportedException(
-            $"BossPhaseController.AdvanceTick('{actor.Id}' at tick " +
-            $"{tick.ToString(CultureInfo.InvariantCulture)}) is declared and not written yet — " +
-            "M2-12's IMPLEMENTATION phase owns the body. It is `17` §1's wind-up pass: for every " +
-            "ACTIVE PERIODIC instance of the CURRENT phase that carries a " +
-            "BossEncounter.LeadSecondsOfInstance entry, emit CombatLog.AppendTelegraph on the tick " +
-            "TriggerInstance.NextFiringTick - BossTelegraphs.LeadTicks(lead), once per firing. " +
-            "Emitting nothing would leave `17` §11's 'telegraph events emitted 1.0-1.5 s ahead of " +
-            "every damaging mechanic' unbuilt with no fight looking wrong (steering S6).");
+        if (EncounterOf(actor.Id) is not { } encounter ||
+            CurrentPhaseOf(actor.Id) is not { } phase)
+        {
+            return;
+        }
+
+        // Ordered, because a Dictionary's enumeration order is not part of its contract and two
+        // wind-ups due on one tick would otherwise reach the log in an order nothing fixes — and the
+        // log is the replay (`05` §7).
+        foreach (var instance in Announcing(encounter, phase))
+        {
+            Announce(actor, encounter, instance, tick);
+        }
     }
+
+    /// <summary>
+    /// The instances of one phase that carry an authored wind-up, in ascending instance-id order.
+    /// </summary>
+    private static IEnumerable<EffectInstanceId> Announcing(BossEncounter encounter, int phase) =>
+        encounter.LeadSecondsOfInstance.Keys
+                 .Where(id => encounter.PhaseOfInstance.TryGetValue(id, out var owned) && owned == phase)
+                 .OrderBy(id => id.Value, EffectInstanceId.Comparer);
+
+    /// <summary>
+    /// Emits one instance's wind-up if this tick is the one <c>NextFiringTick − leadTicks</c> names.
+    /// </summary>
+    private void Announce(
+        BattleActor boss, BossEncounter encounter, EffectInstanceId instance, int tick)
+    {
+        if (!_services.Triggers.IsRegistered(instance))
+        {
+            return;
+        }
+
+        var registered = _services.Triggers[instance];
+
+        if (!registered.IsActive || registered.NextFiringTick is not { } firing)
+        {
+            return;
+        }
+
+        var lead = encounter.LeadSecondsOfInstance[instance];
+
+        if (tick != firing - BossTelegraphs.LeadTicks(lead))
+        {
+            return;
+        }
+
+        // 🔒 A wind-up announces a landing, so a landing the fight cannot reach is not announced.
+        // `05` §3 bounds the fight at CombatRules.MaxTicks; a Telegraph emitted for a firing beyond
+        // it would be a wind-up with no hit after it in the log, which the replayer would draw and
+        // nothing would ever resolve.
+        if (firing >= _services.Rules.MaxTicks)
+        {
+            return;
+        }
+
+        _services.Log.AppendTelegraph(
+            tick,
+            boss.LogId,
+            AnnouncedTargetOf(boss, registered.Effect),
+            EffectIndexOf(registered.Effect.Id),
+            lead);
+    }
+
+    /// <summary>
+    /// 🔒 Who the announced mechanic will hit — `18` §5's own resolution of the effect's
+    /// <c>target</c>, so the wind-up points at the actor the firing will.
+    /// </summary>
+    /// <remarks>
+    /// <c>CombatActor.None</c> where the token resolves to nobody (every candidate dead) or to more
+    /// than one actor: `05` §7's <c>CombatEvent</c> carries a single target slot, and naming the
+    /// first of several would be a wind-up over the wrong head.
+    /// </remarks>
+    private byte AnnouncedTargetOf(BattleActor boss, EffectDefinition effect)
+    {
+        var resolved = TargetResolver.Resolve(
+            EffectDefaults.TargetOf(effect), _services.ContextFor(boss));
+
+        return resolved.Count == 1 && resolved[0] is BattleActor target
+            ? target.LogId
+            : CombatActor.None;
+    }
+
+    /// <summary>
+    /// 🔒 The battle's effect table, rebuilt from the <b>opening</b> roster with
+    /// <c>BattleSimulation.BuildEffectIndex</c>'s own expression — <c>05` §7's <c>Telegraph</c>
+    /// carries a position in it, and the replayer rebuilds the same table from the same roster.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Summons are excluded, and that is what makes it the <em>opening</em> roster.</b>
+    /// <c>AdmitSummon</c> appends to <c>BattleServices.Actors</c> mid-fight; an add's effects in the
+    /// table would shift positions that are already inside every committed <c>LogHash</c>.
+    /// <para>
+    /// ⚠️ Recomputed per emission rather than cached, deliberately: a telegraph is emitted a handful
+    /// of times a fight, and a cache would be a second accumulator on the one type in this namespace
+    /// that is allowed state — for a table that is a pure function of the roster.
+    /// </para>
+    /// </remarks>
+    private ushort EffectIndexOf(string effectId)
+    {
+        var ids = _services.Actors
+                           .Where(a => !a.IsSummon)
+                           .SelectMany(a => a.Plan.Effects)
+                           .Select(e => e.Effect.Id)
+                           .Distinct(StringComparer.Ordinal)
+                           .OrderBy(id => id, EffectOrder.IdComparer)
+                           .ToArray();
+
+        var index = Array.IndexOf(ids, effectId);
+
+        return index >= 0
+            ? (ushort)index
+            : throw new EffectContextException(
+                effectId,
+                "it is not in the battle's effect table",
+                "`05` §7's Telegraph carries a battle-local INDEX into the table of authored effect " +
+                "ids, built once from the opening roster. Every boss mechanic is on ActorPlan.Effects " +
+                "for exactly this reason — a mechanic that arrived mid-fight has no stable position " +
+                "in a table the replayer rebuilds from the roster it started with.");
+    }
+
+    /// <summary>🔒 One phase entry — the four steps the class remarks enumerate.</summary>
+    private void Enter(BattleActor boss, BossEncounter encounter, int phase, int tick)
+    {
+        foreach (var (instance, owned) in encounter.PhaseOfInstance)
+        {
+            if (owned == phase - 1)
+            {
+                Deactivate(instance);
+            }
+            else if (owned == phase)
+            {
+                Activate(instance, tick, boss.HpFraction);
+            }
+        }
+
+        _phase[boss.Id] = phase;
+
+        _services.Log.Append(
+            tick, CombatEventType.PhaseChange, boss.LogId, boss.LogId, phase);
+
+        _services.FirePhaseEntry(boss, phase);
+    }
+
+    /// <summary>
+    /// `18` §6's <c>PHASE</c>-scope end, for an instance the registry actually knows.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ An instance in the phase map that is <b>not</b> registered is not a fault: an outcome row
+    /// is an ordinary phase mechanic carrying no trigger of its own, and
+    /// <c>BattleSimulation.RegisterHoldings</c> registers only triggered effects.
+    /// </remarks>
+    private void Deactivate(EffectInstanceId instance)
+    {
+        if (_services.Triggers.IsRegistered(instance))
+        {
+            _services.Triggers.Deactivate(instance);
+        }
+    }
+
+    /// <summary>R8's anchor — the entry tick, for an instance the registry knows.</summary>
+    private void Activate(EffectInstanceId instance, int tick, double holderHpFraction)
+    {
+        if (_services.Triggers.IsRegistered(instance))
+        {
+            _services.Triggers.Activate(instance, tick, holderHpFraction);
+        }
+    }
+
+    private BossEncounter? EncounterOf(string bossId)
+    {
+        foreach (var encounter in _encounters)
+        {
+            if (string.Equals(encounter.BossId, bossId, StringComparison.Ordinal))
+            {
+                return encounter;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 🔒 A boss on the roster this controller has no <see cref="BossEncounter"/> for is a wiring
+    /// gap, refused at pre-tick 0c — <c>NoBossPhases</c>' shape, for its reason.
+    /// </summary>
+    private EffectContextException Unscripted(BattleActor actor) =>
+        new(
+            actor.Id,
+            "it is a boss and this controller holds no encounter for it — it knows " +
+            (_encounters.Count == 0
+                ? "no boss at all"
+                : string.Join(", ", _encounters.Select(e => $"'{e.BossId}'"))),
+            "`05` §3.1's pre-tick 0c fires the boss's ON_PHASE_ENTER(1) effects and the phase check " +
+            "runs after every HP decrease thereafter. Running a boss without its encounter is a " +
+            "fight with its mechanics silently deleted, which the balance harness would read as the " +
+            "boss being weak. Build one through BossEncounterBuilder.Build and hand it in.");
 }

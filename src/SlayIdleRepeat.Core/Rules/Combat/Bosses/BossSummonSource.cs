@@ -1,5 +1,7 @@
 using System.Globalization;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
+using SlayIdleRepeat.Core.Rules.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
@@ -64,23 +66,62 @@ internal sealed class BossSummonSource : ISummonSource
     /// <param name="summoner">The boss whose effect fired — <c>OWNER</c>'s subject.</param>
     /// <param name="archetype">`05` §6.1's archetype name, as the op authors it.</param>
     /// <param name="sourceEffectId">The `18` §8 effect id, for the failure message.</param>
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <returns>The add's plan, with <see cref="ActorPlan.Index"/> and <see cref="ActorPlan.LogId"/>
+    /// left at <c>0</c> for <c>BattleSimulation.AdmitSummon</c> to assign.</returns>
+    /// <exception cref="EffectContextException">
+    /// The power fraction is outside `17` §1's band, or `05` §6.1 has no such archetype.
+    /// </exception>
     public ActorPlan Spawn(BattleActor summoner, string archetype, string sourceEffectId)
     {
         ArgumentNullException.ThrowIfNull(summoner);
 
-        throw new NotSupportedException(
-            $"BossSummonSource.Spawn('{archetype}' for '{summoner.Id}', from '{sourceEffectId}') is " +
-            "declared and not written yet — M2-12's IMPLEMENTATION phase owns the body. It must " +
-            "resolve the archetype against the catalogue's 05 §6.1 rows, derive the statline through " +
-            "EnemyDerivation.Derive(bossPower x powerFraction, row, catalogue.Derivation) — " +
-            $"{_bossPower.ToString("R", CultureInfo.InvariantCulture)} x " +
-            $"{_powerFraction.ToString("R", CultureInfo.InvariantCulture)} at level " +
-            $"{_level.ToString(CultureInfo.InvariantCulture)}, against " +
-            $"{_catalogue.Archetypes.Count.ToString(CultureInfo.InvariantCulture)} authored rows — " +
-            "and return an ActorPlan with NO Index and NO LogId, because 05 §3.1 gives both to " +
-            "BattleSimulation.AdmitSummon. Refusing an unknown archetype is part of the body: an add " +
-            "that silently did not spawn would delete Thornmaw's phase-3 fight.");
+        RequirePowerFractionInBand(sourceEffectId);
+
+        var row = _catalogue.Archetype(ArchetypeOf(archetype, sourceEffectId));
+
+        // 🔒 Rounded at the accumulation point (`05` §1.1). 10 000 × 0.35 is 3499.999999999999 5 in
+        // binary, and an unrounded power would carry that residue into every derived term.
+        var power = DeterminismRounding.Round(_bossPower * _powerFraction);
+
+        return new ActorPlan
+        {
+            Id = $"{summoner.Id}#ADD#{archetype}",
+            Index = 0,
+            LogId = 0,
+            Side = BattleSide.ENEMY,
+            Kind = EffectActorKind.ENEMY,
+            BaseStats = EnemyDerivation.Derive(power, row, _catalogue.Derivation),
+            Level = _level,
+        };
     }
+
+    /// <summary>🔒 `17` §1 — <em>"25–35% of boss power"</em> is a band, and 0.60 is not inside it.</summary>
+    private void RequirePowerFractionInBand(string sourceEffectId)
+    {
+        if (_powerFraction >= BossAdds.MinPowerFraction && _powerFraction <= BossAdds.MaxPowerFraction)
+        {
+            return;
+        }
+
+        throw new EffectContextException(
+            sourceEffectId,
+            $"its adds are authored at {Format(_powerFraction)} of boss power, outside `17` §1's " +
+            $"{Format(BossAdds.MinPowerFraction)}-{Format(BossAdds.MaxPowerFraction)} band",
+            "`17` §1 gives the adds a band and the engine does not pick a number inside it — which " +
+            "is why a number outside it has to be refused here. An add at 0.60 of boss power is " +
+            "twice the fight `17` intends, and nothing else in the log would say so.");
+    }
+
+    /// <summary>`05` §6.1's eight shapes, by the name `18` §2.4's <c>archetype</c> key authors.</summary>
+    private static EnemyArchetype ArchetypeOf(string archetype, string sourceEffectId) =>
+        Enum.TryParse<EnemyArchetype>(archetype, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : throw new EffectContextException(
+                sourceEffectId,
+                $"it summons '{archetype}', which is not one of `05` §6.1's archetypes",
+                "`17` §1: 'adds use standard archetypes from `05` §6.1'. Spawning nothing instead " +
+                "would delete Thornmaw's phase-3 fight without a single event to show for it, and " +
+                "guessing an archetype would spawn a shape nobody authored.");
+
+    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
 }

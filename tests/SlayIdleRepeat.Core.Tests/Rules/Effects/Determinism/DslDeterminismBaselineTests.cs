@@ -177,8 +177,18 @@ public sealed class DslDeterminismBaselineTests
             "not carry the author's timezone — ContentValidator's baseline writer states the same " +
             "rule for recordedOn.");
 
-        DslDeterminismBaseline.ReviewedBy.ShouldBe(
-            "M2-17", "the task that owns this table, so a later regeneration names its own owner");
+        // 🔴 A TASK ID, not the literal "M2-17". The rule this case states — "a later regeneration
+        //    names its OWN owner" — was asserted as `ShouldBe("M2-17")`, which says the exact
+        //    opposite: it freezes the first issue's reviewer and makes the documented regeneration
+        //    command impossible to follow, because the regenerated table's reviewer is whoever
+        //    regenerated it. M2-12's boss engine was the first regeneration and hit it. The shape is
+        //    what the sentence actually asks for, and it still fails on an empty string, on a
+        //    person's name, and on anything that is not a milestone task.
+        DslDeterminismBaseline.ReviewedBy.ShouldMatch(
+            "^M[0-9]+-[0-9]+[a-z]?$",
+            $"review.reviewedBy is '{DslDeterminismBaseline.ReviewedBy}'. It names the TASK that " +
+            "reviewed this issue of the table, so a later regeneration names its own owner rather " +
+            "than inheriting the first issue's.");
     }
 
     /// <summary>

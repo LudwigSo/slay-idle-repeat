@@ -950,6 +950,45 @@ internal sealed class BattleSimulation
     }
 
     /// <summary>
+    /// 🔒 `05` §3.1's pre-tick 0c and phase check — <em>"the boss's phase 1 counts as entered: fire
+    /// its <c>ON_PHASE_ENTER(1)</c> effects"</em>, and the same for every later entry.
+    /// </summary>
+    /// <param name="boss">The boss that just entered a phase.</param>
+    /// <param name="phase">The phase entered, <c>1..3</c>.</param>
+    /// <remarks>
+    /// 🔒 <b>A routing, not a second implementation.</b> <see cref="IBossPhases"/> decides <em>when</em>
+    /// a phase is entered and what that does to `18` §6's scopes; what it cannot do for itself is
+    /// resolve the effects the entry fires, because `18` §2.5's routing, `05` §3.1's cascade bound and
+    /// the op seams are all the loop's. <see cref="FireTriggers"/> already walks the holder's
+    /// instances in ascending effect-id order, which is the order `05` §3.1 gives this sweep.
+    /// </remarks>
+    internal void FirePhaseEntry(BattleActor boss, int phase)
+    {
+        ArgumentNullException.ThrowIfNull(boss);
+
+        FireTriggers(boss, Occurrence(TriggerKind.ON_PHASE_ENTER, boss) with { Phase = phase });
+    }
+
+    /// <summary>
+    /// 🔒 `18` §10.1 E6 — resolves the <b>one</b> effect a <c>RANDOM_OUTCOME</c>'s draw named, once
+    /// <see cref="IBossOutcomes"/> has found it among the holder's own holdings.
+    /// </summary>
+    /// <param name="holder">The actor whose roll it was.</param>
+    /// <param name="effect">The winning row's effect.</param>
+    /// <remarks>
+    /// 🔒 An outcome row carries <b>no trigger of its own</b> — the <c>RANDOM_OUTCOME</c>'s own
+    /// cadence is the roll's — so it is never on the registry and cannot be reached through
+    /// <see cref="FireTriggers"/>. This is the same resolution path every fired effect takes, which
+    /// is what keeps `18` §2.5's routing and the cascade bound applying to it too.
+    /// </remarks>
+    internal void ResolveOutcome(BattleActor holder, EffectDefinition effect)
+    {
+        ArgumentNullException.ThrowIfNull(holder);
+
+        ResolveFired(holder, effect, Occurrence(TriggerKind.PERIODIC, holder), target: null, attacker: null);
+    }
+
+    /// <summary>
     /// 🔒 `05` §3.1's phase check plus <c>ON_LOW_HP</c> — called after every HP decrease, by the loop
     /// and by M2-09/M2-10 through <see cref="BattleServices.AfterHpDecrease"/>.
     /// </summary>

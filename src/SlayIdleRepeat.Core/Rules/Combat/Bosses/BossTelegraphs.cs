@@ -1,5 +1,8 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Effects;
+using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
@@ -74,32 +77,65 @@ internal static class BossTelegraphs
     /// from <c>TriggerInstance.NextFiringTick</c> to find the tick the wind-up is emitted on.
     /// </summary>
     /// <param name="leadSeconds">The mechanic's authored <see cref="BossMechanic.TelegraphSeconds"/>.</param>
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
-    internal static int LeadTicks(double leadSeconds) =>
-        throw new NotSupportedException(
-            $"BossTelegraphs.LeadTicks({leadSeconds.ToString("R", CultureInfo.InvariantCulture)}) is " +
-            "declared and not written yet — M2-12's IMPLEMENTATION phase owns the body. It is " +
-            "leadSeconds x CombatLog.TicksPerSecond, refused under T1 unless it is inside " +
-            "[1.0, 1.5] s AND a whole tick. Rounding a fractional lead silently would announce a " +
-            "landing between two ticks, which is a landing at neither (steering S6).");
+    /// <exception cref="EffectContextException">
+    /// The lead is not a whole number of ticks. <b>T1</b> has already refused such a lead at
+    /// encounter-build time with the boss, the phase and the mechanic named, so this is the
+    /// invariant rather than the message — see <see cref="ExactLeadTicks"/>.
+    /// </exception>
+    internal static int LeadTicks(double leadSeconds)
+    {
+        var exact = ExactLeadTicks(leadSeconds);
+
+        if (exact != Math.Floor(exact))
+        {
+            throw new EffectContextException(
+                nameof(LeadTicks),
+                $"a wind-up of {Format(leadSeconds)} s is " +
+                $"{Format(exact)} ticks, which is not a whole one",
+                "`05` §3's simulation is fixed-tick, so a wind-up that points between two ticks " +
+                "points at neither. BossEncounterBuilder refuses this at authoring time and names " +
+                "the boss, the phase and the mechanic; reaching it here means a lead bypassed that.");
+        }
+
+        return (int)exact;
+    }
+
+    /// <summary>
+    /// 🔒 A wind-up in ticks <b>without</b> rounding to a whole one — the single statement of
+    /// <em>seconds × <see cref="CombatLog.TicksPerSecond"/></em>, which <b>T1</b>'s refusal quotes so
+    /// that a reader sees why 1.03 s is not a legal lead.
+    /// </summary>
+    /// <param name="leadSeconds">The mechanic's authored <see cref="BossMechanic.TelegraphSeconds"/>.</param>
+    /// <returns>The lead in ticks, at `05` §1.1's four decimals.</returns>
+    internal static double ExactLeadTicks(double leadSeconds) =>
+        DeterminismRounding.Round(leadSeconds * CombatLog.TicksPerSecond);
 
     /// <summary>
     /// 🔒 <b>T3</b> — whether a mechanic is one `17` §1 <em>requires</em> a wind-up on.
     /// </summary>
     /// <param name="effect">The authored mechanic.</param>
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <returns>
+    /// <c>true</c> for a <c>PERIODIC</c> whose op is one of <see cref="DamagingOps"/> and whose
+    /// period exceeds the longest legal lead. Both exemptions are structural: an
+    /// <c>ON_PHASE_ENTER</c> burst is not <c>PERIODIC</c>, and a period at or below
+    /// <see cref="MaxLeadSeconds"/> has nowhere to put a wind-up (T2).
+    /// </returns>
     internal static bool RequiresLead(EffectDefinition effect)
     {
         ArgumentNullException.ThrowIfNull(effect);
 
-        throw new NotSupportedException(
-            $"BossTelegraphs.RequiresLead('{effect.Id}') is declared and not written yet — M2-12's " +
-            "IMPLEMENTATION phase owns the body. It is true for a PERIODIC whose op is one of " +
-            "DamagingOps and whose interval exceeds MaxLeadSeconds; ON_PHASE_ENTER damage is exempt " +
-            "(the entry is HP-driven and cannot be foreseen 1.2 s out) and a period at or below " +
-            "MaxLeadSeconds is exempt by T2. Answering false for everything would let M2-13 ship an " +
-            "untelegraphed 300% ATK All In and no test would notice (steering S6).");
+        if (effect.Trigger is not { Kind: TriggerKind.PERIODIC } trigger)
+        {
+            return false;
+        }
+
+        if (!DamagingOps.Contains(effect.Op))
+        {
+            return false;
+        }
+
+        return TriggerSchedule.IntervalTicks(trigger) > LeadTicks(MaxLeadSeconds);
     }
+
+    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
 }

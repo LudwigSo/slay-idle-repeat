@@ -196,29 +196,75 @@ internal static class CombatFlowOps
     /// index, or a malformed table would shift every later draw of that battle.
     /// </para>
     /// <para>
-    /// 🔴 <b>PHASE 1a STUB — M2-12's boss engine owns the body.</b> The vocabulary, the schema
-    /// branch, <see cref="EffectOpValidation"/>'s arm and `18` §10.1's E6 row are complete and
-    /// green; the draw, the seam call and the returned index are not written yet, and this throws
-    /// rather than returning a number nobody computed (steering S6). <c>RandomOutcomeOpTests</c> is
-    /// the red suite that describes what replaces it.
+    /// 🔒 <b>The table is re-read through <see cref="EffectOpValidation"/> rather than re-checked
+    /// here.</b> Its rules are the ones <see cref="Rng.DeterministicRng.WeightedPick{T}"/> would
+    /// refuse at fire time plus the two only this op has, and a second copy of them would be a second
+    /// set of words for one authoring error — which is exactly what steering S2 asks a refusal not to
+    /// be.
     /// </para>
     /// </remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's boss-engine phase lands.</exception>
+    /// <param name="effect">The authored roll, carrying `18` §10.1 E6's <c>outcomes</c> table.</param>
+    /// <param name="context">The `18` §4/§5 state and the seams the winner is named across.</param>
+    /// <returns>The 1-based index of the row that won.</returns>
+    /// <exception cref="EffectContextException">
+    /// The table is malformed, or the context carries no draw stream.
+    /// </exception>
     internal static double RandomOutcome(EffectDefinition effect, EffectOpContext context)
     {
         ArgumentNullException.ThrowIfNull(effect);
+        ArgumentNullException.ThrowIfNull(context);
 
-        throw new NotSupportedException(
-            $"RANDOM_OUTCOME ('{effect.Id}') is declared, validated, schema'd and documented, and " +
-            "its behaviour is not written yet — M2-12's boss-engine phase owns the draw. It must " +
-            "take exactly ONE value from EffectOpContext.Evaluation.Rng via " +
-            "DeterministicRng.WeightedPick over 'outcomes', hand the chosen effect id to " +
-            "ICombatFlowSink.RandomOutcome, and return the winning row's 1-based index. Before the " +
-            "draw it must refuse a malformed table by re-reading EffectOpValidation.Problems and " +
-            "carrying that problem's own words, so that a rejected roll consumes NO draw index — " +
-            "WeightedPick's contract is that a rejected call is not a call. Returning a number here " +
-            "instead would make a boss roll the same face forever with nothing going red " +
-            "(steering S6).");
+        var problems = EffectOpValidation.Problems(effect);
+        if (problems.Count > 0)
+        {
+            throw new EffectContextException(
+                effect.Id,
+                string.Join("; ", problems),
+                "`18` §10.1 E6's outcomes table IS the op, so a malformed one has nothing to roll. " +
+                "It is refused BEFORE the draw because DeterministicRng.Position is the persisted " +
+                "state of the stream — a rejected call that spent an index would shift every later " +
+                "draw of the battle between the client and the server.");
+        }
+
+        var rng = context.Evaluation.Rng ?? throw new EffectContextException(
+            nameof(EffectOp.RANDOM_OUTCOME),
+            "the context carries no draw stream",
+            "`14` §8.1: a combat draw is new DeterministicRng(battleSeed, RngStreams.Combat), and " +
+            "the battleSeed is handed in by the simulator. Answering with the first row instead " +
+            "would be a stable, reproducible, wrong 'random' — `18` §5's RANDOM_ENEMY is refused " +
+            "for the same reason.");
+
+        // Validation above has already refused a null, short, duplicated or unweighted table, so
+        // every row below is one 14 §8.0 can walk.
+        var outcomes = effect.Outcomes!;
+        var table = new (string Item, double Weight)[outcomes.Count];
+
+        for (var row = 0; row < outcomes.Count; row++)
+        {
+            table[row] = (outcomes[row].EffectId, outcomes[row].Weight);
+        }
+
+        // 🔒 ONE draw. Three chance-gated effects would spend three and could fire all three.
+        var chosen = rng.WeightedPick(table);
+
+        context.Seams.Flow.RandomOutcome(OpTargets.Holder(context), chosen, effect.Id);
+
+        for (var row = 0; row < outcomes.Count; row++)
+        {
+            if (string.Equals(outcomes[row].EffectId, chosen, StringComparison.Ordinal))
+            {
+                // 🔒 `18` §10 step 3's number: 1-based, so that the op's amount is the face the d6
+                // showed rather than an array offset nobody authored.
+                return row + 1;
+            }
+        }
+
+        throw new EffectContextException(
+            effect.Id,
+            $"its weighted walk answered '{chosen}', which is not a row of its own table",
+            "14 §8.0's WeightedPick returns an item OF the table it was handed, so this is " +
+            "unreachable — and it is stated rather than assumed because the alternative is returning " +
+            "an index nobody computed (steering S6).");
     }
 
     /// <summary>

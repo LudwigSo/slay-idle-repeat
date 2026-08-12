@@ -18,13 +18,13 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// <see cref="EffectOps.All"/> and are what catch it at build time.
 /// </para>
 /// <para>
-/// 🔴 <b>PHASE 1a</b> — <c>RANDOM_OUTCOME</c>'s handler is a stub that throws
-/// <see cref="NotSupportedException"/> naming M2-12's boss-engine phase (see
-/// <c>CombatFlowOps.RandomOutcome</c>). Both loops below therefore tolerate <b>that one exception
-/// type</b>, which still proves the routing claim — the op reached its arm rather than the
-/// <c>default</c> — and nothing else: no other op throws it, and the disposition loop records the
-/// op as unproven rather than passing it. 🔒 Both accommodations are deleted when the handler
-/// lands; grep <c>NotSupportedException</c> in this file.
+/// 🔒 <b>The Phase 1a accommodation is gone.</b> Both loops used to tolerate a
+/// <see cref="NotSupportedException"/> from <c>CombatFlowOps.RandomOutcome</c> and record the op as
+/// <em>stubbed</em>/<em>unproven</em>, because its handler had not been written; the remark then said
+/// the accommodation is deleted when the handler lands, and M2-12's implementation phase landed it.
+/// Every one of the 44 is now resolved for real and its disposition asserted — which is the stronger
+/// claim, and the reason the loops below hand in a `14` §8.1 combat draw stream: the forty-fourth op
+/// takes one draw, and an evaluation carrying no stream is refused rather than answered.
 /// </para>
 /// </remarks>
 public sealed class EffectOpResolverTests
@@ -38,7 +38,6 @@ public sealed class EffectOpResolverTests
         EffectOps.All.Count.ShouldBe(44, "18 §11 — and S3's floor under the loop below");
 
         var unrouted = new List<string>();
-        var stubbed = new List<string>();
 
         foreach (var op in EffectOps.All)
         {
@@ -54,6 +53,11 @@ public sealed class EffectOpResolverTests
             {
                 CurrentTarget = enemy,
                 Attacker = enemy,
+
+                // `14` §8.1's combat stream — RANDOM_OUTCOME takes exactly one draw and refuses an
+                // evaluation that carries none, so without this the routing claim could not be made
+                // for the forty-fourth op at all.
+                Rng = EffectTestBattle.CombatRng(6),
             };
 
             var context = bench.Context(
@@ -67,21 +71,9 @@ public sealed class EffectOpResolverTests
             {
                 unrouted.Add($"{op} fell through to the default arm");
             }
-            catch (NotSupportedException)
-            {
-                // 🔴 PHASE 1a — RANDOM_OUTCOME's handler is a stub. Reaching it IS the routing claim
-                //    this test makes; the behaviour is RandomOutcomeOpTests' (currently red).
-                //    🔒 Recorded rather than swallowed: an unqualified catch here would let ANY op
-                //    whose handler started throwing this be counted as routed, silently.
-                stubbed.Add(op.ToString());
-            }
         }
 
         unrouted.ShouldBeEmpty();
-
-        // 🔴 PHASE 1a — exactly the one stubbed op, and no other. When M2-12's handler lands this
-        //    goes empty and the catch above is deleted with it.
-        stubbed.ShouldBe([nameof(EffectOp.RANDOM_OUTCOME)]);
     }
 
     /// <summary>
@@ -93,7 +85,6 @@ public sealed class EffectOpResolverTests
     public void The_disposition_of_every_op_is_the_one_its_family_carries()
     {
         var wrong = new List<string>();
-        var unproven = new List<string>();
 
         foreach (var op in EffectOps.All)
         {
@@ -109,6 +100,7 @@ public sealed class EffectOpResolverTests
             {
                 CurrentTarget = enemy,
                 Attacker = enemy,
+                Rng = EffectTestBattle.CombatRng(6),
             };
 
             var expected = EffectOps.FamilyOf(op) switch
@@ -120,30 +112,17 @@ public sealed class EffectOpResolverTests
                 _ => OpDisposition.RESOLVED,
             };
 
-            try
-            {
-                var outcome = EffectOpResolver.Resolve(
-                    OpFixtures.Exemplar(op),
-                    bench.Context(evaluation, damageDealt: 100.0, healAmount: 50.0, overhealAmount: 10.0));
+            var outcome = EffectOpResolver.Resolve(
+                OpFixtures.Exemplar(op),
+                bench.Context(evaluation, damageDealt: 100.0, healAmount: 50.0, overhealAmount: 10.0));
 
-                if (outcome.Disposition != expected)
-                {
-                    wrong.Add($"{op}: expected {expected}, got {outcome.Disposition}");
-                }
-            }
-            catch (NotSupportedException)
+            if (outcome.Disposition != expected)
             {
-                // 🔴 PHASE 1a — RANDOM_OUTCOME's handler is a stub, so its disposition cannot be
-                //    observed yet. Recorded as unproven rather than silently counted as correct.
-                unproven.Add(op.ToString());
+                wrong.Add($"{op}: expected {expected}, got {outcome.Disposition}");
             }
         }
 
         wrong.ShouldBeEmpty();
-
-        // 🔴 PHASE 1a — exactly the one stubbed op, and no other. When M2-12's handler lands this
-        //    goes empty and the catch above is deleted with it.
-        unproven.ShouldBe([nameof(EffectOp.RANDOM_OUTCOME)]);
     }
 
     /// <summary>

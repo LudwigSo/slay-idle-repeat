@@ -1,4 +1,5 @@
 using System.Globalization;
+using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
@@ -53,19 +54,31 @@ internal sealed class BossOutcomes : IBossOutcomes
     /// <param name="holder">The actor whose roll it was — `17` §9's Dicelord.</param>
     /// <param name="chosenEffectId">The `18` §8 id of the single winning row.</param>
     /// <param name="sourceEffectId">The <c>RANDOM_OUTCOME</c> effect's own id.</param>
-    /// <remarks>🔴 <b>PHASE 1b STUB — M2-12's implementation phase owns the body.</b></remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
+    /// <exception cref="EffectContextException">
+    /// The holder holds no effect under that id — an authoring error <b>O1</b> should have refused at
+    /// encounter-build time, refused here rather than dropped.
+    /// </exception>
     public void Resolve(BattleActor holder, string chosenEffectId, string sourceEffectId)
     {
         ArgumentNullException.ThrowIfNull(holder);
 
-        throw new NotSupportedException(
-            $"BossOutcomes.Resolve('{chosenEffectId}' for '{holder.Id}', from '{sourceEffectId}') is " +
-            "declared and not written yet — M2-12's IMPLEMENTATION phase owns the body. It must find " +
-            "the chosen id among holder.Plan.Effects, resolve it through EffectOpResolver against " +
-            $"services.ContextFor(holder) (tick " +
-            $"{_services.Tick.ToString(CultureInfo.InvariantCulture)}), and refuse an id that is not " +
-            "there rather than no-opping — 18 §10.1 E6 hands the seam ONE id per roll, so a silently " +
-            "dropped one makes 17 §9's Roll of Fate a d6 with no faces (steering S6).");
+        foreach (var held in holder.Plan.Effects)
+        {
+            if (string.Equals(held.Effect.Id, chosenEffectId, StringComparison.Ordinal))
+            {
+                _services.ResolveOutcome(holder, held.Effect);
+
+                return;
+            }
+        }
+
+        throw new EffectContextException(
+            chosenEffectId,
+            $"'{holder.Id}' rolled it from '{sourceEffectId}' at tick " +
+            $"{_services.Tick.ToString(CultureInfo.InvariantCulture)} and holds no such effect",
+            "`18` §10.1 E6 hands this seam ONE effect id per roll, and every boss effect is on " +
+            "ActorPlan.Effects by construction — that is what puts it in the battle's effect table. " +
+            "An id that is not there is authoring BossEncounterBuilder's O1 should have refused; " +
+            "dropping it silently would make `17` §9's Roll of Fate a d6 with no faces.");
     }
 }

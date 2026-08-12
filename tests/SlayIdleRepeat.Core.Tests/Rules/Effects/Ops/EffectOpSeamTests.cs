@@ -41,11 +41,10 @@ public sealed class EffectOpSeamTests
     /// stat-snapshot reader rather than the flow sink.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>PHASE 1a</b> — <c>RANDOM_OUTCOME</c> is excluded because its handler is a stub that
-    /// throws before it ever reaches a seam (<c>CombatFlowOps.RandomOutcome</c>). Its unwired path
-    /// is asserted directly by
-    /// <c>RandomOutcomeOpTests.The_unwired_flow_sink_refuses_a_RANDOM_OUTCOME_naming_M2_08</c>,
-    /// which is red for exactly that reason and turns this exclusion back off when it goes green.
+    /// 🔒 <b>The Phase 1a exclusion is gone.</b> <c>RANDOM_OUTCOME</c> was excluded while its
+    /// handler was a stub that threw before it ever reached a seam; M2-12's implementation phase
+    /// landed the handler, so the twelfth op is back inside the enumerated family and its unwired
+    /// path is asserted here alongside the other eleven.
     /// </remarks>
     [Theory]
     [MemberData(nameof(CombatFlowOps))]
@@ -57,11 +56,8 @@ public sealed class EffectOpSeamTests
     /// <summary>`18` §2.3's six.</summary>
     public static TheoryData<EffectOp> StatusOps() => Family(EffectOpFamily.STATUS, 6);
 
-    /// <summary>
-    /// `18` §2.4's twelve, less the one `18` §10.1 E6 added — see the theory's own remarks.
-    /// </summary>
-    public static TheoryData<EffectOp> CombatFlowOps() =>
-        Family(EffectOpFamily.COMBAT_FLOW, 12, except: EffectOp.RANDOM_OUTCOME);
+    /// <summary>`18` §2.4's twelve, `18` §10.1 E6's <c>RANDOM_OUTCOME</c> included.</summary>
+    public static TheoryData<EffectOp> CombatFlowOps() => Family(EffectOpFamily.COMBAT_FLOW, 12);
 
     /// <summary>`18` §1.1's <c>valueScale</c> still names M2-06 — M2-03 owns only the value mode.</summary>
     [Fact]
@@ -196,12 +192,14 @@ public sealed class EffectOpSeamTests
         //    here carries a key the schema would reject.
         var effect = OpFixtures.Exemplar(op);
 
-        // FLAT keeps the basis out of the assertion for the ops that admit it. The four that do not
+        // FLAT keeps the basis out of the assertion for the ops that admit it. The five that do not
         // each take their own default — DAMAGE's value IS the multiplier, HEAL_LEECH reads the damage
-        // basis, DAMAGE_MAXHP_PCT and REVIVE are Max-HP fractions — so those are left unset rather
-        // than forced into a mode their own 18 §2 row rules out.
+        // basis, DAMAGE_MAXHP_PCT and REVIVE are Max-HP fractions, and RANDOM_OUTCOME (18 §10.1 E6)
+        // carries no value at all, so no mode of reading one — so those are left unset rather than
+        // forced into a mode their own 18 §2 row rules out.
         if (op is not (EffectOp.DAMAGE or EffectOp.HEAL_LEECH
-                       or EffectOp.DAMAGE_MAXHP_PCT or EffectOp.REVIVE or EffectOp.FORCE_CRIT_NEXT))
+                       or EffectOp.DAMAGE_MAXHP_PCT or EffectOp.REVIVE or EffectOp.FORCE_CRIT_NEXT
+                       or EffectOp.RANDOM_OUTCOME))
         {
             effect = effect with { ValueMode = ValueMode.FLAT };
         }
@@ -210,6 +208,11 @@ public sealed class EffectOpSeamTests
         {
             CurrentTarget = enemy,
             Attacker = enemy,
+
+            // `14` §8.1's combat stream. RANDOM_OUTCOME draws before it names its winner across the
+            // flow sink, so without one it would be refused for the missing stream and never reach
+            // the seam this theory is about — the wrong refusal, which is steering S2's whole point.
+            Rng = EffectTestBattle.CombatRng(6),
         };
 
         EffectOpResolver.Resolve(

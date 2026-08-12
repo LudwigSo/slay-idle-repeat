@@ -1,4 +1,4 @@
-using System.Globalization;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
@@ -55,17 +55,16 @@ internal static class BossPhaseRules
     /// <param name="firstClear">`17` §1's first-clear flag for this player and this boss.</param>
     /// <returns>The boundary, rounded to `05` §1.1's four decimals.</returns>
     /// <remarks>
-    /// 🔴 <b>PHASE 1b STUB — the boss engine's implementation phase owns the body.</b>
+    /// 🔒 <b>Derived, never a fourth constant.</b> The widened boundary is
+    /// <see cref="AuthoredPhase2HpFraction"/> and <see cref="FirstClearPhase1Widening"/> put through
+    /// the class remarks' arithmetic, so retuning either authored number moves it and nothing else
+    /// has to be remembered.
     /// </remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
     internal static double Phase2HpFraction(bool firstClear) =>
-        throw new NotSupportedException(
-            "BossPhaseRules.Phase2HpFraction is declared and not written yet — M2-12's IMPLEMENTATION " +
-            "phase owns the body. It is `17` §1's 0.66 on a repeat clear, and on a first clear the " +
-            "phase-1 band widened by 20%: DeterminismRounding.Round(1.0 - 1.20 * (1.0 - 0.66)) = " +
-            $"0.5920 (firstClear was {firstClear.ToString(CultureInfo.InvariantCulture)}). Returning " +
-            "0.66 unconditionally would silently delete the first-clear extension, which no log would " +
-            "show (steering S6).");
+        firstClear
+            ? DeterminismRounding.Round(
+                1.0 - (FirstClearPhase1Widening * (1.0 - AuthoredPhase2HpFraction)))
+            : AuthoredPhase2HpFraction;
 
     /// <summary>
     /// 🔒 `17` §1 — the phase an HP fraction is in: <c>hp &lt;= 0.33 ? 3 : hp &lt;= t2 ? 2 : 1</c>.
@@ -77,17 +76,25 @@ internal static class BossPhaseRules
     /// 🔒 It is a <b>reading</b>, not a transition. Phases never revert (`05` §3.1), so
     /// <see cref="BossPhaseController"/> compares this against the phase it is already in and only
     /// ever walks upward — a boss healed back above a threshold does not re-enter.
-    /// <para>
-    /// 🔴 <b>PHASE 1b STUB — the boss engine's implementation phase owns the body.</b>
-    /// </para>
     /// </remarks>
-    /// <exception cref="NotSupportedException">Always, until M2-12's implementation phase lands.</exception>
     internal static int PhaseFor(double hpFraction, bool firstClear) =>
-        throw new NotSupportedException(
-            "BossPhaseRules.PhaseFor is declared and not written yet — M2-12's IMPLEMENTATION phase " +
-            "owns the body. `17` §1 triggers the phases AT 100%, 66% and 33%, so the comparison is " +
-            "<= and a boss standing exactly on a threshold is already in the lower phase. It was asked " +
-            $"for {hpFraction.ToString("R", CultureInfo.InvariantCulture)} with firstClear " +
-            $"{firstClear.ToString(CultureInfo.InvariantCulture)}. Answering 1 for everything would " +
-            "make every boss a one-phase fight with nothing going red (steering S6).");
+        PhaseFor(hpFraction, Phase2HpFraction(firstClear), Phase3HpFraction);
+
+    /// <summary>
+    /// 🔒 The same reading over boundaries a <see cref="BossEncounter"/> already resolved, which is
+    /// the form <see cref="BossPhaseController"/> uses.
+    /// </summary>
+    /// <param name="hpFraction">The boss's HP fraction, <c>0..1</c>.</param>
+    /// <param name="phase2HpFraction"><see cref="BossEncounter.Phase2HpFraction"/>.</param>
+    /// <param name="phase3HpFraction"><see cref="BossEncounter.Phase3HpFraction"/>.</param>
+    /// <returns><see cref="FirstPhase"/>..<see cref="FinalPhase"/>.</returns>
+    /// <remarks>
+    /// 🔒 <b>The controller reads the encounter's own boundaries rather than re-deriving them from
+    /// the first-clear flag</b>, so the two cannot disagree — and the <c>&lt;=</c> that <em>"triggered
+    /// at 66%"</em> means is written <b>once</b>, here, for both spellings.
+    /// </remarks>
+    internal static int PhaseFor(double hpFraction, double phase2HpFraction, double phase3HpFraction) =>
+        hpFraction <= phase3HpFraction ? FinalPhase
+        : hpFraction <= phase2HpFraction ? FinalPhase - 1
+        : FirstPhase;
 }
