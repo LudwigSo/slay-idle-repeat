@@ -41,6 +41,17 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 | `fn` | Any condition function from §4 (`SELF_MISSING_HP_PCT`, `GOLD_HELD`, `PET_COUNT`, `STATUS_STACKS`, `DIE_FACE_COUNT`, `PERK_COUNT`, `DISTINCT_PERK_CATEGORIES`, `BATTLES_WON_THIS_RUN`, …), evaluated against current state and rounded to 4 dp **before** the division |
 | `per` | State units per step |
 | `cap` | Maximum number of steps; `null` = uncapped |
+| `statusId` | The status `STATUS_STACKS` reads — §4's *"by status id"*. Required by that function, meaningless to the rest |
+| `faceKind` | The `04` §1 face kind `DIE_FACE_COUNT` counts — §4's *"by face kind"*. Same rule |
+| `category` | The perk category `PERK_COUNT` restricts to — §4's *"optionally by category"*. Genuinely optional; its absence counts every perk |
+
+🔴 **Erratum, closed by M2-06 via §10's route.** The last three rows were missing. This table offered `fn` *"any condition function from §4"* and named `STATUS_STACKS` and `DIE_FACE_COUNT` in its own worked list — but §4 types those *"by status id"* and *"by face kind"*, and there was no field to carry either, so **a scale driven by either was unexpressible** and the two functions were offered for something the vocabulary could not do. The three keys are **not new vocabulary**: they are the same three keys a §4 condition term already carries, with the same names, types and meanings, so a function reads an argument the same way from a scale as from a condition. A scale over `STATUS_STACKS` that names no status is **refused**, not read as "every status" or as zero.
+
+```json
+{ "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.05,
+  "trigger": {"kind":"ALWAYS"}, "target": "CURRENT_TARGET",
+  "valueScale": { "fn": "STATUS_STACKS", "per": 1, "cap": 5, "statusId": "SUNDER" } }
+```
 
 `valueScale` is re-evaluated exactly when conditions are (§4): at every resolution pass for `ALWAYS` effects, at fire time for triggered ones. `valueScale: null` (the default) means `effectiveValue = value`.
 
@@ -308,6 +319,9 @@ Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all
 ```
 
 ### 7.8 A boss mechanic — Thornmaw phase 3
+
+🔴 **Erratum (conductor ruling R3): the `RAGE` block below is a pre-`PHASE` artifact. Every boss `AURA` mechanic is `"duration": {"scope": "PHASE"}`.** §6 says `AURA` mechanics are `PHASE`-scoped *by definition* and §7.10 authors Gulgrot's Bog Air that way; `PHASE` itself was added by the `16` A7 batch (§11: *"6 duration scopes = 5 + `PHASE`"*), so this example simply predates it. The two forms are equivalent **for Thornmaw only**, because phase 3 is never exited — which is why the artifact survived review. Applied in any earlier phase they differ: the `PHASE` form ends at the exit and `{999, BATTLE}` does not. `M2-13` authors the boss data with `scope: PHASE`; the `{"seconds": 999}` idiom is not to be used anywhere.
+
 ```json
 {
   "phase": 3,

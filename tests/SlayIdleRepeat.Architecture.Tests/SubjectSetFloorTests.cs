@@ -120,6 +120,27 @@ public sealed class SubjectSetFloorTests
             "SlayIdleRepeat.Core.Rules.Effects.IRunStateView.Tier, which ships as an int ordinal " +
             "because 18 §4's 'enum' has no declared type to name"),
 
+        // 🔒 Not a rule subject — a DEFERRAL, in the Tier entry's shape and for the same reason
+        // (steering S4). `18` §6 declares six duration scopes and M2-06 implements all six, but
+        // STAGE, RUN and PERMANENT outlive a battle, so the battle-scoped evaluator answers
+        // "not ended" for them and NOTHING ELSE IN THE REPOSITORY CONSUMES THEM. That is the
+        // correct end state today (kickoff A4: "the run layer is declared, not wired"; `18` §2.5
+        // gives the resolver to the run controller) and a placeholder controller would be a second
+        // mechanism to find and delete later — but it is still a hole, and a hole nobody is
+        // pointed at is a hole nobody closes.
+        //
+        // DurationScopes.OutlivesTheBattle is the one place that has to be read when the run layer
+        // arrives: it is the ruling, named, with the three scopes on one side of it.
+        //
+        // ⚠️ THE NAME IS A GUESS, recorded as one. M3's run controller is unwritten and no document
+        // fixes its type name, so this entry can only fire if M3 happens to pick "RunController".
+        // If it picks another name, whoever lands it should RENAME THIS ENTRY rather than delete
+        // it — the subject being tracked is "something ends a RUN-scoped effect", not the string.
+        new("RunController", SubjectKind.CoreType, "M3 — the run layer",
+            "SlayIdleRepeat.Core.Rules.Effects.Duration.DurationScopes.OutlivesTheBattle, which sorts " +
+            "18 §6's six scopes into the three a battle ends and the three it does not. The three it " +
+            "does not have had no consumer since M2-06 declared them"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
