@@ -62,8 +62,6 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -121,6 +119,21 @@ public sealed class SubjectSetFloorTests
         new("CurrencyId", SubjectKind.CoreType, "M1-01",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (vacuous until M1-04 " +
             "declares the first currency field; this pins the name it will be recognised by)"),
+
+        // Moved out of Pending by M1-10, not deleted — same reason as Primitives above: every
+        // namespace 30 §11.4 enumerates has to appear in one of these two arrays.
+        //
+        // 🔒 The two rules keyed on Core/Rules/ were VACUOUS until this commit. The directory held
+        // nothing but .gitkeep, so Handlers_and_Rules_are_internal quantified over an empty set and
+        // Entitlements_are_unreachable_from_the_rules_and_the_power_computation had no rule to look
+        // inside. Core/Rules/Economy/ now holds the 10 §3 / 28 C energy math and both rules bite:
+        // every energy type is internal, and none of them names Entitlements.
+        //
+        // Appended at the END on purpose. M1-03 is inserting its own Live entries near the top of
+        // this array in a parallel worktree, and keeping the two edits at opposite ends is what
+        // lets git merge them without a conflict. Do not reorder.
+        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
     };
 
     // ---------------------------------------------------------------- floors
