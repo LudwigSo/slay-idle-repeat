@@ -64,4 +64,17 @@
     <EmbeddedResource Include="Rules\Combat\CombatLogReferenceVectors.json" />
   </ItemGroup>
 
+  <!--
+    M2-17's 18 §8 determinism baseline over 10 000 seeded build permutations, embedded for the same
+    reason as the three above: M5-12 re-asserts it off-host.
+
+    🔴 It is NOT a reference-vector table in M0-06's or M0-07's sense. Those were validated against
+    externally published vectors; "build permutation -> hash" has no publisher, so this table is
+    self-generated and proves STABILITY, not correctness. The file's own $comment header says so, and
+    DslDeterminismBaselineTests asserts that it still does.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Rules\Effects\Determinism\DslDeterminismBaseline.json" />
+  </ItemGroup>
+
 </Project>
