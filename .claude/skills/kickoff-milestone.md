@@ -74,7 +74,7 @@ Then group tasks into **waves**:
 
 🔒 **Do not patch a component an in-flight agent is scheduled to replace.** Queue the fix until that agent lands, or both mechanisms will exist. In M0 the conductor patched a CI script an in-flight agent was already replacing; the duplicate mechanism broke 30 tests at merge.
 
-Practical caps: at most **3 agents in flight** at once (merge-integration effort grows faster than wall-clock savings beyond that) — **raise it only when the footprints are provably disjoint, and record that reasoning in the kickoff record at dispatch time**, and prefer fewer, larger waves over many small ones. Sequential-only is a perfectly good plan when the milestone is a dependency chain — say so and don't force parallelism.
+**No in-flight cap.** Dispatch every task in a wave at once — there is no limit on how many agents a conductor may have in flight. The only limits on a wave are the ones above: dependencies, footprint overlap, producer→consumer ordering, and the one-client-task-at-a-time rule. Prefer fewer, larger waves over many small ones. Sequential-only is a perfectly good plan when the milestone is a dependency chain — say so and don't force parallelism.
 
 Record the wave plan in the kickoff record and echo it to the user in one compact block (wave → tasks → parallel/sequential + why) before dispatching. This is informational; do not wait for approval.
 
@@ -99,8 +99,18 @@ On dispatch, set the task 🔄 in the tracker (you, the conductor, own the track
 1. Read the agent's report. If it failed or came back with red tests, decide: retry with a sharpened prompt (once), reassign as sequential in the main checkout, or mark ⛔ with the reason. Don't loop more than twice per task.
 2. If green: merge the feature branch into `milestone/M<N>` (resolve trivial conflicts yourself; a non-trivial conflict means the wave plan was wrong — serialize the remainder). Re-run the three unit suites on the integration branch after each merge; a merge that goes red gets fixed before anything else is merged.
 3. Update the tracker: task → 🔍 (branch merged to `milestone/M<N>`, awaiting human review) with the branch name in a note. Commit tracker updates on the integration branch as you go.
-4. When a wave fully lands, dispatch the next wave (its agents base off the now-updated `milestone/M<N>`).
+4. When a wave fully lands, **immediately dispatch the next wave in the same turn** (its agents base off the now-updated `milestone/M<N>`). Do not report, summarise or hand back between waves — a wave landing is a mid-run checkpoint, not an endpoint.
 5. Clean up merged worktrees.
+
+**Run the whole milestone, not one wave.** Phase 5 is a loop, and it exits only into Phase 6. After every merge, re-read the wave plan in the kickoff record and ask: *is any dispatchable task still ⬜ or 🔄?* If yes, the run continues — dispatch the next wave now. Ending your turn while a ⬜ task remains dispatchable is an incomplete run, no matter how much was accomplished. The only legitimate exits are:
+
+- every dispatchable task is 🔍/✅/⛔ → go to Phase 6;
+- a discovery that invalidates a **user decision** (the one exception in the hard rules) → stop and surface it;
+- the user interrupts.
+
+"The wave finished cleanly" and "this feels like a good stopping point" are not exits. Neither is context pressure: fold reports into the kickoff record, drop the transcripts, and keep going — the kickoff record plus the tracker are enough to resume the loop from nothing.
+
+While a wave's agents are in flight, do not idle-poll — you are re-invoked on each completion notification. Treat every such notification as a resumption of this loop: merge, update the tracker, then check the wave plan again.
 
 Keep your own context lean throughout: fold agent reports into the kickoff record, don't accumulate their transcripts.
 
@@ -124,6 +134,7 @@ Next steps: review milestone/M<N> and merge to <base>; verify the milestone exit
 
 ## Hard rules
 
+- **A kickoff runs the milestone to completion.** Dispatch → merge → dispatch the next wave, repeating until every dispatchable task is 🔍/✅/⛔ and Phase 6 has run. Stopping after one wave — or after any wave — with dispatchable work left is a failed run.
 - **The interactive window is Phases 1–2 only.** Never come back to the user mid-dispatch with a question an agent surfaced — answer it yourself from the kickoff record and log the assumption. The exception: a discovery that invalidates a *user decision* (not an implementation detail) — stop the affected tasks, surface it, and wait.
 - **You own the tracker and the integration branch; agents own their feature branches.** No agent edits `IMPLEMENTATION_TRACKER.md`, and nothing merges to the base branch.
 - **Client tasks never run in worktrees, and never two at once.** Non-negotiable — this is the same constraint that shaped `feature-oneshot` itself.

@@ -49,8 +49,11 @@ A task that authors data or schemas lands in an **earlier wave** than any task t
 **S12 · Do not patch a component an in-flight agent is scheduled to replace. [M0]**
 Queue the fix until that agent lands, or the two mechanisms will both exist. In M0 the duplicate broke 30 tests.
 
-**S13 · Cap 3 agents in flight; raise it only for provably disjoint footprints, and record why at dispatch. [M0]**
-The cap bounds merge-integration cost, which is near zero when file territories do not overlap. M0 sustained 4 with no collision — but both of M0's real collisions were about *ordering*, which the cap does not address.
+**S13 · No cap on agents in flight; wave membership is decided by ordering and footprint, not by a headcount. [M0]**
+M0's 3-agent cap bought nothing: it sustained 4 with no collision, and both of M0's real collisions were about *ordering* (S11) and *duplicate mechanisms* (S12), which a headcount does not address. Dispatch every task a wave admits at once.
+
+**S13b · A milestone run does not end at a wave boundary. [M0]**
+After each merge, check the wave plan for remaining ⬜/🔄 tasks and dispatch the next wave in the same turn. Ending the run with dispatchable work left — because a wave landed cleanly, or context got long — is an incomplete run, not a checkpoint.
 
 **S14 · Never key a tracker edit on a spec reference. [M0]**
 Spec refs are not unique — `14 §1.1` and `14 §14` each appear in two rows, and both times a status landed on an unrelated row. Address rows by task id or line, and re-read the result.
