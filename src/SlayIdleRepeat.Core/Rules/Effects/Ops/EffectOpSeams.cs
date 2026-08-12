@@ -271,6 +271,19 @@ internal interface ICombatFlowSink
         IEffectActorView summoner, string archetype, int count, int? maxAlive, string sourceEffectId);
 
     /// <summary>
+    /// 🔒 `18` §2.4 / §10.1 E6 — <c>RANDOM_OUTCOME</c>'s single winner: the effect the op's <b>one</b>
+    /// draw picked out of its <c>outcomes</c> table, handed over by id.
+    /// </summary>
+    /// <param name="holder">The actor whose effect rolled — `17` §9's Dicelord.</param>
+    /// <param name="chosenEffectId">
+    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A reference, never an embedded effect
+    /// (R19): resolving it is the engine's, which is what makes the outcomes mutually exclusive —
+    /// one call per roll, one effect per call.
+    /// </param>
+    /// <param name="sourceEffectId">The <c>RANDOM_OUTCOME</c> effect's own id, for the log.</param>
+    void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId);
+
+    /// <summary>
     /// `18` §2.4 — <c>CLEAR_SUMMONS</c>: <em>"despawn all living summons owned by the target. Despawned
     /// ≠ killed: no <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death explosions, no rewards."</em>
     /// </summary>
@@ -545,6 +558,10 @@ internal sealed class UnwiredCombatFlow : ICombatFlowSink
     public void Summon(
         IEffectActorView summoner, string archetype, int count, int? maxAlive, string sourceEffectId) =>
         throw Unwired(sourceEffectId, nameof(Summon));
+
+    /// <inheritdoc />
+    public void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId) =>
+        throw Unwired(sourceEffectId, nameof(RandomOutcome));
 
     /// <inheritdoc />
     public void ClearSummons(IEffectActorView owner, string sourceEffectId) =>

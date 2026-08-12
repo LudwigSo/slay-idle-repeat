@@ -32,7 +32,7 @@ public sealed class EffectOpsTests
         offenders.ShouldBeEmpty();
 
         // S3 — the floor under the loop above. Without it, an emptied enum passes this silently.
-        EffectOps.All.Count.ShouldBe(43);
+        EffectOps.All.Count.ShouldBe(44);
     }
 
     [Fact]

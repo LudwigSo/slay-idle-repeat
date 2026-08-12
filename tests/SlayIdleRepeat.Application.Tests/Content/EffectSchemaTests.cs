@@ -46,7 +46,7 @@ public sealed class EffectSchemaTests
     }
 
     /// <summary>
-    /// 🔒 The 43 ops are partitioned across the root's <c>oneOf</c> branches: every op in exactly
+    /// 🔒 The 44 ops are partitioned across the root's <c>oneOf</c> branches: every op in exactly
     /// one branch, and no branch naming an op that is not declared.
     /// </summary>
     /// <remarks>
@@ -75,7 +75,7 @@ public sealed class EffectSchemaTests
         counts.Where(c => c.Value > 1).Select(c => c.Key)
               .ShouldBeEmpty("an op in two branches matches two oneOf branches and can never validate");
 
-        counts.Count.ShouldBe(43, "18 §11 — and S3's floor under the loops above");
+        counts.Count.ShouldBe(44, "18 §11 — and S3's floor under the loops above");
     }
 
     /// <summary>The same partition over the 23 trigger kinds and the schema's trigger branches.</summary>
@@ -583,7 +583,7 @@ public sealed class EffectSchemaTests
     /// </summary>
     /// <remarks>
     /// Steering S2 — stated as a <b>single edit</b> rather than as a message match. A oneOf failure
-    /// reports the branch that failed by the smallest margin, and with 43 ops in thirteen branches
+    /// reports the branch that failed by the smallest margin, and with 44 ops in seventeen branches
     /// that is often a branch whose only complaint is the op discriminator, so matching on the word
     /// <c>ALL_COMBAT</c> in the message would be asserting which branch happened to be closest.
     /// Two documents differing in exactly one token, one accepted and one rejected, pins the rule
@@ -623,8 +623,89 @@ public sealed class EffectSchemaTests
     }
 
     /// <summary>
+    /// 🔒 `18` §10.1 <b>E6</b> — `17` §9's Dicelord <em>Roll of Fate</em>, both authored tables, as
+    /// the forty-fourth op's branch admits them: phase 1's <c>2/2/2</c> over three outcomes and
+    /// phase 2's <c>4/2</c> over two, one shape and no branch between them.
+    /// </summary>
+    [Fact]
+    public void The_Dicelords_Roll_of_Fate_validates_as_authored()
+    {
+        Validate("""
+        { "id": "BOSS_DICELORD_ROLL_OF_FATE_P1", "op": "RANDOM_OUTCOME",
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 }, "target": "SELF",
+          "outcomes": [ { "effectId": "BOSS_DICELORD_FATE_BOSS_ATK",  "weight": 2 },
+                        { "effectId": "BOSS_DICELORD_FATE_HERO_ATK",  "weight": 2 },
+                        { "effectId": "BOSS_DICELORD_FATE_BOTH_ASPD", "weight": 2 } ] }
+        """).ShouldBeEmpty();
+
+        Validate("""
+        { "id": "BOSS_DICELORD_ROLL_OF_FATE_P2", "op": "RANDOM_OUTCOME",
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 }, "target": "SELF",
+          "outcomes": [ { "effectId": "BOSS_DICELORD_FATE_BOSS_ATK",  "weight": 4 },
+                        { "effectId": "BOSS_DICELORD_FATE_BOTH_ASPD", "weight": 2 } ] }
+        """).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Each row below is a <b>single edit</b> away from the control above (steering S2 — the same
+    /// reasoning as <see cref="ALL_COMBAT_is_rejected_where_one_concrete_stat_is_required"/>: a
+    /// <c>oneOf</c> failure reports whichever branch missed by least, so the edit is the claim).
+    /// </summary>
+    [Theory]
+    // one outcome is not a choice — $defs/outcomes has minItems 2
+    [InlineData("""
+        "outcomes": [ { "effectId": "BOSS_DICELORD_FATE_BOSS_ATK", "weight": 2 } ]
+        """)]
+    // no table at all: 'outcomes' is required, and the table IS the op
+    [InlineData("\"target\": \"SELF\"")]
+    // a negative weight — 14 §8.0 takes a finite, non-negative one
+    [InlineData("""
+        "outcomes": [ { "effectId": "EFF_A", "weight": -1 }, { "effectId": "EFF_B", "weight": 2 } ]
+        """)]
+    // a row key nobody authored: the row object is additionalProperties: false too
+    [InlineData("""
+        "outcomes": [ { "effectId": "EFF_A", "weight": 1, "chance": 0.5 },
+                      { "effectId": "EFF_B", "weight": 2 } ]
+        """)]
+    // two identical rows — uniqueItems. ⚠️ This catches the identical pair only; one effect named
+    // twice at DIFFERENT weights is EffectOpValidation's, which the $defs description records.
+    [InlineData("""
+        "outcomes": [ { "effectId": "EFF_A", "weight": 1 }, { "effectId": "EFF_A", "weight": 1 } ]
+        """)]
+    public void A_malformed_RANDOM_OUTCOME_table_is_rejected(string body)
+    {
+        Validate($$"""
+        { "id": "BOSS_DICELORD_ROLL_OF_FATE_P1", "op": "RANDOM_OUTCOME", {{body}} }
+        """).ShouldNotBeEmpty();
+    }
+
+    /// <summary>
+    /// 🔒 <c>RANDOM_OUTCOME</c> carries no <c>value</c> and no <c>valueScale</c>: its own number is
+    /// the winning row's 1-based index, which nothing authors. The branch omits both keys, so
+    /// <c>additionalProperties: false</c> rejects them at validation rather than mid-battle — the
+    /// same device <c>FORCE_CRIT_NEXT</c>'s branch uses.
+    /// </summary>
+    [Theory]
+    [InlineData("\"value\": 3")]
+    [InlineData("\"valueScale\": { \"fn\": \"ENEMY_COUNT\", \"per\": 1 }")]
+    public void A_RANDOM_OUTCOME_carrying_a_magnitude_is_rejected_by_its_own_branch(string extraKey)
+    {
+        const string table = """
+            "outcomes": [ { "effectId": "EFF_A", "weight": 1 }, { "effectId": "EFF_B", "weight": 2 } ]
+            """;
+
+        Validate($$"""
+        { "id": "BOSS_DICELORD_ROLL_OF_FATE_P1", "op": "RANDOM_OUTCOME", {{table}} }
+        """).ShouldBeEmpty("the control: the same effect without the magnitude is valid");
+
+        Validate($$"""
+        { "id": "BOSS_DICELORD_ROLL_OF_FATE_P1", "op": "RANDOM_OUTCOME", {{table}}, {{extraKey}} }
+        """).ShouldNotBeEmpty($"{extraKey} is the only edit, and the branch admits neither");
+    }
+
+    /// <summary>
     /// An op-specific key on the wrong op. A single permissive object over the union of all keys
-    /// would accept this; the sixteen-branch partition is what makes it a failure.
+    /// would accept this; the seventeen-branch partition is what makes it a failure.
     /// </summary>
     [Theory]
     [InlineData("\"archetype\": \"SWARM\"")]
@@ -635,11 +716,13 @@ public sealed class EffectSchemaTests
     [InlineData("\"newFace\": {\"kind\":\"Star\"}")]
     // The three keys M2-03 added under 18 §10. Each belongs to a closed set of ops, and a schema
     // that admitted them everywhere would let {"op":"STAT_ADD_PCT","charges":3} validate with the 3
-    // meaning nothing — which is the exact failure the sixteen-branch partition exists
+    // meaning nothing — which is the exact failure the seventeen-branch partition exists
     // to prevent.
     [InlineData("\"toStat\": \"ATK\"")]
     [InlineData("\"charges\": 3")]
     [InlineData("\"statusTag\": \"control\"")]
+    // The key M2-12 added under 18 §10.1 E6, on the same footing as the other eight.
+    [InlineData("\"outcomes\": [{\"effectId\":\"EFF_A\",\"weight\":1},{\"effectId\":\"EFF_B\",\"weight\":2}]")]
     public void An_op_specific_key_on_the_wrong_op_is_rejected(string extraKey)
     {
         Validate("""
@@ -919,7 +1002,7 @@ public sealed class EffectSchemaTests
     /// protects <c>SchemasAwaitingContent</c> cannot fire for it. What can go wrong instead is
     /// concrete and near: <see cref="JsonSchemaValidator"/> resolves same-document pointers only, so
     /// the perk, pet, mount, curse and boss schemas M2-07 and M3 author cannot <c>$ref</c> this
-    /// file — the tempting alternative is to paste the 43-op enum, the fourteen-way trigger
+    /// file — the tempting alternative is to paste the 44-op enum, the fourteen-way trigger
     /// partition and the recursive condition tree into each of them, at which point five copies
     /// drift and `18` §10's "add the op to the JSON schema" becomes ambiguous about which.
     /// </para>
@@ -940,7 +1023,7 @@ public sealed class EffectSchemaTests
             .ToArray();
 
         offenders.ShouldBeEmpty(
-            "a second schema now enumerates the 18 §2 op vocabulary. Two copies of a 43-member " +
+            "a second schema now enumerates the 18 §2 op vocabulary. Two copies of a 44-member " +
             "closed set drift, and 18 §10's 'add the op to the JSON schema' stops naming one file. " +
             "Extract it or record the duplication deliberately in ContentLoader.VocabularySchemas.");
 
@@ -1021,9 +1104,10 @@ public sealed class EffectSchemaTests
         Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
         // 13 at M2-01; 16 since M2-03's 18 §10 extension split ATTACK_MULT_NEXT out for `charges`,
         // FORCE_CRIT_NEXT out again because it carries NO value, and SURVIVE_LETHAL out for
-        // `valueMode`. The count is asserted, not merely implied by the partition below, so that a
-        // branch appearing or vanishing is a decision.
-        branches!.Items.Count.ShouldBe(16, "18 §2's 43 ops partition into sixteen key shapes");
+        // `valueMode`; 17 since M2-12's 18 §10.1 E6 gave RANDOM_OUTCOME a branch for `outcomes`.
+        // The count is asserted, not merely implied by the partition below, so that a branch
+        // appearing or vanishing is a decision.
+        branches!.Items.Count.ShouldBe(17, "18 §2's 44 ops partition into seventeen key shapes");
 
         foreach (var branch in branches.Items)
         {

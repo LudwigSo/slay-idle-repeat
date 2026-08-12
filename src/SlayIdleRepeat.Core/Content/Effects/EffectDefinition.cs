@@ -33,7 +33,7 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// <para>
 /// The keys after the spine are op-specific and are harvested from `18`'s own worked examples
 /// (§2.2, §2.4, §7.6, §7.8, §7.9, §9.1, §9.2). Which of them each op admits is stated once, in
-/// <c>game-data/schema/effect.schema.json</c>, as a closed partition of the 43 ops into sixteen
+/// <c>game-data/schema/effect.schema.json</c>, as a closed partition of the 44 ops into seventeen
 /// key shapes — so <c>{"op":"STAT_ADD_PCT","archetype":"SWARM"}</c> is a validation failure rather
 /// than a field that silently means nothing.
 /// </para>
@@ -78,7 +78,7 @@ public sealed record EffectDefinition
     /// </remarks>
     public required string Id { get; init; }
 
-    /// <summary>Which of `18` §2's 43 operations this effect performs.</summary>
+    /// <summary>Which of `18` §2's 44 operations this effect performs.</summary>
     public required EffectOp Op { get; init; }
 
     /// <summary>When the effect fires. <c>null</c> where the author wrote none — see the type remarks.</summary>
@@ -191,6 +191,29 @@ public sealed record EffectDefinition
 
     /// <summary><see cref="EffectOp.SUMMON"/> only — the ceiling on simultaneously living summons.</summary>
     public int? MaxAlive { get; init; }
+
+    /// <summary>
+    /// 🔒 <b>Added by M2-12 under `18` §10 (extension E6).</b>
+    /// <see cref="EffectOp.RANDOM_OUTCOME"/> only — the weighted table of <b>mutually exclusive</b>
+    /// effects, exactly one of which the op's single draw picks.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>A new key, not <see cref="Value"/>.</b> <see cref="Value"/> is one
+    /// <see cref="double"/> and <c>effect.schema.json</c>'s <c>$defs/value</c> is
+    /// <c>["number","null"]</c>; there is no collection-shaped <c>value</c> anywhere in the DSL, and
+    /// `18` §10.1's own doctrine is that an extension <em>"adds a key or a token, never a
+    /// number"</em>. <see cref="EffectOp.RANDOM_OUTCOME"/> therefore carries <b>no</b>
+    /// <see cref="Value"/> at all.
+    /// </para>
+    /// <para>
+    /// ⚠️ The rows reference effects <b>by id</b> (<see cref="RandomOutcomeEntry"/>, R19) and the
+    /// weights are relative — `17` §9's <em>Roll of Fate</em> is <c>2/2/2</c> in phase 1 and
+    /// <c>4/2</c> in phase 2, one op and no branch. <c>null</c> on every other op;
+    /// <c>EffectOpValidation</c> refuses a borrowed one.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<RandomOutcomeEntry>? Outcomes { get; init; }
 
     /// <summary><see cref="EffectOp.MODIFY_DIE_FACE"/> only — which face is replaced.</summary>
     public DieFaceIndex? FaceIndex { get; init; }

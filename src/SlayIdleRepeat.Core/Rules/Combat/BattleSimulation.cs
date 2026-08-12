@@ -1216,6 +1216,22 @@ internal sealed class BattleSimulation
             }
         }
 
+        // 🔴 `18` §10.1 E6 — RANDOM_OUTCOME's winner has nowhere to land yet: firing the chosen
+        //    effect by id needs the boss engine's own effect lookup, which M2-12's boss-engine phase
+        //    brings (with the IBossOutcomes seam and the BattleSeams member that carries it). That
+        //    phase replaces this throw; a no-op here would make the Dicelord roll and do nothing,
+        //    which the balance harness would read as a content problem (the EffectOpSeams.Strict
+        //    doctrine, one layer up).
+        public void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId) =>
+            throw new EffectContextException(
+                sourceEffectId,
+                $"RANDOM_OUTCOME picked '{chosenEffectId}' and the boss engine that fires it is not " +
+                "wired — M2-12's IBossOutcomes seam is what resolves an outcome id into an effect",
+                "`18` §10.1 E6 hands the seam ONE effect id per roll (R19: outcomes are referenced, " +
+                "never embedded), and resolving it needs the boss script's own effect table. M2-12's " +
+                "boss-engine phase supplies it; firing nothing would make 17 §9's Roll of Fate a d6 " +
+                "with no faces.");
+
         public void ClearSummons(IEffectActorView owner, string sourceEffectId)
         {
             var summoner = Actor(owner);

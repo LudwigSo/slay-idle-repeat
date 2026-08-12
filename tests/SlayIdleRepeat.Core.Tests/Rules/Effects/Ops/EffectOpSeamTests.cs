@@ -40,6 +40,13 @@ public sealed class EffectOpSeamTests
     /// Every `18` §2.4 op names <b>M2-08</b> — including <c>STAT_COPY</c>, whose unwired path is the
     /// stat-snapshot reader rather than the flow sink.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>PHASE 1a</b> — <c>RANDOM_OUTCOME</c> is excluded because its handler is a stub that
+    /// throws before it ever reaches a seam (<c>CombatFlowOps.RandomOutcome</c>). Its unwired path
+    /// is asserted directly by
+    /// <c>RandomOutcomeOpTests.The_unwired_flow_sink_refuses_a_RANDOM_OUTCOME_naming_M2_08</c>,
+    /// which is red for exactly that reason and turns this exclusion back off when it goes green.
+    /// </remarks>
     [Theory]
     [MemberData(nameof(CombatFlowOps))]
     public void An_unwired_combat_flow_op_names_M2_08(EffectOp op) => Unwired(op, "M2-08");
@@ -50,8 +57,11 @@ public sealed class EffectOpSeamTests
     /// <summary>`18` §2.3's six.</summary>
     public static TheoryData<EffectOp> StatusOps() => Family(EffectOpFamily.STATUS, 6);
 
-    /// <summary>`18` §2.4's eleven.</summary>
-    public static TheoryData<EffectOp> CombatFlowOps() => Family(EffectOpFamily.COMBAT_FLOW, 11);
+    /// <summary>
+    /// `18` §2.4's twelve, less the one `18` §10.1 E6 added — see the theory's own remarks.
+    /// </summary>
+    public static TheoryData<EffectOp> CombatFlowOps() =>
+        Family(EffectOpFamily.COMBAT_FLOW, 12, except: EffectOp.RANDOM_OUTCOME);
 
     /// <summary>`18` §1.1's <c>valueScale</c> still names M2-06 — M2-03 owns only the value mode.</summary>
     [Fact]
@@ -146,14 +156,20 @@ public sealed class EffectOpSeamTests
     /// 🔒 S3 — every family is read off <see cref="EffectOps.FamilyOf"/> with a floor, so a member
     /// cannot go missing from a theory without the count going red first.
     /// </summary>
-    private static TheoryData<EffectOp> Family(EffectOpFamily family, int expected)
+    /// <param name="family">The `18` §2 family.</param>
+    /// <param name="expected">Its full size — the floor, asserted BEFORE anything is excluded.</param>
+    /// <param name="except">
+    /// 🔴 A PHASE 1a exclusion, named rather than filtered silently: the op whose handler is still a
+    /// stub and therefore never reaches a seam at all.
+    /// </param>
+    private static TheoryData<EffectOp> Family(EffectOpFamily family, int expected, EffectOp? except = null)
     {
         var ops = EffectOps.All.Where(op => EffectOps.FamilyOf(op) == family).ToArray();
 
         ops.Length.ShouldBe(expected, $"18 §2 tabulates {expected} ops in {family}");
 
         var data = new TheoryData<EffectOp>();
-        foreach (var op in ops)
+        foreach (var op in ops.Where(op => op != except))
         {
             data.Add(op);
         }

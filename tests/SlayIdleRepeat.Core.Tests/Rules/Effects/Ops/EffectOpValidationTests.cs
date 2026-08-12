@@ -12,11 +12,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 public sealed class EffectOpValidationTests
 {
     /// <summary>
-    /// 🔒 S3's floor: <b>every</b> one of the 43 ops reaches a deliberate arm of the validator,
+    /// 🔒 S3's floor: <b>every</b> one of the 44 ops reaches a deliberate arm of the validator,
     /// rather than its <c>default</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ What this does <b>not</b> claim, said plainly: a forty-fourth op added as
+    /// ⚠️ What this does <b>not</b> claim, said plainly: a forty-fifth op added as
     /// <c>case NEW_OP: break;</c> would report no problems and pass here. Nothing short of a
     /// per-op expected-shape table could catch that, and such a table would be a third statement of
     /// the partition <c>effect.schema.json</c> and <see cref="EffectOpValidation"/> already make.
@@ -25,7 +25,7 @@ public sealed class EffectOpValidationTests
     [Fact]
     public void No_op_falls_through_to_the_validators_default_arm()
     {
-        EffectOps.All.Count.ShouldBe(43, "18 §11 — the floor under the loop");
+        EffectOps.All.Count.ShouldBe(44, "18 §11 — the floor under the loop");
 
         var uncovered = new List<string>();
 
@@ -34,8 +34,8 @@ public sealed class EffectOpValidationTests
             var bare = new EffectDefinition { Id = "X", Op = op };
 
             // A bare effect either validates (the ops that need only the spine) or reports at least
-            // one problem. What must never happen is the default arm reporting "not one of 18 §2's 43".
-            if (EffectOpValidation.Problems(bare).Any(p => p.Contains("not one of 18 §2's 43", StringComparison.Ordinal)))
+            // one problem. What must never happen is the default arm reporting "not one of 18 §2's 44".
+            if (EffectOpValidation.Problems(bare).Any(p => p.Contains("not one of 18 §2's 44", StringComparison.Ordinal)))
             {
                 uncovered.Add(op.ToString());
             }
@@ -175,7 +175,7 @@ public sealed class EffectOpValidationTests
     [Fact]
     public void Every_exemplar_the_op_suites_share_is_well_formed()
     {
-        EffectOps.All.Count.ShouldBe(43, "the floor under the loop");
+        EffectOps.All.Count.ShouldBe(44, "the floor under the loop");
 
         EffectOps.All
                  .SelectMany(op => EffectOpValidation.Problems(OpFixtures.Exemplar(op))
@@ -265,6 +265,14 @@ public sealed class EffectOpValidationTests
             EffectOp.FORCE_CRIT_NEXT => effect with { Value = null, Charges = 1 },
             EffectOp.SUMMON => effect with { Archetype = "SWARM" },
             EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
+
+            // 18 §10.1 E6 — no value at all, and two rows because one outcome is not a choice.
+            EffectOp.RANDOM_OUTCOME => effect with
+            {
+                Value = null,
+                Outcomes = new[] { new RandomOutcomeEntry("EFF_A", 1.0), new RandomOutcomeEntry("EFF_B", 1.0) },
+            },
+
             _ => effect,
         };
     }

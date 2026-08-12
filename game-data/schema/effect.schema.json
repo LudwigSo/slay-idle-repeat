@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/effect.schema.json",
   "title": "an EffectDefinition (18 §1)",
-  "description": "18 §1 — one authored effect. Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outcome, shrine buff, curse and boss mechanic is one or more of these, and there is no per-perk, per-talent or per-boss code. VOCABULARY schema, not a content schema: it governs no data file of its own, because an effect is always embedded in the thing that owns it. The content-type schemas M2 and M3 author (perks, talents, pets, bosses) restate this shape; this file is what they restate. The root is deliberately a oneOf over sixteen closed key-shapes rather than one permissive object, so that an op-specific key on the wrong op is a validation failure and not a field that silently means nothing. Adding a 44th op means adding a branch here, an EffectOp member and a row in 18 — all three, in the same commit (18 §10).",
+  "description": "18 §1 — one authored effect. Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outcome, shrine buff, curse and boss mechanic is one or more of these, and there is no per-perk, per-talent or per-boss code. VOCABULARY schema, not a content schema: it governs no data file of its own, because an effect is always embedded in the thing that owns it. The content-type schemas M2 and M3 author (perks, talents, pets, bosses) restate this shape; this file is what they restate. The root is deliberately a oneOf over seventeen closed key-shapes rather than one permissive object, so that an op-specific key on the wrong op is a validation failure and not a field that silently means nothing. The seventeenth branch is RANDOM_OUTCOME, the 44th op, added by M2-12 under 18 §10 (extension E6). A 45th op means adding a branch here, an EffectOp member and a row in 18 — all three, in the same commit (18 §10).",
   "oneOf": [
     {
       "title": "18 §2.1 — STAT_ADD_FLAT / STAT_ADD_PCT / STAT_MULT",
@@ -228,6 +228,24 @@
       }
     },
     {
+      "title": "18 §2.4 — RANDOM_OUTCOME",
+      "description": "18 §2.4 / §10.1 E6, added by M2-12 — one draw over a weighted table of MUTUALLY EXCLUSIVE outcomes: 17 §9's Dicelord Roll of Fate, one visible d6 with three results. 🔒 Not expressible as three chance-gated effects: 18 §4's conditions are pure functions of current state and a draw is not state, so three gates are three INDEPENDENT draws (all three can fire, or none) and spend THREE draw indices where 14 §8.0's WeightedPick spends ONE — and the draw counter is the persisted state of the stream, so the two readings desynchronise every later draw of the battle. 🔒 The table is the new 'outcomes' key and NOT 'value': $defs/value is [\"number\",\"null\"] and there is no collection-shaped value anywhere in the DSL, which is why 18 §10.1's doctrine is 'a key or a token, never a number'. value and valueScale are omitted from this branch entirely, so additionalProperties: false rejects an authored one at validation instead of mid-battle — the op's own number is the 1-based index of the row that won, which nothing authors.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "outcomes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "RANDOM_OUTCOME" },
+        "outcomes": { "$ref": "#/$defs/outcomes" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
       "title": "18 §2.5 — MODIFY_DIE_FACE",
       "description": "18 §2.5 / §7.9 / §9.2 — replaces a die face. A run and board op, resolved by the run controller and never by the combat simulator; a COMBAT trigger may still emit it (18 §2.5's sanctioned combat-context exception, the Dicelord's Scramble firing it from PERIODIC), in which case the simulator appends RunEffectQueued and the run controller applies it in log order when the battle resolves.",
       "type": "object",
@@ -331,7 +349,7 @@
     },
     {
       "title": "18 §2.4 / §2.5 — the ops that carry no key beyond the eight-part shape",
-      "description": "Six combat-flow ops (18 §2.4) and twelve run and board ops (18 §2.5) — eighteen in all. Listed explicitly rather than as 'everything else': a 44th op must be placed in a branch deliberately, and an enum here is what makes forgetting one a validation failure instead of a silent admission.",
+      "description": "Six combat-flow ops (18 §2.4) and twelve run and board ops (18 §2.5) — eighteen in all. Listed explicitly rather than as 'everything else': a 45th op must be placed in a branch deliberately, and an enum here is what makes forgetting one a validation failure instead of a silent admission. RANDOM_OUTCOME, the 44th, is deliberately NOT here — it carries the 'outcomes' key and has a branch of its own.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "op"],
@@ -503,6 +521,26 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 6
+        }
+      }
+    },
+
+    "outcomes": {
+      "description": "18 §10.1 E6 — RANDOM_OUTCOME's weighted table. minItems 2 because one outcome is not a choice: an effect that always fires should be authored directly rather than spending a combat draw index to reach itself. 🔒 Each row REFERENCES an effect by id and never embeds one (R19) — an effect nested inside an effect would sit outside 18 §8's ascending-effect-id ordering, outside this file's own op-to-key partition, and outside every id-keyed lookup 05 §3.1 and 05 §4 make. ⚠️ uniqueItems catches two IDENTICAL rows only; a table naming one effect twice at DIFFERENT weights is refused by EffectOpValidation, which is also where the self-reference and all-zero-weights rules live — this schema cannot compare a row against the effect's own id.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["effectId", "weight"],
+        "properties": {
+          "effectId": { "$ref": "#/$defs/effectId" },
+          "weight": {
+            "description": "14 §8.0 — the row's share of the one draw, relative and not a probability: 17 §9's Roll of Fate is 2/2/2 in phase 1 and 4/2 in phase 2, one op and no branch. 🔒 Zero is admitted and DISABLES the row — the weighted walk's comparison is strict, so a zero-weight row is unreachable wherever it sits, which is how content turns one outcome off without renumbering the others.",
+            "type": "number",
+            "minimum": 0
+          }
         }
       }
     },

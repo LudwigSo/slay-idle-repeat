@@ -5,9 +5,9 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// belongs to.
 /// </summary>
 /// <remarks>
-/// 🔒 <see cref="FamilyOf"/> names all 43 ops explicitly and throws on anything else. The default
+/// 🔒 <see cref="FamilyOf"/> names all 44 ops explicitly and throws on anything else. The default
 /// arm exists only because C# requires one for an enum (<c>CS8524</c>: an enum-typed value may hold
-/// an unnamed number), so it cannot be the thing that catches a forty-fourth op — a new member
+/// an unnamed number), so it cannot be the thing that catches a forty-fifth op — a new member
 /// would fall into it and throw at run time, in whichever battle first authored one.
 /// <c>EffectOpsTests.Every_op_belongs_to_exactly_one_family</c> is what catches it, at build time,
 /// by enumerating <see cref="All"/>. That is the arm of `18` §10's "op, schema and document in the
@@ -57,7 +57,11 @@ public static class EffectOps
         EffectOp.SET_TARGET_PRIORITY or
         EffectOp.DAMAGE_TAKEN_MULT or
         EffectOp.CLEAR_SUMMONS or
-        EffectOp.STAT_COPY => EffectOpFamily.COMBAT_FLOW,
+        EffectOp.STAT_COPY or
+
+        // 🔒 18 §10 E6 — declared at the END of EffectOp because the numbers are wire values, and
+        //    §2.4's all the same. This arm is the authority on the family; the position is not.
+        EffectOp.RANDOM_OUTCOME => EffectOpFamily.COMBAT_FLOW,
 
         EffectOp.GRANT_CURRENCY or
         EffectOp.GRANT_ITEM or
@@ -75,7 +79,7 @@ public static class EffectOps
 
         _ => throw new ArgumentOutOfRangeException(
             nameof(op), op,
-            "18 §2 declares 43 ops in five families and this value is none of them. A new op belongs " +
+            "18 §2 declares 44 ops in five families and this value is none of them. A new op belongs " +
             "to a family here, to game-data/schema/effect.schema.json and to 18 itself, in one commit " +
             "(18 §10)."),
     };

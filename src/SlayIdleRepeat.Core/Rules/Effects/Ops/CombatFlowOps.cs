@@ -4,7 +4,7 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>
-/// 🔒 Ten of `18` §2.4's eleven combat-flow ops. The eleventh, <c>STAT_COPY</c>, is
+/// 🔒 Eleven of `18` §2.4's twelve combat-flow ops. The twelfth, <c>STAT_COPY</c>, is
 /// <see cref="StatCopyOp"/> — it is the one op in the DSL whose <c>target</c> does not name who it
 /// writes to, and that inversion is worth a file of its own.
 /// </summary>
@@ -171,6 +171,54 @@ internal static class CombatFlowOps
             OpTargets.Holder(context), archetype, count, effect.MaxAlive, effect.Id);
 
         return count;
+    }
+
+    /// <summary>
+    /// 🔒 `18` §2.4 / §10.1 E6 — <c>RANDOM_OUTCOME</c>: <b>one</b> draw over the <c>outcomes</c>
+    /// weight table, and the single effect id it names handed to
+    /// <see cref="ICombatFlowSink.RandomOutcome"/>. Returns the <b>1-based index</b> of the row that
+    /// won.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why this op exists at all.</b> `17` §9's Dicelord <em>Roll of Fate</em> is one visible
+    /// d6 with three <b>mutually exclusive</b> weighted outcomes. `18` §4's conditions are
+    /// <em>"pure functions of current state"</em> and a draw is not state, so three
+    /// <c>chance</c>-gated effects would be three <b>independent</b> draws — all three can fire, or
+    /// none — and would spend <b>three</b> draw indices where `14` §8.0's
+    /// <see cref="Rng.DeterministicRng.WeightedPick{T}"/> spends <b>one</b>.
+    /// <see cref="Rng.DeterministicRng.Position"/> is the persisted state of the stream, so the two
+    /// readings desynchronise every later draw of the battle.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Validation runs BEFORE the draw</b>, mirroring <c>WeightedPick</c>'s own contract that
+    /// <em>a rejected call is not a call</em>: a refused <c>RANDOM_OUTCOME</c> consumes no draw
+    /// index, or a malformed table would shift every later draw of that battle.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>PHASE 1a STUB — M2-12's boss engine owns the body.</b> The vocabulary, the schema
+    /// branch, <see cref="EffectOpValidation"/>'s arm and `18` §10.1's E6 row are complete and
+    /// green; the draw, the seam call and the returned index are not written yet, and this throws
+    /// rather than returning a number nobody computed (steering S6). <c>RandomOutcomeOpTests</c> is
+    /// the red suite that describes what replaces it.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="NotSupportedException">Always, until M2-12's boss-engine phase lands.</exception>
+    internal static double RandomOutcome(EffectDefinition effect, EffectOpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+
+        throw new NotSupportedException(
+            $"RANDOM_OUTCOME ('{effect.Id}') is declared, validated, schema'd and documented, and " +
+            "its behaviour is not written yet — M2-12's boss-engine phase owns the draw. It must " +
+            "take exactly ONE value from EffectOpContext.Evaluation.Rng via " +
+            "DeterministicRng.WeightedPick over 'outcomes', hand the chosen effect id to " +
+            "ICombatFlowSink.RandomOutcome, and return the winning row's 1-based index. Before the " +
+            "draw it must refuse a malformed table by re-reading EffectOpValidation.Problems and " +
+            "carrying that problem's own words, so that a rejected roll consumes NO draw index — " +
+            "WeightedPick's contract is that a rejected call is not a call. Returning a number here " +
+            "instead would make a boss roll the same face forever with nothing going red " +
+            "(steering S6).");
     }
 
     /// <summary>

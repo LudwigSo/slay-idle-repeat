@@ -31,7 +31,8 @@ internal readonly record struct StatDelta(StatId Stat, double Amount);
 /// </summary>
 /// <remarks>
 /// <para>
-/// Both are op <em>behaviour</em>, which `18` §10 and the milestone plan put with the other 43 ops,
+/// Both are op <em>behaviour</em>, which `18` §10 and the milestone plan put with the other 43 ops
+/// (44 since `18` §10.1 E6),
 /// not with the aggregation order. What the pipeline keeps is the part that is order and rounding:
 /// it hands the conversions the frozen post-step-5 block (so <em>"reads post-step-5 values"</em>
 /// cannot be got wrong by an implementation that mutates as it goes), applies the returned deltas
