@@ -49,7 +49,11 @@ public enum CurrencyId
     /// <summary>The premium currency (`10` §2).</summary>
     SOUL_SHARDS = 3,
 
-    /// <summary>The run gate (`28` C). Scope <c>GATE</c> rather than <c>META</c>.</summary>
+    /// <summary>
+    /// The run gate (`10` §3 — 20 per run). Scope <c>GATE</c> rather than <c>META</c>. The
+    /// overflow bank that receives what the main bar cannot hold is `28` Part C, and it is
+    /// M1-10's, not a second currency.
+    /// </summary>
     ENERGY = 4,
 
     /// <summary>Gear enhancement material.</summary>

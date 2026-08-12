@@ -105,6 +105,16 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new("CanonicalStateWriter", SubjectKind.CoreType, "M0-07",
             "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests"),
+
+        // Moved out of Pending by M1-01 rather than deleted, for the reason the type list exists:
+        // DomainPurityTests.CurrencyFields() recognises a currency field by the hard-coded simple
+        // name Domain.CurrencyIdType, and nothing else in this suite would notice that constant
+        // going stale. The rule itself is still VACUOUS today — it needs a non-static instance
+        // field typed CurrencyId, and M1-04 brings the first — and that vacuity is tracked by the
+        // CurrencyChanged (M1-03) entry in Pending. This entry tracks the other half: the name.
+        new("CurrencyId", SubjectKind.CoreType, "M1-01",
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (vacuous until M1-04 " +
+            "declares the first currency field; this pins the name it will be recognised by)"),
     };
 
     // ---------------------------------------------------------------- floors
