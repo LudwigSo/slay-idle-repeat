@@ -139,11 +139,37 @@ public sealed class EnergyMathTests
 
     /// <summary>
     /// 🔒 `28` C2 — "Regenerates: ❌ Never on its own. The Reserve only ever receives what the main
-    /// bar could not hold." With both banks full there is nothing the main bar could not hold that
-    /// the Reserve has room for, so ten hours of regeneration move nothing at all.
+    /// bar could not hold."
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Stated from a state where the Reserve has <b>room</b> and the main bar is <b>not</b>
+    /// full, which is the only shape that can tell the difference. This case originally accrued
+    /// into two already-full banks and asserted nothing moved — true, and useless: a Reserve given
+    /// its own regeneration term is still capped, so the full pair reports the same answer either
+    /// way. Proved by mutation: adding an independent Reserve regeneration to <c>Accrue</c> turned
+    /// ten other cases red and left the one named for the property green.
+    /// </remarks>
     [Fact]
     public void The_reserve_never_regenerates_on_its_own()
+    {
+        // Four hours is 60 units. The bar is 100 short of its 200 and the Reserve is 150 short of
+        // its own, so a Reserve that regenerated independently would have somewhere to put it.
+        var accrued = EnergyMath.Accrue(
+            Shipped, legendLevel: 40, new EnergyBanks(100, 50), TimeSpan.FromHours(4));
+
+        accrued.Banks.Reserve.ShouldBe(
+            50,
+            "the main bar had room for every one of the 60 units, so 28 C2 leaves the Reserve " +
+            "untouched: it receives only what the bar could not hold.");
+        accrued.Banks.Energy.ShouldBe(160);
+    }
+
+    /// <summary>
+    /// The corollary at the ceiling: with both banks full there is nothing the bar could not hold
+    /// that the Reserve has room for, so ten hours of regeneration move nothing at all.
+    /// </summary>
+    [Fact]
+    public void Regeneration_into_two_full_banks_moves_nothing()
     {
         var full = new EnergyBanks(200, 200);
 
