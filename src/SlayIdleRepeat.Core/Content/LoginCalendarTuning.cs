@@ -93,15 +93,35 @@ internal sealed class LoginCalendarTuning
     internal const int FirstDay = 1;
 
     /// <summary>
-    /// The calendar-day guard both this type and <c>Player.Rehydrate</c> are written against.
+    /// <see cref="DayAfter"/>'s floor guard.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 It checks the <b>floor only</b>, and the missing ceiling is the ruling rather than an
-    /// omission — see <see cref="DayAfter"/>. <c>internal static</c> so the aggregate can state the
-    /// same bound without transcribing the reason.
+    /// omission — see <see cref="DayAfter"/>.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b><c>private</c>, and <c>Player.Rehydrate</c> deliberately does not call it.</b> An earlier
+    /// draft made it <c>internal</c> "so the aggregate can state the same bound without transcribing
+    /// the reason" — which was wrong twice over. <c>Player.RequireLoginCalendar</c> accumulates a
+    /// <em>fault string</em> rather than throwing (`30` §11.3 promises a <see cref="Result{T}"/> for
+    /// a corrupt row), so it structurally cannot use a guard that throws; and what it shares with
+    /// this method is <see cref="FirstDay"/>, which is the number, not the message. One constant, two
+    /// refusals in the two shapes their callers need.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It is unreachable from production, and that is stated rather than left to be
+    /// discovered.</b> Every route into <see cref="DayAfter"/> is <c>Player.AdvanceLoginCalendar</c>,
+    /// and <c>GameRules.Clone</c> → <c>Player.Rehydrate</c> already refuses a row below
+    /// <see cref="FirstDay"/> before any handler runs. It is kept for the reason
+    /// <c>EnergyMath.Accrue</c> keeps its negative-span guard: an assertion for a <em>direct</em>
+    /// caller, which after that seam means a programming error rather than an environmental one.
+    /// <c>LoginCalendarTuningTests.A_day_below_one_is_refused</c> drives it, so it is not the
+    /// unfalsifiable branch steering <b>S1</b> forbids.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="calendarDay"/> is below 1.</exception>
-    internal static void RequireCalendarDay(int calendarDay)
+    private static void RequireCalendarDay(int calendarDay)
     {
         if (calendarDay < FirstDay)
         {

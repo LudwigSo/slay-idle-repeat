@@ -124,5 +124,4 @@ internal sealed class MetaDrawScope
 
         return stream;
     }
-
 }

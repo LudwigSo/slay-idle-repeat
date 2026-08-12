@@ -27,10 +27,12 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// 🔒 <b>The amount is M1-10's ruling, not this task's.</b> <c>EnergyMath.RefillToFull</c> is
 /// <b>deficit-only</b>: it grants <c>max(0, max − energy)</c>, so a full bar grants nothing and
 /// overflows nothing. The rival "fill both banks" reading makes the refill 400 rather than 120 and
-/// swings `10` §3.2's free-player daily budget by about 2.3×; `28` C2's source list is the erratum
-/// and <c>EnergyMath.RefillToFull</c> carries the whole argument. These tests assert the handler
-/// <em>calls</em> that rule — they do not restate its arithmetic, which would be a second
-/// transcription to keep in step.
+/// raises `10` §3.2's free-player daily budget materially — 240 at Legend Level 1 and 400 at the
+/// 200 cap, against an authored day of roughly 480 — but ⚠️ <b>the reading is a LIVE CONTRADICTION
+/// registered for a ruling (S16), not a settled rule</b>, and <c>EnergyMath.RefillToFull</c> is the
+/// one place that argument lives. These tests assert the handler <em>calls</em> that rule; they do
+/// not restate its arithmetic and they do not declare a winner, which is a verdict the authoritative
+/// site deliberately withheld.
 /// </para>
 /// </remarks>
 public sealed class BeginSessionRefillTests
@@ -91,8 +93,10 @@ public sealed class BeginSessionRefillTests
         result.NewState.Player.Energy.ShouldBe(
             new EnergyBanks(max, 0),
             "'to full' of a bar that is already full is ZERO (M1-10). The rival reading — top the " +
-            "Reserve up too — makes this refill 400 rather than 120 and swings 10 §3.2's free-player " +
-            "daily budget by about 2.3x.");
+            "Reserve up too — would grant 240 here instead of 0, on a 10 §3.2 free-player day of " +
+            "roughly 480. See EnergyMath.RefillToFull: the conflict between 10 §3.1/§3.2 and 28 C2 " +
+            "is registered for a ruling, and only the `deficit` expression there changes if it goes " +
+            "the other way.");
 
         // 🔒 …AND THE ZERO-DELTA ROW IS PUBLISHED, NOT FILTERED — recorded assumption A6's ruling,
         // one command on. This is the only fixture in the suite that produces a zero deficit, so

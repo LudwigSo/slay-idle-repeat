@@ -55,12 +55,45 @@ internal static class BeginSession
     /// </para>
     /// <list type="bullet">
     ///   <item><b>A new game day clears it.</b> <c>GameRules.AdvanceTime</c> calls
-    ///   <c>Player.ResetDailyCounters(dayStart)</c> on every command; when the boundary is genuinely
-    ///   later the map is emptied, so the first <c>BEGIN_SESSION</c> of the new day reads zero.</item>
+    ///   <c>Player.ResetDailyCounters(dayStart)</c> whenever <c>dayStart &gt;= DailyPeriodStartUtc</c>;
+    ///   when the boundary is genuinely later the map is emptied, so the first <c>BEGIN_SESSION</c>
+    ///   of the new day reads zero.</item>
     ///   <item><b>The same game day preserves it.</b> <c>ResetDailyCounters</c> is a deliberate
     ///   <b>no-op</b> on the boundary already in force (M1-04's counter-wipe fix), so every later
     ///   command of the day — <c>BEGIN_SESSION</c> or not — leaves the counter standing.</item>
+    ///   <item><b>A boundary <em>earlier</em> than the stored one does nothing at all</b>, which is
+    ///   M1-08's clock-skew guard: <c>Player.RequireNotBefore</c> <em>throws</em> on a backwards
+    ///   period, and `30` §2.1's <b>P3</b> forbids that exception reaching <c>Apply</c>'s caller. This
+    ///   third arm is the one the sentence here used to omit, and it has a consequence — below.</item>
     /// </list>
+    /// <para>
+    /// ⚠️ <b>The clock-skew case, stated because it is reachable and player-visible rather than
+    /// theoretical.</b> A host clock that jumps <em>forward</em> across 05:00 UTC pays that day's
+    /// grants early: the skewed command stores <c>DailyPeriodStartUtc</c> at the later boundary, and
+    /// when real time reaches that day the counter is still set, so it is answered as a no-op. The
+    /// player is paid <b>early, never twice</b> — which is the direction that matters — and the loop
+    /// recovers at the next boundary.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The <em>corrected</em> clock never reaches this handler at all</b>, and that is worth
+    /// stating because it is the first thing a reader assumes otherwise. <c>Player.MarkApplied</c>
+    /// refuses a <c>NowUtc</c> earlier than <c>LastAppliedAtUtc</c> outright, so <c>Apply</c> raises
+    /// <c>ArgumentOutOfRangeException</c> before any rule decides anything. ⚠️ M1-08 clamped the
+    /// <em>energy</em> backwards-clock path explicitly to keep `30` §2.1's <b>P3</b> — <em>"a
+    /// backwards clock costs the player nothing and grants them nothing"</em> — and left this guard
+    /// throwing, so the two halves of one ruling disagree. It is <b>carried forward</b> rather than
+    /// changed here: the guard is M1-05's and the clamp is M1-08's, and
+    /// <c>BeginSessionIdempotenceTests</c> pins the behaviour as it stands.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The persisted-marker design does not avoid this, and that is why the counter stays.</b>
+    /// The obvious alternative — a stored "the game day I last ran on", compared against
+    /// <c>DailyPeriodStartUtc</c> — loses <em>exactly the same day</em>, because the thing pinned
+    /// forward by the skew is <c>DailyPeriodStartUtc</c> itself. Any key that answers "which game day
+    /// is this" inherits it. So the behaviour belongs to M1-08's skew handling rather than to this
+    /// choice of key, the counter costs no <c>SchemaVersion</c> field where the marker would, and
+    /// <c>BeginSessionIdempotenceTests</c> pins the case rather than leaving it to be rediscovered.
+    /// </para>
     /// <para>
     /// 🔒 <b>Why a counter rather than a comparison against <c>Player.DailyPeriodStartUtc</c>.</b>
     /// That field answers <em>"which game day is this"</em>, which is necessary but not sufficient:
@@ -87,17 +120,28 @@ internal static class BeginSession
     internal const string DailyRunCounter = "begin_session";
 
     /// <summary>
-    /// 🔒 Recorded assumption — the `30` §7 attribution token the daily free refill is logged under,
-    /// and the column `21` §8.3 groups <c>income_attribution.csv</c> by.
+    /// 🔒 The `30` §7 attribution token the daily free refill is logged under, and the column
+    /// `21` §8.3 groups <c>income_attribution.csv</c> by.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A stable <c>lower_snake_case</c> <em>identifier</em>, not a balance number, so `21` §3.1's
-    /// "tunables are data" rule does not reach it. It is recorded as an assumption all the same, for
-    /// the reason <c>GameRules.EnergyRegenReason</c> is: `30` §7 fixes no vocabulary for
-    /// <c>Reason</c>, and whatever token lands here is the one the economy dashboards separate the
-    /// free refill from regeneration by. Distinct from <c>energy_regen</c> on purpose — `10` §3.2
-    /// budgets the two separately, and one token for both would make the free player's daily budget
-    /// unauditable.
+    /// "tunables are data" rule does not reach it. It is an <b>assumption</b> all the same, for the
+    /// reason <c>GameRules.EnergyRegenReason</c>'s is (recorded assumption <b>A5</b>): `30` §7 fixes
+    /// no vocabulary for <c>Reason</c>, and whatever token lands here is the one the economy
+    /// dashboards separate the free refill from regeneration by.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It carries no assumption letter, and that is honest rather than an oversight.</b> M1-09
+    /// does not edit <c>IMPLEMENTATION_TRACKER.md</c>, so calling it "recorded" here — as an earlier
+    /// draft did — would have been a claim about a row that does not exist. It is reported as a new
+    /// assumption by the task that introduced it and gets its letter at integration; until it does,
+    /// <em>this</em> is where it is written down.
+    /// </para>
+    /// <para>
+    /// Distinct from <c>energy_regen</c> on purpose — `10` §3.2 budgets the two separately, and one
+    /// token for both would make the free player's daily budget unauditable.
+    /// </para>
     /// </remarks>
     internal const string DailyRefillReason = "daily_free_refill";
 
@@ -171,6 +215,14 @@ internal static class BeginSession
         // nothing is persisted either way; what is bought is that the FIRST thing to fail is the
         // thing that is missing.
         //
+        // ⚠️ IT IS BELOW THE EARLY RETURN, so a seedless context is caught on AT MOST ONE command per
+        // game day and every repeat accepts one silently. That is the correct trade and not an
+        // oversight: 30 §2.3's repeat "succeeds as a no-op", it draws nothing, so demanding a seed
+        // from it would make the no-op conditional on the host and turn a client that sends its
+        // day-boundary BEGIN_SESSION twice into a 500. The cost is stated rather than hidden — the
+        // seam runs on one call in N, and a host that forgets the seed is found on the day's first
+        // command rather than on every command.
+        //
         // ⚠️ NOTHING IS DRAWN FROM IT TODAY, and that is a registered deferral rather than an
         // omission. Both draws are M4-09's — GapRegister carries QuestSlate/M4-09 and
         // DailyShopStock/M4-09 — because no quest schema, no quest pool and no ShopOffer type exist,
@@ -188,12 +240,19 @@ internal static class BeginSession
         // 🔒 2 · 10 §3.1 — the daily free Energy refill, "to full, 1/day".
         var tuning = EnergyTuning.Read(input.Context.Content);
 
-        // 🔒 M1-10's ruling, called rather than reimplemented: RefillToFull is DEFICIT-ONLY. It
-        // grants max(0, max − energy), so a full bar grants nothing and overflows nothing, and
-        // 10 §3.2's budget line of +120 is the amount an EMPTY player receives rather than flat daily
-        // income. The rival "fill both banks" reading makes it 400 and swings the free player's daily
-        // budget ~2.3x; 28 C2's source list is the erratum, and EnergyMath.RefillToFull carries the
-        // whole argument and the registered ruling.
+        // 🔒 M1-10's reading, CALLED rather than reimplemented and deliberately not re-argued here:
+        // RefillToFull is DEFICIT-ONLY — max(0, max − energy) — so a full bar grants nothing and
+        // overflows nothing.
+        //
+        // ⚠️ EnergyMath.RefillToFull is the ONE place that ruling lives (30 §11.6), and it records
+        // something this call site must not contradict: the conflict between 10 §3.1/§3.2 and 28 C2
+        // is "a live contradiction, not a settled rule", implemented the conservative way and
+        // REGISTERED FOR A RULING (S16). An earlier draft of this comment declared 28 C2 the erratum
+        // and quoted a budget multiplier for the rival reading; both were verdicts the authoritative
+        // site had deliberately withheld, and the multiplier did not survive arithmetic —
+        // progression.json authors reserveMultipleOfMax 1, so the rival grant is 240 at Legend Level
+        // 1 and 400 only at the 200 cap. Read that file for the argument; this line only picks the
+        // rule.
         var refilled = EnergyMath.RefillToFull(tuning, player.LegendLevel, player.Energy);
 
         // 🔒 The event is RETURNED, never dropped. 30 §7 attributes every currency movement and

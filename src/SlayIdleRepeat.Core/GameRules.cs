@@ -262,7 +262,11 @@ public static class GameRules
     /// <exception cref="InvalidOperationException">
     /// 🔒 A <b>defect</b>, never a refusal: the slice does not carry the run its command acts on, an
     /// aggregate does not round-trip through its own snapshot, a handler hand-wrote an RNG stream
-    /// position, or a handler stamped an event's <c>Sequence</c> itself.
+    /// position, a handler stamped an event's <c>Sequence</c> itself, or — M1-09's addition — a
+    /// `14` §2.3 <b>⚄</b> command reached a handler that draws while <c>GameContext.CommandSeed</c>
+    /// is <c>null</c> (<see cref="HandlerInput"/>'s <c>MetaDraws</c>). Every one of the five is a
+    /// miswired caller or a rule that is wrong; none is a player asking for something they cannot
+    /// have.
     /// </exception>
     public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>
         Execute(Dispatch, state, command, context);

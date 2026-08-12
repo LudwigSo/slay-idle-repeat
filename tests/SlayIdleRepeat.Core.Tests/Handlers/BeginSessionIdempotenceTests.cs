@@ -355,6 +355,81 @@ public sealed class BeginSessionIdempotenceTests
             "'correctness never depends on BEGIN_SESSION arriving'.");
     }
 
+    /// <summary>
+    /// 🔒 A host clock that jumps <b>forward</b> across 05:00 UTC pays the player <b>early</b>, never
+    /// <b>twice</b> — and the day it was wrong about is answered as a no-op when real time reaches it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The M1-09 code review predicted this case, and driving it found something the review had
+    /// not: the "clock corrected backwards" leg is UNREACHABLE.</b>
+    /// <c>Player.MarkApplied</c> refuses a <c>NowUtc</c> earlier than <c>LastAppliedAtUtc</c>
+    /// outright, so a corrected clock does not quietly lose a day — <c>Apply</c> raises
+    /// <c>ArgumentOutOfRangeException</c> before any handler decides anything. That is asserted below
+    /// rather than assumed, and it is <b>carried forward</b>: M1-08 clamped the <em>energy</em>
+    /// backwards-clock path explicitly for `30` §2.1 <b>P3</b> reasons (<em>"a backwards clock costs
+    /// the player nothing and grants them nothing"</em>) and left this one throwing, so the two halves
+    /// of one decision disagree. Neither the guard nor the clamp is M1-09's to move.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>What that leaves, and it is the direction that matters:</b> nothing is ever granted a
+    /// second time. A forward skew pays the day it believes it is in, and real time arriving at that
+    /// day finds the marker already set. The cost is one day's grants received early rather than on
+    /// the day; the loop recovers at the next boundary.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It is not a property of the idempotence key.</b> What the skew pins forward is
+    /// <c>Player.DailyPeriodStartUtc</c>, so a persisted "the game day I last ran on" compared against
+    /// that field behaves identically — at the cost of a <c>SchemaVersion</c> field. Asserted here so
+    /// whoever revisits the key can see the alternative buys nothing.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_forward_clock_jump_pays_early_and_never_twice()
+    {
+        // The clock is a day fast: the command lands in what it believes is the NEXT game day.
+        var skewed = BeginSessions.Send(
+            BeginSessions.Slice(), Worlds.NextDay(BeginSessions.Morning));
+
+        skewed.Events.Count(IsRefill).ShouldBe(1, "the skewed command pays the day it thinks it is in.");
+        skewed.NewState.Player.DailyPeriodStartUtc.ShouldBe(
+            Worlds.NextDay(BeginSessions.Today),
+            "…and the boundary it stored is the later one, which is what pins the day forward.");
+
+        // 🔴 The operator corrects the clock — and this is a DEFECT, not a lost day. Pinned on the
+        // message (steering S2) because several things in Apply raise this exception type.
+        var corrected = Should.Throw<ArgumentOutOfRangeException>(
+            () => BeginSessions.Send(skewed.NewState, BeginSessions.Morning.AddMinutes(1)),
+            "a NowUtc behind LastAppliedAtUtc is refused by Player.MarkApplied before any rule runs.");
+
+        corrected.Message.ShouldContain(
+            "The last command was applied at",
+            Case.Sensitive,
+            "⚠️ CARRIED FORWARD: 30 §2.1's P3 forbids an exception out of Apply for anything but a " +
+            "caller or domain defect, and M1-08 clamped the ENERGY backwards-clock path for exactly " +
+            "that reason while this guard still throws. The two halves of one ruling disagree; " +
+            "whichever way it is settled, it is M1-05's guard and M1-08's clamp, not M1-09's handler.");
+
+        // Real time reaches the day the skewed command already claimed.
+        var caughtUp = BeginSessions.Send(
+            skewed.NewState, Worlds.NextDay(BeginSessions.Morning).AddHours(1));
+
+        caughtUp.Events.Count(IsRefill).ShouldBe(
+            0,
+            "🔒 THE DIRECTION THAT MATTERS: this day's grants were already paid by the skewed command, " +
+            "so the player receives nothing now. Paid EARLY, never TWICE — 10 §3's Energy paces the " +
+            "whole game, and a host with drifting clocks would otherwise be an Energy faucet.");
+
+        // …and the day after that recovers, so the cost is bounded rather than permanent.
+        var recovered = BeginSessions.Send(
+            caughtUp.NewState, Worlds.NextDay(Worlds.NextDay(BeginSessions.Morning)));
+
+        recovered.Events.Count(IsRefill).ShouldBe(
+            1,
+            "recovery is automatic on the next boundary. If this were 0 the skew would have stopped " +
+            "the daily loop permanently, which is a defect rather than a bounded cost.");
+    }
+
     /// <summary>Whether an event is the daily free refill (rather than a regeneration accrual).</summary>
     /// <remarks>
     /// 🔒 Matched on the <c>Reason</c>, not on the event <em>type</em>: both are
