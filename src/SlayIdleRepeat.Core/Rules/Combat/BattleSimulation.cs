@@ -108,6 +108,7 @@ internal sealed class BattleSimulation
     private readonly BattleActor _hero;
 
     private List<BattleActor>? _initiative;
+    private List<BattleActor>? _petOrder;
     private int _nextEnemyIndex;
     private int _nextLogId;
     private int _cascadeDepth;
@@ -304,16 +305,61 @@ internal sealed class BattleSimulation
 
     /// <summary>
     /// 🔒 `05` §3.1 step 0b's order — <em>"hero side first (hero, then pets in slot order), then
-    /// enemies by index"</em>.
+    /// enemies by index"</em>, which is also `05` §3.3's <em>"the attacker's side acts first"</em>.
     /// </summary>
     /// <remarks>
     /// Stated as a side-then-index sort rather than as the plain index order the rest of the loop
     /// uses, because they are not the same claim: `05` §3.3's duel puts a <em>hero</em> on the enemy
     /// side, and the index order alone would then interleave the two sides' openers by position.
+    /// <para>
+    /// 🔒 <b>The two documents ask for the same sequence and it is written once.</b> §3.1 step 0b
+    /// names the hero side first; §3.3 names the attacker's side first, and a duel's attacker
+    /// <em>is</em> the hero side (<c>CombatActor</c>, <c>BattleSide</c>). <see cref="ActingOrder"/> is
+    /// the one caller that turns this into a duel rule.
+    /// </para>
     /// </remarks>
     private IEnumerable<BattleActor> BattleStartOrder() =>
         _actors.Where(a => a.Side == BattleSide.HERO).OrderBy(a => a.Index)
             .Concat(_actors.Where(a => a.Side != BattleSide.HERO).OrderBy(a => a.Index));
+
+    /// <summary>
+    /// 🔒 The order the tick loop's two acting slots walk the roster in — `05` §3.1's index order in
+    /// PvE, and `05` §3.3's <em>attacker's side first</em> in a duel.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ═══ 🔒 <b>`05` §3.1 AND `05` §3.3 BOTH HOLD, AND THIS IS WHERE THEY MEET</b> ═══
+    /// </para>
+    /// <para>
+    /// `05` §3.3's row reads <em>"within a tick: the <b>attacker's side acts first</b> (hero, then pet
+    /// abilities), then the defender's side"</em>. Read as a licence to interleave, it would move a
+    /// pet ability (slot 5) in front of a basic attack (slot 4) — overriding `05` §3.1's 🔒 eight-slot
+    /// order with a parenthetical. ⚠️ <b>Errata, recorded rather than resolved:</b> the reading
+    /// implemented is the one that leaves both locked statements true — §3.1 keeps its slots, and §3.3
+    /// orders the <b>sides</b> <em>within</em> each of them. The parenthetical then enumerates what a
+    /// side's acting consists of (its hero's swing, its pets' abilities) rather than fusing the slots.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>On a well-formed duel roster this changes nothing observable, and that is the trap.</b>
+    /// <c>CombatActor</c>'s layout gives the attacker's side indices <c>0..3</c> and the defender's
+    /// side <c>4..7</c>, so side-then-index and plain index order coincide — and slot 4 sees only the
+    /// two heroes, because `05` §3.2 keeps pets out of it entirely. A test written against a
+    /// conventional roster passes identically with this method and without it.
+    /// <c>PvpDuelTests.The_override_is_invisible_on_a_conventionally_indexed_duel</c> pins that
+    /// finding, and the rest of that suite probes on a roster whose indices are deliberately inverted
+    /// — M2-05's technique, which pinned <c>ENEMY_COUNT</c> with a stray actor and
+    /// <c>TARGET_IS_ELITE</c> with a mislabelled ghost for exactly this reason. §3.3 states a rule
+    /// about sides; an implementation that only worked because the indices happened to agree would be
+    /// a coincidence, and one an ill-formed ghost would break in production and nowhere else.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Gated on <see cref="CombatRules.IsPvp"/> and on nothing else.</b> A second flag saying
+    /// "order by side" would be a second statement of "is this a duel"; `18` §4's <c>IS_PVP</c> is
+    /// already that fact, and <c>CombatRules</c>' own remarks refuse the duplicate.
+    /// </para>
+    /// </remarks>
+    private IEnumerable<BattleActor> ActingOrder() =>
+        Rules.IsPvp ? BattleStartOrder() : _actors.OrderBy(a => a.Index);
 
     // ══════════════════════════════════════════════════════════════════ the eight slots
 
@@ -417,10 +463,11 @@ internal sealed class BattleSimulation
     /// nondeterminism."</em>
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>This is the one method `05` §3.3 replaces, and M2-14 owns the replacement.</b> A duel's
-    /// rule is <em>"within a tick: the <b>attacker's side acts first</b> (hero, then pet abilities),
-    /// then the defender's side"</em> — a different sequence over the same roster, not a different
-    /// rule about cooldowns or targets. Nothing else in slot 4 needs to change.
+    /// 🔒 <b>In a duel the sequence is <see cref="ActingOrder"/>'s</b> — `05` §3.3's <em>"within a
+    /// tick: the <b>attacker's side acts first</b> … then the defender's side"</em>. It is a different
+    /// sequence over the same roster, not a different rule about cooldowns or targets, so nothing
+    /// else in slot 4 changes. Read that method before touching this one: on a conventionally indexed
+    /// duel the two orders coincide, which is why the claim is probed on an inverted roster.
     /// <para>
     /// Materialised before the walk, deliberately: an attack can kill, summon or revive, and slot 4's
     /// order is <em>fixed</em> — an actor summoned by the third enemy's swing does not act in the same
@@ -428,31 +475,14 @@ internal sealed class BattleSimulation
     /// </para>
     /// <para>
     /// 🔒 <b>Held between ticks, and that is not a cache of a live reading.</b> `05` §3.1 calls the
-    /// order <em>fixed</em>: it is a function of the roster's membership and indices, neither of
+    /// order <em>fixed</em>: it is a function of the roster's membership, sides and indices, none of
     /// which changes except when a summon is admitted — and <see cref="AdmitSummon"/> clears it. A
     /// death does not change it, because the <c>alive</c> test is inside the walk where `05` §3.1
     /// puts it, not in the order. Rebuilding it 1800 times a fight was 5% of `05`'s whole budget.
     /// </para>
     /// </remarks>
-    private List<BattleActor> InitiativeOrder()
-    {
-        if (_initiative is not null)
-        {
-            return _initiative;
-        }
-
-        _initiative = new List<BattleActor>(_actors.Count);
-
-        foreach (var actor in _actors.OrderBy(a => a.Index))
-        {
-            if (actor.Kind != EffectActorKind.PET)
-            {
-                _initiative.Add(actor);
-            }
-        }
-
-        return _initiative;
-    }
+    private List<BattleActor> InitiativeOrder() =>
+        _initiative ??= Acting(a => a.Kind != EffectActorKind.PET);
 
     /// <summary>🔒 `05` §3.2 — who this actor swings at.</summary>
     private BattleActor? SelectTarget(BattleActor attacker) =>
@@ -549,16 +579,45 @@ internal sealed class BattleSimulation
         return true;
     }
 
-    /// <summary>🔒 Slot 5 — <em>"pet ability cooldowns advance; ready abilities fire, pets in slot order."</em></summary>
+    /// <summary>
+    /// 🔒 Slot 5 — <em>"pet ability cooldowns advance; ready abilities fire, pets in slot order."</em>
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>In a duel, the attacker's side's pets before the defender's</b> — the other half of `05`
+    /// §3.3's <em>"the attacker's side acts first (hero, then <b>pet abilities</b>)"</em>. See
+    /// <see cref="ActingOrder"/> for why that is a within-slot ordering rather than an interleaving of
+    /// slots 4 and 5, and why it is unobservable on a conventionally indexed roster.
+    /// <para>
+    /// Held between ticks for <see cref="InitiativeOrder"/>'s reason and cleared by the same event: a
+    /// summon is never a pet (`18` §2.4 spawns enemies), so this list is even more stable than slot
+    /// 4's — but it is invalidated alongside it rather than reasoned about separately, because "the
+    /// roster changed" is one fact.
+    /// </para>
+    /// </remarks>
     private void RunPetAbilities()
     {
-        for (var i = 0; i < _actors.Count; i++)
+        _petOrder ??= Acting(a => a.Kind == EffectActorKind.PET);
+
+        for (var i = 0; i < _petOrder.Count; i++)
         {
-            if (_actors[i].Kind == EffectActorKind.PET)
+            _seams.Pets.Advance(_petOrder[i], Tick);
+        }
+    }
+
+    /// <summary>The roster in <see cref="ActingOrder"/>, narrowed to the actors one slot walks.</summary>
+    private List<BattleActor> Acting(Func<BattleActor, bool> included)
+    {
+        var order = new List<BattleActor>(_actors.Count);
+
+        foreach (var actor in ActingOrder())
+        {
+            if (included(actor))
             {
-                _seams.Pets.Advance(_actors[i], Tick);
+                order.Add(actor);
             }
         }
+
+        return order;
     }
 
     /// <summary>
@@ -814,9 +873,10 @@ internal sealed class BattleSimulation
         var actor = new BattleActor(admitted, _seams.Timeline);
         _actors.Add(actor);
 
-        // 🔒 The one thing that changes slot 4's fixed order. Cleared here so the summon takes its
-        // place at the end of the enemy index list on the next tick.
+        // 🔒 The one thing that changes slot 4's and slot 5's fixed orders. Cleared here so the summon
+        // takes its place at the end of the enemy index list on the next tick.
         _initiative = null;
+        _petOrder = null;
 
         RefreshStats(actor);
 
@@ -872,11 +932,25 @@ internal sealed class BattleSimulation
     /// them unkillable, so they have no stake in a war of attrition.
     /// </para>
     /// <para>
-    /// ⚠️ <b>An exact tie is a loss for the hero, and that is errata.</b> `05` §3 authors no tie
-    /// rule for PvE — `11` §4.3 authors one for duels, which is M2-14's. The timeout is a failure to
-    /// clear, and `05` §9 defines <c>ParPower</c> by <em>clear rate</em>: a fight that ran the full
-    /// 90 s without killing anything has not been cleared, so counting it as a clear would inflate
-    /// exactly the number the balance harness calibrates against. Recorded rather than hidden.
+    /// ⚠️ <b>An exact tie is a loss for the hero in PvE, and that is errata.</b> `05` §3 authors no
+    /// tie rule for PvE. The timeout is a failure to clear, and `05` §9 defines <c>ParPower</c> by
+    /// <em>clear rate</em>: a fight that ran the full 90 s without killing anything has not been
+    /// cleared, so counting it as a clear would inflate exactly the number the balance harness
+    /// calibrates against. Recorded rather than hidden.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>A duel does author one, and it goes the other way.</b> `11` §4.3: <em>"On an exact tie,
+    /// the <b>lower-rated</b> player wins (a small underdog bias that prevents stagnation at the
+    /// top)."</em> Which side that is arrives on <see cref="CombatRules.ExactTieWinner"/>, because
+    /// rating is `11` §5's and the simulator has no business holding an Elo number. Absent — every
+    /// PvE fight — the comparison stays strict and the paragraph above holds unchanged.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>"Exact" is exact at `05` §1.1's four decimal places</b>, because that is the precision
+    /// <see cref="SideHpFraction"/> produces and the precision every other combat number is compared
+    /// at. A tie rule that keyed on raw <see cref="double"/> equality would fire on almost nothing and
+    /// would fire differently on two architectures — and `11` §6 re-runs the duel server-side, so a
+    /// tie that broke one way on the client and the other on the server is a discarded honest result.
     /// </para>
     /// </remarks>
     private bool Outcome()
@@ -891,7 +965,15 @@ internal sealed class BattleSimulation
             return true;
         }
 
-        return SideHpFraction(BattleSide.HERO) > SideHpFraction(BattleSide.ENEMY);
+        var hero = SideHpFraction(BattleSide.HERO);
+        var enemies = SideHpFraction(BattleSide.ENEMY);
+
+        if (Rules.ExactTieWinner is { } underdog && hero.Equals(enemies))
+        {
+            return underdog == BattleSide.HERO;
+        }
+
+        return hero > enemies;
     }
 
     private double SideHpFraction(BattleSide side)
