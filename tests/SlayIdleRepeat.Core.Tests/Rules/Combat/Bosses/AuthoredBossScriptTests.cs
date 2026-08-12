@@ -152,6 +152,153 @@ public sealed class AuthoredBossScriptTests
             .Op.ShouldBe(EffectOp.FORCE_CRIT_NEXT);
     }
 
+    // ─────────────────────────────────────────────────────── 17 §2-9, transcribed
+
+    /// <summary>
+    /// 🔒 `17` §2-9's authored magnitudes and periods, one row per mechanic. <b>This is the task's
+    /// governing assertion</b> (steering S6): every number in the boss data has to trace to a `17`
+    /// line, and until these rows existed a single-token typo in any of them shipped green — the
+    /// other censuses here check an op, a cap, a scope or a sibling reference, and never the number.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <paramref name="value"/> is the effect's authored <c>value</c>; <paramref name="intervalSeconds"/>
+    /// its <c>PERIODIC</c> period, or <c>null</c> where the mechanic is not periodic (a phase-entry
+    /// aura, an on-hit rider, a reactive burst). Both are read off the shipped file, and the expected
+    /// numbers are quoted from `17` in the third column.
+    /// </para>
+    /// <para>
+    /// 🔒 The row count is floored against the data below, so a mechanic added to `bosses.json`
+    /// without a row here fails rather than quietly escaping the transcription check.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    // 17 §2 — Thornmaw
+    [InlineData("BOSS_THORNMAW_P2_ROOT", -0.40, 8.0, "§2: 'PERIODIC 8s — Root: hero ASPD -40% for 3 s'")]
+    [InlineData("BOSS_THORNMAW_P3_BLOOM", 2.0, null, "§2: 'summons 2 SWARM adds'")]
+    [InlineData("BOSS_THORNMAW_P3_REGROWTH", 2.0, 12.0, "§2: 'PERIODIC 12s — summons 2 more'")]
+    [InlineData("BOSS_THORNMAW_P3_RAGE", 0.30, null, "§2: 'boss gains RAGE +30% ATK'")]
+    // 17 §3 — Gulgrot
+    [InlineData("BOSS_GULGROT_P1_CROAK_POISON", 0.02, null, "§3: 'POISON (1 stack, 2% Max HP/s)'")]
+    [InlineData("BOSS_GULGROT_P2_BOG_AIR", -0.35, null, "§3: 'Bog Air: hero HEAL% -35%'")]
+    [InlineData("BOSS_GULGROT_P2_BELCH_FIRST", 0.02, 10.0, "§3: 'PERIODIC 10s — Belch: 2 POISON stacks'")]
+    [InlineData("BOSS_GULGROT_P2_BELCH_SECOND", 0.02, 10.0, "§3: the second of Belch's two stacks")]
+    [InlineData("BOSS_GULGROT_P3_GORGE_LIFESTEAL", 0.30, null, "§3: 'boss gains 30% Lifesteal'")]
+    [InlineData("BOSS_GULGROT_P3_SPIT", 1.20, null, "§3: 'Spit: 120% ATK burst'")]
+    [InlineData("BOSS_GULGROT_P3_SPIT_POISON", 0.02, null, "§3: 'and 1 POISON stack'")]
+    // 17 §4 — Ossuary King
+    [InlineData("BOSS_OSSUARY_KING_P1_COURT", 2.0, null, "§4: 'summons 2 GRUNT skeletons'")]
+    [InlineData("BOSS_OSSUARY_KING_P1_RECALL", 2.0, 15.0, "§4: 'PERIODIC 15s — resummons any dead ones'")]
+    [InlineData("BOSS_OSSUARY_KING_P2_OSSIFY_WARD", 0.20, 14.0, "§4: 'PERIODIC 14s — a WARD equal to 20% of its Max HP'")]
+    [InlineData("BOSS_OSSUARY_KING_P2_OSSIFY_DR", 0.30, 14.0, "§4: 'and DR% +30% until the ward breaks or 6 s pass'")]
+    [InlineData("BOSS_OSSUARY_KING_P3_RISE_AGAIN", 0.25, null, "§4: 'boss returns to 25% HP'")]
+    [InlineData("BOSS_OSSUARY_KING_P3_RISEN_ATK", 0.40, null, "§4: 'ATK +40%'")]
+    [InlineData("BOSS_OSSUARY_KING_P3_RISEN_ASPD", 0.25, null, "§4: 'ASPD +25%'")]
+    // 17 §5 — Cindermaw
+    [InlineData("BOSS_CINDERMAW_SMOULDER_BURN", 0.08, null, "§5: 'BURN (8% boss ATK/s, 3 s, stacks to 5)'")]
+    [InlineData("BOSS_CINDERMAW_P2_MAGMA_VENT", 1.80, 9.0, "§5: 'PERIODIC 9s — Magma Vent: 180% ATK'")]
+    [InlineData("BOSS_CINDERMAW_P2_ERUPTION_DR", 0.20, null, "§5: 'boss DR% +20%'")]
+    [InlineData("BOSS_CINDERMAW_P3_MAGMA_VENT", 1.80, 7.0, "§5: 'PERIODIC 7s — Magma Vent continues'")]
+    [InlineData("BOSS_CINDERMAW_P3_OVERHEAT_ATK", 0.60, null, "§5: 'Overheat: boss ATK +60%'")]
+    [InlineData("BOSS_CINDERMAW_P3_OVERHEAT_DEF", -0.40, null, "§5: 'DEF -40%'")]
+    // 17 §6 — Rimehold
+    [InlineData("BOSS_RIMEHOLD_P1_CHILL", -0.25, 12.0, "§6: 'PERIODIC 12s — Chill: hero ASPD -25% for 4 s'")]
+    [InlineData("BOSS_RIMEHOLD_P2_GLACIAL_ARMOUR", 0.60, null, "§6: 'boss DEF +60%'")]
+    [InlineData("BOSS_RIMEHOLD_P2_SHATTERBACK", 0.25, null, "§6: 'Shatterback: reflects 25% of the hit'")]
+    [InlineData("BOSS_RIMEHOLD_P2_CORE_EXPOSED", 1.60, null, "§6: 'hits deal x1.6 damage'")]
+    [InlineData("BOSS_RIMEHOLD_P3_COLLAPSE", 2.20, 10.0, "§6: 'PERIODIC 10s — Collapse: 220% ATK'")]
+    [InlineData("BOSS_RIMEHOLD_P3_ICE_SHARDS", 2.0, 10.0, "§6: 'and 2 SWARM ice shards spawn'")]
+    [InlineData("BOSS_RIMEHOLD_P3_AVALANCHE_ASPD", 0.40, null, "§6: 'boss ASPD +40%'")]
+    // 17 §7 — Cogitator Prime
+    [InlineData("BOSS_COGITATOR_PRIME_P1_ESCALATION_ATK", 1.02, 5.0, "§7: '+2% ATK ... every 5 s' (R1: the value IS the multiplier)")]
+    [InlineData("BOSS_COGITATOR_PRIME_P1_ESCALATION_ASPD", 1.02, 5.0, "§7: 'and +2% ASPD every 5 s'")]
+    [InlineData("BOSS_COGITATOR_PRIME_P2_ESCALATION_ATK", 1.02, 5.0, "§7: Escalation 'never resets for the whole fight'")]
+    [InlineData("BOSS_COGITATOR_PRIME_P2_ESCALATION_ASPD", 1.02, 5.0, "§7: the same, for ASPD")]
+    [InlineData("BOSS_COGITATOR_PRIME_P2_COUNTERMEASURES", 2.0, null, "§7: 'summons 2 WARDEN drones'")]
+    [InlineData("BOSS_COGITATOR_PRIME_P2_RECALIBRATE", 0.50, 16.0, "§7: 'PERIODIC 16s — ... gains half of it for 10 s'")]
+    [InlineData("BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ATK", 1.04, 5.0, "§7: 'Escalation rate doubles to +4% per 5 s'")]
+    [InlineData("BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ASPD", 1.04, 5.0, "§7: the same, for ASPD")]
+    [InlineData("BOSS_COGITATOR_PRIME_P3_PISTON_SLAM", 2.00, 8.0, "§7: 'PERIODIC 8s — Piston Slam: 200% ATK'")]
+    // 17 §8 — Sporequeen Vell
+    [InlineData("BOSS_SPOREQUEEN_VELL_P1_POLLINATION", -0.12, 6.0, "§8: 'PERIODIC 6s — 1 SPORE stack (hero HEAL% -12% each)'")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P2_BLOOM_COURT", 2.0, null, "§8: 'summons 2 CASTER sporelings'")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P2_BURST_CAP", 1.50, 12.0, "§8: 'PERIODIC 12s — Burst Cap: 150% ATK AoE'")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P2_BURST_CAP_POISON_FIRST", 0.02, 12.0, "§8: 'applies POISON x2'")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P2_BURST_CAP_POISON_SECOND", 0.02, 12.0, "§8: the second of the two")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P3_ROT", 0.015, 1.0, "§8: 'hero takes 1.5% Max HP true damage per second'")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P3_REGROW", 1.0, 10.0, "§8: 'PERIODIC 10s — resummons 1 sporeling'")]
+    // 17 §9 — the Dicelord
+    [InlineData("BOSS_DICELORD_P1_FATE_BOSS_ATK", 0.25, null, "§9: '1-2: boss gains ATK +25% for 8 s'")]
+    [InlineData("BOSS_DICELORD_P1_FATE_HERO_ATK", 0.25, null, "§9: '3-4: hero gains ATK +25% for 8 s'")]
+    [InlineData("BOSS_DICELORD_P1_FATE_BOTH_ASPD", 0.30, null, "§9: '5-6: both gain ASPD +30% for 8 s'")]
+    [InlineData("BOSS_DICELORD_P2_FATE_BOSS_ATK", 0.25, null, "§9: the phase-2 table's boss buff")]
+    [InlineData("BOSS_DICELORD_P2_FATE_BOTH_ASPD", 0.30, null, "§9: the phase-2 table's both-buff")]
+    [InlineData("BOSS_DICELORD_P3_HOUSE_WARD", 0.25, null, "§9: 'a WARD equal to 25% Max HP'")]
+    [InlineData("BOSS_DICELORD_P3_HOUSE_THORNS", 0.30, null, "§9: 'and Thorns 30%'")]
+    [InlineData("BOSS_DICELORD_P3_ALL_IN", 3.00, 8.0, "§9: 'PERIODIC 8s — All In: 300% ATK single hit'")]
+    [InlineData("BOSS_DICELORD_P3_LOADED_CRIT_MULT", 2.00, null, "R21: 05 §4's crit step already pays x1.5")]
+    public void The_authored_magnitudes_and_periods_are_17_section_2_to_9s(
+        string effectId, double value, double? intervalSeconds, string quotation)
+    {
+        var effect = AuthoredBossScripts.All
+            .Select(a => a.Effects.TryGetValue(effectId, out var found) ? found : null)
+            .FirstOrDefault(e => e is not null)
+            ?? throw new InvalidOperationException(
+                $"no authored script declares '{effectId}'. A row here naming an effect the data does " +
+                "not carry is a transcription check over nothing.");
+
+        effect.Value.ShouldBe(value, $"17 {quotation}");
+
+        if (intervalSeconds is { } period)
+        {
+            effect.Trigger!.Kind.ShouldBe(TriggerKind.PERIODIC, $"17 {quotation}");
+            effect.Trigger.Interval.ShouldBe(period, $"17 {quotation}");
+        }
+        else
+        {
+            (effect.Trigger?.Kind).ShouldNotBe(
+                TriggerKind.PERIODIC,
+                $"{effectId} is authored with a period and 17 {quotation} states none");
+        }
+    }
+
+    /// <summary>
+    /// 🔒 S3 — the transcription theory above covers <b>every</b> authored effect that carries a
+    /// value, so a mechanic added to <c>bosses.json</c> cannot escape it by simply not having a row.
+    /// </summary>
+    /// <remarks>
+    /// Without this, the theory is a list somebody has to remember to extend — and the failure mode
+    /// of a forgotten row is silence, which is the one this suite is written against.
+    /// </remarks>
+    [Fact]
+    public void Every_authored_effect_carrying_a_value_has_a_transcription_row()
+    {
+        var carryingAValue = AuthoredBossScripts.All
+            .SelectMany(a => a.Effects.Values)
+            .Where(e => e.Value is not null)
+            .Select(e => e.Id)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToArray();
+
+        var covered = typeof(AuthoredBossScriptTests)
+            .GetMethod(nameof(The_authored_magnitudes_and_periods_are_17_section_2_to_9s))!
+            .GetCustomAttributes(typeof(InlineDataAttribute), false)
+            .Cast<InlineDataAttribute>()
+            .Select(d => (string)d.GetData(null!).First()[0]!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToArray();
+
+        covered.Length.ShouldBeGreaterThanOrEqualTo(
+            50, "S3 — the floor under the reflection above; the theory really does carry its rows");
+
+        carryingAValue.ShouldBe(
+            covered,
+            "every authored magnitude traces to a 17 line, and the transcription theory is where that " +
+            "is written down. An effect here and not there is a number nobody checked against 17");
+    }
+
     // ─────────────────────────────────────────────────────── the adds power fraction (the M2-12 gap)
 
     /// <summary>
@@ -229,6 +376,66 @@ public sealed class AuthoredBossScriptTests
         }
 
         summoners.ShouldBe(5, "17 §2, §4, §6, §7 and §8");
+    }
+
+    /// <summary>
+    /// 🔒 <b>R3</b> — every effect a phase <em>entry</em> grants for a duration is <c>PHASE</c>-scoped,
+    /// and nothing anywhere uses the retired 999-second idiom.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>The subject set is a structural proxy for `17` §1.1's <c>AURA</c>, not that list.</b> An
+    /// <c>ON_PHASE_ENTER</c> effect carrying a duration is what R3 is decidable over; `17` calls
+    /// thirteen things an <c>AURA</c>, and two of them — Cogitator's Escalation and Sporequeen's Rot
+    /// — are authored as <c>PERIODIC</c> and fall outside this census <b>by construction</b>. That is
+    /// deliberate and the reason is in each script's own <c>_doc</c>: Escalation must survive every
+    /// transition (`17` §7: <em>"never resets for the whole fight"</em>), which is a <c>BATTLE</c>
+    /// scope, and Rot is a per-second drain rather than a passive.
+    /// </para>
+    /// <para>
+    /// 🔴 The second assertion is the one with teeth on `18` §7.8's erratum: <em>"the
+    /// <c>{"seconds": 999}</c> idiom is not to be used anywhere"</em>. It is stated over EVERY
+    /// authored duration, not only the auras, because the idiom is reachable from any of them.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_phase_entry_effect_with_a_duration_is_PHASE_scoped()
+    {
+        var auras = 0;
+        var durations = 0;
+
+        foreach (var authored in AuthoredBossScripts.All)
+        {
+            foreach (var effect in authored.Effects.Values)
+            {
+                if (effect.Duration is { } duration)
+                {
+                    durations++;
+                    duration.Seconds.ShouldNotBe(
+                        999.0, $"{effect.Id} — 18 §7.8's erratum retires the 999-second idiom");
+                }
+
+                if (effect.Trigger is not { Kind: TriggerKind.ON_PHASE_ENTER } ||
+                    effect.Duration is null)
+                {
+                    continue;
+                }
+
+                auras++;
+                effect.Duration.Scope.ShouldBe(
+                    DurationScope.PHASE,
+                    $"{effect.Id} — R3. PHASE-scoped statuses were degrading to BATTLE until M2-12, so " +
+                    "every boss AURA did nothing at all; it is fixed, and the data authors PHASE");
+            }
+        }
+
+        auras.ShouldBe(
+            10,
+            "17 §2's RAGE, §3's Bog Air and Gorge, §5's Eruption DR and Overheat's two halves, " +
+            "§6's Glacial Armour and Core, §9's Thorns, and §6's Avalanche");
+
+        durations.ShouldBeGreaterThanOrEqualTo(
+            auras, "S3 — the 999-second sweep really did walk more than the auras");
     }
 
     // ─────────────────────────────────────────────────────── the eight refusals, against this data
@@ -343,12 +550,13 @@ public sealed class AuthoredBossScriptTests
             [opener.Id] = opener,
         };
 
-        // The authored mechanic carries a 1.2 s wind-up; an ON_BATTLE_START is not PERIODIC, so T2
-        // has nothing to compare and A4 is the rule that answers.
+        // A4 is the FIRST of the four per-mechanic checks the builder runs, so no other rule can
+        // pre-empt it — which is why the probe needs nothing else to be true of the mechanic.
         var thrown = Should.Throw<EffectContextException>(() => BossEncounterBuilder.Build(
             BossTestBench.Request(WithPhase2(authored, new BossMechanic(opener.Id)), effects)));
 
         thrown.Message.ShouldContain("A4", Case.Sensitive, "the opener marker");
+        thrown.Message.ShouldContain(opener.Id, Case.Sensitive, "which mechanic");
     }
 
     /// <summary>
@@ -376,27 +584,54 @@ public sealed class AuthoredBossScriptTests
             BossTestBench.Request(authored.Script, effects)));
 
         thrown.Message.ShouldContain("A5", Case.Sensitive, why);
+
+        // S2 — WHICH summon. The script is handed in unmutated apart from this one effect, and
+        // Thornmaw authors two summons, so a refusal naming only the rule could be the other one's.
+        thrown.Message.ShouldContain("BOSS_THORNMAW_P3_BLOOM", Case.Sensitive, "which mechanic");
     }
 
-    /// <summary>🔒 <b>A5</b>, the positive half: every authored summon caps at `17` §1's three.</summary>
-    [Fact]
-    public void Every_authored_summon_caps_at_17_section_1s_three_alive()
+    /// <summary>
+    /// 🔒 <b>A5</b>, the positive half: every authored summon caps at the standing add count its own
+    /// `17` section states, and never above `17` §1's ceiling of three.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Not "3 everywhere".</b> `17` §1's <em>"capped at 3 alive at once"</em> is a ceiling the
+    /// builder enforces, and a summon authored at 3 tops the field up to 3 whatever its own fight
+    /// says — so `17` §4's <em>"summons 2 skeletons … resummons any dead ones"</em> would quietly grow
+    /// a third. `17` §2 writes <em>"(max 3 alive)"</em> in so many words and `17` §6 states no standing
+    /// count at all; those two are the only 3s.
+    /// </remarks>
+    [Theory]
+    [InlineData("BOSS_THORNMAW_P3_BLOOM", 3, "§2: '(max 3 alive)', stated")]
+    [InlineData("BOSS_THORNMAW_P3_REGROWTH", 3, "§2: the same cap, on the mechanic that tops it up")]
+    [InlineData("BOSS_OSSUARY_KING_P1_COURT", 2, "§4: 'summons 2 GRUNT skeletons'")]
+    [InlineData("BOSS_OSSUARY_KING_P1_RECALL", 2, "§4: 'resummons any dead ones' — a top-up to two")]
+    [InlineData("BOSS_RIMEHOLD_P3_ICE_SHARDS", 3, "§6: '2 SWARM ice shards spawn', no standing count")]
+    [InlineData("BOSS_COGITATOR_PRIME_P2_COUNTERMEASURES", 2, "§7: 'summons 2 WARDEN drones'")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P2_BLOOM_COURT", 2, "§8: 'summons 2 CASTER sporelings'")]
+    [InlineData("BOSS_SPOREQUEEN_VELL_P3_REGROW", 2, "§8: 'resummons 1 sporeling' — back to two")]
+    public void Every_authored_summon_caps_at_its_own_sections_standing_add_count(
+        string effectId, int maxAlive, string quotation)
     {
-        var summons = 0;
+        var effect = AuthoredBossScripts.All
+            .Select(a => a.Effects.TryGetValue(effectId, out var found) ? found : null)
+            .FirstOrDefault(e => e is not null)
+            ?? throw new InvalidOperationException($"no authored script declares '{effectId}'");
 
-        foreach (var authored in AuthoredBossScripts.All)
-        {
-            foreach (var effect in authored.Effects.Values.Where(e => e.Op == EffectOp.SUMMON))
-            {
-                summons++;
-                effect.MaxAlive.ShouldBe(
-                    BossAdds.MaxAlive,
-                    $"{effect.Id} — 17 §1 states one cap for every boss, 'capped at 3 alive at once', " +
-                    "and states no per-boss cap for any of them");
-            }
-        }
+        effect.Op.ShouldBe(EffectOp.SUMMON);
+        effect.MaxAlive.ShouldBe(maxAlive, $"17 {quotation}");
+        effect.MaxAlive!.Value.ShouldBeLessThanOrEqualTo(
+            BossAdds.MaxAlive, "17 §1's ceiling, which A5 refuses anything above");
+    }
 
-        summons.ShouldBeGreaterThanOrEqualTo(8, "S3 — 17 §2, §4, §6, §7 and §8 author eight summons");
+    /// <summary>🔒 S3 — the theory above covers every authored summon, not a subset of them.</summary>
+    [Fact]
+    public void Every_authored_summon_has_a_cap_row()
+    {
+        AuthoredBossScripts.All
+            .SelectMany(a => a.Effects.Values)
+            .Count(e => e.Op == EffectOp.SUMMON)
+            .ShouldBe(8, "17 §2, §4, §6, §7 and §8 author eight summons between them");
     }
 
     /// <summary>
@@ -485,28 +720,35 @@ public sealed class AuthoredBossScriptTests
 
         foreach (var authored in AuthoredBossScripts.All)
         {
-            foreach (var (effectId, lead) in authored.TelegraphSeconds)
+            foreach (var (phase, effectId, lead) in authored.TelegraphSeconds)
             {
                 leads++;
 
-                lead.ShouldBeGreaterThanOrEqualTo(BossTelegraphs.MinLeadSeconds, effectId);
-                lead.ShouldBeLessThanOrEqualTo(BossTelegraphs.MaxLeadSeconds, effectId);
+                var where = $"{authored.Script.Id} phase {phase}, {effectId}";
+
+                lead.ShouldBeGreaterThanOrEqualTo(BossTelegraphs.MinLeadSeconds, where);
+                lead.ShouldBeLessThanOrEqualTo(BossTelegraphs.MaxLeadSeconds, where);
 
                 var ticks = BossTelegraphs.ExactLeadTicks(lead);
-                ticks.ShouldBe(Math.Floor(ticks), $"{effectId} — 05 §3's simulation is fixed-tick");
+                ticks.ShouldBe(Math.Floor(ticks), $"{where} — 05 §3's simulation is fixed-tick");
             }
         }
 
-        leads.ShouldBeGreaterThanOrEqualTo(7, "S3 — the eight fights author at least seven wind-ups");
+        // 🔴 EXACTLY eight, not "at least". A floor of seven passes on data with one wind-up deleted,
+        // and "17 §1 requires a wind-up on every damaging mechanic" is exactly what that would break.
+        leads.ShouldBe(
+            8,
+            "17 §2 (Root), §3 (Belch), §5 (Magma Vent, twice — phases 2 and 3), §6 (Collapse), " +
+            "§7 (Piston Slam), §8 (Burst Cap) and §9 (All In)");
 
         // 17's own four stated leads, transcribed rather than inferred.
-        AuthoredBossScripts.Of(Thornmaw).TelegraphSeconds["BOSS_THORNMAW_P2_ROOT"]
+        Lead(Thornmaw, 2, "BOSS_THORNMAW_P2_ROOT")
             .ShouldBe(1.2, "17 §2: 'vines coil around the hero's feet 1.2 s before'");
-        AuthoredBossScripts.Of(Gulgrot).TelegraphSeconds["BOSS_GULGROT_P2_BELCH_FIRST"]
+        Lead(Gulgrot, 2, "BOSS_GULGROT_P2_BELCH_FIRST")
             .ShouldBe(1.2, "17 §3: 'a green cloud swells around the boss for 1.2 s'");
-        AuthoredBossScripts.Of("BOSS_CINDERMAW").TelegraphSeconds["BOSS_CINDERMAW_P2_MAGMA_VENT"]
+        Lead("BOSS_CINDERMAW", 2, "BOSS_CINDERMAW_P2_MAGMA_VENT")
             .ShouldBe(1.3, "17 §5: 'the floor under the hero glows orange for 1.3 s'");
-        AuthoredBossScripts.Of(Dicelord).TelegraphSeconds["BOSS_DICELORD_P3_ALL_IN"]
+        Lead(Dicelord, 3, "BOSS_DICELORD_P3_ALL_IN")
             .ShouldBe(1.5, "17 §9: '300% ATK single hit, telegraphed 1.5 s'");
     }
 
@@ -609,6 +851,12 @@ public sealed class AuthoredBossScriptTests
     /// The script with phase 2's mechanics replaced by one. Phase 2 rather than phase 1 because A4
     /// is stated over the later blocks, so one helper serves every negative case here.
     /// </summary>
+    /// <summary>One authored wind-up, named by the mechanic it sits on rather than by its effect.</summary>
+    private static double Lead(string bossId, int phase, string effectId) =>
+        AuthoredBossScripts.Of(bossId).TelegraphSeconds
+            .Single(t => t.Phase == phase && string.Equals(t.EffectId, effectId, StringComparison.Ordinal))
+            .Lead;
+
     private static BossScript WithPhase2(AuthoredBossScripts.Authored authored, BossMechanic mechanic)
     {
         var blocks = authored.Script.Phases.ToList();

@@ -63,8 +63,12 @@ internal static class DeclaredRules
     /// </summary>
     internal const string EffectSchemaPath = "schema/effect.schema.json";
 
-    /// <summary>The member name an owning content type embeds its effect list under (`18` §1).</summary>
-    private const string EffectsMemberName = "effects";
+    /// <summary>
+    /// 🔒 `18` §1's one universal key — the member whose presence makes an object an effect.
+    /// <c>effect.schema.json</c> requires it on all seventeen of its branches, which is what lets
+    /// <b>R35</b> find an embedded effect without knowing what its owner calls the list.
+    /// </summary>
+    private const string OpMemberName = "op";
 
     /// <summary>
     /// 🔒 Every embedded effect <b>R35</b> has validated so far, as
@@ -159,23 +163,34 @@ internal static class DeclaredRules
 
         foreach (var (location, effect) in embedded)
         {
-            ValidatedEffects.TryAdd(location, 0);
-
+            // ⚠️ Recorded after the call rather than before it. Both orders produce the SAME set —
+            // Validate returns findings and does not throw — so this buys nothing mechanically and
+            // is not load-bearing; it is written this way so the set reads as what it is named.
             issues.AddRange(JsonSchemaValidator.Validate(effect, effectSchema!, location));
+
+            ValidatedEffects.TryAdd(location, 0);
         }
     }
 
     /// <summary>
-    /// Finds every embedded effect: the items of an <c>effects</c> array that are objects declaring
-    /// an <c>op</c>.
+    /// Finds every embedded effect: any object that declares an <c>op</c>, wherever it sits.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Both halves of the test matter.</b> The member name alone would sweep in a pet's
-    /// <c>active.effects</c> wrapper the day one is authored differently, and the <c>op</c> alone
-    /// would reach any object that happens to carry that key. Together they name exactly `18` §1's
-    /// shape, and an item that is <em>almost</em> an effect — an object in an <c>effects</c> array
-    /// with no <c>op</c> — is left to the owning schema's own <c>required</c>, which locates it
-    /// better than this rule could.
+    /// <para>
+    /// 🔴 <b>The signature is the <c>op</c> key, NOT the member name the list is spelled under.</b>
+    /// Keying on <c>effects</c> looked equivalent and is not: `18` §7.7 spells a pet's list
+    /// <c>aura</c>, and a curse or a mount catalogue may well spell it something else again — so a
+    /// name-keyed walk would let a whole content type ship unvalidated while
+    /// <see cref="ValidatedEmbeddedEffects"/> stayed comfortably non-empty, which is the one failure
+    /// the floor test cannot see. An <c>op</c> member is what `18` §1 makes universal and what
+    /// <c>effect.schema.json</c> requires of every one of its seventeen branches, so it is the
+    /// signature that actually means <em>this is an effect</em>.
+    /// </para>
+    /// <para>
+    /// ⚠️ No double-counting: an effect is added when it is reached, and the walk then descends into
+    /// it — but <c>effect.schema.json</c> is <c>additionalProperties: false</c> on every branch and
+    /// no branch nests an object carrying an <c>op</c>, so there is nothing inside one to find.
+    /// </para>
     /// </remarks>
     private static void CollectEmbeddedEffects(
         ContentValue value, string documentPath, string pointer, List<(string, ContentValue)> found)
@@ -196,25 +211,14 @@ internal static class DeclaredRules
             return;
         }
 
+        if (value.TryGetMember(OpMemberName, out _))
+        {
+            found.Add(($"{documentPath}#{pointer}", value));
+        }
+
         foreach (var name in value.MemberNames)
         {
             value.TryGetMember(name, out var member);
-
-            if (string.Equals(name, EffectsMemberName, StringComparison.Ordinal) &&
-                member!.Kind == ContentValueKind.Array)
-            {
-                for (var i = 0; i < member.Items.Count; i++)
-                {
-                    var item = member.Items[i];
-
-                    if (item.Kind == ContentValueKind.Object && item.TryGetMember("op", out _))
-                    {
-                        found.Add((
-                            $"{documentPath}#{pointer}/{name}/{i.ToString(CultureInfo.InvariantCulture)}",
-                            item));
-                    }
-                }
-            }
 
             CollectEmbeddedEffects(member!, documentPath, $"{pointer}/{name}", found);
         }

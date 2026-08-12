@@ -119,7 +119,7 @@
           "_doc": { "type": "string", "minLength": 1 },
 
           "chapter": {
-            "description": "17 §1.2's Ch column — which chapter's boss node this script is fought at, and therefore which row of 17 §10's reward table the kill pays out. 📐 That table's own numbers are economy rather than boss identity and are NOT re-authored here: the per-chapter Soul Shard rate and the first-clear band live in tuning/currencies.json, and the gear-drop count lives in tuning/drops.json, each authored once. Absent on the FTUE row, whose Ch column 17 §1.2 leaves empty because it is not fought on the campaign board and pays no chapter reward.",
+            "description": "17 §1.2's Ch column — which chapter's boss node this script is fought at, and therefore which row of 17 §10's reward table the kill pays out. 📐 That table's own numbers are economy rather than boss identity and are NOT re-authored here: the per-chapter Soul Shard rate and the first-clear band live in tuning/currencies.json, and the gear-drop count lives in tuning/drops.json, each authored once. Absent on the FTUE row, whose Ch column 17 §1.2 leaves empty because it is not fought on the campaign board and pays no chapter reward. ⚠️ The chapter/fixedPower split is a PRESENCE rule this schema states and does not enforce — both keys are independently optional here, so nothing stops a campaign row authoring a fixed power. It is asserted over the shipped data instead, in the Core suite's transcription cases.",
             "type": "integer",
             "minimum": 1,
             "maximum": 8
@@ -139,7 +139,7 @@
           },
 
           "addsPowerFraction": {
-            "description": "17 §1 — 'if a boss summons, adds use standard archetypes at 25-35% of boss power, capped at 3 alive at once'. 🔒 PER BOSS, not per mechanic, and the evidence is 17's own fights: every summoning boss summons exactly ONE archetype, and three of the five re-summon the SAME adds (17 §4 'resummons any dead ones', 17 §2 'summons 2 more', 17 §8 'resummons 1 sporeling'), so a per-mechanic fraction would let one named add exist at two different powers inside one fight. Present on exactly the five scripts that author a summon and absent on the other four. ⚠️ 17 §1 gives a BAND and names no number inside it for any boss, so this is authored rather than transcribed; it is the band's midpoint, identical on all five because 17 distinguishes none of them, and it is the balance harness's to re-tune.",
+            "description": "17 §1 — 'if a boss summons, adds use standard archetypes at 25-35% of boss power, capped at 3 alive at once'. 🔒 PER BOSS, not per mechanic, and the evidence is 17's own fights: every summoning boss summons exactly ONE archetype, and three of the five re-summon the SAME adds (17 §4 'resummons any dead ones', 17 §2 'summons 2 more', 17 §8 'resummons 1 sporeling'), so a per-mechanic fraction would let one named add exist at two different powers inside one fight. Present on exactly the five scripts that author a summon and absent on the other four — another PRESENCE rule stated here and enforced over the data by the Core suite, because no JSON Schema keyword can ask whether a sibling array contains a summon. ⚠️ 17 §1 gives a BAND and names no number inside it for any boss, so this is authored rather than transcribed; it is the band's midpoint, identical on all five because 17 distinguishes none of them, and it is the balance harness's to re-tune.",
             "type": "number",
             "minimum": 0.25,
             "maximum": 0.35,

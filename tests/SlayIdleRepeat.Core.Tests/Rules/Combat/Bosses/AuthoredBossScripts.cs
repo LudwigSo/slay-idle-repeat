@@ -49,14 +49,24 @@ internal static class AuthoredBossScripts
     /// <param name="Chapter">`17` §1.2's Ch column, or <c>null</c> for the FTUE row.</param>
     /// <param name="FixedPower">`17` §1.2's <c>power = 900</c>, on the FTUE row only.</param>
     /// <param name="FixedLevel">`17` §1.2's <c>Level = 1</c>, on the FTUE row only.</param>
-    /// <param name="TelegraphSeconds">Each mechanic's authored wind-up, by effect id, where it has one.</param>
+    /// <param name="TelegraphSeconds">
+    /// 🔴 Every authored wind-up, as <c>(phase, effectId, lead)</c> — a <b>list keyed on the
+    /// mechanic</b>, not a dictionary keyed on the effect.
+    /// <para>
+    /// T1 and T3 govern a <em>mechanic</em>, and one effect can be a mechanic of more than one block
+    /// (<c>BOSS_CINDERMAW_SMOULDER_BURN</c> is named by all three of Cindermaw's). Keyed by effect id,
+    /// two blocks naming the same effect with different leads would collapse to one entry, last one
+    /// winning — so a wind-up could vanish from every census over this without a single assertion
+    /// moving.
+    /// </para>
+    /// </param>
     internal sealed record Authored(
         BossScript Script,
         IReadOnlyDictionary<string, EffectDefinition> Effects,
         int? Chapter,
         double? FixedPower,
         int? FixedLevel,
-        IReadOnlyDictionary<string, double> TelegraphSeconds);
+        IReadOnlyList<(int Phase, string EffectId, double Lead)> TelegraphSeconds);
 
     private static readonly Lazy<IReadOnlyList<Authored>> LazyAll = new(Read);
 
@@ -120,31 +130,34 @@ internal static class AuthoredBossScripts
             }
 
             var phases = new List<BossPhaseBlock>();
-            var leads = new Dictionary<string, double>(StringComparer.Ordinal);
+            var leads = new List<(int, string, double)>();
 
             foreach (var block in script.GetProperty("phases").EnumerateArray())
             {
                 var mechanics = new List<BossMechanic>();
+                var phase = block.GetProperty("phase").GetInt32();
 
                 foreach (var mechanic in block.GetProperty("mechanics").EnumerateArray())
                 {
+                    RequireKnownKeys(mechanic, KnownMechanicKeys, "mechanic");
+
                     var effectId = mechanic.GetProperty("effectId").GetString()!;
                     var lead = Optional(mechanic, "telegraphSeconds")?.GetDouble();
 
                     if (lead is { } seconds)
                     {
-                        leads[effectId] = seconds;
+                        leads.Add((phase, effectId, seconds));
                     }
 
                     mechanics.Add(new BossMechanic(effectId, lead));
                 }
 
-                phases.Add(new BossPhaseBlock
-                {
-                    Phase = block.GetProperty("phase").GetInt32(),
-                    Mechanics = mechanics,
-                });
+                RequireKnownKeys(block, KnownPhaseKeys, "phase block");
+
+                phases.Add(new BossPhaseBlock { Phase = phase, Mechanics = mechanics });
             }
+
+            RequireKnownKeys(script, KnownScriptKeys, "script");
 
             authored.Add(new Authored(
                 new BossScript
@@ -177,17 +190,7 @@ internal static class AuthoredBossScripts
     /// </summary>
     private static EffectDefinition ReadEffect(JsonElement effect)
     {
-        foreach (var member in effect.EnumerateObject())
-        {
-            if (!Known.Contains(member.Name))
-            {
-                throw new InvalidOperationException(
-                    $"the authored effect '{effect.GetProperty("id").GetString()}' carries the key " +
-                    $"'{member.Name}', which this reader does not map. Silently dropping it would " +
-                    "leave these cases asserting over a script that is not the one on disk. Map the " +
-                    "key, or take it out of the data.");
-            }
-        }
+        RequireKnownKeys(effect, KnownEffectKeys, "effect");
 
         return new EffectDefinition
         {
@@ -211,6 +214,11 @@ internal static class AuthoredBossScripts
             Outcomes = Optional(effect, "outcomes") is { } outcomes ? ReadOutcomes(outcomes) : null,
             NewFace = Optional(effect, "newFace") is { } face
                 ? new DieFaceSpec(face.GetProperty("kind").GetString()!)
+                : null,
+            FaceIndex = Optional(effect, "faceIndex") is { } index
+                ? index.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? DieFaceIndex.PlayerChoice
+                    : DieFaceIndex.At(index.GetInt32())
                 : null,
         };
     }
@@ -273,17 +281,63 @@ internal static class AuthoredBossScripts
         owner.TryGetProperty(name, out var found) ? found : null;
 
     /// <summary>
+    /// 🔒 Refuses a key this reader does not map, at <b>every</b> level of the file.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>It covers the script, the phase block and the mechanic as well as the effect, and that
+    /// is the point.</b> Everything below is read through <see cref="Optional"/>, which answers
+    /// <c>null</c> for a key that is absent <em>and</em> for one that is misspelled — so a
+    /// <c>telegraphTicks</c> where <c>telegraphSeconds</c> was meant, or a new script-level field,
+    /// would be dropped in silence and every case in this namespace would go on asserting over a
+    /// script that is not the one on disk. That is precisely the vacuous pass the suite exists to
+    /// avoid, so the guard has to reach as far as the reader does.
+    /// </remarks>
+    private static void RequireKnownKeys(JsonElement owner, HashSet<string> known, string what)
+    {
+        foreach (var member in owner.EnumerateObject())
+        {
+            if (known.Contains(member.Name))
+            {
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                $"an authored {what} carries the key '{member.Name}', which this reader does not map. " +
+                "Silently dropping it would leave these cases asserting over a script that is not the " +
+                "one on disk. Map the key, or take it out of the data.");
+        }
+    }
+
+    /// <summary>
     /// Every key <see cref="ReadEffect"/> maps. A <see cref="List{T}"/> initialiser rather than
     /// <c>[ … ]</c>, on <c>BossBuiltIns.All</c>'s precedent: a collection expression synthesises a
     /// helper in the global namespace, which the namespace rule fails the build on.
     /// </summary>
-    private static readonly HashSet<string> Known = new(
+    private static readonly HashSet<string> KnownEffectKeys = new(
         new List<string>
         {
             "id", "op", "stat", "value", "valueMode", "statusId", "archetype", "maxAlive",
             "charges", "target", "trigger", "duration", "stacking", "outcomes", "newFace",
+            "faceIndex",
         },
         StringComparer.Ordinal);
+
+    /// <summary>Every key a script row may carry. <c>_doc</c> is prose and is read by nothing.</summary>
+    private static readonly HashSet<string> KnownScriptKeys = new(
+        new List<string>
+        {
+            "id", "_doc", "chapter", "coefficients", "addsPowerFraction", "fixedPower", "fixedLevel",
+            "effects", "phases",
+        },
+        StringComparer.Ordinal);
+
+    /// <summary>Every key a phase block may carry.</summary>
+    private static readonly HashSet<string> KnownPhaseKeys = new(
+        new List<string> { "phase", "mechanics" }, StringComparer.Ordinal);
+
+    /// <summary>Every key a mechanic may carry.</summary>
+    private static readonly HashSet<string> KnownMechanicKeys = new(
+        new List<string> { "effectId", "telegraphSeconds" }, StringComparer.Ordinal);
 
     /// <summary>Formats a double the way the engine's own refusals do, for assertion messages.</summary>
     internal static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);

@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/bosses.schema.json",
-  "_doc": "17 §1.2 and §2-9 — the eight campaign bosses and the FTUE mini-boss, authored as DSL data. 17 §11: 'All 8 bosses expressed purely in the effect DSL — zero bespoke boss code.' Every script is a BossScript the boss encounter builder consumes: an id, 17 §1.2's four coefficients, the script's own effect set, and exactly three phase blocks whose mechanics NAME those effects by id. 🔒 An effect is EMBEDDED here rather than referenced across files — there is no effect registry — so a mechanic's effectId and a RANDOM_OUTCOME row alike name a SIBLING declared by this same script. The embedded effect objects are validated against schema/effect.schema.json by a cross-file content rule, because this schema may neither $ref it (same-document pointers only) nor restate its op vocabulary. ⚠️ The three engine built-ins SYS_ENRAGE, SYS_PHASE3_IMMUNE_STUN and SYS_PHASE3_IMMUNE_FREEZE are attached to every boss by the encounter builder and are deliberately NOT authored here; a script that named one is refused (A3).",
+  "_doc": "17 §1.2 and §2-9 — the eight campaign bosses and the FTUE mini-boss, authored as DSL data. 17 §11: 'All 8 bosses expressed purely in the effect DSL — zero bespoke boss code.' Every script is a BossScript the boss encounter builder consumes: an id, 17 §1.2's four coefficients, the script's own effect set, and exactly three phase blocks whose mechanics NAME those effects by id. 🔒 An effect is EMBEDDED here rather than referenced across files — there is no effect registry — so a mechanic's effectId and a RANDOM_OUTCOME row alike name a SIBLING declared by this same script. The embedded effect objects are validated against schema/effect.schema.json by a cross-file content rule, because this schema may neither $ref it (same-document pointers only) nor restate its op vocabulary. ⚠️ The three engine built-ins SYS_ENRAGE, SYS_PHASE3_IMMUNE_STUN and SYS_PHASE3_IMMUNE_FREEZE are attached to every boss by the encounter builder and are deliberately NOT authored here; a script that named one is refused (A3). 🔒 maxAlive is the standing add count the boss's OWN section states, not 17 §1's 3 everywhere: §1's 'capped at 3 alive at once' is a CEILING the builder enforces (A5), and a summon authored at 3 tops the field up to 3 whatever the fight says. §2 writes '(max 3 alive)' in so many words and §6 states no standing count at all, so Thornmaw and Rimehold carry 3; §4's 'summons 2 skeletons ... resummons any dead ones', §7's 'summons 2 WARDEN drones' and §8's 'summons 2 sporelings ... resummons 1' each put TWO adds on the field and never authorise a third, so those carry 2.",
   "_status": "transcribed",
 
   "secondaryStats": {
@@ -72,7 +72,7 @@
     {
       "id": "BOSS_GULGROT",
       "chapter": 2,
-      "_doc": "17 §3 — sustain check. 🔒 The 30% lifesteal is a phase-3 mechanic and not a base stat, exactly as 17 §1.2 requires. ⚠️ 'Applies 2 POISON stacks' is authored as TWO sibling effects: the DSL carries a per-application potency and duration (18 §1/§6) and no stack COUNT key, so N stacks is N applications — 18 §7.4's PK_UNBREAKABLE and §9.1's CP_GLASS_HEART are the precedent for one design being two effects. The 1.2 s wind-up 17 §3 authors sits on the first of the pair only, so the pair emits one telegraph for one green cloud.",
+      "_doc": "17 §3 — sustain check. 🔒 The 30% lifesteal is a phase-3 mechanic and not a base stat, exactly as 17 §1.2 requires. ⚠️ 'Applies 2 POISON stacks' is authored as TWO sibling effects: the DSL carries a per-application potency and duration (18 §1/§6) and no stack COUNT key, so N stacks is N applications — 18 §7.4's PK_UNBREAKABLE and §9.1's CP_GLASS_HEART are the precedent for one design being two effects. The 1.2 s wind-up 17 §3 authors sits on the first of the pair only, so the pair emits one telegraph for one green cloud. ⚠️ Croak's on-hit POISON is named in phase 1 ONLY, and Cindermaw's on-hit BURN — the identical shape — is named in all three. The difference is not an oversight: a phase entry deactivates the block being left, and 17 §5's phase 2 'refreshes all BURN stacks', which is meaningless with nothing still applying them. 17 §3's phases 2 and 3 carry their own poison sources (Belch, Spit) and depend on no phase-1 applier, so Croak ends with Croak, exactly as the section reads.",
       "coefficients": { "hp": 2.5, "atk": 0.85, "def": 0.7, "aspd": 0.75 },
       "effects": [
         {
@@ -174,7 +174,7 @@
           "op": "SUMMON",
           "archetype": "GRUNT",
           "value": 2,
-          "maxAlive": 3,
+          "maxAlive": 2,
           "trigger": { "kind": "ON_PHASE_ENTER", "phase": 1 }
         },
         {
@@ -182,7 +182,7 @@
           "op": "SUMMON",
           "archetype": "GRUNT",
           "value": 2,
-          "maxAlive": 3,
+          "maxAlive": 2,
           "trigger": { "kind": "PERIODIC", "interval": 15.0 }
         },
         {
@@ -507,7 +507,7 @@
           "op": "SUMMON",
           "archetype": "WARDEN",
           "value": 2,
-          "maxAlive": 3,
+          "maxAlive": 2,
           "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 }
         },
         {
@@ -578,7 +578,7 @@
     {
       "id": "BOSS_SPOREQUEEN_VELL",
       "chapter": 7,
-      "_doc": "17 §8 — anti-healing and debuff stacking. 🔒 NO enrage exemption, decided at the M2 kickoff: the phase-3 Rot drain is a ~66 s soft timer that lands before the universal 70 s enrage, and 17 §8's request to 'verify these do not interact confusingly' is the balance harness's assertion, not an engine change. Rot is DAMAGE_MAXHP_PCT once a second and needs no wind-up: a 1 s period has nowhere to put a 1.0-1.5 s one, which is T3's structural exemption. The sporelings' own SPORE application is the CASTER archetype's chapter-7 biome status and is authored in content/enemies/, not here. ⚠️ 17 §8's 'the boss heals 4% of its Max HP each time a sporeling dies' is NOT authored: 18 §3's ON_DEATH fires on the actor that dies and 18 §5's OWNER resolves the summoner, so the effect has to sit on the SPORELING — and a summoned add's plan carries no effects at all. Recorded rather than approximated by putting it on the boss, where ON_DEATH would fire on the boss's own death.",
+      "_doc": "17 §8 — anti-healing and debuff stacking. 🔒 NO enrage exemption, decided at the M2 kickoff: the phase-3 Rot drain is a ~66 s soft timer that lands before the universal 70 s enrage, and 17 §8's request to 'verify these do not interact confusingly' is the balance harness's assertion, not an engine change. 🔒 Rot is DAMAGE_TRUE and NOT DAMAGE_MAXHP_PCT: 17 §8 writes 'true damage ... unmitigable', and 05 §4.1's ward bypass list names this very aura — 'DAMAGE_TRUE and effects marked true damage (Sporequeen's Rot aura — 17 §8)' — while putting DAMAGE_MAXHP_PCT in the same sentence's 'everything else is absorbed' clause, where DR% applies too. Authored the other way, a DR or ward build would simply switch the phase-3 soft timer off. It needs no wind-up: a 1 s period has nowhere to put a 1.0-1.5 s one, which is T3's structural exemption. The sporelings' own SPORE application is the CASTER archetype's chapter-7 biome status and is authored in content/enemies/, not here. ⚠️ 17 §8's 'the boss heals 4% of its Max HP each time a sporeling dies' is NOT authored, and the blocker is the ENGINE rather than the DSL: 18 §3's ON_DEATH row and 18 §5's OWNER row both name this mechanic as their worked example, so the vocabulary was extended FOR it — but the effect has to sit on the sporeling, and BossSummonSource.Spawn builds a summon's ActorPlan with no Effects at all. Recorded here rather than approximated by putting it on the boss, where ON_DEATH would fire on the boss's own death.",
       "coefficients": { "hp": 2.5, "atk": 0.9, "def": 0.75, "aspd": 0.9 },
       "addsPowerFraction": 0.3,
       "effects": [
@@ -597,7 +597,7 @@
           "op": "SUMMON",
           "archetype": "CASTER",
           "value": 2,
-          "maxAlive": 3,
+          "maxAlive": 2,
           "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 }
         },
         {
@@ -629,7 +629,7 @@
         },
         {
           "id": "BOSS_SPOREQUEEN_VELL_P3_ROT",
-          "op": "DAMAGE_MAXHP_PCT",
+          "op": "DAMAGE_TRUE",
           "value": 0.015,
           "valueMode": "TARGET_MAXHP_PCT",
           "trigger": { "kind": "PERIODIC", "interval": 1.0 },
@@ -640,7 +640,7 @@
           "op": "SUMMON",
           "archetype": "CASTER",
           "value": 1,
-          "maxAlive": 3,
+          "maxAlive": 2,
           "trigger": { "kind": "PERIODIC", "interval": 10.0 }
         }
       ],
@@ -668,7 +668,7 @@
     {
       "id": "BOSS_DICELORD",
       "chapter": 8,
-      "_doc": "17 §9 — the finale, and the only fight that touches the dice system. 🔒 Phase 2's outcome table is the M2 kickoff's decision on 17 §9's flagged ambiguity: 1-4 boss buff, 5-6 both buff, the hero-favourable outcome simply removed — weights 4/2 against phase 1's 2/2/2. 🔒 The every-6th auto-crit is R21: FORCE_CRIT_NEXT makes it a crit, which 17 §1.2's fixed CDMG 0.50 already pays at ×1.5, and ATTACK_MULT_NEXT ×2.0 carries the rest, so 1.5 × 2.0 is exactly the ×3 17 §9 asks for. Both carry charges: 1, the key M2-03 added under R6 for precisely this. ⚠️ Two halves of 17 §9 are not authorable and are recorded rather than approximated: 'both gain ASPD +30%' has no 18 §5 target naming both sides and RANDOM_OUTCOME fires exactly one effect, so the 5-6 row buffs the roller only; and Scramble authors no faceIndex because 18 §7.9 offers PLAYER_CHOICE or a fixed 1-6 index and 17 §9's face is neither — the hole is left absent and greppable.",
+      "_doc": "17 §9 — the finale, and the only fight that touches the dice system. 🔒 Phase 2's outcome table is the M2 kickoff's decision on 17 §9's flagged ambiguity: 1-4 boss buff, 5-6 both buff, the hero-favourable outcome simply removed — weights 4/2 against phase 1's 2/2/2. 🔒 The every-6th auto-crit is R21: FORCE_CRIT_NEXT makes it a crit, which 17 §1.2's fixed CDMG 0.50 already pays at ×1.5, and ATTACK_MULT_NEXT ×2.0 carries the rest, so 1.5 × 2.0 is exactly the ×3 17 §9 asks for. Both carry charges: 1, the key M2-03 added under R6 for precisely this. 🔒 Scramble picks its face the same way the boss picks everything else: a RANDOM_OUTCOME over six siblings, one per face, at equal weight. 18 §7.9 offers PLAYER_CHOICE or a fixed 1-6 index and 17 §9's face is neither — but the 44th op IS a uniform draw over sibling effects, so 'one of the hero's six die faces' needs no new key. Authoring MODIFY_DIE_FACE with no faceIndex instead would hand the run controller a face change naming no face. ⚠️ One half of 17 §9 is genuinely not authorable and is recorded rather than approximated: '5-6: both gain ASPD +30%' has no 18 §5 target naming both sides at once, and RANDOM_OUTCOME fires exactly one effect, so the 5-6 row buffs the roller only. Closing it needs a twelfth target or a nested outcome, which is 18 §10's route and not content's.",
       "coefficients": { "hp": 2.6, "atk": 1.0, "def": 0.95, "aspd": 0.9 },
       "effects": [
         {
@@ -734,9 +734,63 @@
         },
         {
           "id": "BOSS_DICELORD_P2_SCRAMBLE",
-          "op": "MODIFY_DIE_FACE",
-          "newFace": { "kind": "Void" },
+          "op": "RANDOM_OUTCOME",
+          "outcomes": [
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F1", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F2", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F3", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F4", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F5", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F6", "weight": 1 }
+          ],
           "trigger": { "kind": "PERIODIC", "interval": 14.0 },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F1",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 1,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F2",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 2,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F3",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 3,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F4",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 4,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F5",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 5,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F6",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 6,
+          "newFace": { "kind": "Void" },
           "target": "RUN",
           "duration": { "scope": "RUN" }
         },
@@ -796,7 +850,13 @@
             { "effectId": "BOSS_DICELORD_P2_LOADED_DICE" },
             { "effectId": "BOSS_DICELORD_P2_FATE_BOSS_ATK" },
             { "effectId": "BOSS_DICELORD_P2_FATE_BOTH_ASPD" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE" }
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F1" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F2" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F3" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F4" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F5" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F6" }
           ]
         },
         {

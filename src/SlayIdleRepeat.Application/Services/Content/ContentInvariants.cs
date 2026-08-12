@@ -54,34 +54,18 @@ public static partial class ContentInvariants
     /// <summary>🔒 `18` §1's effect vocabulary — the schema <b>R35</b> validates against.</summary>
     public static string EffectSchemaPath => DeclaredRules.EffectSchemaPath;
 
-    /// <summary>Every cross-file rule, over the merged, schema-valid document set.</summary>
-    /// <param name="documents">Data documents by snapshot-relative path. Schemas excluded.</param>
-    /// <param name="patternBindings">
-    /// Where each schema <c>pattern</c> governed a string, per document — the trace the reference
-    /// rules are derived from.
-    /// </param>
-    public static IReadOnlyList<ContentIssue> Check(
-        IReadOnlyDictionary<string, ContentValue> documents,
-        IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings) =>
-        Check(documents, patternBindings, ContentLoadOptions.Canonical);
-
-    /// <summary>Every cross-file rule, plus the ship gates when <paramref name="options"/> asks.</summary>
-    /// <remarks>
-    /// ⚠️ <b>Carries no schema set, so <c>DeclaredRules</c>' <b>R35</b> has no authority to validate
-    /// an embedded effect against.</b> R35 reports that as a finding rather than skipping — see its
-    /// own remarks — so this overload is honest about what it did not check instead of quietly
-    /// passing. The loader uses the four-argument form.
-    /// </remarks>
-    public static IReadOnlyList<ContentIssue> Check(
-        IReadOnlyDictionary<string, ContentValue> documents,
-        IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings,
-        ContentLoadOptions options) =>
-        Check(documents, patternBindings, new Dictionary<string, ContentValue>(StringComparer.Ordinal), options);
-
     /// <summary>
     /// Every cross-file rule, over the merged, schema-valid document set and the schema set the
     /// vocabulary rules read.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The two shorter overloads this class used to carry are gone, deliberately.</b> They took
+    /// no schema set, so the only thing they could do with <c>DeclaredRules</c>' <b>R35</b> was hand
+    /// it an empty one — which makes R35 manufacture a <c>MissingSchema</c> finding for content that
+    /// is perfectly valid. That is the right answer to <em>"validate these effects against nothing"</em>
+    /// and a trap for the first caller who reaches for the short form because it looked convenient.
+    /// Nothing called them; the loader has always passed its schemas. One overload, one meaning.
+    /// </remarks>
     /// <param name="documents">Data documents by snapshot-relative path. Schemas excluded.</param>
     /// <param name="patternBindings">
     /// Where each schema <c>pattern</c> governed a string, per document — the trace the reference

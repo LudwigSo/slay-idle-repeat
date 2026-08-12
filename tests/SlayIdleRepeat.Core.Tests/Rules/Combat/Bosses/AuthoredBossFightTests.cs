@@ -97,7 +97,7 @@ public sealed class AuthoredBossFightTests
         var rows = roll.Outcomes!.Select(r => r.EffectId).ToArray();
         var interval = roll.Trigger!.Interval!.Value;
 
-        var recorder = new RecordingOutcomes();
+        var recorder = new AuthoredOutcomeRecorder();
 
         // 17 §9's phase 1 lasts the whole fight here: no HP script, so the boss never leaves it and
         // the only thing that can resolve an outcome is the phase-1 Roll of Fate.
@@ -134,50 +134,17 @@ public sealed class AuthoredBossFightTests
     }
 
     /// <summary>
-    /// 🔒 <b>R3</b> — <em>"every boss <c>AURA</c> is <c>scope: PHASE</c>"</em>, over the authored set.
-    /// `18` §7.8's Thornmaw <c>{seconds: 999, scope: BATTLE}</c> is a pre-<c>PHASE</c> artifact and
-    /// <em>"the <c>{"seconds": 999}</c> idiom is not to be used anywhere"</em>.
-    /// </summary>
-    [Fact]
-    public void Every_authored_aura_is_PHASE_scoped_and_none_uses_the_999_second_idiom()
-    {
-        var auras = 0;
-
-        foreach (var authored in AuthoredBossScripts.All)
-        {
-            foreach (var effect in authored.Effects.Values)
-            {
-                if (effect.Duration is { } duration)
-                {
-                    duration.Seconds.ShouldNotBe(
-                        999.0, $"{effect.Id} — 18 §7.8's erratum retires the 999-second idiom");
-                }
-
-                // An AURA in 17 §1.1's vocabulary is the continuous passive a phase entry grants.
-                if (effect.Trigger is not { Kind: TriggerKind.ON_PHASE_ENTER } ||
-                    effect.Duration is null)
-                {
-                    continue;
-                }
-
-                auras++;
-                effect.Duration.Scope.ShouldBe(
-                    DurationScope.PHASE,
-                    $"{effect.Id} — R3. PHASE-scoped statuses were degrading to BATTLE until M2-12, so " +
-                    "every boss AURA did nothing at all; it is fixed, and the data authors PHASE");
-            }
-        }
-
-        auras.ShouldBeGreaterThanOrEqualTo(
-            10, "S3 — 17 §3, §5, §6, §7 and §9 alone author ten phase-entry auras between them");
-    }
-
-    /// <summary>
     /// Counts what <c>RANDOM_OUTCOME</c> handed the outcome seam. It records rather than resolves:
     /// the subject is <b>how many</b> ids one roll produces, and firing them would drag `05` §4 into
     /// a case about `14` §8.0's draw count.
     /// </summary>
-    private sealed class RecordingOutcomes : IBossOutcomes
+    /// <remarks>
+    /// ⚠️ Named <c>AuthoredOutcomeRecorder</c> rather than <c>RecordingOutcomes</c>: the bench already
+    /// declares a namespace-scope <c>RecordingOutcomes</c>, and a nested type of the same name in the
+    /// same namespace compiles while shadowing it — which is a trap for the next reader rather than a
+    /// defect for this one.
+    /// </remarks>
+    private sealed class AuthoredOutcomeRecorder : IBossOutcomes
     {
         internal List<string> Resolved { get; } = new();
 

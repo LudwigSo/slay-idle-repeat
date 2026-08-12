@@ -174,9 +174,11 @@ public sealed class SysEnrageAnchoringTests
         // assertion below is what keeps the distinction enforceable rather than remembered.
         var shape = typeof(BossScript).GetProperties().Select(p => p.Name).ToArray();
 
-        shape.ShouldBe(
-            new[] { "Id", "Coefficients", "AddsPowerFraction", "Phases" }, ignoreOrder: true);
-
+        // 🔴 The NAMED claims come first, and the exhaustive one is the backstop behind them.
+        // Written the other way round these three were unreachable: the exhaustive ShouldBe fails on
+        // ANY added property, so a hypothetical `EnrageExempt` tripped the generic "the shape moved"
+        // assertion and never reached the assertion that says why that particular shape is forbidden.
+        // An assertion that cannot be the one that fires is not an assertion (steering S1/S2).
         foreach (var builtIn in BossBuiltIns.All)
         {
             shape.ShouldNotContain(
@@ -189,6 +191,9 @@ public sealed class SysEnrageAnchoringTests
             name => name.Contains("Enrage", StringComparison.OrdinalIgnoreCase) ||
                     name.Contains("Immun", StringComparison.OrdinalIgnoreCase),
             "the same claim in the spelling a future author is likelier to reach for");
+
+        shape.ShouldBe(
+            new[] { "Id", "Coefficients", "AddsPowerFraction", "Phases" }, ignoreOrder: true);
     }
 
     // ════════════════════════════════════════════════════ fixtures

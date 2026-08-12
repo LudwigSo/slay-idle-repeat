@@ -91,20 +91,45 @@ public sealed class BossesDataTests
     /// matched nothing would report success exactly as loudly as one that validated every boss
     /// mechanic in the repository.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The subject is the set this load produced, not the accumulator's contents.</b>
+    /// <c>ValidatedEmbeddedEffects</c> is process-wide and is never cleared, so by the time this case
+    /// runs it already holds whatever every other class in the assembly loaded — and a floor read
+    /// straight off it would hold even if <em>this</em> load validated nothing at all. The set is
+    /// therefore captured before and compared after, and the count is asserted against the file's own
+    /// effect census rather than against a number written twice.
+    /// </remarks>
     [Fact]
     public void R35_validated_every_embedded_effect_in_the_shipped_content_set()
     {
-        Data();
+        var before = ContentInvariants.ValidatedEmbeddedEffects.ToHashSet(StringComparer.Ordinal);
+
+        var snapshot = Data();
 
         var validated = ContentInvariants.ValidatedEmbeddedEffects;
-
-        validated.Count.ShouldBeGreaterThanOrEqualTo(
-            50, "the eight fights of 17 §2-9 embed roughly fifty mechanics between them");
 
         validated.ShouldAllBe(
             e => e.StartsWith(Document, StringComparison.Ordinal),
             "content/bosses/ is the only content type embedding effects today; when M3's perks land, " +
             "this assertion is the one that has to be widened deliberately");
+
+        // What the file actually carries — the count nothing else in the repository states, so the
+        // rule's reach is compared against the data instead of against a literal.
+        var embedded = snapshot.GetDocument(Document).Root is var root &&
+                       root.TryGetMember("scripts", out var scripts)
+            ? scripts!.Items.Sum(s => s.TryGetMember("effects", out var e) ? e!.Items.Count : 0)
+            : 0;
+
+        embedded.ShouldBeGreaterThanOrEqualTo(
+            50, "S3 — the eight fights of 17 §2-9 embed roughly fifty mechanics between them");
+
+        validated.Count.ShouldBe(
+            embedded, "R35 reaches every embedded effect in the file, not a prefix of them");
+
+        // The accumulator really did grow on THIS load the first time this class runs; on a re-run
+        // within one process it is already saturated, which is why the equality above is the
+        // load-bearing assertion and this is only a floor under it.
+        before.Count.ShouldBeLessThanOrEqualTo(validated.Count);
     }
 
     /// <summary>
