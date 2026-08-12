@@ -541,7 +541,12 @@ public sealed class StatusTimelineTests
             // The applier's ATK is what `05` §5's BURN and BLEED read, so it is set on the applier
             // rather than passed alongside — the seam reads the actor, and a test that handed the
             // number in separately would not exercise that.
-            hero.SetStats(hero.Stats.With(StatId.ATK, step.ApplierAtk));
+            // Conductor edit at merge: M2-09 changed SetStats to take the whole AggregatedStats
+            // rather than an ActorStats, to satisfy M2-07's ward-cap obligation — `05` §4.1 caps the
+            // pool on Max HP "as it stood after `18` §8 step 7", so an actor that kept only Final
+            // would cap every CP_GLASS_HEART ward at 1 HP silently. Only ATK moves here, and ATK
+            // takes no multiplier in this fixture, so the post-step-7 Max HP is carried unchanged.
+            hero.SetStats(hero.Aggregated with { Final = hero.Stats.With(StatId.ATK, step.ApplierAtk) });
 
             _inner.Apply(
                 hero,

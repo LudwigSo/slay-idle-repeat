@@ -10,6 +10,8 @@ This is the most important document for the implementer. The combat simulator mu
 
 The visual battle is a **replay of a pre-computed log**, not a live simulation. Compute first, then animate.
 
+🔴 **Erratum, recorded by M2-09 — the shipped signature.** `Simulate(seed, heroSnapshot, enemySnapshot)` above is the *shape*, not the parameter list. The entry point is `CombatSimulator.Simulate(battleSeed, hero, heroLevel, enemies, enemyLevel, content)`. The two **levels** were added by M2-08 because §4 step 3's mitigation curve reads `attacker.Level` and a stat block does not carry one. The **`ContentSnapshot`** was added by M2-09 because §1.1's caps, §4's two mitigation dials and §4.1's `wardCapPct` are all tunables held in data (each declared at its own section below), and a `static` method can hold no document: it is handed one, and `CombatCaps.Read` resolves every pointer. Taking the constants as bare numbers instead was rejected — two adjacent `double`s that transpose silently, plus one more parameter per future dial. Nothing else about the signature is widened, and no new public *type* was introduced.
+
 ---
 
 ## 1. Stat definitions
@@ -252,6 +254,10 @@ ResolveAttack(attacker, defender):
 | **Floor ordering** | The §4 step-7 floor applies **before** absorption; there is no re-floor after. A fully absorbed hit deals 0 HP damage — the floor exists to defeat mitigation stacking, not shields. |
 | **Events** | `Shield` on every grant. **`WardBroken`** the moment the pool reaches 0 **through damage** — the event Ossify's DR buff terminates on (`17` §4, `18` §6's `until`). Segment expiry silently removes its remainder (`StatusExpired`), and does **not** fire `WardBroken`. |
 
+🔴 **Erratum, recorded by M2-09 — a DSL `SHIELD` cannot yet author an expiring segment.** The pool implements `expiresAt?` in full, but `IAttackPipeline.GrantWard` (declared by M2-03, and depended on by M2-10, M2-12 and M2-14) carries **no duration**, so `18` §2.2's `SHIELD` op drops `effect.duration` and the ward lasts the fight. The expiring form exists one layer up, as `BattleServices.GrantWard(…, expiresAtTick)`, which is also where `05` §3.1 slot 2's expiry sweep routes. No shipped content authors a `SHIELD` with a duration today and `ShieldDurationExpiryTests` fails the day one does; closing it needs `18` §6's duration bookkeeping wired to the pool, and belongs to whoever lands that.
+
+🔴 **Erratum, recorded by M2-09 — two emission orders, not one.** §4.1's *absorption* order (soonest expiry, then grant order) is not §3.1 slot 2's *expiry* order (ascending effect-id). Two segments from different effects expiring on one tick are absorbed in the first order and logged in the second. The log is inside `LogHash`, which `11` §6 recomputes server-side.
+
 ### 4.2 How DSL damage ops route 🔒 *(ruled in `16` A7)*
 
 | Op (`18` §2.2) | Route |
@@ -275,6 +281,8 @@ Heal(target, amount):
 ```
 
 `HEAL%` is the recipient's stat, base 1.0 (§2). Overheal is discarded unless an effect consumes it (`PK_TRANSFUSION`).
+
+🔴 **Erratum, recorded by M2-09 — `amount × HEALPct` is floored at 0.** As written the formula has no lower bound, and §5's `SPORE` is *"−X% healing received, **stacks to 4**"*: past a cumulative −100% the multiplier goes negative and `min(negative, MaxHP − HP)` turns a **heal into an HP decrease** — one that emits no `Hit`, runs no phase check, and is observed by nothing. The scaled amount is therefore clamped at 0, so a fully-spored actor is healed for nothing rather than damaged, and the `overheal` a `PK_TRANSFUSION` reads is 0 rather than negative. `SPORE` past 100% is **floored, not reversed**.
 
 ---
 

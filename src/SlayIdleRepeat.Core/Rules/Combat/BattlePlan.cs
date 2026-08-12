@@ -46,6 +46,26 @@ internal sealed record BattlePlan
     /// <summary>`05` §1's caps, before <c>STAT_CAP_OVERRIDE</c> (`18` §8 step 9).</summary>
     public required StatCaps Caps { get; init; }
 
+    /// <summary>
+    /// 🔒 `05` §4's two 📐 dials — <em>"the two most important balance dials in the game. Expose
+    /// them in data."</em> <c>content/combat_caps.json#/mitigation</c>, read by <c>CombatCaps</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Required, with no default, and that is steering S6.</b> There is no honest degenerate
+    /// value the way <c>StatCaps.None</c> is one for the caps: `05` §4 step 3 is
+    /// <c>effDef / (effDef + flat + perLevel × level)</c>, so a zeroed pair mitigates <b>100%</b> of
+    /// every hit against any defender with DEF above zero and divides by zero against one without.
+    /// A plausible-looking default here would be the single most damaging silent number in the game.
+    /// </remarks>
+    public required MitigationConstants Mitigation { get; init; }
+
+    /// <summary>
+    /// 🔒 `05` §4.1's 📐 ward pool ceiling, as a fraction of the actor's post-`18` §8-step-7 Max HP.
+    /// <c>content/combat_caps.json#/wardCapPct</c>.
+    /// </summary>
+    /// <remarks>Required for <see cref="Mitigation"/>'s reason: 0 deletes every shield in the game.</remarks>
+    public required double WardCapPct { get; init; }
+
     /// <summary>`05` §3 / §3.3's bounds. Defaults to <see cref="CombatRules.PvE"/>.</summary>
     public CombatRules Rules { get; init; } = CombatRules.PvE;
 
@@ -60,8 +80,11 @@ internal sealed record BattlePlan
     /// <summary>The run's state for `18` §4's nine run conditions. <c>null</c> in a duel or a sweep.</summary>
     public IRunStateView? Run { get; init; }
 
-    /// <summary>The four seams `05` §3.1 does not give this task. Defaults to the strict set.</summary>
-    public BattleSeamFactory Seams { get; init; } = static _ => BattleSeams.Strict;
+    /// <summary>
+    /// The six seams of `05` §3.1. Defaults to <see cref="BattleSeams.For"/> — `05` §4's damage
+    /// pipeline wired, everything M2-10/M2-12 owns still refusing or walking past.
+    /// </summary>
+    public BattleSeamFactory Seams { get; init; } = static services => BattleSeams.For(services);
 
     /// <summary>
     /// Checks everything a roster must satisfy before a tick runs, and returns the plan.
@@ -123,8 +146,55 @@ internal sealed record BattlePlan
         }
 
         RequireTwoSides();
+        RequireSimulatorConstants();
 
         return this;
+    }
+
+    /// <summary>
+    /// 🔒 The two `05` §4 / §4.1 constants are real numbers from
+    /// <c>content/combat_caps.json</c> — checked here, because every way of getting them wrong
+    /// produces a legal-looking log rather than an error.
+    /// </summary>
+    /// <remarks>
+    /// A zero <see cref="WardCapPct"/> clips every grant to nothing and `05` §4.1's <c>Shield</c>
+    /// events still fire, so the fight replays with shields that absorb no damage. A zero
+    /// mitigation pair makes `05` §4 step 3's fraction <c>effDef/effDef = 1</c>, so every hit in the
+    /// game deals its 10% floor and nothing else — which the balance harness would read as content
+    /// being uniformly overtuned. Both are refused rather than clamped: `05` §4's own sanity check
+    /// (DEF 120 mitigating 0.46 at attacker level 1) is arithmetic on the shipped values, and a
+    /// clamp would silently substitute a game nobody balanced.
+    /// </remarks>
+    private void RequireSimulatorConstants()
+    {
+        // 🔒 STRICTLY positive, and the strictness is the point: 0 is the one value all three of this
+        // check's authorities forbid. game-data/schema/combat_caps.schema.json declares
+        // "exclusiveMinimum": 0 on the pointer, and a zero clips every grant to nothing while `05`
+        // §4.1's Shield event still fires on every one — a fight that replays with shields absorbing
+        // nothing, which is exactly the silent failure the remarks above describe.
+        if (!double.IsFinite(WardCapPct) || WardCapPct <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(WardCapPct), WardCapPct,
+                "`05` §4.1's wardCapPct is a positive fraction of the actor's post-`18` §8-step-7 " +
+                "Max HP, and content/combat_caps.json ships 1.0 under an exclusiveMinimum of 0. A " +
+                "zero, negative or non-finite one clips every ward grant to nothing while `05` §4.1's " +
+                "Shield event still fires on every grant — a fight that replays with shields that " +
+                "absorb no damage.");
+        }
+
+        if (!double.IsFinite(Mitigation.Flat) || !double.IsFinite(Mitigation.PerLevel) ||
+            Mitigation.Flat <= 0.0 || Mitigation.PerLevel < 0.0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(Mitigation), Mitigation,
+                "`05` §4 step 3 is effDef / (effDef + flat + perLevel * attacker.Level) and both " +
+                "constants are 📐 in content/combat_caps.json#/mitigation, which ships 120 and 20. " +
+                "The flat term must be positive — at 0 the fraction is effDef/effDef = 1 against any " +
+                "defender with DEF, so every hit in the game is mitigated to its 10% floor, and it is " +
+                "0/0 against a defender without. `05` §4's own sanity check (DEF 120 mitigating 0.46 " +
+                "at attacker level 1) is arithmetic on the shipped pair.");
+        }
     }
 
     /// <summary>

@@ -280,7 +280,7 @@ internal sealed class HasteAtTick : IStatusTimeline
     {
         if (tick == _tick && string.Equals(actor.Id, _actorId, StringComparison.Ordinal))
         {
-            actor.SetStats(actor.Stats.With(StatId.ASPD, _aspd));
+            actor.SetStats(actor.Aggregated with { Final = actor.Stats.With(StatId.ASPD, _aspd) });
         }
     }
 

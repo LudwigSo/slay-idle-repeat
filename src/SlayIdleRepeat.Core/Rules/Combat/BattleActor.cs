@@ -78,10 +78,12 @@ internal sealed class BattleActor : IEffectActorView
         LogId = plan.LogId;
         TargetPriority = plan.TargetPriority;
 
-        // 🔒 Before `18` §8 has run, an actor's stats ARE its base block. Aggregation replaces this
-        // at pre-tick 0a; it is set here so that no window exists in which Stats is null and a
-        // reader has to decide what to do about it (steering S6).
-        Stats = plan.BaseStats;
+        // 🔒 Before `18` §8 has run, an actor's stats ARE its base block — and its post-step-7 Max HP
+        // is that block's, because no multiplier has been applied to it yet. Aggregation replaces
+        // this at pre-tick 0a; it is set here so that no window exists in which Aggregated is null
+        // and a reader has to decide what to do about it (steering S6).
+        Aggregated = new AggregatedStats(
+            plan.BaseStats, plan.BaseStats[StatId.MAX_HP], Array.Empty<string>());
         Flow = new CombatFlowState();
         _currentHp = plan.BaseStats[StatId.MAX_HP];
 
@@ -149,10 +151,49 @@ internal sealed class BattleActor : IEffectActorView
     public string? OwnerId => Plan.OwnerId;
 
     /// <summary>
+    /// 🔒 <b>The whole `18` §8 result of the last aggregation, not just its <c>Final</c> block.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 This is M2-07's <b>first</b> stated obligation on M2-09, discharged here:
+    /// <c>AggregatedStats</c>' own remarks are that <em>"a consumer that keeps <see cref="Stats"/>
+    /// and discards the wrapper caps every <c>CP_GLASS_HEART</c> ward at 1 HP with nothing going
+    /// red — the one loss in this record that is not reported"</em>. Holding the record rather than
+    /// the block is what makes <see cref="PostMultiplierMaxHp"/> reachable at all.
+    /// </para>
+    /// <para>
+    /// 🔒 And the <b>second</b>: it is replaced on <em>every</em> re-aggregation
+    /// (<see cref="SetStats"/>, called by <c>BattleSimulation.RefreshStats</c> on every tick an
+    /// actor is stale or state-dependent), never cached at battle start. `05` §3.1's
+    /// <c>SYS_ENRAGE</c> adds a <c>STAT_MULT</c> every second from 70 s, so a boss's post-step-7
+    /// Max HP is not a battle constant and a ward cap taken once at tick 0 would be wrong for the
+    /// last 20 seconds of every boss fight.
+    /// </para>
+    /// </remarks>
+    internal AggregatedStats Aggregated { get; private set; }
+
+    /// <summary>
     /// 🔒 `18` §8's aggregated block as of the last aggregation — <b>this actor's final stats</b>,
     /// re-read at fire time by everything that fires (`05` §3.1 slot 4a reads ASPD here).
     /// </summary>
-    internal ActorStats Stats { get; private set; }
+    internal ActorStats Stats => Aggregated.Final;
+
+    /// <summary>
+    /// 🔒 `05` §4.1's ward-cap basis — Max HP <b>as it stood after `18` §8 step 7</b>
+    /// (post-multiplier, pre-<c>STAT_SET</c>), re-read from <see cref="Aggregated"/> on every call.
+    /// </summary>
+    /// <remarks>
+    /// A property over the live record rather than a stored double, deliberately: a field would be
+    /// one assignment away from being set once at pre-tick 0a, which is exactly the failure
+    /// <c>AggregatedStats</c> asks M2-09 to avoid and the one nothing else can detect.
+    /// </remarks>
+    internal double PostMultiplierMaxHp => Aggregated.PostMultiplierMaxHp;
+
+    /// <summary>
+    /// 🔒 `05` §4.1's absorb pool — <em>"one absorb pool per actor, made of segments"</em>. The
+    /// object `05` §4 step 9 names: <c>dmg = defender.Wards.Absorb(dmg)</c>.
+    /// </summary>
+    internal WardPool Wards { get; } = new();
 
     /// <summary>
     /// 🔒 `18` §2.4's <c>STAT_COPY</c> reading — <em>"the start-of-tick snapshot, so mutual copies
@@ -329,14 +370,14 @@ internal sealed class BattleActor : IEffectActorView
     /// it owes them to a hit — a boss re-based below 66% by <c>CP_GLASS_HEART</c> must enter phase 2
     /// there and not on whatever unrelated swing lands next.
     /// </returns>
-    internal bool SetStats(ActorStats stats)
+    internal bool SetStats(AggregatedStats stats)
     {
         ArgumentNullException.ThrowIfNull(stats);
 
-        Stats = stats;
+        Aggregated = stats;
         StatsAreStale = false;
 
-        var maxHp = stats[StatId.MAX_HP];
+        var maxHp = stats.Final[StatId.MAX_HP];
         if (_currentHp <= maxHp)
         {
             return false;

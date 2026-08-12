@@ -38,30 +38,71 @@ public sealed class CombatSimulatorTests
     }
 
     /// <summary>
-    /// 🔒 `05` §1's public signature is wired to the loop end to end, and the <b>only</b> thing
-    /// standing between it and a fight is `05` §4's damage pipeline — which is M2-09's.
+    /// 🔒 `05` §1's public signature runs a whole fight — the pre-tick, `18` §8's aggregation, slot
+    /// 4's swings through `05` §4's pipeline, and a sealed, hashed log.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>THIS TEST IS AN EXPIRY, and M2-09 is the task that trips it.</b> The refusal comes from
-    /// <c>UnwiredAttackPipeline</c> through <c>BattleSeams.Strict</c>, which is the S6 shape: a fight
-    /// that cannot resolve a hit fails loudly rather than running 1800 ticks of nothing and reporting
-    /// a timeout. The moment <c>BattleSeams.Strict.Attack</c> becomes a real pipeline this case goes
-    /// red, and whoever landed it replaces it with the assertions in the comment below — which are
-    /// the ones this test would make today if it could.
-    /// <code>
-    /// var result = PublicFight(seed: 1);
-    /// result.Log[0].Type.ShouldBe(CombatEventType.BattleStart);
-    /// result.Log[^1].Type.ShouldBe(CombatEventType.BattleEnd);
-    /// result.DurationTicks.ShouldBeInRange(1, CombatLog.MaxTicks);
-    /// result.LogHash.ShouldNotBe(0UL);
-    /// </code>
-    /// Everything before the hit is already exercised: the pre-tick ran, `18` §8 aggregated both
-    /// blocks, slot 4 chose a target and called the seam with `05` §4's base multiplier of 1.0.
+    /// <para>
+    /// 🔴 <b>THIS TEST IS M2-08's EXPIRY, DISCHARGED.</b> It read
+    /// <c>The_public_entry_point_reaches_slot_4_and_stops_at_the_M2_09_seam</c> and asserted that
+    /// <c>UnwiredAttackPipeline</c> refused the first swing naming M2-09. M2-08 wrote the replacement
+    /// into its own remarks — <em>"the ones this test would make today if it could"</em> — and the
+    /// four assertions below are that block verbatim. The refusal it replaced still exists and is
+    /// still reachable: <c>BattleSeams.Strict</c> keeps the unwired pipeline, and
+    /// <see cref="A_plan_built_on_the_strict_seams_still_refuses_the_first_swing"/> is what stops
+    /// that shape from rotting now that it is no longer the default.
+    /// </para>
+    /// <para>
+    /// The three 📐 constants are the shipped <c>combat_caps.json</c> values — see
+    /// <c>StatFixtures.Mitigation</c> for why restating them in this assembly is safe.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// ⚠️ <b>The last four assertions are M2-08's block; the first three are not, and they are what
+    /// make the case discriminating.</b> The prescribed four all hold for a fight in which the
+    /// pipeline deals no damage at all — a <c>ResolveAttack</c> that always returned
+    /// <c>Missed: true</c>, or one whose step 2 produced 0, passes them verbatim. Discharging an
+    /// expiry does not license keeping a test that cannot fail (steering S1), so the fight is
+    /// asserted to have <em>landed hits</em>, <em>killed both enemies</em> and <em>finished inside the
+    /// cap</em> — a Legend-60 hero swings ATK 390 into 300 and 200 HP, so all three are arithmetic
+    /// rather than hope.
     /// </remarks>
     [Fact]
-    public void The_public_entry_point_reaches_slot_4_and_stops_at_the_M2_09_seam()
+    public void The_public_entry_point_runs_a_whole_fight()
     {
-        var refused = Should.Throw<EffectContextException>(() => PublicFight(seed: 1));
+        var result = PublicFight(seed: 1);
+
+        result.Log.ShouldContain(e => e.Type == CombatEventType.Hit);
+        result.HeroWon.ShouldBeTrue();
+        result.DurationTicks.ShouldBeLessThan(CombatLog.MaxTicks);
+
+        result.Log[0].Type.ShouldBe(CombatEventType.BattleStart);
+        result.Log[^1].Type.ShouldBe(CombatEventType.BattleEnd);
+        result.DurationTicks.ShouldBeInRange(1, CombatLog.MaxTicks);
+        result.LogHash.ShouldNotBe(0UL);
+    }
+
+    /// <summary>
+    /// 🔒 <c>BattleSeams.Strict</c> still refuses `05` §4 by name, and is no longer what a plan gets
+    /// by default.
+    /// </summary>
+    /// <remarks>
+    /// The S6 shape M2-08 built survives its own expiry. <c>UnwiredAttackPipeline</c> is still
+    /// <c>EffectOpSeams.Strict</c>'s default for op resolution outside a battle, where there is no
+    /// <c>BattleServices</c> to build a real pipeline from — so a fight assembled on the strict set
+    /// must keep failing loudly rather than running 1800 ticks of nothing.
+    /// </remarks>
+    [Fact]
+    public void A_plan_built_on_the_strict_seams_still_refuses_the_first_swing()
+    {
+        var refused = Should.Throw<EffectContextException>(() => CombatSimulator.Simulate(
+            BattleTestBench.Plan(
+                new[]
+                {
+                    BattleTestBench.Hero(BattleTestBench.Stats(maxHp: 300, atk: 8), 1),
+                    BattleTestBench.Enemy(0, BattleTestBench.Stats(maxHp: 300, atk: 6)),
+                },
+                seams: static _ => BattleSeams.Strict)));
 
         refused.Message.ShouldContain("M2-09");
         refused.Message.ShouldContain(BattleSimulation.BasicAttackSourceId);
@@ -71,7 +112,8 @@ public sealed class CombatSimulatorTests
     [Fact]
     public void A_fight_with_no_enemies_is_refused() =>
         Should.Throw<ArgumentException>(() => CombatSimulator.Simulate(
-            1, StatFixtures.HeroCurve().At(60), 60, Array.Empty<ActorStats>(), 10));
+            1, StatFixtures.HeroCurve().At(60), 60, Array.Empty<ActorStats>(), 10,
+            StatFixtures.CombatCapsSnapshot()));
 
     /// <summary>
     /// 🔒 `05`'s headnote — <em>"a full 60-second fight must simulate in &lt; 5 ms"</em>, asserted over
@@ -164,9 +206,13 @@ public sealed class CombatSimulatorTests
             actors.Add(BattleTestBench.Enemy(i, BattleTestBench.Stats(maxHp: 1_000_000, aspd: 2.0)));
         }
 
+        // 🔒 The REAL `05` §4 pipeline, since M2-09. `05`'s headnote budget is about the cost of a
+        // fight, and a recording double that subtracts one number and appends one event measures
+        // nothing: the per-swing cost is now three RNG draws, a ward-pool sort, a thorns sort and
+        // eight roundings, across six attackers and 1800 ticks. Over the double this case would have
+        // stayed green through an arbitrarily slow pipeline.
         return CombatSimulator.Simulate(BattleTestBench.Plan(
             actors,
-            services => BattleSeams.Strict with { Attack = new RecordingAttackPipeline(services, 1.0) },
             rules: new CombatRules(maxTicks, OnKillTriggersFire: true),
             battleSeed: seed));
     }
@@ -177,5 +223,10 @@ public sealed class CombatSimulatorTests
             StatFixtures.HeroCurve().At(60),
             60,
             new[] { BattleTestBench.Stats(maxHp: 300, atk: 8), BattleTestBench.Stats(maxHp: 200, atk: 6) },
-            10);
+            10,
+
+            // 🔒 A `content/combat_caps.json` of the SHIPPED shape — the same fixture
+            // CombatCapsTests reads, so the entry point is exercised over the real pointer set
+            // rather than over three numbers a test chose.
+            StatFixtures.CombatCapsSnapshot());
 }

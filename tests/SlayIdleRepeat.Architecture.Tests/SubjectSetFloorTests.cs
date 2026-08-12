@@ -372,28 +372,6 @@ public sealed class SubjectSetFloorTests
             "SlayIdleRepeat.Core.Rules.Combat.Status.StatusDefinition.DecayCurve, which is null " +
             "because 05 §5 states that RAGE decays and states no curve for the decay"),
 
-        // 2. `05` §5 defers WARD wholly to §4.1 — "full semantics: stacking, bypass, ordering,
-        //    WardBroken". §4.1's pool is one absorb pool of segments per actor and is M2-09's, so
-        //    M2-10's timeline routes an applied WARD straight to IAttackPipeline.GrantWard and keeps
-        //    NO second copy of the pool: two stores of one pool is how a ward broken by damage stays
-        //    "applied" in a condition.
-        //
-        // ⚠️ The consequence is a real gap, named rather than papered over: StatusTimeline.StacksOn
-        // answers 0 for WARD, so `18` §4's HAS_STATUS(WARD) and STATUS_STACKS(WARD) read false while a
-        // ward is up. No authored content reads either today. IAttackPipeline has no member that
-        // exposes the pool and M2-09 is in flight on that interface, so widening it was refused
-        // rather than done underneath a running task (steering S12).
-        //
-        // ⚠️ THE NAME IS AN INFERENCE. `05` §4.1 writes "one absorb pool per actor, made of
-        // segments"; WardPool is that noun PascalCased, on the RunController entry's precedent. The
-        // entry fires the moment M2-09 lands a type by that name, which is exactly when somebody has
-        // to decide whether StacksOn should read it. RENAME rather than delete if M2-09 picks another.
-        new("WardPool", SubjectKind.CoreType, "M2-09",
-            "SlayIdleRepeat.Core.Rules.Combat.Status.StatusTimeline.StacksOn, which answers 0 for " +
-            "WARD because 05 §4.1's pool is M2-09's and this timeline keeps no second copy of it. " +
-            "⚠️ NOT WardPoolEvent, which is M2-06's duration terminator and already exists — the " +
-            "lookup is by exact simple name, so the two do not collide, but a reader skimming for " +
-            "'WardPool' will find WardPoolEvent first and must not read this entry as discharged"),
 
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
@@ -620,6 +598,39 @@ public sealed class SubjectSetFloorTests
             "their units, the five stacking rules the section states, FREEZE's literal potency, " +
             "STUN's cap and immunity window and BLEED's 📐 missing-HP term all enter Core through " +
             "it, and StatusCatalogueTests states the twelve-row floor over its own rows"),
+
+        // ── M2-09 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 The three names DamageResolutionRuleTests keys on by hard-coded FULL name, and every one
+        // of them can go silent through a rename with the whole suite green. Its rules are stated as
+        // "no method outside X does Y", so a rename that empties the *subject* side reports success
+        // over nothing — which is exactly this file's subject.
+        //
+        //   MitigationConstants — the rule looks for `get_Flat`/`get_PerLevel` on this type. Rename
+        //                         it, or replace the record with two loose doubles on BattlePlan, and
+        //                         The_05_4_mitigation_quotient_is_computed_in_exactly_one_place
+        //                         quantifies over nothing while `05` §4's two most important balance
+        //                         dials go unwatched. The floor case beside it fires on that, which is
+        //                         why the pair exists — but the floor cannot say WHICH name went away.
+        //   AttackPipeline      — the exemption arm of both the mitigation rule and the ward rule.
+        //                         A vacuous exemption makes a rule stricter rather than silent, so it
+        //                         would report the real formula as an offender; that is loud, and the
+        //                         entry is here so the diff that renames it also reads why.
+        //   WardPool            — Only_the_attack_pipeline_absorbs_damage_with_a_ward looks for calls
+        //                         to `WardPool.Absorb`. Rename or inline the pool and the rule is
+        //                         green over an empty set with `05` §4.1's four rules — the ceiling,
+        //                         the absorption order, the per-source cap and the
+        //                         WardBroken-versus-expiry distinction `18` §6's `until: WARD_BROKEN`
+        //                         is built on — restated wherever the absorption went.
+        new("MitigationConstants", SubjectKind.CoreType, "M2-07",
+            "DamageResolutionRuleTests.The_05_4_mitigation_quotient_is_computed_in_exactly_one_place " +
+            "and its floor — 05 §4's two 📐 dials, mirrored in data against tuning/power_model.json"),
+        new("AttackPipeline", SubjectKind.CoreType, "M2-09",
+            "DamageResolutionRuleTests — the exemption arm of both the mitigation rule and the ward " +
+            "absorption rule; 05 §4's ten-step pipeline"),
+        new("WardPool", SubjectKind.CoreType, "M2-09",
+            "DamageResolutionRuleTests.Only_the_attack_pipeline_absorbs_damage_with_a_ward — 05 §4.1's " +
+            "one absorb pool per actor"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
