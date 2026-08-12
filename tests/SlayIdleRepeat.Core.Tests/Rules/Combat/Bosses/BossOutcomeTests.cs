@@ -113,23 +113,11 @@ public sealed class BossOutcomeTests
         roll.Outcomes.Select(o => o.EffectId).ShouldContain(outcomes.Resolutions[0].ChosenEffectId);
     }
 
-    /// <summary>
-    /// 🔒 The roll's outcome rows are on <see cref="ActorPlan.Effects"/> too, which is what lets
-    /// <see cref="BossOutcomes"/> resolve a chosen id against the holder's own holdings rather than
-    /// against a content lookup it would otherwise have to carry.
-    /// </summary>
-    [Fact]
-    public void The_outcome_rows_are_on_the_bosss_own_plan()
-    {
-        var plan = BossPlan(BossTestBench.RollOfFateP1());
-
-        var ids = plan.Effects.Select(h => h.Effect.Id).ToArray();
-
-        ids.Length.ShouldBeGreaterThan(0, "the floor under the membership assertions");
-        ids.ShouldContain(BossTestBench.FateBossAtk);
-        ids.ShouldContain(BossTestBench.FateHeroAtk);
-        ids.ShouldContain(BossTestBench.FateBothAspd);
-    }
+    // 🔴 A case that asserted "the outcome rows are on the boss's own plan" against a plan THIS FILE
+    //    had just built stood here, and it could not fail: the fixture put the rows on, and the
+    //    assertion read them back. The claim is real and is now made where production decides it —
+    //    BossEncounterBuilderTests.Outcome_rows_that_are_siblings_of_the_same_script_are_accepted_
+    //    and_land_on_the_plan builds through BossEncounterBuilder. Steering S1.
 
     /// <summary>
     /// 🔒 An outcome id the boss does not hold is <b>refused</b>, not dropped: `18` §10.1 E6 hands

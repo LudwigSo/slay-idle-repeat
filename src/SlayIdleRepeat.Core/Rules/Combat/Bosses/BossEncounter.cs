@@ -80,10 +80,17 @@ internal sealed record BossEncounterRequest
     public required BossScript Script { get; init; }
 
     /// <summary>
-    /// 🔒 The effect table the script's ids resolve against (R19: effects are referenced, never
-    /// embedded). The caller supplies it, on <c>EnemyCatalogue</c>'s pattern — the boss engine does
-    /// not read content.
+    /// 🔒 <b>The script's own effect set</b> — every effect the owning boss content declares, keyed
+    /// by `18` §8 id. The caller supplies it, on <c>EnemyCatalogue</c>'s pattern: the boss engine
+    /// does not read content.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>This is the scope every id in the script resolves in, and there is no wider one.</b> An
+    /// effect is embedded in the content that owns it rather than living in a registry, so a
+    /// <see cref="BossMechanic.EffectId"/> and a <c>RANDOM_OUTCOME</c> row alike name a <b>sibling</b>
+    /// of the same script. <see cref="BossEncounterBuilder"/> refuses either when the id is not in
+    /// here, which is what makes the reference resolvable without anything global.
+    /// </remarks>
     public required IReadOnlyDictionary<string, EffectDefinition> Effects { get; init; }
 
     /// <summary>
@@ -144,6 +151,16 @@ internal sealed record BossEncounterRequest
 ///   once, for every boss.</item>
 ///   <item><b>T1</b>, <b>T2</b> and <b>T3</b> — see <see cref="BossTelegraphs"/>.</item>
 ///   <item>A <c>SUMMON</c> mechanic's <c>maxAlive</c> is at most <see cref="BossAdds.MaxAlive"/>.</item>
+///   <item>
+///   🔒 <b>O1 — every <c>RANDOM_OUTCOME</c> row names a <em>sibling</em>.</b> `18` §10.1 E6's
+///   <c>outcomes</c> rows are effect ids, and the scope they resolve in is <b>this script's own
+///   effect set</b> (<see cref="BossEncounterRequest.Effects"/>) — an effect is embedded in the
+///   content that owns it, so there is no registry a row could reach past its owner into. A row
+///   naming an id this script does not declare is refused <b>here</b>, at build time, with the boss,
+///   the phase, the rolling effect and the missing id named. Deferring it would surface as
+///   <c>BossOutcomes.Resolve</c> throwing mid-fight on whichever roll happened to draw the bad row —
+///   a defect that appears in one fight in three and never in the same place twice.
+///   </item>
 /// </list>
 /// <para>
 /// 🔒 <b>Every refusal is an <see cref="EffectContextException"/> naming the boss, the phase and the
@@ -173,9 +190,12 @@ internal static class BossEncounterBuilder
             "EnemyDerivation.Derive(request.Power, StatlineRow(...), request.Derivation) with the " +
             "power AS HANDED IN (05 §6.3 and 17 §1: StageMult.Boss = 2.20 is already inside it), put " +
             "every phase block's mechanics AND the three BossBuiltIns onto ActorPlan.Effects under " +
-            "explicit instance ids, and refuse the six authoring rules on this class with a message " +
-            "naming boss, phase and effect. Returning a plan with no mechanics would be a boss the " +
-            "balance harness reads as weak rather than as unwired (steering S6).");
+            "explicit instance ids, and refuse the seven authoring rules on this class — the phase " +
+            "block shape, the unresolvable mechanic id, the phase-2/3 ON_BATTLE_START ban, the " +
+            "built-in names, T1/T2/T3 and O1 (a RANDOM_OUTCOME row naming a non-sibling id) — each " +
+            "with a message naming its own marker, the boss, the phase and the effect. Returning a " +
+            "plan with no mechanics would be a boss the balance harness reads as weak rather than " +
+            "as unwired (steering S6).");
     }
 
     /// <summary>

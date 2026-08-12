@@ -86,7 +86,30 @@ public sealed class StatefulRuleTypeRuleTests
         // immunity mandatory — *"without it, stun-locking becomes the only viable build"* — and
         // M2-10's proof of it was a mutation that took the fight from 1200 actionable ticks to 0.
         "SlayIdleRepeat.Core.Rules.Combat.Status.StunWindow",
+
+        // M2-12 — `05` §3.1's phase check is stated over the phase the boss is CURRENTLY in, not over
+        // its HP: *"while currentPhase < PhaseFor(hp) … enter the next phase"*, and *"phases never
+        // revert — healing back above a threshold does not re-enter an earlier phase."* Both
+        // sentences are about what already happened, so `_phase` accumulates exactly the fact no
+        // function of present state can recover: a boss at 70% HP that has been to phase 3 is in
+        // phase 3, and one that has not is in phase 1. BossPhaseRules.PhaseFor is the stateless half
+        // and is a static calculator; this is the half that remembers, and `18` §6's PHASE scope
+        // then reads it through IBossPhases.CurrentPhase on every tick of slot 2.
+        //
+        // It is also per-fight and owned by one caller: BattleSeams builds one per BattleServices,
+        // nothing shares it and nothing static holds it — the same shape as the eight above.
+        "SlayIdleRepeat.Core.Rules.Combat.Bosses.BossPhaseController",
     };
+
+    // ⚠️ The other three types under Rules/Combat/Bosses/ that hold instance fields are deliberately
+    //    NOT here, and the rule proves each one does not need to be. BossOutcomes holds a `readonly
+    //    BattleServices` and BossSummonSource holds a readonly catalogue plus three readonly numbers
+    //    — all of them the fight or the encounter the object was BUILT with, which `30` §11.4's own
+    //    definition excludes. BossTelegraphs, BossPhaseRules, BossBuiltIns and BossAdds are static.
+    //    The telegraph pass in particular was checked rather than assumed: it emits on the tick
+    //    `NextFiringTick − leadTicks`, which is a function of the registry reading at that tick, so
+    //    "once per firing" needs no remembered set. If that ever stops being true, the sixth entry
+    //    is a diff and this comment is where the question gets asked again.
 
     // ⚠️ AttackPipeline is deliberately NOT here, and the rule proves it does not need to be: its one
     //    field is a `readonly BattleServices`, which is the fight it belongs to rather than anything

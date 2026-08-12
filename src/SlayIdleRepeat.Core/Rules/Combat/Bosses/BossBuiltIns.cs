@@ -186,9 +186,15 @@ internal static class BossBuiltIns
     /// <param name="bossId">The boss's actor id.</param>
     /// <param name="phase">The block the mechanic is in, <c>1..3</c>.</param>
     /// <param name="effectId">The mechanic's authored `18` §8 effect id.</param>
+    /// <remarks>
+    /// 🔒 The <c>P</c> is load-bearing, not decoration: <see cref="BuiltInInstance"/> spells
+    /// <c>{bossId}#{effectId}</c>, so without it a boss whose effect id began with a digit would be
+    /// ambiguous between the two shapes — and the whole point of the spelling is that a phase
+    /// transition can tell a phase mechanic from a built-in by looking at the id.
+    /// </remarks>
     internal static EffectInstanceId PhaseInstance(string bossId, int phase, string effectId) =>
         EffectInstanceId.Of(
-            $"{bossId}#{phase.ToString(CultureInfo.InvariantCulture)}#{effectId}");
+            $"{bossId}#P{phase.ToString(CultureInfo.InvariantCulture)}#{effectId}");
 
     /// <summary>
     /// 🔒 The instance id of a <b>built-in</b>: <c>{bossId}#{effectId}</c> — deliberately <em>not</em>

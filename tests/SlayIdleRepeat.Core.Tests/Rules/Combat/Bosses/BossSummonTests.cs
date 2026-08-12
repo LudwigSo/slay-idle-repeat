@@ -121,13 +121,22 @@ public sealed class BossSummonTests
 
         summons.Spawns.Count.ShouldBe(2, "18 §7.8's Thornmaw summons 2 on its phase-3 entry");
 
-        var spawned = run.Result.Log
-            .Where(e => e.Type == CombatEventType.Attack && e.Tick == 60)
-            .Select(e => e.SourceId)
+        var addSwings = run.Result.Log
+            .Where(e => e.Type == CombatEventType.Attack && e.SourceId == CombatActor.Enemy(1))
+            .Select(e => e.Tick)
             .ToArray();
 
-        spawned.ShouldNotContain(
-            CombatActor.Enemy(1), "05 §3.1: a summon 'never attacks on its spawn tick'");
+        // 🔴 THE FLOOR, and without it the claim below is vacuous: an add that never swung at all
+        //    would satisfy "it did not swing on tick 60" perfectly, and so would an add that was
+        //    never admitted to the roster. The add's ASPD is 1.0, so `05` §3.1's full 1.0/ASPD entry
+        //    cooldown puts its first swing exactly 20 ticks after the spawn.
+        addSwings.Length.ShouldBeGreaterThan(
+            0, "the add IS on the roster and DOES swing — otherwise the assertion below proves nothing");
+
+        addSwings.ShouldNotContain(
+            60, "05 §3.1: a summon 'never attacks on its spawn tick'");
+
+        addSwings[0].ShouldBe(80, "a FULL 1.0 / ASPD cooldown from the spawn tick, not a partial one");
     }
 
     /// <summary>

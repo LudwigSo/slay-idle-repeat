@@ -290,6 +290,32 @@ internal interface IBossPhases
     /// </para>
     /// </remarks>
     void AdvanceTick(BattleActor actor, int tick);
+
+    /// <summary>
+    /// 🔒 `18` §6 — the phase the boss is <b>in</b>, so that a <c>PHASE</c>-scoped effect can end
+    /// <em>"when the boss exits the phase in which the effect was applied"</em>. <c>null</c> outside
+    /// a boss fight, and <c>null</c> for a boss whose phase 1 has not been entered yet.
+    /// </summary>
+    /// <param name="actor">The boss being asked about.</param>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>R3 — without this member the scope silently did nothing.</b> `18` §6 makes every boss
+    /// <c>AURA</c> <c>PHASE</c>-scoped, and <c>DurationEvaluator</c> has implemented the rule since
+    /// M2-06: it reads <c>EffectApplication.AppliedInPhase</c> and <c>DurationProbe.CurrentPhase</c>
+    /// and ends the effect the moment the second exceeds the first. Both were left <c>null</c> by
+    /// every caller, because nothing in the battle could answer the question — so `18` §6's
+    /// <em>"outside a boss fight it behaves as <c>BATTLE</c>"</em> fallback was taken <b>inside</b>
+    /// boss fights too, and a phase-2 aura survived into phase 3 with nothing going red. This is the
+    /// smallest thing that closes it: one reading, on the seam that already owns the phase.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>A reading, never a transition.</b> It must not consult HP: `05` §3.1's <em>"phases never
+    /// revert"</em> means the current phase is what the controller has <em>entered</em>, and a boss
+    /// healed back above 66% is still in the phase it reached. An implementation that recomputed
+    /// from HP would end a phase-3 aura on a heal.
+    /// </para>
+    /// </remarks>
+    int? CurrentPhase(BattleActor actor);
 }
 
 /// <summary>
@@ -318,9 +344,10 @@ internal interface IBossOutcomes
     /// <summary>Fires the single effect the roll drew.</summary>
     /// <param name="holder">The actor whose effect rolled — `17` §9's Dicelord.</param>
     /// <param name="chosenEffectId">
-    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A reference, never an embedded effect
-    /// (R19) — which is what makes the outcomes mutually exclusive: one call per roll, one effect per
-    /// call.
+    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A <b>sibling</b> reference — an id the
+    /// same owning boss script declares — never an embedded effect
+    /// (<c>RandomOutcomeEntry</c> states why). That is what makes the outcomes mutually exclusive:
+    /// one call per roll, one effect per call.
     /// </param>
     /// <param name="sourceEffectId">The <c>RANDOM_OUTCOME</c> effect's own id, for the failure message.</param>
     void Resolve(BattleActor holder, string chosenEffectId, string sourceEffectId);
@@ -460,6 +487,16 @@ internal sealed class NoBossPhases : IBossPhases
     public void AdvanceTick(BattleActor actor, int tick)
     {
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// 🔒 <c>null</c>, which is `18` §6's own answer for <em>"outside a boss fight"</em> and is
+    /// therefore correct rather than merely quiet: a fight this controller runs has no phases at
+    /// all, so a <c>PHASE</c>-scoped effect in it behaves as <c>BATTLE</c> exactly as §6 says. A
+    /// roster that <em>does</em> carry a boss never gets this far —
+    /// <see cref="EnterInitialPhase"/> refuses it at pre-tick 0c.
+    /// </remarks>
+    public int? CurrentPhase(BattleActor actor) => null;
 }
 
 /// <summary>
@@ -484,8 +521,9 @@ internal sealed class NoBossOutcomes : IBossOutcomes
         throw new EffectContextException(
             sourceEffectId,
             $"its RANDOM_OUTCOME drew '{chosenEffectId}' and no boss outcome resolver was supplied",
-            "`18` §10.1 E6 hands this seam ONE effect id per roll (R19: outcomes are referenced, " +
-            "never embedded), and resolving it against the boss's own holdings is M2-12's boss " +
+            "`18` §10.1 E6 hands this seam ONE effect id per roll — a SIBLING id the same boss " +
+            "script declares, never an embedded effect — and resolving it against the boss's own " +
+            "holdings is M2-12's boss " +
             "engine — the scripts that author the tables are M2-13's. Firing nothing would make " +
             "`17` §9's Roll of Fate a d6 with no faces. Pass a BattleSeams with a real IBossOutcomes.");
 }

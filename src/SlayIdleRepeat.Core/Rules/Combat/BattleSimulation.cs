@@ -915,6 +915,41 @@ internal sealed class BattleSimulation
     // ══════════════════════════════════════════════════════════════════ HP, deaths, summons
 
     /// <summary>
+    /// 🔒 `18` §6 — the phase <b>this fight</b> is in, for a <c>PHASE</c>-scoped duration.
+    /// <c>null</c> when the roster carries no boss, which is §6's <em>"outside a boss fight"</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The fight's boss, singular, and the documents are what make that well-defined.</b> `17`
+    /// §1 gives a boss node one boss and `18` §6 writes <em>"the boss"</em>; `05` §3.1's roster puts
+    /// it at <c>CombatActor.FirstEnemy</c>. A roster carrying two bosses is outside every document,
+    /// and this answers with the first in `05` §3.1 index order rather than inventing a rule for a
+    /// case nothing authors — recorded here so the assumption is greppable rather than implied
+    /// (steering S6).
+    /// </para>
+    /// <para>
+    /// ⚠️ It walks the roster on each call rather than caching, because <c>AdmitSummon</c> appends to
+    /// it mid-fight and a cached boss would be a second, staler answer to a question the seam
+    /// already owns.
+    /// </para>
+    /// </remarks>
+    internal int? CurrentBossPhase
+    {
+        get
+        {
+            for (var i = 0; i < _actors.Count; i++)
+            {
+                if (_actors[i].IsBoss)
+                {
+                    return _seams.Phases.CurrentPhase(_actors[i]);
+                }
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
     /// 🔒 `05` §3.1's phase check plus <c>ON_LOW_HP</c> — called after every HP decrease, by the loop
     /// and by M2-09/M2-10 through <see cref="BattleServices.AfterHpDecrease"/>.
     /// </summary>

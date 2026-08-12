@@ -24,15 +24,20 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 internal readonly record struct BossCoefficients(double Hp, double Atk, double Def, double Aspd);
 
 /// <summary>
-/// 🔒 One mechanic inside a `17` phase block — an effect named <b>by id</b> (R19), plus the wind-up
-/// `17` §1 requires of a damaging one.
+/// 🔒 One mechanic inside a `17` phase block — an effect named <b>by id</b>, plus the wind-up `17`
+/// §1 requires of a damaging one.
 /// </summary>
 /// <param name="EffectId">
-/// 🔒 The `18` §8 id of the authored effect. A <b>reference</b>, never an embedded effect (R19):
-/// every other place in the DSL that reaches another effect does so by id, and an effect nested
-/// inside a boss script would sit outside `18` §8's ascending-effect-id ordering and outside the
-/// battle's effect table. It is resolved against
-/// <see cref="BossEncounterRequest.Effects"/>.
+/// 🔒 The `18` §8 id of the authored effect — a <b>sibling</b> of this script, resolved against
+/// <see cref="BossEncounterRequest.Effects"/>, which is the effect set the owning boss content
+/// declares.
+/// <para>
+/// It is a reference and not an embedded effect object for the same reason a
+/// <c>RandomOutcomeEntry</c> row is: the mechanic has to be on <c>ActorPlan.Effects</c> to be
+/// registered, telegraphable and index-resolvable in the battle's effect table, so an embedded copy
+/// would be a second identity for one mechanic. The scope is the <b>script</b>, not a registry —
+/// nothing global is consulted, and an id the script does not declare is refused at build time.
+/// </para>
 /// </param>
 /// <param name="TelegraphSeconds">
 /// 🔒 `17` §1's <em>"visible 1.0–1.5 s wind-up"</em>, in seconds, or <c>null</c> where the mechanic

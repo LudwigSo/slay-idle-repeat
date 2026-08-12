@@ -169,7 +169,10 @@ public sealed class BossEncounterBuilderTests
         thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive);
     }
 
-    /// <summary>🔒 R19 — a mechanic is a <b>reference</b>, so an id that resolves to nothing is refused.</summary>
+    /// <summary>
+    /// 🔒 A mechanic is a <b>sibling reference</b> — an id the same script declares — so one that
+    /// resolves to nothing in <see cref="BossEncounterRequest.Effects"/> is refused.
+    /// </summary>
     [Fact]
     public void A_mechanic_whose_effect_id_resolves_to_nothing_is_refused()
     {
@@ -299,6 +302,97 @@ public sealed class BossEncounterBuilderTests
 
         BossEncounterBuilder.Build(BossTestBench.Request(script, BossTestBench.Lookup(summon)))
                             .Plan.Effects.Select(h => h.Effect.Id).ShouldContain(summon.Id);
+    }
+
+    // ════════════════════════════════════════════════════ 4 · O1 — the outcomes' sibling scope
+
+    /// <summary>
+    /// 🔒 <b>O1</b> — a <c>RANDOM_OUTCOME</c> row names a <b>sibling</b>: an effect id the
+    /// <em>same</em> script declares. There is no registry for it to reach past its owner into, so an
+    /// id outside <see cref="BossEncounterRequest.Effects"/> is an authoring error and is refused
+    /// <b>here</b>, before a tick runs.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Two shapes, because the row and the mechanic are different scopes to get wrong.</b>
+    /// <c>notASibling</c> is an id that exists nowhere; <c>siblingOfAnotherBoss</c> is an id that is
+    /// perfectly real content belonging to a <em>different</em> boss — which is the case a registry
+    /// would have accepted and which a sibling scope must not. Both are refused, and the message
+    /// names the rule (steering S2) so M2-13 is not left comparing eight scripts by hand.
+    /// </remarks>
+    [Theory]
+    [InlineData("BOSS_DICELORD_FATE_TYPO", "an id nothing declares")]
+    [InlineData("BOSS_THORNMAW_P2_SNAP", "a real effect id — of ANOTHER boss's script")]
+    public void A_RANDOM_OUTCOME_row_naming_a_non_sibling_effect_id_is_refused(
+        string outsider, string why)
+    {
+        var roll = BossTestBench.RollOfFateP1() with
+        {
+            Outcomes = new[]
+            {
+                new RandomOutcomeEntry(BossTestBench.FateBossAtk, 2.0),
+                new RandomOutcomeEntry(outsider, 2.0),
+            },
+        };
+
+        var script = BossTestBench.Script(
+            BossTestBench.Dicelord,
+            BossTestBench.Block(1, new BossMechanic(roll.Id)),
+            BossTestBench.Block(2),
+            BossTestBench.Block(3));
+
+        // 🔒 The lookup is this script's own effect set. The first row IS in it; the second is not.
+        var effects = BossTestBench.Lookup(
+            roll, BossTestBench.FateOutcome(BossTestBench.FateBossAtk));
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => BossEncounterBuilder.Build(BossTestBench.Request(script, effects)));
+
+        thrown.Message.ShouldContain("O1", Case.Sensitive, $"which rule fired — {why}");
+        thrown.Message.ShouldContain(outsider, Case.Sensitive, "which row");
+        thrown.Message.ShouldContain(roll.Id, Case.Sensitive, "which RANDOM_OUTCOME");
+        thrown.Message.ShouldContain(BossTestBench.Dicelord, Case.Sensitive, "which boss");
+    }
+
+    /// <summary>
+    /// 🔒 The negative control for O1, and the half that makes the rule a scope rather than a ban:
+    /// every row naming a sibling of the <b>same</b> script is accepted, and each of those siblings
+    /// lands on <see cref="ActorPlan.Effects"/> — which is why it is a reference and not an embedded
+    /// effect object in the first place.
+    /// </summary>
+    [Fact]
+    public void Outcome_rows_that_are_siblings_of_the_same_script_are_accepted_and_land_on_the_plan()
+    {
+        var roll = BossTestBench.RollOfFateP1();
+
+        var script = BossTestBench.Script(
+            BossTestBench.Dicelord,
+            BossTestBench.Block(
+                1,
+                new BossMechanic(roll.Id),
+                new BossMechanic(BossTestBench.FateBossAtk),
+                new BossMechanic(BossTestBench.FateHeroAtk),
+                new BossMechanic(BossTestBench.FateBothAspd)),
+            BossTestBench.Block(2),
+            BossTestBench.Block(3));
+
+        var effects = BossTestBench.Lookup(
+            roll,
+            BossTestBench.FateOutcome(BossTestBench.FateBossAtk),
+            BossTestBench.FateOutcome(BossTestBench.FateHeroAtk),
+            BossTestBench.FateOutcome(BossTestBench.FateBothAspd));
+
+        var ids = BossEncounterBuilder.Build(BossTestBench.Request(script, effects))
+                                      .Plan.Effects.Select(h => h.Effect.Id).ToArray();
+
+        ids.Length.ShouldBeGreaterThan(0, "the floor under the membership assertions");
+        ids.ShouldContain(roll.Id);
+        ids.ShouldContain(BossTestBench.FateBossAtk);
+        ids.ShouldContain(BossTestBench.FateHeroAtk);
+        ids.ShouldContain(
+            BossTestBench.FateBothAspd,
+            "an outcome row is an ordinary phase mechanic: it has to be on the plan to be " +
+            "registered, telegraphable and resolvable in the battle's effect table, which is why " +
+            "the row references it instead of embedding a second copy of it");
     }
 
     // ════════════════════════════════════════════════════ fixtures

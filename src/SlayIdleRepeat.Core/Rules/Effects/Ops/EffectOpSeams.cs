@@ -292,9 +292,10 @@ internal interface ICombatFlowSink
     /// </summary>
     /// <param name="holder">The actor whose effect rolled — `17` §9's Dicelord.</param>
     /// <param name="chosenEffectId">
-    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A reference, never an embedded effect
-    /// (R19): resolving it is the engine's, which is what makes the outcomes mutually exclusive —
-    /// one call per roll, one effect per call.
+    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A <b>sibling</b> reference — an id the
+    /// same owning content declares — never an embedded effect (<see cref="RandomOutcomeEntry"/>
+    /// states why). Resolving it is the engine's, which is what makes the outcomes mutually
+    /// exclusive: one call per roll, one effect per call.
     /// </param>
     /// <param name="sourceEffectId">The <c>RANDOM_OUTCOME</c> effect's own id, for the log.</param>
     void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId);

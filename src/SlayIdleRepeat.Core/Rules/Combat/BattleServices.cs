@@ -65,6 +65,28 @@ internal sealed class BattleServices
     internal int Tick => _simulation.Tick;
 
     /// <summary>
+    /// 🔒 `18` §6 — the phase this fight's boss is in, or <c>null</c> outside a boss fight. The one
+    /// reading a <c>PHASE</c>-scoped duration needs, routed from <see cref="IBossPhases"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>R3's closing.</b> `18` §6 makes every boss <c>AURA</c> <c>PHASE</c>-scoped and
+    /// <c>DurationEvaluator</c> has implemented the boundary since M2-06 — but its two inputs,
+    /// <c>EffectApplication.AppliedInPhase</c> and <c>DurationProbe.CurrentPhase</c>, had no source
+    /// and every caller left them <c>null</c>, so the scope degraded to <c>BATTLE</c> inside boss
+    /// fights and nothing went red. This is that source, and it is a <b>reading</b>: it neither
+    /// stores a phase nor derives one from HP.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Both inputs come from here, and that is deliberate.</b> <c>DurationEvaluator</c> throws
+    /// when an effect was applied in a phase and the probe carries none — a contradiction it is right
+    /// to refuse. Reading both from the same member is what makes that contradiction impossible to
+    /// produce by wiring one and forgetting the other.
+    /// </para>
+    /// </remarks>
+    internal int? CurrentBossPhase => _simulation.CurrentBossPhase;
+
+    /// <summary>
     /// The `18` §4/§5 evaluation context for one holder, assembled from this fight's roster and
     /// clock — the same one the loop uses, not a second reading of the same battle.
     /// </summary>

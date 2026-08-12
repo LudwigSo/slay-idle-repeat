@@ -207,7 +207,9 @@ public sealed record EffectDefinition
     /// <see cref="Value"/> at all.
     /// </para>
     /// <para>
-    /// ⚠️ The rows reference effects <b>by id</b> (<see cref="RandomOutcomeEntry"/>, R19) and the
+    /// ⚠️ Each row names a <b>sibling</b> effect id — one declared by the same owning content, never
+    /// an embedded effect object and never a global registry lookup; the argument is stated in full
+    /// on <see cref="RandomOutcomeEntry"/>. The
     /// weights are relative — `17` §9's <em>Roll of Fate</em> is <c>2/2/2</c> in phase 1 and
     /// <c>4/2</c> in phase 2, one op and no branch. <c>null</c> on every other op;
     /// <c>EffectOpValidation</c> refuses a borrowed one.

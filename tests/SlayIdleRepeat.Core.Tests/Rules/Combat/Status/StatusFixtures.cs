@@ -310,6 +310,15 @@ internal class RecordingStatusPipeline : IAttackPipeline
         public void AdvanceTick(BattleActor actor, int tick)
         {
         }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// M2-12's `18` §6 <c>PHASE</c>-scope reading. <c>null</c>, deliberately: this fixture models
+        /// no phases at all, and §6's own answer for a fight without them is that a <c>PHASE</c>
+        /// scope behaves as <c>BATTLE</c>. Every status case in this file is written against that
+        /// reading; the scope's own boundary is probed in <c>BossPhaseScopeTests</c>.
+        /// </remarks>
+        public int? CurrentPhase(BattleActor actor) => null;
     }
 
     private void Notify(BattleActor actor)

@@ -277,6 +277,14 @@ internal sealed class RecordingPhases : IBossPhases
         _services.Triggers.Register(id, _phaseEffect, tick, actor.HpFraction);
         actor.AddInstance(id, _phaseEffect);
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// This double models one threshold, so it answers phase 2 once it has crossed and phase 1
+    /// before — enough for `18` §6's <c>PHASE</c> scope to have a reading, and deliberately not a
+    /// second copy of `17` §1's three-band machine, which is <c>BossPhaseController</c>'s.
+    /// </remarks>
+    public int? CurrentPhase(BattleActor actor) => actor.IsBoss ? (_entered ? 2 : 1) : null;
 }
 
 /// <summary>A pet-ability slot that records slot 5's calls.</summary>

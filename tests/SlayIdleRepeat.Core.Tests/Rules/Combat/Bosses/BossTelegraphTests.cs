@@ -78,9 +78,17 @@ public sealed class BossTelegraphTests
     [Fact]
     public void A_mechanic_of_a_phase_the_boss_is_not_in_announces_nothing()
     {
-        var result = Fight().Result;
+        var run = Fight();
 
-        BossTestBench.Telegraphs(result.Log).ShouldBeEmpty(
+        // 🔒 The floors under an emptiness claim (steering S3): the fight ran long enough that the
+        //    wind-up WOULD have been emitted had the phase been entered, and the mechanic really is
+        //    on the plan rather than absent — an empty log and an absent effect would both satisfy
+        //    the assertion below while proving nothing.
+        run.Result.Log.Count.ShouldBeGreaterThan(0, "there IS a fight");
+        run.Driver.At(0, AllInInstance).IsRegistered.ShouldBeTrue(
+            "the phase-3 mechanic is on the OPENING roster — it is de-anchored, not missing");
+
+        BossTestBench.Telegraphs(run.Result.Log).ShouldBeEmpty(
             "the boss never left phase 1, so its phase-3 All In never scheduled a firing");
     }
 
@@ -186,6 +194,10 @@ public sealed class BossTelegraphTests
 
         var encounter = Build(lead: null, mechanic);
 
+        // 🔒 The floor: the mechanic really was built onto the encounter. An exemption asserted over
+        //    a boss that carries no mechanics at all is an exemption for nothing (steering S3).
+        encounter.Plan.Effects.Select(h => h.Effect.Id).ShouldContain(mechanic.Id);
+
         encounter.LeadSecondsOfInstance.ShouldBeEmpty(why);
     }
 
@@ -198,6 +210,9 @@ public sealed class BossTelegraphTests
     public void A_non_damaging_periodic_needs_no_wind_up()
     {
         var encounter = Build(lead: null, BossTestBench.Root());
+
+        encounter.Plan.Effects.Select(h => h.Effect.Id).ShouldContain(
+            "BOSS_THORNMAW_P2_ROOT", "the floor: the mechanic IS on the encounter");
 
         encounter.LeadSecondsOfInstance.ShouldBeEmpty();
 

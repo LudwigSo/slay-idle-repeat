@@ -59,13 +59,34 @@ public sealed class SysEnrageAnchoringTests
     /// 🔒 And it survives <b>two</b> entries inside one tick — the 70% → 20% burst, which is the
     /// case that would re-anchor twice.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The controls are what make this a probe rather than a wish.</b> Asserting only that the
+    /// enrage did not move would pass on a controller that entered no phase at all, which is the
+    /// exact failure the case exists to exclude. So the same fight also asserts that <b>two</b>
+    /// further entries were logged, and that the phase-2 block's own clock <em>was</em> touched by
+    /// them — it is re-anchored on entry to phase 2 and then ended again on entry to phase 3, both
+    /// at tick 80, because `18` §6 ends a <c>PHASE</c> scope at the exit of its own phase.
+    /// </remarks>
     [Fact]
     public void SYS_ENRAGE_survives_a_burst_that_crosses_two_thresholds_in_one_tick()
     {
-        var driver = Fight((Tick: 80, ActorId: BossTestBench.Thornmaw, Fraction: 0.20)).Driver;
+        var run = Fight((Tick: 80, ActorId: BossTestBench.Thornmaw, Fraction: 0.20));
 
-        driver.At(81, EnrageInstance).AnchorTick.ShouldBe(0);
-        driver.At(81, EnrageInstance).NextFiringTick.ShouldBe(1400);
+        run.Driver.At(81, EnrageInstance).AnchorTick.ShouldBe(0);
+        run.Driver.At(81, EnrageInstance).NextFiringTick.ShouldBe(1400);
+        run.Driver.At(81, EnrageInstance).IsActive.ShouldBeTrue();
+
+        // 🔴 The discriminators, in the SAME fight.
+        var changes = BossTestBench.PhaseChanges(run.Result.Log);
+
+        changes.Select(e => (e.Tick, e.Value)).ShouldBe(
+            new[] { (0, 1.0), (80, 2.0), (80, 3.0) },
+            "the control: the burst really did cross both thresholds, in order, at that tick");
+
+        run.Driver.At(81, Phase2Instance).IsActive.ShouldBeFalse(
+            "and the SAME transitions did reach the phase map — phase 2 was entered and then " +
+            "exited, so its PHASE-scoped block is dead while SYS_ENRAGE, which is not in the map, " +
+            "is untouched");
     }
 
     /// <summary>

@@ -213,8 +213,10 @@ public enum EffectOp
     /// </para>
     /// <para>
     /// ⚠️ Carries <b>no <c>value</c></b>: the table is the new <c>outcomes</c> key
-    /// (<see cref="EffectDefinition.Outcomes"/>), and each row names an effect <b>by id</b> rather
-    /// than embedding one (R19). Its own number is the <b>1-based index</b> of the row that won.
+    /// (<see cref="EffectDefinition.Outcomes"/>), and each row names a <b>sibling</b> effect id —
+    /// declared by the same owning content — rather than embedding an effect object inside an effect
+    /// (<see cref="RandomOutcomeEntry"/> states why). Its own number is the <b>1-based index</b> of
+    /// the row that won.
     /// </para>
     /// </remarks>
     RANDOM_OUTCOME = 44,

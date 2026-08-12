@@ -79,11 +79,39 @@ public sealed class StatusCatalogueRuleTests
     /// the reason, rather than by loosening the rule; and it is the first evidence that the rule is
     /// not vacuous, because it fired before anything was planted for it.
     /// </remarks>
+    /// <remarks>
+    /// 🔴 <b>The fourth entry is M2-12's, and it was added only after the catalogue route was looked
+    /// for and found not to exist.</b> `17` §1 states a rule about two named statuses —
+    /// <em>"Bosses are immune to <c>STUN</c> and <c>FREEZE</c> in phase 3"</em> — and `17` §11 makes
+    /// it universal: <em>"implemented once, applied to all bosses"</em>. So <c>BossBuiltIns</c>
+    /// authors two <c>IMMUNE_STATUS</c> effects in code, and their <c>statusId</c> is the pair `17`
+    /// §1 fixes.
+    /// <para>
+    /// The three alternatives were each worse, and each is recorded so nobody re-derives them.
+    /// <b>(a) Derive the pair from the catalogue</b> — the only property that separates
+    /// <c>STUN</c> and <c>FREEZE</c> from `05` §5's other three <c>DEBUFF</c> rows is
+    /// <em>"basis is <c>NONE</c> or the stat is <c>ASPD</c>"</em>, which is a taxonomy no document
+    /// states and which a thirteenth status would silently join (`16` R6). <b>(b) Author the pair as
+    /// data</b> — `05` §5's table is the catalogue's file and a <c>bossPhase3Immune</c> column there
+    /// would be `17` §1's rule living inside `05` §5's document; the boss content directory that
+    /// <em>would</em> be its home is M2-13's and is empty today. <b>(c) Take the ids from the
+    /// caller</b> — that removes `17` §1's fact from production entirely, which is the hole S6
+    /// forbids rather than the branch this rule forbids.
+    /// </para>
+    /// <para>
+    /// 🔒 What is left is exactly <c>EnemyCatalogue</c>'s shape: <b>a document fixing named statuses
+    /// for a named feature</b>, not an implementer branching on one. It is admitted the same way and
+    /// narrowed the same way — see
+    /// <see cref="Each_exempted_type_names_only_the_one_status_its_document_rules_on"/>, which pins
+    /// it to those two ids and nothing else.
+    /// </para>
+    /// </remarks>
     private static readonly IReadOnlyList<string> Permitted = new List<string>
     {
         StatusNamespace + ".StatusLogId",
         StatusNamespace + ".StatusTimeline",
         Domain.CombatRulesNamespace + ".Enemies.EnemyCatalogue",
+        Domain.CombatRulesNamespace + ".Bosses.BossBuiltIns",
     };
 
     /// <summary>
@@ -128,8 +156,8 @@ public sealed class StatusCatalogueRuleTests
     }
 
     /// <summary>
-    /// 🔒 `05` §5 and `05` §6.1a — each exempted type names <b>the one</b> status its document rules
-    /// on, and no other.
+    /// 🔒 `05` §5, `05` §6.1a and `17` §1 — each exempted type names <b>only the statuses</b> its own
+    /// document rules on, and no others.
     /// </summary>
     /// <remarks>
     /// 🔴 <b>The second probe, and the rule above cannot make this claim.</b> That rule allows three
@@ -144,11 +172,14 @@ public sealed class StatusCatalogueRuleTests
     [Fact]
     public void Each_exempted_type_names_only_the_one_status_its_document_rules_on()
     {
-        // The two exemptions the documents argue for, each with the single id it argues for.
-        var narrowed = new List<(string Owner, string Permitted)>
+        // The three exemptions the documents argue for, each with exactly the ids it argues for.
+        // 🔒 A SET rather than a single id, because `17` §1's sentence names two — and the set is
+        //    still closed, so a third id inside any of these types is an offender.
+        var narrowed = new List<(string Owner, IReadOnlyList<string> Permitted)>
         {
-            (StatusNamespace + ".StatusTimeline", "STUN"),
-            (Domain.CombatRulesNamespace + ".Enemies.EnemyCatalogue", "SUNDER"),
+            (StatusNamespace + ".StatusTimeline", new List<string> { "STUN" }),
+            (Domain.CombatRulesNamespace + ".Enemies.EnemyCatalogue", new List<string> { "SUNDER" }),
+            (Domain.CombatRulesNamespace + ".Bosses.BossBuiltIns", new List<string> { "FREEZE", "STUN" }),
         };
 
         var offenders = new List<string>();
@@ -175,16 +206,18 @@ public sealed class StatusCatalogueRuleTests
                 .OrderBy(s => s, StringComparer.Ordinal)
                 .ToArray();
 
-            if (named.Length <= 1 &&
-                (named.Length == 0 || named[0].Equals(permitted, StringComparison.Ordinal)))
+            var beyond = named.Where(id => !permitted.Contains(id, StringComparer.Ordinal)).ToArray();
+
+            if (beyond.Length == 0)
             {
                 continue;
             }
 
             offenders.Add(
-                $"{owner} is exempted for ONE id — '{permitted}' — and names: " +
-                string.Join(", ", named) + ". 05 §5 gives STUN a rule of its own (the 1.5 s cap and " +
-                "the mandatory immunity window) and 05 §6.1a fixes WARDEN's on-hit token as SUNDER. " +
+                $"{owner} is exempted for {string.Join(" and ", permitted.Select(p => $"'{p}'"))} " +
+                $"and also names: {string.Join(", ", beyond)}. 05 §5 gives STUN a rule of its own " +
+                "(the 1.5 s cap and the mandatory immunity window), 05 §6.1a fixes WARDEN's on-hit " +
+                "token as SUNDER, and 17 §1 makes bosses immune to STUN and FREEZE in phase 3. " +
                 "Every other status is a row in the catalogue.");
         }
 
