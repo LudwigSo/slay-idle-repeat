@@ -12,12 +12,24 @@ namespace SlayIdleRepeat.AssetPipeline.Tests;
 /// </summary>
 public sealed class AlphaCleanlinessCheckTests
 {
-    /// <summary>Every hole item 6 reaches into, one theory case each.</summary>
-    public static TheoryData<string> EveryThresholdItem6Needs() => new()
-    {
+    /// <summary>Every hole item 6 reaches into.</summary>
+    private static readonly string[] ThresholdsItem6Needs =
+    [
         ThresholdKeys.HaloMaxFringeRatio,
         ThresholdKeys.HaloMaxLuminanceDeviation,
-    };
+    ];
+
+    /// <summary>Every hole item 6 reaches into, one theory case each.</summary>
+    public static TheoryData<string> EveryThresholdItem6Needs()
+    {
+        var data = new TheoryData<string>();
+        foreach (var key in ThresholdsItem6Needs)
+        {
+            data.Add(key);
+        }
+
+        return data;
+    }
 
     /// <summary>
     /// A fringe ratio nothing can exceed, stated so that a case aimed at the luminance half cannot
@@ -68,6 +80,11 @@ public sealed class AlphaCleanlinessCheckTests
         outcome.Verdict.ShouldBe(QaVerdict.Fail);
         outcome.Reason.ShouldContain(
             AlphaCleanlinessCheck.FringeRatioMeasurement, Case.Sensitive);
+
+        // 🔒 Every halo is forgiven in this set, so the luminance half cannot have tripped and a
+        // reason that named it would be reporting a claim that held (steering rule S2).
+        outcome.Reason.ShouldNotContain(
+            AlphaCleanlinessCheck.FringeLuminanceDeviationMeasurement, Case.Sensitive);
         outcome.Measurements
             .Single(m => m.Key == AlphaCleanlinessCheck.FringeRatioMeasurement)
             .Value.ShouldBeGreaterThan(0d);
@@ -92,6 +109,11 @@ public sealed class AlphaCleanlinessCheckTests
         outcome.Verdict.ShouldBe(QaVerdict.Fail);
         outcome.Reason.ShouldContain(
             AlphaCleanlinessCheck.FringeLuminanceDeviationMeasurement, Case.Sensitive);
+
+        // 🔒 Every amount of fringe is forgiven in this set, so the ratio half cannot have tripped
+        // and a reason that named it would be reporting a claim that held (steering rule S2).
+        outcome.Reason.ShouldNotContain(
+            AlphaCleanlinessCheck.FringeRatioMeasurement, Case.Sensitive);
         outcome.Measurements
             .Single(m => m.Key == AlphaCleanlinessCheck.FringeLuminanceDeviationMeasurement)
             .Value.ShouldBeGreaterThan(0d);
@@ -114,6 +136,14 @@ public sealed class AlphaCleanlinessCheckTests
         outcome.ItemNumber.ShouldBe(6);
         outcome.Verdict.ShouldBe(QaVerdict.Uncalibrated);
         outcome.Reason.ShouldContain(key, Case.Sensitive);
+
+        // 🔒 Steering rule S2. A reason naming both of item 6's keys would satisfy the assertion
+        // above for both cases; the other key is stated here, so naming it names a hole that is
+        // not open.
+        foreach (var stated in ThresholdsItem6Needs.Where(other => !string.Equals(other, key, StringComparison.Ordinal)))
+        {
+            outcome.Reason.ShouldNotContain(stated, Case.Sensitive);
+        }
     }
 
     private static QaSubject Subject(SKBitmap image, ThresholdSet? thresholds = null) =>

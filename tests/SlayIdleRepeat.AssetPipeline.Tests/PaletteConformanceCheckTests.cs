@@ -19,12 +19,24 @@ namespace SlayIdleRepeat.AssetPipeline.Tests;
 /// </remarks>
 public sealed class PaletteConformanceCheckTests
 {
-    /// <summary>Every hole item 5 reaches into, one theory case each.</summary>
-    public static TheoryData<string> EveryThresholdItem5Needs() => new()
-    {
+    /// <summary>Every hole item 5 reaches into.</summary>
+    private static readonly string[] ThresholdsItem5Needs =
+    [
         ThresholdKeys.PaletteNeutrals,
         ThresholdKeys.PaletteMatchTolerance,
-    };
+    ];
+
+    /// <summary>Every hole item 5 reaches into, one theory case each.</summary>
+    public static TheoryData<string> EveryThresholdItem5Needs()
+    {
+        var data = new TheoryData<string>();
+        foreach (var key in ThresholdsItem5Needs)
+        {
+            data.Add(key);
+        }
+
+        return data;
+    }
 
     /// <summary>
     /// 🔒 The fixture's off-palette pixel is only a violation if it really is off the permitted set.
@@ -118,6 +130,14 @@ public sealed class PaletteConformanceCheckTests
         outcome.ItemNumber.ShouldBe(5);
         outcome.Verdict.ShouldBe(QaVerdict.Uncalibrated);
         outcome.Reason.ShouldContain(key, Case.Sensitive);
+
+        // 🔒 Steering rule S2. A reason naming both of item 5's keys would satisfy the assertion
+        // above for both cases; the other key is stated here, so naming it names a hole that is
+        // not open.
+        foreach (var stated in ThresholdsItem5Needs.Where(other => !string.Equals(other, key, StringComparison.Ordinal)))
+        {
+            outcome.Reason.ShouldNotContain(stated, Case.Sensitive);
+        }
     }
 
     private static double StatedMatchTolerance() =>

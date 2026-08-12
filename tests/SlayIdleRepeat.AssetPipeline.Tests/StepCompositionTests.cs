@@ -47,6 +47,13 @@ public sealed class StepCompositionTests
 
         step.Number.ShouldBe(7);
         result.AtlasId.ShouldBe("atlas_ui");
+
+        // 🔒 "Runnable alone" means it did the work, not that it returned a shape. A packer that
+        // handed back an empty result would satisfy the two assertions above, both of which read
+        // values the caller supplied.
+        result.Placements.Select(placement => placement.AssetId).ToArray()
+            .ShouldBe([ManifestRows.NonBiomeUiIcon]);
+        result.Exclusions.ShouldBeEmpty();
     }
 
     [Fact]

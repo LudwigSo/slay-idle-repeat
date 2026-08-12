@@ -30,6 +30,18 @@ public sealed class AtlasPackStepTests
 
         first.Placements.Count.ShouldBe(forwards.Length);
         Describe(first).ShouldBe(Describe(second));
+
+        // 🔒 Stable is not the same claim as stable-in-the-stated-way. The locked design is
+        // "ordered by asset id, ordinal", and a packer that sorted by area would also produce the
+        // same layout twice — but a different one, and the three rows below are deliberately
+        // 32/64/96 px so the two orderings disagree: ordinal gives beast_feed, crown, energy while
+        // area gives beast_feed, energy, crown.
+        first.Placements.Select(placement => placement.AssetId).ToArray().ShouldBe(
+            [
+                ManifestRows.NonBiomeUiIconThird,
+                ManifestRows.NonBiomeUiIcon,
+                ManifestRows.NonBiomeUiIconSecond,
+            ]);
     }
 
     [Fact]

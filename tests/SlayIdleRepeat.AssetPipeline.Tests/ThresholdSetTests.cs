@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Shouldly;
 using Xunit;
@@ -90,6 +91,52 @@ public sealed class ThresholdSetTests
         var calibrated = ThresholdSet.Keys.Where(thresholds.IsCalibrated).ToArray();
 
         calibrated.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// 🔒 The counterweight to the case above. "Nothing is calibrated" is also true of an
+    /// <see cref="ThresholdSet.IsCalibrated"/> that always answers false and a
+    /// <see cref="ThresholdSet.LoadFrom"/> that reads nothing at all, so the empty result only
+    /// means something once a file with one hole filled comes back reporting exactly that one.
+    /// </summary>
+    [Fact]
+    public void Loading_a_file_in_which_one_hole_is_filled_reports_that_one_key_and_no_other()
+    {
+        // 12 is this case's own stated value for a synthetic file, not a calibration of
+        // backgroundKeyTolerance — the case is about LoadFrom reading a number, and any number
+        // would do (steering rule S6).
+        const double stated = 12d;
+        var json = JsonWithOneValue(ThresholdKeys.BackgroundKeyTolerance, stated);
+
+        var thresholds = ThresholdSet.LoadFrom(json);
+
+        ThresholdSet.Keys.Where(thresholds.IsCalibrated).ToArray()
+            .ShouldBe([ThresholdKeys.BackgroundKeyTolerance]);
+        thresholds.RequireNumber(ThresholdKeys.BackgroundKeyTolerance).ShouldBe(stated);
+        Should.Throw<UncalibratedThresholdException>(
+                () => thresholds.Require(ThresholdKeys.MatteDecontaminationStrength))
+            .Key.ShouldBe(ThresholdKeys.MatteDecontaminationStrength);
+    }
+
+    /// <summary>
+    /// A <see cref="ThresholdSet.ThresholdsPath"/>-shaped document built from
+    /// <see cref="ThresholdSet.Keys"/> — so it cannot drift from the register — with every value
+    /// null except one.
+    /// </summary>
+    /// <param name="key">The one key to give a value.</param>
+    /// <param name="value">The value to give it.</param>
+    private static string JsonWithOneValue(string key, double value)
+    {
+        // The shipped file's shape, `_doc` block and all, so the case exercises what LoadFrom
+        // actually meets rather than a stripped-down document only this case ever produces.
+        var members = ThresholdSet.Keys
+            .Select(name => string.Equals(name, key, StringComparison.Ordinal)
+                ? $"  {JsonSerializer.Serialize(name)}: {value.ToString(CultureInfo.InvariantCulture)}"
+                : $"  {JsonSerializer.Serialize(name)}: null")
+            .Prepend($"  {JsonSerializer.Serialize(DocMember)}: " +
+                     JsonSerializer.Serialize("A synthetic register built by ThresholdSetTests."));
+
+        return $"{{{Environment.NewLine}{string.Join($",{Environment.NewLine}", members)}{Environment.NewLine}}}";
     }
 
     /// <summary>

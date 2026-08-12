@@ -239,5 +239,16 @@ public sealed class QaChecklistTests
         result.Accepted.ShouldBeFalse();
         result.Decision.ShouldNotBe(QaDecision.Accepted);
         result.HumanGaps.Count.ShouldBe(ItemsCarryingAHumanGap);
+
+        // 🔒 Why it is not accepted, and not merely that it is not. Whatever this particular
+        // subject does to the six mechanical items, the five human ones must come back
+        // HumanGapOnly — that is what makes acceptance unreachable for EVERY asset rather than
+        // for this one. Without naming them, a run in which item 10 happened to fail would satisfy
+        // the three assertions above even if all five human items had returned Pass.
+        result.Outcomes
+            .Where(outcome => outcome.Verdict == QaVerdict.HumanGapOnly)
+            .Select(outcome => outcome.ItemNumber)
+            .ToArray()
+            .ShouldBe([2, 4, 8, 9, 11]);
     }
 }

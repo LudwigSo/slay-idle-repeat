@@ -63,6 +63,14 @@ internal static class TestSpecs
 /// If a step under test starts to need a value these do not cover, add it here with a comment
 /// saying what makes it sufficient for the fixture — never by widening one silently.
 /// </para>
+/// <para>
+/// 🔒 <b>Do not merge this with <see cref="QaThresholds"/>, and in particular do not harmonise
+/// <see cref="ThresholdKeys.PaletteMatchTolerance"/>.</b> The two sets hold deliberately opposite
+/// values for it — 64 here, 8 there — because the `15` §B4 step 3 fixture and the Part F item 5
+/// fixture make opposite demands of the same 27.7-unit deviation: the step needs it inside the
+/// tolerance so the nearest §A5 hue is unambiguous, and item 5 needs it outside so there is a
+/// violation to find. One shared value would silently make one of the two cases vacuous.
+/// </para>
 /// </remarks>
 internal static class StatedThresholds
 {

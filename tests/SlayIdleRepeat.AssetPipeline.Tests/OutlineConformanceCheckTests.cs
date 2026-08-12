@@ -17,12 +17,24 @@ namespace SlayIdleRepeat.AssetPipeline.Tests;
 /// </remarks>
 public sealed class OutlineConformanceCheckTests
 {
-    /// <summary>Every hole item 3 reaches into, one theory case each.</summary>
-    public static TheoryData<string> EveryThresholdItem3Needs() => new()
-    {
+    /// <summary>Every hole item 3 reaches into.</summary>
+    private static readonly string[] ThresholdsItem3Needs =
+    [
         ThresholdKeys.OutlineColourTolerance,
         ThresholdKeys.OutlineWidthUniformityTolerance,
-    };
+    ];
+
+    /// <summary>Every hole item 3 reaches into, one theory case each.</summary>
+    public static TheoryData<string> EveryThresholdItem3Needs()
+    {
+        var data = new TheoryData<string>();
+        foreach (var key in ThresholdsItem3Needs)
+        {
+            data.Add(key);
+        }
+
+        return data;
+    }
 
     /// <summary>
     /// 🔒 The fixture's ring is <see cref="SyntheticAsset.OutlineBoxWidth"/> px on a
@@ -68,6 +80,14 @@ public sealed class OutlineConformanceCheckTests
         outcome.Verdict.ShouldBe(QaVerdict.Fail);
         outcome.Reason.ShouldContain(
             OutlineConformanceCheck.OutlineColourDistanceMeasurement, Case.Sensitive);
+
+        // 🔒 Colour first, and only colour. The width and leak measurements are taken over the
+        // colour-seeded mask, which a black ring empties — so "width 0" here would be a symptom of
+        // the colour failure reported as though it were a second, independent defect (S2).
+        outcome.Reason.ShouldNotContain(
+            OutlineConformanceCheck.OutlineWidthMeasurement, Case.Sensitive);
+        outcome.Reason.ShouldNotContain(
+            OutlineConformanceCheck.OutlineLeakMeasurement, Case.Sensitive);
         outcome.Measurements
             .Single(m => m.Key == OutlineConformanceCheck.OutlineColourDistanceMeasurement)
             .Value.ShouldBeGreaterThan(Pixels.RgbDistance(SKColors.Black, Doc15Authorised.OutlineColour) - 1d);
@@ -93,6 +113,13 @@ public sealed class OutlineConformanceCheckTests
         outcome.Verdict.ShouldBe(QaVerdict.Fail);
         outcome.Reason.ShouldContain(
             OutlineConformanceCheck.OutlineLeakMeasurement, Case.Sensitive);
+
+        // 🔒 The ring is `15` §A3's colour and inside §A3's band; only continuity can fail here, so
+        // a reason naming the width or the colour would be naming a claim that held (S2).
+        outcome.Reason.ShouldNotContain(
+            OutlineConformanceCheck.OutlineWidthMeasurement, Case.Sensitive);
+        outcome.Reason.ShouldNotContain(
+            OutlineConformanceCheck.OutlineColourDistanceMeasurement, Case.Sensitive);
         outcome.Measurements
             .Single(m => m.Key == OutlineConformanceCheck.OutlineLeakMeasurement)
             .Value.ShouldBeGreaterThan(0d);
@@ -113,6 +140,13 @@ public sealed class OutlineConformanceCheckTests
         outcome.Verdict.ShouldBe(QaVerdict.Fail);
         outcome.Reason.ShouldContain(
             OutlineConformanceCheck.OutlineWidthMeasurement, Case.Sensitive);
+
+        // 🔒 The ring is `15` §A3's colour and it encloses the subject; only the width claim can
+        // fail, so the reason has exactly one honest thing to name (S2).
+        outcome.Reason.ShouldNotContain(
+            OutlineConformanceCheck.OutlineColourDistanceMeasurement, Case.Sensitive);
+        outcome.Reason.ShouldNotContain(
+            OutlineConformanceCheck.OutlineLeakMeasurement, Case.Sensitive);
         outcome.Measurements
             .Single(m => m.Key == OutlineConformanceCheck.OutlineWidthMeasurement)
             .Value.ShouldBe(SyntheticAsset.OutlineBoxWidthTooWide, 0.5d);
@@ -136,6 +170,15 @@ public sealed class OutlineConformanceCheckTests
         outcome.ItemNumber.ShouldBe(3);
         outcome.Verdict.ShouldBe(QaVerdict.Uncalibrated);
         outcome.Reason.ShouldContain(key, Case.Sensitive);
+
+        // 🔒 Steering rule S2, and the reason this theory is not satisfied by naming everything: a
+        // reason that listed both of item 3's keys would pass the assertion above for BOTH cases
+        // and would still leave a reader unable to tell which hole stopped the item. Every other
+        // key is stated in this set, so naming one is naming a hole that is not open.
+        foreach (var stated in ThresholdsItem3Needs.Where(other => !string.Equals(other, key, StringComparison.Ordinal)))
+        {
+            outcome.Reason.ShouldNotContain(stated, Case.Sensitive);
+        }
     }
 
     private static QaSubject Subject(SKBitmap image, ThresholdSet? thresholds = null) =>

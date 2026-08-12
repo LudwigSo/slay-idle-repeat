@@ -19,14 +19,39 @@ public sealed class SilhouetteCheckTests
     /// <summary>How many blobs make a silhouette that has fallen apart, past the stated ceiling.</summary>
     private const int TooManyComponents = 5;
 
-    /// <summary>Every hole item 1 reaches into, one theory case each.</summary>
-    public static TheoryData<string> EveryThresholdItem1Needs() => new()
-    {
+    /// <summary>Every hole item 1 reaches into.</summary>
+    private static readonly string[] ThresholdsItem1Needs =
+    [
         ThresholdKeys.SilhouetteMinCoverageRatio,
         ThresholdKeys.SilhouetteMinBoundingBoxFill,
         ThresholdKeys.SilhouetteMaxComponentCount,
         ThresholdKeys.SilhouetteMinDistinguishability,
-    };
+    ];
+
+    /// <summary>
+    /// The `15` §A4 measurements a fixture built to trip exactly one of them must NOT be reported
+    /// against — held here so each violation case can state the three that stayed inside their
+    /// stated cutoffs.
+    /// </summary>
+    private static readonly string[] EverySilhouetteMeasurement =
+    [
+        SilhouetteGate.CoverageRatioMeasurement,
+        SilhouetteGate.BoundingBoxFillMeasurement,
+        SilhouetteGate.ComponentCountMeasurement,
+        SilhouetteGate.DistinguishabilityMeasurement,
+    ];
+
+    /// <summary>Every hole item 1 reaches into, one theory case each.</summary>
+    public static TheoryData<string> EveryThresholdItem1Needs()
+    {
+        var data = new TheoryData<string>();
+        foreach (var key in ThresholdsItem1Needs)
+        {
+            data.Add(key);
+        }
+
+        return data;
+    }
 
     [Fact]
     public void Evaluate_passes_a_solid_single_blob_silhouette_that_clears_every_stated_cutoff()
@@ -72,6 +97,7 @@ public sealed class SilhouetteCheckTests
         outcome.ItemNumber.ShouldBe(1);
         outcome.Verdict.ShouldBe(QaVerdict.Fail);
         outcome.Reason.ShouldContain(SilhouetteGate.CoverageRatioMeasurement, Case.Sensitive);
+        ShouldNameNoOtherMeasurement(outcome, SilhouetteGate.CoverageRatioMeasurement);
         outcome.Measurements
             .Single(m => m.Key == SilhouetteGate.CoverageRatioMeasurement)
             .Value.ShouldBeLessThan(0.05d);
@@ -92,6 +118,7 @@ public sealed class SilhouetteCheckTests
         outcome.ItemNumber.ShouldBe(1);
         outcome.Verdict.ShouldBe(QaVerdict.Fail);
         outcome.Reason.ShouldContain(SilhouetteGate.ComponentCountMeasurement, Case.Sensitive);
+        ShouldNameNoOtherMeasurement(outcome, SilhouetteGate.ComponentCountMeasurement);
         outcome.Measurements
             .Single(m => m.Key == SilhouetteGate.ComponentCountMeasurement)
             .Value.ShouldBe(TooManyComponents);
@@ -130,6 +157,32 @@ public sealed class SilhouetteCheckTests
         outcome.ItemNumber.ShouldBe(1);
         outcome.Verdict.ShouldBe(QaVerdict.Uncalibrated);
         outcome.Reason.ShouldContain(key, Case.Sensitive);
+
+        // 🔒 Steering rule S2. A reason that listed all four of `15` §A4's cutoffs would satisfy
+        // the assertion above for every one of these four cases and would still leave a reviewer
+        // unable to tell which of the four to go and measure. The other three are stated in this
+        // set, so naming one is naming a hole that is not open.
+        foreach (var stated in ThresholdsItem1Needs.Where(other => !string.Equals(other, key, StringComparison.Ordinal)))
+        {
+            outcome.Reason.ShouldNotContain(stated, Case.Sensitive);
+        }
+    }
+
+    /// <summary>
+    /// 🔒 Asserts the reason names the one `15` §A4 measurement the fixture was built to trip and
+    /// none of the three it clears. Without it a reason that recited all four would satisfy every
+    /// violation case in this file, and "the check named the coverage ratio" would stop being
+    /// evidence that the coverage ratio is what failed (steering rule S2).
+    /// </summary>
+    /// <param name="outcome">The outcome under test.</param>
+    /// <param name="tripped">The measurement the fixture violates by construction.</param>
+    private static void ShouldNameNoOtherMeasurement(QaOutcome outcome, string tripped)
+    {
+        foreach (var clear in EverySilhouetteMeasurement.Where(
+                     other => !string.Equals(other, tripped, StringComparison.Ordinal)))
+        {
+            outcome.Reason.ShouldNotContain(clear, Case.Sensitive);
+        }
     }
 
     /// <summary>
