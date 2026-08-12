@@ -389,9 +389,11 @@ public static class GameRules
     /// ⚠️ <b>Allocates nothing on the common path</b>, which matters because that path is every
     /// command sent inside one regeneration interval of the last: with no catch-up events this
     /// hands the handler's own list straight through, and <see cref="Stamp"/> is the thing that
-    /// then copies it. The mirrored arm is the same trade for the far commoner case of a catch-up
-    /// event and a handler that produced none (every <c>Deferred</c> row today accepts nothing at
-    /// all, and M1-09's <c>BEGIN_SESSION</c> will still be one command in many).
+    /// then copies it. The mirrored arm is the same trade for the other one-sided case — a catch-up
+    /// event and an accepted command whose handler produced none, which M1-09's
+    /// <c>BEGIN_SESSION</c> will be the first production command able to reach at all. ⚠️ A
+    /// <c>Deferred</c> row is <em>not</em> an instance of it: a deferral <b>rejects</b>, and
+    /// <see cref="Execute"/> returns at the rejection arm without ever calling this.
     /// </para>
     /// </remarks>
     private static IReadOnlyList<DomainEvent> Combine(
@@ -796,16 +798,22 @@ public static class GameRules
             if (produced is null)
             {
                 throw new InvalidOperationException(
-                    "A handler returned a null event at position " + Text(i) + ". The event list is " +
-                    "14 §2.4's animation script and 14 §7.1's economy log; a hole in it is a row " +
-                    "neither can read.");
+                    "There is a null event at position " + Text(i) + " of this command's event " +
+                    "list. ⚠️ That ordinal counts the CATCH-UP's rows first (see Combine), so on a " +
+                    "command that also accrued it is NOT the index into what the handler returned. " +
+                    "The event list is 14 §2.4's animation script and 14 §7.1's economy log; a hole " +
+                    "in it is a row neither can read.");
             }
 
             if (produced.Sequence != DomainEvent.UnstampedSequence)
             {
                 throw new InvalidOperationException(
-                    "A handler returned " + produced.GetType().Name + " already stamped with " +
-                    "Sequence " + Text(produced.Sequence) + ". The ordinal is the event's position within " +
+                    "The event at position " + Text(i) + " of this command's list is a " +
+                    produced.GetType().Name + " already stamped with " +
+                    "Sequence " + Text(produced.Sequence) + ". (That ordinal counts the catch-up's " +
+                    "rows first — see Combine — and the catch-up builds every row it produces with " +
+                    "DomainEvent.UnstampedSequence, so the producer here is the handler.) " +
+                    "The ordinal is the event's position within " +
                     "ONE Apply call's list and is assigned HERE — never by a constructor and never " +
                     "by a caller (30 §7). A handler that stamps its own has decided a position in a " +
                     "list whose shape it does not know, and the economy log (14 §7.1) and the " +
