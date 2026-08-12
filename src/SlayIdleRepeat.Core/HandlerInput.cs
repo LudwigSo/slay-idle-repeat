@@ -21,8 +21,18 @@ namespace SlayIdleRepeat.Core;
 /// <b>The <c>AdvanceTime</c> seam.</b> `30` §2.3 makes <c>AdvanceTime(state, context.NowUtc)</c>
 /// <em>"the first step of every command handler"</em>. It is first <b>by construction</b> here and
 /// not by convention: a handler never receives the raw slice, only this one, and <c>Apply</c> runs
-/// the catch-up before it builds it. M1-08 fills in the catch-up; nothing a handler can write runs
-/// before it.
+/// the catch-up before it builds it. Nothing a handler can write runs before it.
+/// </para>
+/// <para>
+/// ⚠️ <b>M1-08 filled the catch-up in, and what a handler is handed therefore changed.</b>
+/// <see cref="Player"/>'s Energy banks and accrual anchor are already rolled forward to
+/// <c>Context.NowUtc</c>, and its daily and weekly counters are already cleared for any boundary
+/// crossed since the last command — so <c>Player.DailyPeriodStartUtc</c> is the game day this
+/// command is <em>in</em>, not the one it was last seen in. That matters most to M1-09's
+/// <c>BEGIN_SESSION</c>: catch-up <b>clears the counters</b>, so a handler cannot key "first
+/// <c>BEGIN_SESSION</c> of the day" off a daily counter it did not itself set, after the catch-up,
+/// in the same command. <c>DailyPeriodStartUtc</c> is the one surviving "which game day is this"
+/// fact to compare a stored claim marker against.
 /// </para>
 /// <para>
 /// <b>The RNG choke point.</b> <see cref="Rng"/> is the only door to a run's `14` §8.1 streams, and

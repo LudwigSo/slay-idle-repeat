@@ -79,15 +79,6 @@ namespace SlayIdleRepeat.Core.Model;
 /// </remarks>
 public sealed class Player
 {
-    /// <summary>The UTC time of day every game day and game week begins at (`30` §2.3, `27` §4).</summary>
-    /// <remarks>
-    /// Not a 📐 tunable: `30` §2.3 writes 05:00 UTC into the reset rule itself — <em>"quest expiry,
-    /// the wheel's free spin, ad caps and dungeon entries all reset at 05:00 UTC whether or not
-    /// anyone logs in"</em> — and no <c>tuning/</c> document authors it as a dial. It is the
-    /// boundary the design is written against, so it is a constant here and the invariants quote it.
-    /// </remarks>
-    private static readonly TimeSpan GameDayStart = TimeSpan.FromHours(5);
-
     /// <summary>
     /// 🔒 The <b>six</b> player-scoped wallet currencies, in <see cref="CurrencyId"/> order.
     /// </summary>
@@ -725,7 +716,11 @@ public sealed class Player
     {
         RequireGameDayBoundary(periodStartUtc, nameof(periodStartUtc));
 
-        if (periodStartUtc.DayOfWeek != DayOfWeek.Monday)
+        // The weekday is GameCalendar.WeekStart's, for the reason RequireGameDayBoundary records:
+        // GameRules.AdvanceTime computes the Monday this refuses anything but, and Model may not
+        // reference Rules — so one definition, read by both. The message names MONDAY in prose
+        // because it is quoting A2, not restating the constant.
+        if (periodStartUtc.DayOfWeek != GameCalendar.WeekStart)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(periodStartUtc),
@@ -978,11 +973,24 @@ public sealed class Player
             parameterName);
     }
 
+    /// <summary>
+    /// 🔒 The 05:00 UTC invariant, asked of <see cref="GameCalendar"/> rather than restated.
+    /// </summary>
+    /// <remarks>
+    /// This aggregate held its own <c>GameDayStart = TimeSpan.FromHours(5)</c> until M1-08 needed
+    /// the <em>same</em> number to compute a boundary in <c>GameRules.AdvanceTime</c>. `30` §11.4
+    /// forbids <c>Model</c> from referencing <c>Rules</c>, so the computing half could not have
+    /// called into here — the two would have been two transcriptions of one number, and the failure
+    /// mode of drift is not a wrong answer but an <see cref="ArgumentOutOfRangeException"/> thrown
+    /// from this very guard, out of <c>GameRules.Apply</c>, on every command that crosses a
+    /// boundary. <c>Primitives</c> sits beneath <c>Model</c> and <c>Rules</c> alike, so both read
+    /// one definition. The number is still not a 📐 tunable — see <see cref="GameCalendar.DayStart"/>.
+    /// </remarks>
     private static void RequireGameDayBoundary(DateTimeOffset boundary, string parameterName)
     {
         RequireZeroOffset(boundary, parameterName);
 
-        if (boundary.TimeOfDay == GameDayStart)
+        if (GameCalendar.IsGameDayBoundary(boundary))
         {
             return;
         }
@@ -1150,7 +1158,7 @@ public sealed class Player
         // hours ahead" is not a game-day boundary, and reporting it as one as well as as an offset
         // would be two faults for one defect.
         if (snapshot.DailyPeriodStartUtc.Offset == TimeSpan.Zero &&
-            snapshot.DailyPeriodStartUtc.TimeOfDay != GameDayStart)
+            !GameCalendar.IsGameDayBoundary(snapshot.DailyPeriodStartUtc))
         {
             faults.Add(
                 nameof(PlayerSnapshot.DailyPeriodStartUtc) + " is " +
@@ -1162,8 +1170,7 @@ public sealed class Player
         // the weekday for a Monday-at-06:00 row would read "…, a Monday. The game week starts MONDAY
         // 05:00 UTC" — self-contradictory, and pointing the reader at the one field that is correct.
         if (snapshot.WeeklyPeriodStartUtc.Offset == TimeSpan.Zero &&
-            (snapshot.WeeklyPeriodStartUtc.TimeOfDay != GameDayStart ||
-             snapshot.WeeklyPeriodStartUtc.DayOfWeek != DayOfWeek.Monday))
+            !GameCalendar.IsGameWeekBoundary(snapshot.WeeklyPeriodStartUtc))
         {
             faults.Add(
                 nameof(PlayerSnapshot.WeeklyPeriodStartUtc) + " is " +

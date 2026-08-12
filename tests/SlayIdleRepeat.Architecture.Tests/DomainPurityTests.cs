@@ -368,6 +368,145 @@ public sealed class DomainPurityTests
     }
 
     /// <summary>
+    /// 🔒 `30` §7 / `30` §9 — a <c>CurrencyChanged</c> that is produced and then <b>dropped at its
+    /// call site</b> fails the build: a <c>call</c>/<c>callvirt</c> returning the event, immediately
+    /// followed by <c>pop</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Why this rule exists: <c>Every_currency_mutation_emits_CurrencyChanged</c> cannot see
+    /// it.</b> That rule is an IL scan for a <c>newobj</c> on the event in the same method body as
+    /// the <c>stfld</c>, and it is satisfied the moment the <em>aggregate</em> constructs one. M1-06
+    /// left <c>GameRules.AdvanceTime</c> returning <c>void</c> while <c>Player.AccrueEnergy</c>
+    /// returns a <c>CurrencyChanged</c> — so an accrual there would have satisfied `30` §9 in full
+    /// while `14` §7.1's economy log and `21` §8.3's <c>income_attribution.csv</c> (risk <b>R10</b>)
+    /// never saw the row, with every suite in the repository green. That is carried-forward item 11,
+    /// and this is the rule that would have caught it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>State precisely what it covers, so the name does not overpromise</b> (steering
+    /// <b>S1</b>). It covers <em>dropped at the call site</em> — the literal
+    /// <c>player.AccrueEnergy(…);</c> statement. It does <b>not</b> prove the event reaches
+    /// <c>CommandResult.Events</c>: a method that assigns the return to a local and then
+    /// conditionally drops it still passes here, because whole-program dataflow is what that would
+    /// need and IL metadata is what this suite has.
+    /// <c>GameRulesCatchUpTests</c> in <c>SlayIdleRepeat.Core.Tests</c> is what asserts the event
+    /// actually arrives in the result.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The floor is by identity, not by count</b> (steering <b>S3</b>). A rule whose subject
+    /// set is "methods returning <c>CurrencyChanged</c>" could be emptied by a rename, a signature
+    /// change or a move, and would then report success forever over a domain where every currency
+    /// event was being dropped. The four producers below are named, so emptying the set is a build
+    /// failure rather than a silence.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_currency_event_is_never_discarded_at_its_call_site()
+    {
+        var producers = Il.MethodsWithBodies(ProductionAssemblies.CoreModule)
+            .Where(m => NamesTheEvent(m.ReturnType))
+            .Select(m => $"{m.DeclaringType.Name}::{m.Name}")
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        // 🔒 The floor (steering S3), asserted as a SET DIFFERENCE rather than one Assert.Contains
+        // per name inside a foreach: an assertion in a loop reports only the FIRST producer that
+        // went missing, and the interesting failure is the refactor that took several with it.
+        // ArchRule.Empty is the file's own idiom for "this set must be empty, and here is why".
+        Assert.NotEmpty(producers);
+        ArchRule.Empty(
+            CurrencyProducerFloor
+                .Except(producers, StringComparer.Ordinal)
+                .Select(missing =>
+                    $"{missing} no longer returns {Domain.CurrencyChangedEvent}, so it has dropped out of " +
+                    "the set this rule quantifies over"),
+            DiscardFloorRule);
+
+        var offenders = Il.MethodsWithBodies(ProductionAssemblies.CoreModule)
+            .Where(DiscardsACurrencyEvent)
+            .Select(m =>
+                $"{Il.Describe(m)} calls something that returns {Domain.CurrencyChangedEvent} and pops the " +
+                "result. 30 §7 makes every currency movement emit an attributed event, and 21 §8.3's " +
+                "income_attribution.csv is a query over those events — a row that is constructed and " +
+                "dropped satisfies the IL emission rule (the aggregate DID build one) while the report " +
+                "that answers risk R10 never sees the movement. Return it, or hand it to whatever " +
+                "assembles CommandResult.Events.");
+
+        ArchRule.Empty(offenders, DiscardRule);
+    }
+
+    /// <summary>
+    /// 🔒 `30` §7 / `30` §9 — the teeth of the rule above, driven against real IL compiled from
+    /// <see cref="CurrencyEmissionFixtures"/>: it must recognise a popped return and refuse both a
+    /// consumed one and a popped return of something that is not an event.
+    /// </summary>
+    /// <remarks>
+    /// The two negative cases are the point. Without the "consumed" case the predicate could match
+    /// every call to a producer and would be weakened back out within a commit —
+    /// <c>Player.AccrueEnergy</c> calls <c>SetEnergy</c>, which returns one. Without the
+    /// "something else" case it could be matching <c>pop</c> alone, which C# emits for every
+    /// discarded return value in the assembly.
+    /// </remarks>
+    [Fact]
+    public void The_discard_check_recognises_a_popped_return_and_refuses_a_consumed_one()
+    {
+        Assert.True(
+            DiscardsACurrencyEvent(Fixture(nameof(CurrencyEmissionFixtures.DropsTheEventItProduced))),
+            "a statement that calls a producer and keeps nothing is a discarded currency event — the " +
+            "literal `player.AccrueEnergy(…);` shape carried-forward item 11 describes. If this is " +
+            "false the rule above is matching nothing and reports success forever.");
+
+        Assert.False(
+            DiscardsACurrencyEvent(Fixture(nameof(CurrencyEmissionFixtures.KeepsTheEventItProduced))),
+            "reading the event a call produced is not discarding it. If this is true the rule flags " +
+            "Player.AccrueEnergy — which calls SetEnergy for its event — and gets deleted rather than " +
+            "obeyed.");
+
+        Assert.False(
+            DiscardsACurrencyEvent(Fixture(nameof(CurrencyEmissionFixtures.DropsSomethingElse))),
+            "popping a long is not popping a CurrencyChanged. If this is true the predicate is keyed " +
+            "on the pop alone and would flag every discarded return value in Core.");
+    }
+
+    /// <summary>
+    /// 🔒 The identity floor under <see cref="A_currency_event_is_never_discarded_at_its_call_site"/>:
+    /// the `30` §7 producers whose returns that rule exists to watch.
+    /// </summary>
+    /// <remarks>
+    /// <c>Player.AccrueEnergy</c> is the one M1-08 is about — it is what the catch-up calls, and the
+    /// one whose event M1-06's <c>void</c> seam dropped. The other three are named so a rename of
+    /// any single producer cannot quietly shrink the set the rule quantifies over.
+    /// </remarks>
+    private static readonly string[] CurrencyProducerFloor =
+    {
+        "Player::MoveCurrency",
+        "Player::SetEnergy",
+        "Player::AccrueEnergy",
+        "Run::MoveCurrency",
+    };
+
+    /// <summary>True when a method body pops the return value of a call that answers a `CurrencyChanged`.</summary>
+    private static bool DiscardsACurrencyEvent(MethodDefinition method) =>
+        Il.Instructions(method).Any(IsDiscardedCurrencyReturn);
+
+    /// <summary>
+    /// True for a single <c>call</c>/<c>callvirt</c> that returns a <c>CurrencyChanged</c> and whose
+    /// very next instruction is <c>pop</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b><c>Next</c>, not "somewhere later".</b> C# compiles a discarded expression statement to
+    /// exactly this pair, and widening the window would flag a method that legitimately produced an
+    /// event and separately discarded some other value.
+    /// </remarks>
+    private static bool IsDiscardedCurrencyReturn(Instruction instruction) =>
+        (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt) &&
+        instruction.Operand is MethodReference reference &&
+        NamesTheEvent(reference.ReturnType) &&
+        instruction.Next is { } next &&
+        next.OpCode == OpCodes.Pop;
+
+    /// <summary>
     /// 🔒 `30` §7 / `30` §9 — the teeth of the event exclusion the rule above rests on. It must
     /// recognise the event hierarchy and refuse everything else, or the currency subject set is
     /// being emptied by something other than what the remark claims (steering S3).
@@ -606,6 +745,14 @@ public sealed class DomainPurityTests
     private const string CurrencyRule =
         "Every currency mutation emits CurrencyChanged (30 §9, 30 §7).";
 
+    private const string DiscardRule =
+        "A CurrencyChanged is never produced and dropped at its call site — 21 §8.3's " +
+        "income_attribution.csv is a query over the events that reach CommandResult (30 §7, 30 §9).";
+
+    private const string DiscardFloorRule =
+        "The discard rule's subject set still contains every 30 §7 currency producer it was written " +
+        "over — a rule that could only find zero producers would report success forever (S3).";
+
     private static bool IsPortShaped(string typeFullName)
     {
         var simpleName = typeFullName.Split('.', '/').Last();
@@ -836,6 +983,52 @@ public sealed class DomainPurityTests
         /// getter, which is precisely the mention the old predicate accepted as an emission.
         /// </summary>
         internal static long OnlyReads(CurrencyChanged handed) => handed.Delta;
+
+        /// <summary>
+        /// 🔒 A producer, standing in for `Player.AccrueEnergy`: a method whose RETURN TYPE is the
+        /// event. It is what the two fixtures below call, so the pair differ in exactly one thing —
+        /// what they do with the answer.
+        /// </summary>
+        /// <remarks>
+        /// The real producers are `internal` to `SlayIdleRepeat.Core`, and this assembly is not the
+        /// one `InternalsVisibleTo` names (`30` §11.3), so the shape has to be reproduced here. The
+        /// rule itself reads the real ones straight out of `Core`'s metadata.
+        /// </remarks>
+        internal static CurrencyChanged ProducesAnEvent() =>
+            new(0, CurrencyId.CROWNS, 1, "architecture_rule_teeth_check");
+
+        /// <summary>
+        /// 🔴 Calls a producer and keeps nothing — <c>call</c> then <c>pop</c>. The literal
+        /// `player.AccrueEnergy(…);` shape carried-forward item 11 describes, and the one
+        /// <see cref="A_currency_event_is_never_discarded_at_its_call_site"/> must catch.
+        /// </summary>
+        /// <remarks>
+        /// It lives here rather than in `Core` because it IS the violation, and a violation is never
+        /// committed to the domain to prove a rule works.
+        /// </remarks>
+        internal static void DropsTheEventItProduced()
+        {
+            ProducesAnEvent();
+        }
+
+        /// <summary>
+        /// Consumes what the producer answered. The shape the rule must NOT catch: it is what every
+        /// legitimate caller does, including `Player.AccrueEnergy`, which calls `SetEnergy` for the
+        /// event it returns.
+        /// </summary>
+        internal static long KeepsTheEventItProduced() => ProducesAnEvent().Delta;
+
+        /// <summary>
+        /// Pops a return value that is not an event. The shape that keeps the predicate from being
+        /// keyed on the <c>pop</c> alone — C# emits one for every discarded return in the assembly.
+        /// </summary>
+        internal static void DropsSomethingElse()
+        {
+            NotAnEvent();
+        }
+
+        /// <summary>An ordinary value-returning method, so the call above has something to discard.</summary>
+        private static long NotAnEvent() => 1L;
 
         /// <summary>
         /// Derives from `DomainEvent` while living outside `Core/Events/` — the shape the

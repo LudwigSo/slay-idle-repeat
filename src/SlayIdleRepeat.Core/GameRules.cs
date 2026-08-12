@@ -6,6 +6,7 @@ using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Economy;
 
 namespace SlayIdleRepeat.Core;
 
@@ -184,6 +185,19 @@ public static class GameRules
         Array.AsReadOnly(Array.Empty<DomainEvent>());
 
     /// <summary>
+    /// 🔒 Recorded assumption <b>A5</b> — the `30` §7 attribution token every regeneration accrual
+    /// is logged under, and the column `21` §8.3 groups <c>income_attribution.csv</c> by.
+    /// </summary>
+    /// <remarks>
+    /// A stable <c>lower_snake_case</c> <em>identifier</em>, not a balance number, so `21` §3.1's
+    /// "tunables are data" rule does not reach it — there is no dial here, only a name. It is
+    /// recorded as an assumption anyway because <see cref="AdvanceTime"/> is the first high-volume
+    /// producer of <c>CurrencyChanged</c> in the game and `30` §7 fixes no vocabulary for
+    /// <c>Reason</c>: whatever token lands here is the one the economy dashboards are built on.
+    /// </remarks>
+    private const string EnergyRegenReason = "energy_regen";
+
+    /// <summary>
     /// 🔒 Every registered command type, by the `14` §2.3 wire name its dispatch row declares — the
     /// <b>single</b> declared source of that mapping.
     /// </summary>
@@ -305,7 +319,9 @@ public static class GameRules
 
         // 🔒 30 §2.3's AdvanceTime, FIRST BY CONSTRUCTION. The handler never receives the raw slice
         // — only the one this produced — so nothing a handler can write runs before the catch-up.
-        AdvanceTime(working, context);
+        // Its events are held until the handler has answered, and PREPENDED to the handler's: they
+        // happened first, and 30 §7's Sequence orders one command's list. See AdvanceTime.
+        var caughtUp = AdvanceTime(working, context);
 
         var rng = registration.Kind == CommandKind.Run
             ? new RunRngScope(working.Run!.RunSeed, working.Run.RngStreamPositions)
@@ -316,8 +332,14 @@ public static class GameRules
         // CommitStreamPositions replaces wholesale, so this reference is the positions as they stood
         // the instant before the handler ran — which makes "these two differ" mean exactly one
         // thing, that the HANDLER called that seam. Reading it off the caller's run instead would
-        // also be reading it from before AdvanceTime, and would name the handler for a write M1-08's
-        // catch-up had made.
+        // also be reading it from before AdvanceTime.
+        //
+        // ⚠️ M1-08 SETTLED THE OTHER HALF OF THAT SENTENCE, and it is worth stating plainly rather
+        // than leaving the reader to compare two comments: catch-up writes NOTHING on the Run (see
+        // AdvanceTime's remarks), so the misattribution this placement guards against — naming the
+        // handler for a write the catch-up made — is today unreachable, not merely avoided. The
+        // placement stays because M3's run boundaries land inside AdvanceTime and that ruling is
+        // about what catch-up may touch, not about where this line sits.
         var committedPositions = working.Run?.RngStreamPositions;
 
         var handled = registration.IsHandled
@@ -334,13 +356,72 @@ public static class GameRules
             // 🔒 The working copy is DISCARDED, so a refused command provably changed nothing —
             // including any draws its handler took before the rule refused it. 14 §8.1 needs that:
             // a run that consumed draw indices on a rejected command would replay differently.
+            //
+            // 🔒 THE CATCH-UP GOES WITH IT, events and all, and M1-08 rules that safe rather than
+            // leaving the reader to infer it. Nothing AdvanceTime does is consumptive: every
+            // boundary it moves is DERIVED from NowUtc and the stored anchors, never spent. A1's
+            // anchor rule is what makes that exact rather than approximate — the anchor advances by
+            // wholeUnits × the interval, so the sub-interval remainder survives in the gap — and the
+            // next accepted command therefore accrues the whole elapsed span from the same anchors
+            // and clears the same boundaries. A player spamming an illegal move loses nothing.
+            // 14 §7.1's economy log correspondingly carries no row for a command that changed
+            // nothing, which is why caughtUp is dropped here rather than published.
             return CommandResult.Reject(handled.Rejection!.Value, state);
         }
 
         FoldRngPositions(committedPositions, working.Run, rng, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
-        return CommandResult.Accept(working, Stamp(handled.Events));
+        return CommandResult.Accept(working, Stamp(Combine(caughtUp, handled.Events)));
+    }
+
+    /// <summary>
+    /// 🔒 The catch-up's events followed by the handler's — one list, in the order they happened.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Catch-up first, and it is not a preference.</b> `14` §2.4 replays the list as the
+    /// animation script and `14` §7.1 appends it to the economy log; an accrual stamped
+    /// <em>after</em> the spend it funded would tell both that the player paid with Energy they did
+    /// not yet have. The catch-up ran before the handler was even built, so its rows precede.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Allocates nothing on the common path</b>, which matters because that path is every
+    /// command sent inside one regeneration interval of the last: with no catch-up events this
+    /// hands the handler's own list straight through, and <see cref="Stamp"/> is the thing that
+    /// then copies it. The mirrored arm is the same trade for the other one-sided case — a catch-up
+    /// event and an accepted command whose handler produced none, which M1-09's
+    /// <c>BEGIN_SESSION</c> will be the first production command able to reach at all. ⚠️ A
+    /// <c>Deferred</c> row is <em>not</em> an instance of it: a deferral <b>rejects</b>, and
+    /// <see cref="Execute"/> returns at the rejection arm without ever calling this.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<DomainEvent> Combine(
+        IReadOnlyList<DomainEvent> caughtUp, IReadOnlyList<DomainEvent> handled)
+    {
+        if (caughtUp.Count == 0)
+        {
+            return handled;
+        }
+
+        if (handled.Count == 0)
+        {
+            return caughtUp;
+        }
+
+        var combined = new DomainEvent[caughtUp.Count + handled.Count];
+
+        for (var i = 0; i < caughtUp.Count; i++)
+        {
+            combined[i] = caughtUp[i];
+        }
+
+        for (var i = 0; i < handled.Count; i++)
+        {
+            combined[caughtUp.Count + i] = handled[i];
+        }
+
+        return combined;
     }
 
     /// <summary>
@@ -398,61 +479,163 @@ public static class GameRules
     /// 🔒 `30` §2.3's lazy catch-up seam — <em>"the first step of every command handler is
     /// <c>AdvanceTime(state, context.NowUtc)</c>"</em>.
     /// </summary>
+    /// <returns>
+    /// The <c>CurrencyChanged</c> rows the catch-up produced, unstamped, in the order they happened
+    /// — empty, and allocation-free, when it produced none.
+    /// </returns>
     /// <remarks>
     /// <para>
-    /// ⚠️ <b>M1-08 writes the catch-up; M1-06 writes the seam, and the seam is the deliverable.</b>
-    /// What is settled here is <em>where</em> it runs and that nothing can run before it: a handler
-    /// is only ever handed the slice this has already been called on, so "first" is a property of
-    /// the call graph rather than a convention every future handler has to remember. What is
-    /// <b>not</b> settled here is what it does — §2.3 lists Energy regeneration accrual, the 05:00
-    /// UTC daily resets, weekly boundaries, Plus expiry and event-window state, and several of those
-    /// act on state no milestone has authored yet (quest expiry, ad caps, dungeon entries, daily
-    /// shop stock). Writing a partial catch-up now would be a rule that looks complete and silently
-    /// skips four boundaries (steering <b>S6</b>).
+    /// 🔒 <b>It is first by construction.</b> A handler is only ever handed the slice this has
+    /// already been called on, so "the first step of every command handler" is a property of the
+    /// call graph rather than a convention every future handler has to remember.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It returns its events, and that is carried-forward item 11.</b> M1-06 left this
+    /// <c>void</c> while <c>Player.AccrueEnergy</c> <em>returns</em> a <c>CurrencyChanged</c>: an
+    /// accrual here satisfied `30` §9's IL rule — the aggregate's own mutator constructs the event —
+    /// while `14` §7.1's economy log and `21` §8.3's <c>income_attribution.csv</c> (risk <b>R10</b>)
+    /// never saw the row, with every suite green. <see cref="Execute"/> now <b>prepends</b> these to
+    /// the handler's before <see cref="Stamp"/> numbers the combined list 1..n; see
+    /// <see cref="Combine"/> for why the order is not a preference.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>A rejection discards the whole catch-up, and that is safe.</b> The ruling and its
+    /// reasoning are at the rejection arm in <see cref="Execute"/>: nothing here is consumptive, so
+    /// the next accepted command re-derives every one of these boundaries from <c>NowUtc</c> and the
+    /// stored anchors.
     /// </para>
     /// <para>
     /// 🔒 It takes the whole <see cref="WorldSlice"/> and the whole <see cref="GameContext"/> rather
-    /// than <c>(player, nowUtc)</c>: §2.3's boundaries are read off both aggregates
-    /// (<c>Player.EnergyAnchorUtc</c>, <c>Player.DailyPeriodStartUtc</c>,
-    /// <c>Player.WeeklyPeriodStartUtc</c>, <c>Run.LastAppliedAtUtc</c>) and several of them read
-    /// tunables out of <c>GameContext.Content</c>. A narrower signature would have to widen on the
-    /// commit that implements it, which is a change to every call site — of which there is
-    /// deliberately exactly one.
+    /// than <c>(player, nowUtc)</c>: §2.3's boundaries are read off both aggregates and several of
+    /// them read tunables out of <c>GameContext.Content</c>. The <c>Run</c> half is deliberately
+    /// unused — see the run row below — and the signature stays wide because M3's boundaries land
+    /// on it and a narrower one would have to widen on the commit that needs it.
     /// </para>
     /// <para>
-    /// ⚠️ M1-04 recorded the one thing M1-08 must not forget: clamp a negative span with
-    /// <c>Math.Max(TimeSpan.Zero, now − anchor)</c>, because a host clock that went backwards would
-    /// otherwise accrue a negative amount of Energy.
+    /// 🔒 <b>The clamp is here and the throw is in <c>EnergyMath</c>, deliberately.</b>
+    /// <c>EnergyMath.Accrue</c> <em>refuses</em> a negative span — <em>"clamping it there instead
+    /// would silently make a persistence defect, an anchor stored in the future which never
+    /// self-corrects, indistinguishable from skew"</em> — and `30` §2.1's <b>P3</b> forbids an
+    /// exception out of <see cref="Apply"/>. A host clock microseconds behind the persisted anchor
+    /// would otherwise throw on every command until it caught up. So the elapsed span is floored at
+    /// zero <em>here</em>: a backwards clock costs the player nothing and grants them nothing.
     /// </para>
     /// <para>
-    /// 🔒 <b>Two rulings M1-08 owns, named here by M1-06's architecture review so that neither is
-    /// discovered halfway through writing the body.</b> Both follow from this signature and this
-    /// call site rather than from the catch-up itself, and both are cheap to change <em>here</em> —
-    /// there is exactly one caller — and expensive to notice later:
+    /// 🔒 <b>Why the reset guards are <c>&gt;=</c> and not <c>&gt;</c>.</b> The two cases the guard
+    /// spans are not symmetric. The <b>equal</b> case — the boundary already in force, which is what
+    /// almost every command sees — is passed <em>through</em> to
+    /// <c>Player.ResetDailyCounters</c>' own no-op, M1-04's counter-wipe fix, so that defence stays
+    /// reachable from production instead of being shadowed by a condition here; clearing on equality
+    /// would wipe the day's ad caps and dungeon entries several times an hour. The <b>backwards</b>
+    /// case is the one this guard actually covers, and it is a real finding rather than defence in
+    /// depth: <c>Player.RequireNotBefore</c> <em>throws</em> on a boundary earlier than the one
+    /// stored, and under host clock skew that throw comes out of <see cref="Apply"/> — a P3
+    /// violation. Both halves are pinned.
     /// </para>
-    /// <list type="number">
-    ///   <item><b>The catch-up has no way to emit an event.</b> <c>ENERGY</c> is a
-    ///   <c>CurrencyId</c> and <c>Player.AccrueEnergy</c> <em>returns</em> a <c>CurrencyChanged</c>,
-    ///   so an accrual that runs here produces an event this <c>void</c> drops on the floor —
-    ///   `30` §9's IL rule is satisfied (the aggregate's own mutator constructs one) while `14`
-    ///   §7.1's economy log never sees the row. If offline accrual is loggable, this returns its
-    ///   events and <see cref="Execute"/> prepends them to the handler's <b>before</b>
-    ///   <see cref="Stamp"/> — they happened first — and if it is deliberately not loggable, that is
-    ///   a ruling to write down rather than a signature to inherit.</item>
-    ///   <item><b>A refused command discards the catch-up with the working copy.</b> `30` §2.1's
-    ///   <b>P4</b> returns the caller's own slice on a rejection, so the elapsed time is re-accrued
-    ///   from the same anchors on the next command — correct as long as the catch-up is idempotent
-    ///   in elapsed time, and <em>wrong</em> the moment it consumes something (a daily reset that
-    ///   clears a counter, an Energy overflow that spills into `28` C's reserve). M1-08 either keeps
-    ///   it idempotent or splits the commit, and the choice belongs in that task's report.</item>
+    /// <para>
+    /// ⚠️ <b>The zero-delta row is published, not filtered</b> (recorded assumption <b>A6</b>). When
+    /// the accrual ran but both banks were already full, the anchor still moves — time passed, and
+    /// <c>EnergyAccrual</c>'s remarks are explicit that a full tank is not a reason to stop the
+    /// clock — and the <c>CurrencyChanged</c> still goes out with <c>Delta</c> zero.
+    /// <c>CurrencyChanged</c>'s own remarks sanction that and name the milestone that may rule it
+    /// out. <b>The cost, named:</b> an idle player at a full tank emits one zero-delta
+    /// <c>energy_regen</c> row per command sent more than one interval apart. Filtering it here
+    /// would reintroduce "constructed then discarded" — the exact shape this task exists to remove.
+    /// The <em>other</em> arm is the one that keeps the volume sane: when the anchor did not move at
+    /// all, the aggregate is never touched and no event is constructed, so a command inside one
+    /// regeneration interval of the last produces nothing.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>What catch-up deliberately does NOT do</b>, so a later reader does not read the absence
+    /// as an oversight:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><b>Plus expiry — ruled off, not deferred.</b> `30` §3 and `12` §2.1 put entitlement
+    ///   on the <b>session</b>: <c>Entitlements</c> is a read-only value the composition root
+    ///   resolves against its own <c>NowUtc</c> before building the context, and the domain
+    ///   <em>"stores what it was told and re-derives nothing"</em>. There is no aggregate state to
+    ///   roll forward, so there is nothing here to do — and a comparison of
+    ///   <c>Entitlements.ExpiresAtUtc</c> against <c>NowUtc</c> would additionally be an entitlement
+    ///   branch inside the domain (`12` §3.2, <c>No_entitlement_branch_outside_a_composition_root</c>)
+    ///   on the hot path of every command, for no state change. It carries no <c>GapRegister</c>
+    ///   entry for the same reason <c>entitlement</c> carries none on `30` §4's Player-contents
+    ///   row.</item>
+    ///   <item><b>The run's `14` §16.3 TTL — never touched.</b> Not <c>Run.LastAppliedAtUtc</c>, not
+    ///   an expiry. Catch-up runs on <c>CommandKind.Meta</c> commands too, and sliding the run's
+    ///   48-hour TTL from outside the run is the exact defect M1-05 added the second timestamp to
+    ///   prevent — a run kept alive because its owner opened the shop. <em>Expiring</em> a run needs
+    ///   <c>RunPhase</c> to move it into, which is already a <c>GapRegister</c> entry owned by
+    ///   M3-05 whose <c>Why</c> states this consequence; there is no second entry for it.</item>
+    ///   <item><b>Quest expiry, daily-shop stock expiry and event windows.</b> `30` §2.3's three
+    ///   remaining boundaries, each acting on state no milestone has authored. Each has its own
+    ///   <c>GapRegister</c> entry (<c>QuestSlate</c>/M4-09, <c>DailyShopStock</c>/M4-09,
+    ///   <c>EventWindow</c>/M13-01) so the deferral expires by itself. The daily-reset
+    ///   <em>mechanism</em> those three will hang off is built and running below — ad caps, dungeon
+    ///   entries and the wheel's free spin are daily counters and are covered by it today.</item>
     /// </list>
+    /// <para>
+    /// ⚠️ <b>The order is `30` §2.3's own — energy, then the day, then the week — and nothing
+    /// couples the three today.</b> The accrual reads the anchor and the banks; the resets read the
+    /// two period boundaries. Stated rather than left implicit, because the first boundary that
+    /// <em>does</em> couple to another (a quest slate drawn on the day's rollover, say) will need
+    /// the order to be a decision rather than an accident.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The cost, on M1-11's hot path.</b> One <c>EnergyTuning.Read(context.Content)</c> per
+    /// command — read once here and passed to both <c>EnergyMath.Accrue</c> and
+    /// <c>Player.AccrueEnergy</c> — plus two calendar computations that answer in one step each
+    /// whatever the gap. There is deliberately no per-boundary loop: 180 days offline is one
+    /// subtraction, not 180 iterations.
+    /// </para>
     /// </remarks>
-    private static void AdvanceTime(WorldSlice state, GameContext context)
+    /// <param name="state">The <b>working</b> slice — never the caller's (`30` §2.1's P4).</param>
+    /// <param name="context">Everything ambient. <c>NowUtc</c> is the instant rolled forward to.</param>
+    private static IReadOnlyList<DomainEvent> AdvanceTime(WorldSlice state, GameContext context)
     {
-        _ = state;
-        _ = context;
+        var player = state.Player;
+        var tuning = EnergyTuning.Read(context.Content);
 
-        // M1-08. Deliberately empty: see the remarks. The call site is the deliverable.
+        // ---------------------------------------------- 1 · 10 §3 Energy regeneration (A1)
+        //
+        // 🔒 THE CLAMP. See the remarks: EnergyMath.Accrue throws on a negative span on purpose, and
+        // P3 forbids that exception reaching Apply's caller.
+        var sinceAnchor = context.NowUtc - player.EnergyAnchorUtc;
+        var elapsed = TimeSpan.FromTicks(Math.Max(0L, sinceAnchor.Ticks));
+
+        // The math is EnergyMath's, never restated here: 30 §11.5 puts computation in Rules/, and
+        // A1's "whole units, and the anchor moves by wholeUnits × the interval" is the rule a second
+        // transcription would get wrong the first time someone simplified it.
+        var accrual = EnergyMath.Accrue(tuning, player.LegendLevel, player.Energy, elapsed);
+
+        // Not one whole unit's worth of time has passed: the aggregate is not touched and no event
+        // is constructed. Player.AccrueEnergy takes BOTH halves of one accrual, which is what makes
+        // "banks written, anchor forgotten" unrepresentable rather than merely discouraged.
+        IReadOnlyList<DomainEvent> events = accrual.AnchorAdvance > TimeSpan.Zero
+            ? new DomainEvent[]
+            {
+                player.AccrueEnergy(accrual.Banks, accrual.AnchorAdvance, tuning, EnergyRegenReason),
+            }
+            : NoEvents;
+
+        // ---------------------------------------------- 2 · 30 §2.3's 05:00 UTC game day
+        var dayStart = GameCalendar.GameDayStartAt(context.NowUtc);
+
+        if (dayStart >= player.DailyPeriodStartUtc)
+        {
+            player.ResetDailyCounters(dayStart);
+        }
+
+        // ---------------------------------------------- 3 · A2's Monday 05:00 UTC game week
+        var weekStart = GameCalendar.GameWeekStartAt(context.NowUtc);
+
+        if (weekStart >= player.WeeklyPeriodStartUtc)
+        {
+            player.ResetWeeklyCounters(weekStart);
+        }
+
+        // 4 · Plus expiry — NOTHING, and that is a ruling. See the remarks.
+        // 5 · the Run — NOTHING, deliberately. See the remarks.
+        return events;
     }
 
     /// <summary>
@@ -615,16 +798,22 @@ public static class GameRules
             if (produced is null)
             {
                 throw new InvalidOperationException(
-                    "A handler returned a null event at position " + Text(i) + ". The event list is " +
-                    "14 §2.4's animation script and 14 §7.1's economy log; a hole in it is a row " +
-                    "neither can read.");
+                    "There is a null event at position " + Text(i) + " of this command's event " +
+                    "list. ⚠️ That ordinal counts the CATCH-UP's rows first (see Combine), so on a " +
+                    "command that also accrued it is NOT the index into what the handler returned. " +
+                    "The event list is 14 §2.4's animation script and 14 §7.1's economy log; a hole " +
+                    "in it is a row neither can read.");
             }
 
             if (produced.Sequence != DomainEvent.UnstampedSequence)
             {
                 throw new InvalidOperationException(
-                    "A handler returned " + produced.GetType().Name + " already stamped with " +
-                    "Sequence " + Text(produced.Sequence) + ". The ordinal is the event's position within " +
+                    "The event at position " + Text(i) + " of this command's list is a " +
+                    produced.GetType().Name + " already stamped with " +
+                    "Sequence " + Text(produced.Sequence) + ". (That ordinal counts the catch-up's " +
+                    "rows first — see Combine — and the catch-up builds every row it produces with " +
+                    "DomainEvent.UnstampedSequence, so the producer here is the handler.) " +
+                    "The ordinal is the event's position within " +
                     "ONE Apply call's list and is assigned HERE — never by a constructor and never " +
                     "by a caller (30 §7). A handler that stamps its own has decided a position in a " +
                     "list whose shape it does not know, and the economy log (14 §7.1) and the " +
