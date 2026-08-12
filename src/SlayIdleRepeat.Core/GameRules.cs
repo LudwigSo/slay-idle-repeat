@@ -3,7 +3,9 @@ using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Handlers;
 using SlayIdleRepeat.Core.Model;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Economy;
@@ -81,10 +83,15 @@ public static class GameRules
     /// expire by itself instead of waiting to be noticed.
     /// </para>
     /// <para>
-    /// ⚠️ <b>Handlers stay out of <c>Core/Handlers/</c> until M1-09 puts the first real one there.</b>
-    /// That namespace is a <c>SubjectSetFloorTests.Pending</c> entry owned by M1-09, and populating
-    /// it with dispatch plumbing would move the entry — and the two rules keyed on it — a milestone
-    /// early, over types that are not handlers.
+    /// 🔒 <b>M1-09 put the first real handler under <c>Core/Handlers/</c>, and the sentence that used
+    /// to stand here — "handlers stay out of it until M1-09" — is corrected rather than left to go
+    /// stale (steering <b>S4</b>'s known limit).</b> <c>Domain.HandlersNamespace</c> has moved from
+    /// <c>SubjectSetFloorTests.Pending</c> to <c>Live</c>, and both rules keyed on it are awake:
+    /// <c>Handlers_and_Rules_are_internal</c> now quantifies over a real type on its <c>Handlers</c>
+    /// half for the first time, and <c>Every_command_type_is_handled_by_Apply</c>'s dispatch surface
+    /// is no longer <c>GameRules</c> alone. M1-06's reason for keeping the plumbing out still holds
+    /// for the plumbing: <c>CommandDispatch</c>, <c>CommandRegistration</c> and <c>HandlerInput</c>
+    /// are not handlers and stay where they are.
     /// </para>
     /// <para>
     /// 🔒 <b>M1-02 landed the 49 rows and nothing reshaped</b> — one row is one chained call, exactly
@@ -103,8 +110,14 @@ public static class GameRules
     /// <c>runSeed</c> no scope at all.
     /// </para>
     /// <para>
-    /// 🔒 <b>Every row is <c>Deferred</c> today, including <c>BEGIN_SESSION</c></b>, whose handler is
-    /// M1-09's and lands two tasks from here. Each row's owner is the task the tracker gives for the
+    /// 🔒 <b>Forty-eight rows are <c>Deferred</c> and one is <c>Handled</c>.</b> M1-09 swapped
+    /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which is the one-line edit
+    /// this table's shape was designed for and the first time <see cref="Execute"/>'s
+    /// <c>registration.IsHandled</c> arm runs over the production table. ⚠️ <b>The consequence for
+    /// every handler-shaped rule stated over this table, which used to be quantifying over
+    /// nothing:</b> they now have exactly one subject, so a floor by identity rather than by count is
+    /// what keeps them honest — see <c>Every_command_type_is_handled_by_Apply</c>. Each row's owner
+    /// is the task the tracker gives for the
     /// system behind the command — read off <c>IMPLEMENTATION_TRACKER.md</c>'s task rows rather than
     /// inferred, because a wrong owner is a deferral that expires at the wrong time (steering
     /// <b>S4</b>). The owner lives <em>here</em>, on the row, rather than in a mirrored
@@ -143,7 +156,7 @@ public static class GameRules
         .Deferred<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, "M3-13")
 
         // ----------------------------------------------- `14` §2.3 — the 30 META commands
-        .Deferred<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, "M1-09")
+        .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)
         .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
         .Deferred<EquipCommand>("EQUIP", CommandKind.Meta, "M4-03")
         .Deferred<MergeCommand>("MERGE", CommandKind.Meta, "M4-04")
@@ -250,7 +263,11 @@ public static class GameRules
     /// <exception cref="InvalidOperationException">
     /// 🔒 A <b>defect</b>, never a refusal: the slice does not carry the run its command acts on, an
     /// aggregate does not round-trip through its own snapshot, a handler hand-wrote an RNG stream
-    /// position, or a handler stamped an event's <c>Sequence</c> itself.
+    /// position, a handler stamped an event's <c>Sequence</c> itself, or — M1-09's addition — a
+    /// `14` §2.3 <b>⚄</b> command reached a handler that draws while <c>GameContext.CommandSeed</c>
+    /// is <c>null</c> (<see cref="HandlerInput"/>'s <c>MetaDraws</c>). Every one of the five is a
+    /// miswired caller or a rule that is wrong; none is a player asking for something they cannot
+    /// have.
     /// </exception>
     public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>
         Execute(Dispatch, state, command, context);
@@ -265,9 +282,13 @@ public static class GameRules
     /// rules against shapes that must <b>never</b> be committed to <c>Core</c> — a handler that
     /// hand-writes an RNG counter, a handler that stamps its own <c>Sequence</c>, a command whose
     /// system does not exist. ⚠️ M1-02 filled the real table with 49 rows and <b>none of that
-    /// changed</b>: every one of those rows is <c>Deferred</c>, so the production table still holds
-    /// <em>no handler at all</em>, and every handler-shaped rule stated over it would be asserted
-    /// over nothing and would report success forever (steering <b>S3</b>). The third shape —
+    /// changed</b>: every one of those rows was <c>Deferred</c>, so the production table held
+    /// <em>no handler at all</em>, and every handler-shaped rule stated over it would have been
+    /// asserted over nothing and would have reported success forever (steering <b>S3</b>). 🔒 <b>M1-09
+    /// changed exactly that much and no more:</b> the production table now holds <b>one</b> handler,
+    /// so the two shapes below are no longer merely unreachable there — they are shapes a real
+    /// handler could grow — and this parameter is still what lets the suite drive them without
+    /// committing one. The third shape —
     /// "a command whose system does not exist" — is the one the real table now has, 49 times, and
     /// <c>Commands.CommandVocabularyTests</c> drives it there rather than here.
     /// </para>
@@ -342,6 +363,21 @@ public static class GameRules
         // about what catch-up may touch, not about where this line sits.
         var committedPositions = working.Run?.RngStreamPositions;
 
+        // 🔒 THE WHOLE RUN, not only its counters, and only for a META command. M1-09's architecture
+        // review found the hole the instant Core/Handlers/ had an occupant: a CommandKind.Meta
+        // command is dispatched perfectly happily with a run in the slice, HandlerInput.Run hands it
+        // that run, and FoldRngPositions guards ONLY the 14 §8.1 stream positions — so Gold, HP,
+        // Position and the per-run ad uses were writable by a handler that has no business in the run
+        // at all, and Apply would return the mutated run with 14 §16.3's TTL deliberately NOT
+        // stamped (see MarkApplied). A shop visit could have quietly moved a run's Gold and left the
+        // run looking untouched since its last real command.
+        //
+        // ⚠️ A snapshot rather than a reference: Run is a class with internal mutators, so holding
+        // the aggregate would compare it against itself. RunSnapshot is a record, so this is one
+        // ToSnapshot() and one value comparison — measured against the two full round trips Clone
+        // already pays per command, and only on the meta commands that carry a run at all.
+        var untouchedRun = registration.Kind == CommandKind.Meta ? working.Run?.ToSnapshot() : null;
+
         var handled = registration.IsHandled
             ? registration.Handler!(command, new HandlerInput(working, context, rng))
 
@@ -369,7 +405,17 @@ public static class GameRules
             return CommandResult.Reject(handled.Rejection!.Value, state);
         }
 
+        // 🔒 THE ORDER IS DELIBERATE AND IT IS A STEERING-S2 DECISION. A meta handler that
+        // hand-wrote a stream position trips BOTH checks — a position is part of the run's snapshot —
+        // and the two messages send the reader to different places: one says "draw through
+        // HandlerInput.Rng and write nothing", the other says "this command has no business in the
+        // run at all". The narrower diagnosis is the more useful one, so it runs first. Measured:
+        // putting the ownership check first turned
+        // GameRulesRngTests.A_meta_handler_that_hand_writes_a_stream_position_is_a_defect_too red,
+        // which is exactly the "several rules can produce this, pin WHICH one fired" shape S2 is
+        // about — the test was right and the ordering was wrong.
         FoldRngPositions(committedPositions, working.Run, rng, registration);
+        RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
         return CommandResult.Accept(working, Stamp(Combine(caughtUp, handled.Events)));
@@ -390,10 +436,12 @@ public static class GameRules
     /// command sent inside one regeneration interval of the last: with no catch-up events this
     /// hands the handler's own list straight through, and <see cref="Stamp"/> is the thing that
     /// then copies it. The mirrored arm is the same trade for the other one-sided case — a catch-up
-    /// event and an accepted command whose handler produced none, which M1-09's
-    /// <c>BEGIN_SESSION</c> will be the first production command able to reach at all. ⚠️ A
-    /// <c>Deferred</c> row is <em>not</em> an instance of it: a deferral <b>rejects</b>, and
-    /// <see cref="Execute"/> returns at the rejection arm without ever calling this.
+    /// event and an accepted command whose handler produced none — and 🔒 <b>M1-09's
+    /// <c>BEGIN_SESSION</c> reaches it, as this remark predicted</b>: its second and every later call
+    /// inside one game day is `30` §2.3's no-op, so a command that also crossed a regeneration
+    /// interval hands the catch-up's accrual straight through. ⚠️ A <c>Deferred</c> row is
+    /// <em>not</em> an instance of it: a deferral <b>rejects</b>, and <see cref="Execute"/> returns
+    /// at the rejection arm without ever calling this.
     /// </para>
     /// </remarks>
     private static IReadOnlyList<DomainEvent> Combine(
@@ -636,6 +684,61 @@ public static class GameRules
         // 4 · Plus expiry — NOTHING, and that is a ruling. See the remarks.
         // 5 · the Run — NOTHING, deliberately. See the remarks.
         return events;
+    }
+
+    /// <summary>
+    /// 🔒 A <c>CommandKind.Meta</c> command may <b>read</b> the run it was handed and may not
+    /// <b>write</b> it — at all, not merely its `14` §8.1 counters.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Why this is separate from <see cref="FoldRngPositions"/> rather than folded into it.</b>
+    /// That check answers "did the handler hand-write a stream position", which is a determinism
+    /// question and applies to <em>both</em> kinds. This one answers "did a command that is not part
+    /// of this run change it", which is an <b>ownership</b> question and applies to meta commands
+    /// only. Before M1-09 the hole was unreachable — the production table held no handler — and the
+    /// two questions could look like one. They are not: a run command legitimately writes Gold, HP
+    /// and position on every turn.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The consequence it closes, stated so the cost is judged against something.</b>
+    /// <see cref="MarkApplied"/> deliberately does <em>not</em> stamp the run on a meta command —
+    /// that asymmetry is why M1-05 put a second <c>LastAppliedAtUtc</c> on <c>Run</c>, so a player
+    /// cannot hold a run open by opening the shop. A meta handler that wrote the run would therefore
+    /// produce a run whose state had changed and whose `14` §16.3 timestamp said nothing had
+    /// happened, and the next reader would have no way to tell which command did it.
+    /// </para>
+    /// <para>
+    /// ⚠️ A <b>defect</b> rather than a rejection, exactly as the hand-written-position case is: a
+    /// <c>RejectionReason</c> would hand the player a polite "no" and leave the corrupted run in
+    /// place.
+    /// </para>
+    /// </remarks>
+    /// <param name="untouched">
+    /// The run's snapshot as it stood before the handler, or <c>null</c> for a run command (which may
+    /// write) or a slice with no run (which has nothing to write).
+    /// </param>
+    /// <param name="working">The run the handler was given, or <c>null</c> when the slice carries none.</param>
+    /// <param name="registration">The dispatch row, for the message.</param>
+    private static void RequireRunUntouched(
+        RunSnapshot? untouched, Run? working, CommandRegistration registration)
+    {
+        if (untouched is null || working is null || untouched == working.ToSnapshot())
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "The handler for '" + registration.WireName + "' is a CommandKind.Meta command and it " +
+            "WROTE THE RUN it was handed. 14 §2.3 splits the registry 19 run / 30 meta, and a meta " +
+            "command acts OUTSIDE a run: it is dispatched with one in the slice because a player can " +
+            "open the shop without leaving, and HandlerInput.Run hands it that run to READ. Writing " +
+            "it is an ownership defect, and a silent one — Apply deliberately does not stamp " +
+            "Run.LastAppliedAtUtc for a meta command (M1-05's second timestamp exists so a meta " +
+            "command cannot keep a run alive), so the run would come back changed while its own " +
+            "14 §16.3 timestamp said nothing had happened to it, and no later reader could tell which " +
+            "command did it. If the command genuinely acts inside the run, its dispatch row is " +
+            "classified CommandKind.Meta and should not be.");
     }
 
     /// <summary>

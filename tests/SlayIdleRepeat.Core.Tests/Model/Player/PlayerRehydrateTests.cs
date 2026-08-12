@@ -82,10 +82,25 @@ public sealed class PlayerRehydrateTests
     /// Both directions: a row from the future (a client that downgraded) and a row from the past
     /// (the case a migration would one day handle). Neither is readable today, and reading either
     /// against the current layout shifts every field after the first change by one position.
+    /// <para>
+    /// 🔒 <b>The "one past the current" row is written as an expression, not as a literal, and that
+    /// is M1-09's correction rather than a style preference.</b> It was <c>[InlineData(2)]</c>, which
+    /// silently stopped being a wrong version on the commit that bumped
+    /// <see cref="SnapshotSchema.SchemaVersion"/> to 2 — the case went <em>red</em> there, which is
+    /// the good outcome, but only because the accepted version happened to be the very next integer.
+    /// A literal 3 would have kept passing while asserting nothing about the boundary it names. The
+    /// <c>const</c> arithmetic below cannot go stale at any future bump.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData(0)]
-    [InlineData(2)]
+
+    // 🔒 The version this build ORPHANS. M1-09 bumped 1 -> 2 with no migration, so a row stamped 1
+    // is real on-disk data this build cannot read — the exact case SnapshotSchema's history
+    // paragraph and SnapshotFieldOrder.json's preamble both claim is "refused loudly". Nothing
+    // asserted it until the M1-09 review asked.
+    [InlineData(SnapshotSchema.SchemaVersion - 1)]
+    [InlineData(SnapshotSchema.SchemaVersion + 1)]
     [InlineData(int.MaxValue)]
     public void An_unknown_SchemaVersion_hard_fails_and_says_no_migration_exists(int schemaVersion)
     {
@@ -112,7 +127,9 @@ public sealed class PlayerRehydrateTests
     public void A_wrong_SchemaVersion_is_reported_alone_and_not_alongside_field_faults()
     {
         var result = Core.Model.Player.Rehydrate(
-            PlayerSnapshots.With(schemaVersion: 2, displayName: "  ", legendLevel: -3), Content);
+            PlayerSnapshots.With(
+                schemaVersion: SnapshotSchema.SchemaVersion + 1, displayName: "  ", legendLevel: -3),
+            Content);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldContain("NO MIGRATION EXISTS", Case.Sensitive);

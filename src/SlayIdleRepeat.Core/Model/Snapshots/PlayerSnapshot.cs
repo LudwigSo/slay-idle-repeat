@@ -77,6 +77,14 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// (milestone assumption <b>A2</b>, derived from `27` §4).
 /// </param>
 /// <param name="WeeklyCounters">The weekly counter mechanism. Same shape, same openness.</param>
+/// <param name="LoginCalendarDay">
+/// 🔒 `19` Part G — the login-calendar day currently <b>open</b>, counted from 1. Advanced by
+/// <c>BEGIN_SESSION</c> (M1-09), claimed by <c>CLAIM_CALENDAR</c> (M4-09), and never below 1.
+/// </param>
+/// <param name="LoginCalendarDayClaimed">
+/// 🔒 `19` Part G — whether <see cref="LoginCalendarDay"/> has been claimed. The <b>pause</b> flag:
+/// <em>"a missed day — or an unclaimed one — pauses the calendar. Nothing is skipped or lost."</em>
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -138,6 +146,17 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// the same reason and belong to M4-06/07/08/10.
 /// </para>
 /// <para>
+/// 🔒 <b>M1-09 added the two login-calendar fields and paid the bump this remark promised.</b>
+/// <see cref="SnapshotSchema.SchemaVersion"/> went 1 → <b>2</b> and <c>SnapshotFieldOrder.json</c>
+/// gained a v2 entry with v1 left exactly as it was. `19` G authors the advance rule completely —
+/// the open day, the claimed flag, "at most once per game day", the pause and the wrap — so nothing
+/// was invented; what M1-09 deliberately did <b>not</b> carry is the twenty-eight-row reward table,
+/// which is <c>CLAIM_CALENDAR</c>'s (M4-09) and names Pet Eggs and <c>CHEST_PREMIUM</c> containers
+/// whose types <c>GapRegister</c> already defers. ⚠️ The paragraph above still stands for M4-09 and
+/// M10: this was one bump, not the last one, and pre-soft-launch bumps cost no migration (the M1
+/// kickoff ruled written migrations mandatory only from M18).
+/// </para>
+/// <para>
 /// Adding, removing or reordering any field here is a <b>serialisation change</b>: it bumps
 /// <see cref="SnapshotSchema.SchemaVersion"/> and is handled as a versioned migration, never
 /// silently. The field list is pinned in
@@ -160,4 +179,6 @@ public sealed record PlayerSnapshot(
     DateTimeOffset DailyPeriodStartUtc,
     IReadOnlyDictionary<string, long> DailyCounters,
     DateTimeOffset WeeklyPeriodStartUtc,
-    IReadOnlyDictionary<string, long> WeeklyCounters);
+    IReadOnlyDictionary<string, long> WeeklyCounters,
+    int LoginCalendarDay,
+    bool LoginCalendarDayClaimed);

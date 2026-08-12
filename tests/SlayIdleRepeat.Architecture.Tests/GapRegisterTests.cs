@@ -376,12 +376,37 @@ public sealed class GapRegisterTests
             .Select(m => (Wire: m.Groups["wire"].Value, Owner: m.Groups["owner"].Value))
             .ToArray();
 
+        // 🔒 M1-09 lowered the deferred floor from 49 to 48 by exactly the one row that became
+        // Handled — BEGIN_SESSION — and added the Handled floor beside it rather than only editing
+        // the number. That is the difference between "48 rows are deferred" and "48 are deferred AND
+        // the 49th is handled": the sentence this replaces would have been satisfied just as well by
+        // a row that was DELETED, which is the failure 14 §2.3's registry ("a command not listed here
+        // does not exist") most needs a rule to notice. The two are asserted, and then their sum.
+        var handled = Regex.Matches(dispatch, @"\.Handled<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), (?<handler>[\w.]+)\)")
+            .Select(m => m.Groups["wire"].Value)
+            .ToArray();
+
         owners.Length.ShouldBe(
+            48,
+            "14 §2.3's registry is 19 run + 30 meta, and 48 of the 49 rows are Deferred since M1-09 " +
+            "landed the BEGIN_SESSION handler. If this is 0 the pattern has stopped matching the " +
+            "dispatch table and the comparison below holds over nothing; if it shrinks, either a row " +
+            "went away or a row became Handled — in which case lower this by exactly that many and " +
+            "raise the Handled floor by the same.");
+
+        handled.ShouldBe(
+            new[] { "BEGIN_SESSION" },
+            ignoreOrder: true,
+            "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
+            "satisfied by whatever handler replaced the one this names. 30 §2.3's BEGIN_SESSION is " +
+            "the first and, on this commit, the only one.");
+
+
+        (owners.Length + handled.Length).ShouldBe(
             49,
-            "14 §2.3's registry is 19 run + 30 meta and every row is Deferred today. If this is 0 the " +
-            "pattern has stopped matching the dispatch table and the comparison below holds over " +
-            "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
-            "lower this by exactly that many.");
+            "…and the sum, because the two floors above are separately satisfiable while a row goes " +
+            "missing entirely. 14 §2.3 says the registry is EXHAUSTIVE — 'a command not listed here " +
+            "does not exist' — so 49 is the number the table has, whatever the split.");
 
         var tracker = File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 
@@ -405,6 +430,68 @@ public sealed class GapRegisterTests
         ArchRule.Empty(
             offenders,
             "Every deferred command names a milestone task the tracker declares (steering S4).");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.4 — <c>Core/Handlers/</c> holds <b>handlers</b>: every top-level type under it is
+    /// named by a <c>CommandDispatch.Handled</c> row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Found by M1-09's architecture review, and it is the "what can a future author do that
+    /// nothing would catch" question answered.</b>
+    /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c> computes its dispatch surface
+    /// as <em>everything under <c>Core/Handlers/</c></em> plus <c>GameRules</c>. So a NON-handler type
+    /// placed there — a shared daily-block helper, a <c>HandlerResult</c> factory — silently widens
+    /// that surface, and any command it happens to name reads as dispatched with no row behind it.
+    /// Nothing constrained the composition of that directory at all; the constraint was only ever
+    /// implicit in it being empty.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is here rather than in <c>DomainPurityTests</c> because it reads the dispatch table's
+    /// <b>source</b>, which is this file's mechanism (see the rule above for why the raw text and not
+    /// <c>SourceText</c>). It was briefly written <em>inside</em> that rule and moved out: an
+    /// assertion whose failure is not described by the test's name is the same defect as a name that
+    /// promises more than its assertion delivers (steering <b>S1</b>), just pointing the other way.
+    /// </para>
+    /// <para>
+    /// 🔒 Floored by <c>Assert.NotEmpty</c> on the declared set: <c>Core/Handlers/</c> emptying would
+    /// otherwise satisfy this forever, which is exactly the state it was in before M1-09.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_type_under_Core_Handlers_is_a_handler_the_dispatch_table_names()
+    {
+        var dispatch = File.ReadAllText(
+            Path.Combine(RepoLayout.SrcRoot, "SlayIdleRepeat.Core", "GameRules.cs"));
+
+        // 🔒 …AND THE HANDLERS THEMSELVES, which M1-09's architecture review found nothing was
+        // watching. Every_command_type_is_handled_by_Apply computes its dispatch surface as
+        // "Core/Handlers/ ∪ GameRules", so a NON-handler type placed under Core/Handlers/ — a shared
+        // daily-block helper, a HandlerResult factory — silently widens that surface, and any command
+        // it happens to name reads as dispatched. Nothing constrained the composition of that
+        // directory at all. The regex above already captures the handler group; it was being
+        // discarded.
+        var handlers = Regex.Matches(dispatch, @"\.Handled<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), (?<handler>[\w.]+)\)")
+            .Select(m => m.Groups["handler"].Value.Split('.')[0])
+            .ToHashSet(StringComparer.Ordinal);
+
+        var underHandlers = Domain.CoreTypesUnder(Domain.HandlersNamespace)
+            .Where(t => t.DeclaringType is null && !Domain.IsCompilerGenerated(t))
+            .Select(t => t.Name)
+            .ToArray();
+
+        Assert.NotEmpty(underHandlers);
+        ArchRule.Empty(
+            underHandlers.Where(name => !handlers.Contains(name))
+                .Select(name =>
+                    $"'{name}' is declared under {Domain.HandlersNamespace} but no CommandDispatch.Handled " +
+                    "row names it. 30 §11.4 makes that directory 'one handler per command', and " +
+                    "DomainPurityTests.Every_command_type_is_handled_by_Apply treats EVERYTHING under it " +
+                    "as dispatch surface — so a type there that is not a handler widens the set of " +
+                    "commands that rule considers handled, for free. Put shared helpers in Rules/ " +
+                    "(computation) or on the aggregate (state), not here."),
+            "Every type under Core/Handlers/ is a handler the dispatch table names (30 §11.4).");
     }
 
     /// <summary>

@@ -131,6 +131,8 @@ public sealed class Player
     private DateTimeOffset? _ftueCompletedAtUtc;
     private DateTimeOffset _dailyPeriodStartUtc;
     private DateTimeOffset _weeklyPeriodStartUtc;
+    private int _loginCalendarDay;
+    private bool _loginCalendarDayClaimed;
 
     /// <summary>
     /// The daily counters, and the read-only view handed out by <see cref="DailyCounters"/>.
@@ -170,7 +172,9 @@ public sealed class Player
         DateTimeOffset dailyPeriodStartUtc,
         Dictionary<string, long> dailyCounters,
         DateTimeOffset weeklyPeriodStartUtc,
-        Dictionary<string, long> weeklyCounters)
+        Dictionary<string, long> weeklyCounters,
+        int loginCalendarDay,
+        bool loginCalendarDayClaimed)
     {
         Id = id;
         DisplayName = displayName;
@@ -189,6 +193,8 @@ public sealed class Player
         _weeklyPeriodStartUtc = weeklyPeriodStartUtc;
         _weeklyCounters = weeklyCounters;
         _weeklyCountersView = new ReadOnlyDictionary<string, long>(weeklyCounters);
+        _loginCalendarDay = loginCalendarDay;
+        _loginCalendarDayClaimed = loginCalendarDayClaimed;
     }
 
     /// <summary>The aggregate root's identity (`30` §4).</summary>
@@ -277,6 +283,35 @@ public sealed class Player
     public IReadOnlyDictionary<string, long> WeeklyCounters => _weeklyCountersView;
 
     /// <summary>
+    /// 🔒 `19` Part G — the login-calendar day currently <b>open</b>: the one the player may claim,
+    /// counted from 1.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Open, not "the last one claimed"</b>, and the distinction is the whole rule. `19` G
+    /// advances at <c>BEGIN_SESSION</c> <em>"at most once per game day, and only when the currently
+    /// open day has been claimed"</em>, so a player who misses a day finds the same day still open —
+    /// <em>"nothing is skipped or lost"</em>. A field holding "the last day claimed" would answer the
+    /// pause question only by adding one to it, and would have nothing to say about a brand-new
+    /// player who has claimed none.
+    /// </remarks>
+    public int LoginCalendarDay => _loginCalendarDay;
+
+    /// <summary>
+    /// 🔒 `19` Part G — whether <see cref="LoginCalendarDay"/> has been claimed. The <b>pause</b>
+    /// flag: while it is <see langword="false"/> the calendar does not advance.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Nothing in M1 sets it, and that is a deferral with a named owner rather than a hole.</b>
+    /// `19` G puts claiming on <c>CLAIM_CALENDAR</c>, whose dispatch row is <c>Deferred</c> to
+    /// <b>M4-09</b> — so an M1 player's calendar is correctly and permanently paused on day 1, which
+    /// is exactly what `19` G specifies for a player who has not claimed. The <em>advance</em> arm is
+    /// reachable all the same: <see cref="Rehydrate"/> is `30` §11.3's one validated construction
+    /// path and is public, so a persisted row with a claimed day drives it — which is how M1-09's
+    /// suite proves both arms rather than only the one M1 can reach through a command.
+    /// </remarks>
+    public bool LoginCalendarDayClaimed => _loginCalendarDayClaimed;
+
+    /// <summary>
     /// The balance of one player-scoped wallet currency.
     /// </summary>
     /// <param name="currency">One of <see cref="WalletCurrencies"/>.</param>
@@ -334,7 +369,9 @@ public sealed class Player
         _dailyPeriodStartUtc,
         Copy(_dailyCounters),
         _weeklyPeriodStartUtc,
-        Copy(_weeklyCounters));
+        Copy(_weeklyCounters),
+        _loginCalendarDay,
+        _loginCalendarDayClaimed);
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted player: <em>"a corrupt row
@@ -410,6 +447,7 @@ public sealed class Player
         RequireFtue(snapshot, faults);
         var daily = ReadCounters(snapshot.DailyCounters, nameof(PlayerSnapshot.DailyCounters), faults);
         var weekly = ReadCounters(snapshot.WeeklyCounters, nameof(PlayerSnapshot.WeeklyCounters), faults);
+        RequireLoginCalendar(snapshot, faults);
 
         // The three `is null` arms are unreachable while `faults` is empty — every path that
         // returns null also adds a fault — but they are written as a pattern rather than as three
@@ -436,7 +474,9 @@ public sealed class Player
             snapshot.DailyPeriodStartUtc,
             daily,
             snapshot.WeeklyPeriodStartUtc,
-            weekly));
+            weekly,
+            snapshot.LoginCalendarDay,
+            snapshot.LoginCalendarDayClaimed));
     }
 
     /// <summary>
@@ -741,6 +781,58 @@ public sealed class Player
 
         _weeklyCounters.Clear();
         _weeklyPeriodStartUtc = periodStartUtc;
+    }
+
+    /// <summary>
+    /// 🔒 `19` Part G — advances the login calendar to the next day, which becomes <b>open and
+    /// unclaimed</b>. The pointer only; nothing is paid out.
+    /// </summary>
+    /// <param name="tuning">
+    /// The calendar numbers, so `19` G's <em>"after day 28 it restarts at day 1"</em> is read from
+    /// <c>tuning/currencies.json</c> rather than transcribed here (`21` §3.1).
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The pause rule is enforced here, not left to the caller.</b> `19` G advances
+    /// <em>"only when the currently open day has been claimed; a missed day — or an unclaimed one —
+    /// pauses the calendar. Nothing is skipped or lost."</em> A mutator that advanced unconditionally
+    /// would let any future caller skip a day the player never received, and the loss would be
+    /// invisible: the pointer would simply be further along than the rewards paid. So an unclaimed
+    /// day is a <b>silent no-op</b> rather than a refusal — the pause is the specified behaviour, not
+    /// an error, and <c>BEGIN_SESSION</c> arriving on a paused calendar is the normal case.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>"At most once per game day" is deliberately NOT here.</b> That half of `19` G is about
+    /// how often the calendar is <em>asked</em>, and the aggregate has no way to know: it holds no
+    /// game day of its own and `30` §11.5 keeps the arithmetic that would compute one out of
+    /// <c>Model</c>. <c>Handlers/BeginSession</c> owns it, through the per-game-day idempotence that
+    /// gates the whole daily block — one mechanism for three effects, rather than a second, weaker
+    /// copy of it hidden in the aggregate.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It emits no event.</b> A calendar day is not a currency and nothing moved: `30` §7's
+    /// vocabulary has no row for a pointer, and the grant that <em>will</em> move currency is
+    /// <c>CLAIM_CALENDAR</c>'s (M4-09), which pays from the day this opened.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It returns nothing, deliberately.</b> A <c>bool</c> "did it move" would be a second way
+    /// to ask a question <see cref="LoginCalendarDay"/> and <see cref="LoginCalendarDayClaimed"/>
+    /// already answer, and a caller that trusted the flag instead of the state is exactly how a test
+    /// ends up asserting the return value of the method under test rather than what it did.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    internal void AdvanceLoginCalendar(LoginCalendarTuning tuning)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+
+        if (!_loginCalendarDayClaimed)
+        {
+            return;
+        }
+
+        _loginCalendarDay = tuning.DayAfter(_loginCalendarDay);
+        _loginCalendarDayClaimed = false;
     }
 
     /// <summary>
@@ -1211,6 +1303,31 @@ public sealed class Player
                 nameof(PlayerSnapshot.FtueBeatId) + " is " + snapshot.FtueBeatId + ". 19 D7 " +
                 "completes the tutorial when beat 10's spend commits, so a completed tutorial is " +
                 "always at B10 — this row claims a payout was banked at a beat that never reached it.");
+        }
+    }
+
+    /// <summary>
+    /// 🔒 `19` Part G — the login calendar's floor, and <b>only</b> its floor.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>There is no upper bound here, and that is the same ruling the energy banks carry.</b>
+    /// <c>cycleDays</c> is a 📐 tunable, so a balance patch that <em>shortens</em> the cycle leaves
+    /// real players standing on a day the new table no longer has — and refusing to <b>load</b> such
+    /// a row would turn a tuning change into an account outage for every one of them, which is
+    /// precisely why <see cref="Rehydrate"/> also does not bound the Energy banks.
+    /// <c>LoginCalendarTuning.DayAfter</c> wraps them to day 1 on the next advance instead.
+    /// A checked upper bound would additionally need the <em>calendar</em> tuning here, which would
+    /// make loading any player fail on a data set that authors no calendar at all.
+    /// </remarks>
+    private static void RequireLoginCalendar(PlayerSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.LoginCalendarDay < LoginCalendarTuning.FirstDay)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.LoginCalendarDay) + " is " + Text(snapshot.LoginCalendarDay) +
+                ". 19 G numbers the login calendar from day " + Text(LoginCalendarTuning.FirstDay) +
+                "; day 0 is what an uninitialised column reads as, and a player standing on it would " +
+                "be paid one day behind the table for the rest of the cycle.");
         }
     }
 

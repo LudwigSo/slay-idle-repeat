@@ -19,8 +19,18 @@ namespace SlayIdleRepeat.Core.Tests;
 /// <para>
 /// Aggregates are built the only way `30` §11.3 allows — through <c>Rehydrate</c> over the snapshot
 /// fixtures M1-04 and M1-05 authored — so nothing here invents a starting state. The content
-/// snapshot is <c>ProgressionDocuments.Shipped</c>, because <c>Player.Rehydrate</c> validates the
-/// Legend Level against `07` §1.1's authored range.
+/// snapshot is <c>TuningDocuments.Shipped</c>: <c>Player.Rehydrate</c> validates the Legend Level
+/// against `07` §1.1's authored range, and M1-09's <c>BEGIN_SESSION</c> is the first command to read
+/// a <em>second</em> tuning document (`19` G's calendar cycle, in <c>tuning/currencies.json</c>).
+/// </para>
+/// <para>
+/// 🔒 <b><see cref="Context"/> carries no <c>CommandSeed</c>, and that is correct for every fixture
+/// command in this file</b> — `30` §3 makes the seed meta-only and `14` §2.3 marks only nine rows ⚄,
+/// none of which these fixtures impersonate. A command that <em>draws</em> takes
+/// <see cref="Drawing"/> instead, which is the one door that pairs a seed with a command here
+/// (steering <b>S2</b>: "a run command was handed a seed" and "a meta draw was handed none" are
+/// opposite defects with opposite fixes, and sharing one fixture would let a test pass on the wrong
+/// one).
 /// </para>
 /// <para>
 /// ⚠️ <b>The command fixtures are deliberately not any of `14` §2.3's 49 rows.</b> The vocabulary is
@@ -45,9 +55,30 @@ internal static class Worlds
     internal static GameContext Context { get; } = new(
         NowUtc,
         CommandSeed: null,
-        ProgressionDocuments.Shipped,
+        TuningDocuments.Shipped,
         TestSupport.GameContexts.WithoutPlus,
         TestSupport.GameContexts.NoKillSwitchThrown);
+
+    /// <summary>
+    /// 🔒 The context a ⚄ command gets: <see cref="Context"/> plus a server-issued
+    /// <c>CommandSeed</c>.
+    /// </summary>
+    /// <param name="commandSeed">
+    /// The seed. ⚠️ Required rather than defaulted — a default would make "which seed did this test
+    /// use" invisible at the call site, and every determinism assertion in this suite is a claim
+    /// about <em>that</em> value.
+    /// </param>
+    /// <param name="nowUtc">When the command is applied. Defaults to <see cref="NowUtc"/>.</param>
+    internal static GameContext Drawing(ulong commandSeed, DateTimeOffset? nowUtc = null) =>
+        Context with { CommandSeed = commandSeed, NowUtc = nowUtc ?? NowUtc };
+
+    /// <summary>The same instant, on the next game day (`30` §2.3's 05:00 UTC boundary).</summary>
+    /// <remarks>
+    /// Written as a day's addition to <see cref="NowUtc"/> rather than as a second literal: the two
+    /// have to be one game day apart for the idempotence suite to mean anything, and two literals is
+    /// how that stops being true without a test noticing.
+    /// </remarks>
+    internal static DateTimeOffset NextDay(DateTimeOffset from) => from.AddDays(1);
 
     /// <summary>A player rehydrated from <c>PlayerSnapshots.Valid</c>.</summary>
     internal static Player NewPlayer() => Rehydrated(PlayerSnapshots.Valid);
@@ -55,7 +86,7 @@ internal static class Worlds
     /// <summary>A player rehydrated from a modified row.</summary>
     internal static Player Rehydrated(PlayerSnapshot snapshot)
     {
-        var player = Player.Rehydrate(snapshot, ProgressionDocuments.Shipped);
+        var player = Player.Rehydrate(snapshot, TuningDocuments.Shipped);
 
         return player.IsSuccess
             ? player.Value

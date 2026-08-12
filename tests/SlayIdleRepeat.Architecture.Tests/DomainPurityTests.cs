@@ -162,9 +162,23 @@ public sealed class DomainPurityTests
     /// dispatch table, which made the rule stop short-circuiting while it still quantified over zero
     /// subtypes; M1-02 filled it. Measured on that branch: a fiftieth command declared without a
     /// dispatch row fails naming it. The early-return arm below is now the guard for an assembly
-    /// with no command hierarchy at all, not a "not yet" — and the dispatch surface is
-    /// <c>GameRules</c> alone until M1-09 puts the first handler under <c>Core/Handlers/</c>, so
-    /// renaming that one type would drop all 49 commands out of the dispatched set at once.
+    /// with no command hierarchy at all, not a "not yet".
+    /// <para>
+    /// 🔒 <b>M1-09 widened the dispatch surface for the first time, and the sentence that used to end
+    /// this remark — "the dispatch surface is <c>GameRules</c> alone until M1-09" — is corrected
+    /// rather than left to go stale (steering <b>S4</b>'s known limit).</b> <c>Core/Handlers/</c>
+    /// holds <c>BeginSession</c>, so the surface is two types; <c>GameRules</c> still names 48 of the
+    /// 49 and renaming it would drop those out of the dispatched set at once.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What the widening costs, stated so the name does not overpromise</b> (steering
+    /// <b>S1</b>). The claim is <em>"some type on the dispatch surface names this command"</em>, not
+    /// <em>"the dispatch table has a row for it"</em>: a command named only by a handler, with no
+    /// row, would read as dispatched here. That is unreachable while a handler is only ever named
+    /// <em>from</em> a row, and the independent check on the other side is
+    /// <c>SlayIdleRepeat.Core.Tests.Commands.CommandVocabularyTests</c>, which pins the registry's 49
+    /// wire names against a hand-transcribed list in both directions.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_command_type_is_handled_by_Apply()
@@ -230,6 +244,17 @@ public sealed class DomainPurityTests
     /// only stop callers <em>outside</em> the assembly; every caller this rule is about is inside it.
     /// </para>
     /// <para>
+    /// 🔒 <b>M1-09 landed the SECOND sanctioned construction site and the floor grew with it.</b>
+    /// <c>MetaDrawScope</c> is `14` §8.1's meta regime — <c>Hash64(CommandSeed, s, i)</c> from
+    /// <c>i = 0</c> with no persisted counter — and it is the <em>only</em> site of that regime. Both
+    /// names are asserted, because a floor naming one of two sanctioned sites is satisfied while the
+    /// other stops constructing anything at all, which is the <c>Run::_wallet</c> argument this file
+    /// makes about itself one rule up. ⚠️ The summary above still says "a handler draws through the
+    /// <c>RunRngScope</c> <c>Apply</c> hands it" — true of a <c>CommandKind.Run</c> handler and only
+    /// of one; a meta handler draws through <c>HandlerInput.MetaDraws</c>, which folds nothing back
+    /// because there is nothing to fold.
+    /// </para>
+    /// <para>
     /// 🔒 <b>The floor, pinned by identity</b> (steering S3). The subject set is "construction sites
     /// in <c>Core</c>", which becomes empty the moment the scope stops constructing one — at which
     /// point the rule would report success forever over a domain that had lost its only sanctioned
@@ -245,9 +270,17 @@ public sealed class DomainPurityTests
             .Where(ConstructsADeterministicRng)
             .ToArray();
 
+        // 🔒 BOTH sanctioned sites, by identity (steering S3). RunRngScope is 14 §8.1's run regime and
+        // MetaDrawScope is its meta one; a floor naming only the first stays satisfied while the
+        // second stops constructing anything at all, which is precisely the argument this file makes
+        // about Run::_wallet one rule up. Asserted separately so a failure names which one went.
         Assert.Contains(
             sites,
             m => m.DeclaringType.Name.Equals(Domain.RunRngScopeType, StringComparison.Ordinal));
+
+        Assert.Contains(
+            sites,
+            m => m.DeclaringType.Name.Equals(Domain.MetaDrawScopeType, StringComparison.Ordinal));
 
         var offenders = sites
             .Where(m => !Il.IsUnder(Il.NamespaceOf(m.DeclaringType), Domain.RngNamespace))
