@@ -206,6 +206,37 @@ public sealed class SubjectSetFloorTests
             "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
             "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
 
+        // ── M2-03 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Neither is a rule subject: they are DEFERRALS, recorded in the one register the repo
+        // has so that they expire by themselves (steering S4), on the precedent of the `Tier` entry
+        // above. Both exist because R17 makes `Rules.Effects` the bottom of the intra-`Rules`
+        // layering and it therefore cannot reach `Rules.Stats`.
+        //
+        // ⚠️ Both are keyed on a name whose DISAPPEARANCE fires, which is the shape that matches
+        // what actually closes them. A namespace move — M2-02 relocating the three `18` seams out of
+        // `Rules/Stats/` — is invisible to `Domain.FindInCore`, which looks up simple names, so an
+        // entry keyed on the destination would never fire and would be exactly the silent-forever
+        // subject this file exists to prevent.
+
+        // `Rules/Effects/Ops/OpRounding` is a SECOND statement of `05` §1.1's 4-dp rule, because the
+        // bottom layer cannot name StatRounding. OpRoundingTests pins the two numerically identical
+        // — but that fires on DRIFT, not on the day the duplication becomes removable. The real fix
+        // is a shared primitive under Core.Primitives; when StatRounding moves or is replaced, this
+        // entry fails and whoever did it has to delete OpRounding rather than leave two statements
+        // of a determinism rule (`14` §8.2).
+        new("StatRounding", SubjectKind.CoreType, "M2-07",
+            "SlayIdleRepeat.Core.Rules.Effects.Ops.OpRounding, which duplicates it for the layer R17 " +
+            "puts below Rules.Stats; OpRoundingTests.The_op_rounding_and_the_stat_rounding_are_one_rule"),
+
+        // The same split, one layer up: M2-03 implements IStatOpBehaviour in Rules/Stats/ while the
+        // op arithmetic it delegates to lives with the other 41 ops in Rules/Effects/Ops/StatOps.cs.
+        // The split closes when M2-02 moves this interface to Rules/Effects/ — at which point
+        // StatOpBehaviour can follow it. Renaming or deleting the interface fires this entry.
+        new("IStatOpBehaviour", SubjectKind.CoreType, "M2-07",
+            "SlayIdleRepeat.Core.Rules.Stats.StatOpBehaviour, which implements it where it sits " +
+            "rather than with the other 41 ops (R17); M2-02 owns the relocation that closes the split"),
+
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RngNamespace, SubjectKind.CoreNamespace, "M0-06",

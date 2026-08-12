@@ -112,6 +112,10 @@ public sealed class EffectOpValidationTests
     /// and rejected by the schema — the two enforcement paths disagreeing about one effect.
     /// </remarks>
     [Theory]
+    // 🔒 REVIVE has an OpValueRules row — the mode it FALLS BACK to — and still takes no authored
+    //    valueMode key: 18 §10.1 records E4 as taken for SURVIVE_LETHAL alone, and the schema's
+    //    REVIVE branch omits it. The two enforcement paths had disagreed about exactly this.
+    [InlineData(EffectOp.REVIVE, "valueMode")]
     [InlineData(EffectOp.EXTRA_ATTACK, "valueMode")]
     [InlineData(EffectOp.SUMMON, "valueMode")]
     [InlineData(EffectOp.DAMAGE, "statusId")]
@@ -137,7 +141,6 @@ public sealed class EffectOpValidationTests
     [Theory]
     [InlineData(EffectOp.HEAL_LEECH, ValueMode.ATK_MULT)]
     [InlineData(EffectOp.DAMAGE, ValueMode.FLAT)]
-    [InlineData(EffectOp.REVIVE, ValueMode.FLAT)]
     [InlineData(EffectOp.REFLECT, ValueMode.SELF_MAXHP_PCT)]
     public void A_value_mode_the_op_does_not_admit_is_a_problem(EffectOp op, ValueMode mode)
     {

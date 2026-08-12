@@ -5,7 +5,7 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>
 /// 🔒 Whether an effect is <b>well-formed for its op</b> — the in-code counterpart of
-/// <c>game-data/schema/effect.schema.json</c>'s thirteen key-shape branches, answerable without a
+/// <c>game-data/schema/effect.schema.json</c>'s sixteen key-shape branches, answerable without a
 /// battle.
 /// </summary>
 /// <remarks>
@@ -237,10 +237,15 @@ internal static class EffectOpValidation
         //    an undocumented `30` §11.4 namespace (the nested blob type carries no
         //    CompilerGeneratedAttribute, so the rule's filter misses it). Recorded as errata against
         //    that rule; the ten short lists below are under the threshold and are unaffected.
+        //    ⚠️ REVIVE is EXCLUDED although RulesFor gives it a row. 18 §10.1 records E4 —
+        //    SURVIVE_LETHAL's valueMode — as taken for that op ALONE, and the schema's REVIVE branch
+        //    omits the key accordingly. Having a value-mode table entry is not the same as admitting
+        //    an authored valueMode: the table is what the op falls back to, not a key it takes.
         ExclusiveTo(
             effect, problems, effect.ValueMode is not null, "valueMode",
             "STAT_SET, the six 18 §2.2 ops, SHIELD and SURVIVE_LETHAL",
-            RulesFor(effect.Op) is not null || effect.Op == EffectOp.STAT_SET);
+            (RulesFor(effect.Op) is not null && effect.Op != EffectOp.REVIVE)
+                || effect.Op == EffectOp.STAT_SET);
 
         ExclusiveTo(
             effect, problems, effect.StatusId is not null, "statusId",

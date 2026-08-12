@@ -603,7 +603,7 @@ public sealed class EffectSchemaTests
 
     /// <summary>
     /// An op-specific key on the wrong op. A single permissive object over the union of all keys
-    /// would accept this; the thirteen-branch partition is what makes it a failure.
+    /// would accept this; the sixteen-branch partition is what makes it a failure.
     /// </summary>
     [Theory]
     [InlineData("\"archetype\": \"SWARM\"")]
@@ -614,7 +614,7 @@ public sealed class EffectSchemaTests
     [InlineData("\"newFace\": {\"kind\":\"Star\"}")]
     // The three keys M2-03 added under 18 §10. Each belongs to a closed set of ops, and a schema
     // that admitted them everywhere would let {"op":"STAT_ADD_PCT","charges":3} validate with the 3
-    // meaning nothing — which is the exact failure the thirteen-, now fifteen-branch partition exists
+    // meaning nothing — which is the exact failure the sixteen-branch partition exists
     // to prevent.
     [InlineData("\"toStat\": \"ATK\"")]
     [InlineData("\"charges\": 3")]

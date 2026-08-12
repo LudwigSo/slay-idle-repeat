@@ -5,9 +5,22 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 /// <summary>How one op resolution ended.</summary>
 /// <param name="Op">Which of `18` §2's 43 ops ran.</param>
 /// <param name="Amount">
-/// The op's own number, rounded to 4 dp — the damage dealt, the ward granted, the potency applied,
-/// the charge multiplier, the count summoned. <c>0</c> for the ops that carry no magnitude
+/// The op's own number, rounded to 4 dp. <c>0</c> for the ops that carry no magnitude
 /// (<c>REMOVE_STATUS</c>, <c>CLEAR_SUMMONS</c>) and for every queued §2.5 op.
+/// <para>
+/// 🔴 <b>For five of the seven §2.2 ops this is what the op ASKED FOR, not what happened.</b>
+/// <c>HEAL</c> and <c>HEAL_LEECH</c> are clipped by `05` §4.3's
+/// <c>min(amount × HEAL%, MaxHP − HP)</c>; <c>SHIELD</c> is clamped by the pool cap and by
+/// <c>sourceCapPct</c> (`05` §4.1); <c>DAMAGE_TRUE</c> and <c>DAMAGE_MAXHP_PCT</c> still meet DR%,
+/// <c>DAMAGE_TAKEN_MULT</c>, wards and the actor's remaining HP downstream. All five seam members
+/// return <see langword="void"/>, so the engine — not the op — knows the outcome, and M2-09 emits
+/// the `05` §7 events for them. <c>DAMAGE</c> is the exception: it routes through
+/// <see cref="IAttackPipeline.ResolveAttack"/> and reports the real HP lost.
+/// </para>
+/// <para>
+/// ⚠️ A caller writing this straight into a <c>CombatEvent</c>'s value slot would log a 500 heal on
+/// a full-health actor. Read the engine's own number for the five.
+/// </para>
 /// </param>
 /// <param name="Disposition">Whether the simulator resolved it or handed it to the run controller.</param>
 /// <param name="Basis">

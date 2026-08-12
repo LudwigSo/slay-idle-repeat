@@ -33,7 +33,7 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// <para>
 /// The keys after the spine are op-specific and are harvested from `18`'s own worked examples
 /// (§2.2, §2.4, §7.6, §7.8, §7.9, §9.1, §9.2). Which of them each op admits is stated once, in
-/// <c>game-data/schema/effect.schema.json</c>, as a closed partition of the 43 ops into fifteen
+/// <c>game-data/schema/effect.schema.json</c>, as a closed partition of the 43 ops into sixteen
 /// key shapes — so <c>{"op":"STAT_ADD_PCT","archetype":"SWARM"}</c> is a validation failure rather
 /// than a field that silently means nothing.
 /// </para>

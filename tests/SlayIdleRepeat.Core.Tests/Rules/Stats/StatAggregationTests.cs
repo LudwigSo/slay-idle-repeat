@@ -617,5 +617,8 @@ public sealed class StatAggregationTests
         public IReadOnlyList<StatDelta> RedirectCappedExcess(
             IReadOnlyList<EffectDefinition> overrides, ActorStats preCap, StatCaps effective,
             IEffectValueReader values) => [];
+
+        public double? HealCeilingFraction(
+            IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values) => null;
     }
 }

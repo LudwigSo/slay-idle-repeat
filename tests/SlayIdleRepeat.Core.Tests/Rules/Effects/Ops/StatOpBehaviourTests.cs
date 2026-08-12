@@ -289,8 +289,8 @@ public sealed class StatOpBehaviourTests
 
         result.Final[StatId.MAX_HP].ShouldBe(2400.0, "the hero's Max HP is untouched");
 
-        StatOpBehaviour.HealCeilingFraction([avatarOfWar], AuthoredEffectValue.Instance)
-                       .ShouldBe(0.80, "05 §4.3's bound, for M2-09 to read");
+        StatOpBehaviour.Instance.HealCeilingFraction([avatarOfWar], AuthoredEffectValue.Instance)
+                       .ShouldBe(0.80, "05 §4.3's bound, for M2-09 to read through the seam");
     }
 
     /// <summary>Two heal ceilings: the lowest binds, because a restriction cannot loosen another.</summary>
@@ -300,8 +300,10 @@ public sealed class StatOpBehaviourTests
         var loose = Ceiling("A_CEILING", 0.90);
         var tight = Ceiling("B_CEILING", 0.55);
 
-        StatOpBehaviour.HealCeilingFraction([loose, tight], AuthoredEffectValue.Instance).ShouldBe(0.55);
-        StatOpBehaviour.HealCeilingFraction([tight, loose], AuthoredEffectValue.Instance).ShouldBe(0.55);
+        StatOpBehaviour.Instance.HealCeilingFraction([loose, tight], AuthoredEffectValue.Instance)
+                       .ShouldBe(0.55);
+        StatOpBehaviour.Instance.HealCeilingFraction([tight, loose], AuthoredEffectValue.Instance)
+                       .ShouldBe(0.55);
     }
 
     /// <summary>A redirect with no destination discards the overshoot and reads as a cap raise.</summary>

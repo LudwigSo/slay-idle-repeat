@@ -178,7 +178,7 @@ public sealed class StatAggregationSeamTests
             .RedirectCappedExcess([], StatFixtures.Zeroed(), declared, AuthoredEffectValue.Instance)
             .ShouldBeEmpty();
 
-        StatOpBehaviour.HealCeilingFraction([], AuthoredEffectValue.Instance).ShouldBeNull();
+        StatOpBehaviour.Instance.HealCeilingFraction([], AuthoredEffectValue.Instance).ShouldBeNull();
     }
 
     /// <summary>
@@ -257,6 +257,9 @@ public sealed class StatAggregationSeamTests
         public IReadOnlyList<StatDelta> RedirectCappedExcess(
             IReadOnlyList<EffectDefinition> overrides, ActorStats preCap, StatCaps effective,
             IEffectValueReader values) => [];
+
+        public double? HealCeilingFraction(
+            IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values) => null;
     }
 
     private sealed class RaiseCritCap : IStatOpBehaviour
@@ -271,5 +274,8 @@ public sealed class StatAggregationSeamTests
         public IReadOnlyList<StatDelta> RedirectCappedExcess(
             IReadOnlyList<EffectDefinition> overrides, ActorStats preCap, StatCaps effective,
             IEffectValueReader values) => [];
+
+        public double? HealCeilingFraction(
+            IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values) => null;
     }
 }

@@ -171,29 +171,12 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
         return deltas;
     }
 
-    /// <summary>
-    /// 🔒 `18` §7.6's <c>HEAL_CEILING</c> — the fraction of Max HP above which the actor cannot be
-    /// healed — or <c>null</c> where the build authors none.
-    /// </summary>
+    /// <inheritdoc />
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>Not part of <see cref="IStatOpBehaviour"/>, because it is not part of `18` §8.</b> It
-    /// is a bound on <c>Heal()</c> (`05` §4.3), which M2-09 owns, and it is exposed here so that the
-    /// one op that carries it has exactly one reader. A <c>STAT_CAP_OVERRIDE HEAL_CEILING</c>
-    /// therefore changes no stat at all — <c>Avatar of War</c>'s other clause, the ×1.20
-    /// <c>STAT_MULT</c>, is what moves ATK.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The lowest ceiling wins.</b> `18` §6's stacking modes govern how repeat applications of
-    /// one effect combine and say nothing about two different effects both bounding healing; taking
-    /// the minimum is the only reading under which a second restriction cannot loosen the first,
-    /// which is what "you can no longer be healed above" means. Recorded as a ruling — no document
-    /// states it, because no second <c>HEAL_CEILING</c> is authored.
-    /// </para>
+    /// A <c>STAT_CAP_OVERRIDE HEAL_CEILING</c> changes no stat at all — <c>Avatar of War</c>'s other
+    /// clause, the ×1.20 <c>STAT_MULT</c>, is what moves ATK.
     /// </remarks>
-    /// <param name="overrides">The <c>STAT_CAP_OVERRIDE</c> effects, in effect-id order.</param>
-    /// <param name="values">The same value reader `18` §8's steps use.</param>
-    internal static double? HealCeilingFraction(
+    public double? HealCeilingFraction(
         IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values)
     {
         ArgumentNullException.ThrowIfNull(overrides);

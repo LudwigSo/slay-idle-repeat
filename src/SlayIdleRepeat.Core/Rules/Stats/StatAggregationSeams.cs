@@ -130,6 +130,30 @@ internal interface IStatOpBehaviour
         ActorStats preCap,
         StatCaps effective,
         IEffectValueReader values);
+
+    /// <summary>
+    /// 🔒 `18` §7.6's <c>HEAL_CEILING</c> — the fraction of Max HP above which the actor cannot be
+    /// healed (<em>Avatar of War</em>) — or <c>null</c> where the build authors none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Not a `18` §8 step, and on this interface anyway.</b> It bounds <c>Heal()</c> (`05`
+    /// §4.3), which is M2-09's, so it belongs to no step of the aggregation — but it is the
+    /// <b>third</b> of <c>STAT_CAP_OVERRIDE</c>'s three <c>capKind</c>s, and this interface is what
+    /// owns that op's behaviour. Left off, one kind in three would sit outside the swap point that
+    /// governs the other two, and M2-09 would have to name a concrete <c>Rules.Stats</c> class.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The lowest ceiling wins.</b> `18` §6's stacking modes govern repeat applications of one
+    /// effect and say nothing about two different effects both bounding healing; the minimum is the
+    /// only reading under which a second restriction cannot loosen the first, which is what "you can
+    /// no longer be healed above" means. Recorded as a ruling — no document states it, because no
+    /// second <c>HEAL_CEILING</c> is authored.
+    /// </para>
+    /// </remarks>
+    /// <param name="overrides">The <c>STAT_CAP_OVERRIDE</c> effects, already in effect-id order.</param>
+    /// <param name="values">The same value reader, for the same reason as <see cref="Convert"/>.</param>
+    double? HealCeilingFraction(IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values);
 }
 
 /// <summary>
