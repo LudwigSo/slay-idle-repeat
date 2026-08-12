@@ -722,10 +722,34 @@ public sealed class DomainPurityTests
     }
 
     /// <summary>
-    /// 🔒 `30` §9 — the load-bearing test. `InMemoryGame`'s assembly closure is exactly
-    /// { `SlayIdleRepeat.Core`, `System.*` }: the whole game is playable from `Core` alone,
-    /// with no Application, no ports, no fakes, no adapters (`30` §6).
+    /// 🔒 `30` §9 — the load-bearing test. `Core`'s assembly closure is exactly
+    /// { `SlayIdleRepeat.Core`, `System.*` } **and** `Core` declares the public `InMemoryGame` that
+    /// makes that closure the whole game: playable with no Application, no ports, no fakes, no
+    /// adapters (`30` §6).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Three arms, and M1-11 corrected the story about which of them were awake.</b> The
+    /// <b>closure</b> arm has been asserting over real metadata since M0 — a <c>PackageReference</c>
+    /// or <c>ProjectReference</c> added to <c>SlayIdleRepeat.Core.csproj</c> turns it red whoever
+    /// names it. The <b>public-harness</b> arm was dead from M0-08 until M1-11, because it sat behind
+    /// <c>harness is not null</c> and there was no <c>InMemoryGame</c>. The <b>presence</b> arm below
+    /// is M1-11's addition and is the one that makes this rule's <em>name</em> true: without it,
+    /// deleting the harness leaves the rule green over a closure claim about an assembly nobody can
+    /// play the game from.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The precedent is one file over.</b>
+    /// <c>AccessibilityBoundaryTests.Apply_is_the_only_public_mutation</c> draws exactly this line:
+    /// <em>"<c>GameRules</c> existing WITHOUT an <c>Apply</c> is a violation in its own right — a
+    /// rule named <c>Apply_is_the_only_public_mutation</c> that stays silent when <c>Apply</c> is
+    /// renamed to <c>Handle</c> promises an invariant it is no longer checking."</em> The same
+    /// sentence with two nouns changed is why the arm below exists. <c>GapRegister</c>'s `30` §6
+    /// transcription and <c>SubjectSetFloorTests</c>' <c>InMemoryGame</c> row are the second and
+    /// third mechanisms over the same fact; this one is here because the rule's own name is the
+    /// claim.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void The_whole_game_is_playable_from_Core_alone()
     {
@@ -758,10 +782,29 @@ public sealed class DomainPurityTests
             }
         }
 
-        // When InMemoryGame exists it must live in Core and be constructible from outside it —
-        // it is the only object tests and the economy simulator ever build (30 §6).
+        // 🔒 The harness must EXIST, and it must be constructible from outside Core — 30 §6 makes it
+        // "the only thing tests and the economy simulator need to construct". That the tools build
+        // NOTHING ELSE is ProjectFileTests.The_simulation_tools_reference_Core_only's rule, not this
+        // one; what this one owns is that the object they build is there and reachable.
         var harness = Domain.FindInCore(Domain.InMemoryGameType);
-        if (harness is not null && !harness.IsPublic)
+
+        if (harness is null)
+        {
+            // 🔒 M1-11. Without this arm the rule reports success over the ABSENCE of the very type
+            // its name is about — the state it was in from M0-08 until M1-11 — because the closure
+            // walk above is a true statement about SlayIdleRepeat.Core whether or not anything in it
+            // can play the game. Same shape, same reasoning and the same remedy as
+            // Apply_is_the_only_public_mutation's "GameRules declares no Apply" arm.
+            offenders.Add(
+                $"SlayIdleRepeat.Core declares no '{Domain.InMemoryGameType}'. 30 §6 makes it the " +
+                "concrete artefact that makes this rule's claim testable — 'the only thing tests and " +
+                "the economy simulator need to construct'. Without it the closure below is a true " +
+                "statement about an assembly nobody can play the game from, and this rule's NAME is " +
+                "an invariant nothing is checking. It landed in M1-11 under Core/Testing/; if it has " +
+                "been moved out of Core or renamed, GapRegister's 30 §6 transcription and " +
+                "SubjectSetFloorTests' row fail beside this.");
+        }
+        else if (!harness.IsPublic)
         {
             offenders.Add($"{harness.FullName} is not public — the harness must be usable from outside Core (30 §6)");
         }
@@ -769,7 +812,8 @@ public sealed class DomainPurityTests
         ArchRule.Empty(
             offenders,
             "The whole game is playable from Core alone: Core's assembly closure is exactly " +
-            "{ SlayIdleRepeat.Core, System.* } (30 §9, the load-bearing rule).");
+            "{ SlayIdleRepeat.Core, System.* }, and Core declares the public InMemoryGame that makes " +
+            "that closure the whole game (30 §9, the load-bearing rule).");
     }
 
     private const string UnhandledCommandRule =

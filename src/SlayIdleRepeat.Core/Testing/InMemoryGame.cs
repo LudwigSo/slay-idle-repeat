@@ -16,15 +16,22 @@ namespace SlayIdleRepeat.Core.Testing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>This type is what wakes
-/// <c>DomainPurityTests.The_whole_game_is_playable_from_Core_alone</c>.</b> That rule — `30` §9's
-/// "load-bearing" one — has been vacuous since M0-08 for the plainest possible reason: it asserts
-/// that <em>this</em> type's assembly closure is exactly
-/// <c>{ SlayIdleRepeat.Core, System.* }</c>, and there was no such type. From this commit there is,
-/// it lives in the production <c>Core</c> assembly (`30` §11.4 puts <c>Testing/</c> inside it), and
-/// everything it references therefore ships. Be deliberate about what it pulls in: a single
-/// <c>ProjectReference</c> or <c>PackageReference</c> added to <c>SlayIdleRepeat.Core.csproj</c> to
-/// make something here compile turns that rule red, which is precisely what it is for.
+/// 🔒 <b>This type is what completes
+/// <c>DomainPurityTests.The_whole_game_is_playable_from_Core_alone</c>.</b> ⚠️ <b>Not "wakes", and
+/// the difference is the finding.</b> That rule — `30` §9's "load-bearing" one — has two arms, and
+/// only one of them was dead. The <em>closure</em> arm walks <c>Core</c>'s real assembly references
+/// and has been asserting since M0: a package or project reference added to
+/// <c>SlayIdleRepeat.Core.csproj</c> turned it red long before this type existed, whoever named the
+/// reference. What was dead is the arm behind <c>harness is not null</c> — the one that says the
+/// harness must exist in <c>Core</c> and be usable from outside it — because there was no such type,
+/// which is why the rule's <em>name</em> was a claim nothing checked.
+/// </para>
+/// <para>
+/// From this commit there is, it lives in the production <c>Core</c> assembly (`30` §11.4 puts
+/// <c>Testing/</c> inside it), and everything it references therefore ships. Be deliberate about
+/// what it pulls in: the closure arm is what stops a convenient <c>PackageReference</c>, and the
+/// presence arm plus <c>GapRegister</c>'s `30` §6 transcription are what stop this file being
+/// deleted with the rule still green.
 /// </para>
 /// <para>
 /// 🔒 <b>It mutates state through <c>GameRules.Apply</c> and through nothing else.</b> `30` §11.2's
@@ -67,13 +74,38 @@ namespace SlayIdleRepeat.Core.Testing;
 /// </list>
 /// <para>
 /// ⚠️ <b>What a "multi-day player" can actually be driven through today, stated plainly.</b>
-/// <c>BEGIN_SESSION</c> is the <b>only</b> <c>Handled</c> row of `14` §2.3's forty-nine; the other
-/// forty-eight are <c>Deferred</c> and answer <c>ILLEGAL_STATE</c>. So the loop this harness runs is
-/// <em>advance the clock, send <c>BEGIN_SESSION</c>, observe the catch-up, the daily free refill,
-/// the calendar and the counters</em> — the day cycle, Energy and the currency seam, which is
-/// exactly what M1's exit criterion names. It is not a run: nothing in M1 can start one. Every
-/// command that becomes <c>Handled</c> in M3 and M4 is driven through <see cref="Send"/> with no
-/// change to this type.
+/// <c>BEGIN_SESSION</c> is the <b>only</b> <c>Handled</c> row of `14` §2.3's forty-nine. So the loop
+/// this harness runs is <em>advance the clock, send <c>BEGIN_SESSION</c>, observe the catch-up, the
+/// daily free refill, the calendar and the counters</em> — the day cycle, Energy and the currency
+/// seam, which is exactly what M1's exit criterion names. It is not a run: nothing in M1 can start
+/// one.
+/// </para>
+/// <para>
+/// 🔴 <b>And the other forty-eight rows do NOT all answer <c>ILLEGAL_STATE</c>. Twenty-nine do.</b>
+/// This is worth stating exactly, because the obvious reading is wrong and M1-11's own first draft
+/// had it wrong. <c>GameRules.Execute</c> refuses a <c>CommandKind.Run</c> command whose slice
+/// carries no <c>Run</c> <b>before</b> it reaches the <c>IsHandled</c> branch, as a <em>loading
+/// defect</em> — an <see cref="InvalidOperationException"/>, because `30` §4.1 makes loading the
+/// right slice the Application layer's job and `14` §16.2's <c>RUN_NOT_FOUND</c> is a transport-tier
+/// value <c>Apply</c> may not return. This harness's slice is always <c>(player, null)</c>, so
+/// <b>all nineteen run rows throw</b> and only the twenty-nine deferred <em>meta</em> rows answer
+/// <c>ILLEGAL_STATE</c>. That is the correct behaviour of both types and is pinned by
+/// <c>InMemoryGameTests</c>.
+/// </para>
+/// <para>
+/// 🔒 <b>What that means for M3, and it is a finding rather than a caveat.</b>
+/// <c>START_RUN</c> is registered <c>CommandKind.Run</c> deliberately — it is the command that
+/// commits <c>runSeed</c>, and `30` §3 gives the scope to run commands — so it is refused by the
+/// same guard, <em>through any caller</em>, not merely through this harness: there is no
+/// <c>WorldSlice</c> a caller can legally build that would let <c>START_RUN</c> through, because
+/// only <c>START_RUN</c> can create the <c>Run</c> the guard demands. <b>M3-15 owns the ruling</b>
+/// (reclassify the row, or give the dispatch table a state for a <c>Run</c>-kind row that
+/// <em>opens</em> a run and has its scope built after the handler). ⚠️ Whichever it picks,
+/// <b>nothing in this type moves</b>: <c>(player, null)</c> is already the right starting slice and
+/// <see cref="Send"/> stores <c>CommandResult.NewState</c> unconditionally, so the instant
+/// <c>Apply</c> returns a slice carrying a run, this harness carries it and every later run command
+/// finds it. What must <b>not</b> happen is a door on this type that injects one — see the
+/// <c>Apply</c>-only claim above.
 /// </para>
 /// <para>
 /// ⚠️ <b>The zero-delta <c>energy_regen</c> rows in <see cref="Events"/> are intended</b> (recorded
@@ -105,7 +137,24 @@ public sealed class InMemoryGame
 
     private readonly ReadOnlyCollection<DomainEvent> _eventsView;
 
-    private long _playersCreated;
+    /// <summary>
+    /// 🔒 The player ids in <b>creation order</b>, which <see cref="_players"/> cannot answer.
+    /// </summary>
+    /// <remarks>
+    /// <c>Dictionary&lt;TKey, TValue&gt;.KeyCollection</c> enumerates in an order the BCL explicitly
+    /// leaves unspecified. It happens to be insertion order while nothing is removed — and that is
+    /// exactly the drift this repository refuses everywhere else: <c>Player.ReadCounters</c> copies
+    /// into an ordinal dictionary for it, <c>CanonicalStateWriter.KeyOrderFor</c> defines an order
+    /// for it, and <c>PlayerId</c>'s own remarks record that an
+    /// <c>IReadOnlyDictionary&lt;PlayerId, …&gt;</c> in a snapshot is <em>refused</em> rather than
+    /// hashed in an undefined order. It is not pedantry here either: `21` §9's sweep is the natural
+    /// consumer of <see cref="Players"/>, and a wrapper that iterated it to drive N profiles would
+    /// have a command order undefined by contract — which is "reproducible byte-for-byte" (`30` §6)
+    /// resting on an implementation detail.
+    /// </remarks>
+    private readonly List<PlayerId> _created = [];
+
+    private readonly ReadOnlyCollection<PlayerId> _createdView;
 
     /// <summary>
     /// 🔒 `30` §6 — builds a harness over a pre-built content set, a fixed seed and an explicit
@@ -158,6 +207,7 @@ public sealed class InMemoryGame
             pvpEnabled: true, plusOfferEnabled: true, disabledAdPlacements: [], disabledChapters: []);
 
         _eventsView = new ReadOnlyCollection<DomainEvent>(_events);
+        _createdView = new ReadOnlyCollection<PlayerId>(_created);
     }
 
     /// <summary>🔒 `30` §6 — the clock, advanced explicitly: <c>game.Clock.Advance(...)</c>.</summary>
@@ -199,7 +249,8 @@ public sealed class InMemoryGame
     public IReadOnlyList<DomainEvent> Events => _eventsView;
 
     /// <summary>
-    /// 🔒 How many commands have been applied — the <b>structural</b> half of `30` §6's speed claim.
+    /// 🔒 How many commands have been <b>sent</b> — accepted and refused alike — which is the
+    /// <b>structural</b> half of `30` §6's speed claim.
     /// </summary>
     /// <remarks>
     /// It is here because a wall-clock assertion is not reproducible on a shared runner and a
@@ -210,11 +261,19 @@ public sealed class InMemoryGame
     /// per-boundary loop would not move this counter — the loop would be <em>inside</em> one
     /// <c>Apply</c> — so it is asserted together with the boundary state a single command lands on;
     /// see <c>InMemoryGamePerformanceTests</c>.
+    /// <para>
+    /// ⚠️ It counts <em>every</em> call to <see cref="Send"/>, including the forty-eight rows that
+    /// are refused. That is the number the speed claim is about — a refused command still pays the
+    /// clone and the catch-up before the dispatch table says no.
+    /// </para>
     /// </remarks>
     public long CommandsIssued { get; private set; }
 
-    /// <summary>Every player this harness has created, in creation order.</summary>
-    public IReadOnlyCollection<PlayerId> Players => _players.Keys;
+    /// <summary>
+    /// Every player this harness has created, in creation order — see <see cref="_created"/> for why
+    /// that is a list rather than the dictionary's keys.
+    /// </summary>
+    public IReadOnlyList<PlayerId> Players => _createdView;
 
     /// <summary>
     /// 🔒 `30` §6 — creates a player and returns its identity.
@@ -266,6 +325,15 @@ public sealed class InMemoryGame
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="displayName"/> is blank.</exception>
+    /// <exception cref="MissingContentException">
+    /// The content set does not author `07` §1.1's Legend Level range. Raised out of
+    /// <c>LegendTuning.Read</c>, on the same channel <c>Player.Rehydrate</c> documents: a corrupt
+    /// row is one player's problem and is a <c>Result&lt;T&gt;</c>, while a data set that cannot say
+    /// what Legend Level a player starts at is every player's problem and belongs at the composition
+    /// root that loaded it.
+    /// </exception>
+    /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
+    /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
     /// <exception cref="InvalidOperationException">
     /// The starting row does not rehydrate — a defect in this method or a content set whose
     /// <c>legendLevel</c> range excludes its own minimum.
@@ -281,7 +349,9 @@ public sealed class InMemoryGame
                 nameof(displayName));
         }
 
-        var id = new PlayerId("PLAYER_" + Text(++_playersCreated));
+        // 🔒 The counter is READ here and advanced only once the row has proven it rehydrates, so a
+        // content set that cannot answer 07 §1.1's Legend Level range does not silently consume ids.
+        var id = new PlayerId("PLAYER_" + Text(_created.Count + 1));
         var nowUtc = Clock.NowUtc;
         var legend = LegendTuning.Read(Content);
 
@@ -317,6 +387,7 @@ public sealed class InMemoryGame
         }
 
         _players.Add(id, new PlayerSession(new WorldSlice(player.Value, null)));
+        _created.Add(id);
 
         return id;
     }
@@ -326,6 +397,29 @@ public sealed class InMemoryGame
     /// <c>Apply</c> last returned it.
     /// </summary>
     /// <param name="player">A player <see cref="CreatePlayer"/> returned.</param>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>A snapshot in time, and the OPPOSITE of <see cref="Events"/> — stated because the two
+    /// getters sit next to each other and the aggregate sets the precedent for saying which is
+    /// which</b> (<c>Player.Wallet</c> is frozen, <c>Player.DailyCounters</c> is live). `30` §2.1's
+    /// <b>P4</b> makes <c>Apply</c> return a <em>new</em> slice, and <see cref="Send"/> replaces the
+    /// stored one with it — so a caller that captured this before a command holds a slice that will
+    /// never change again. Re-read it after every <see cref="Send"/>; do not hold it.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It is the harness's own aggregate, not a copy, and that is the one route around the
+    /// <c>Apply</c>-only claim at the top of this type.</b> `30` §11.3 makes the aggregate's mutators
+    /// <c>internal</c>, so nothing outside <c>Core</c> can reach them through this reference — but
+    /// <c>SlayIdleRepeat.Core.Tests</c> holds the one <c>InternalsVisibleTo</c> grant (`30` §11.3),
+    /// and a test that called <c>State(p).Player.AccrueEnergy(...)</c> would change harness state
+    /// without going through <c>Apply</c>, past the clone, the catch-up, the RNG fold and the event
+    /// stamping. Nothing mechanical forbids it; the claim this type makes is about the doors it
+    /// <em>declares</em>, and this is the door the aggregate declares. Copying the slice out on every
+    /// read would cost two snapshot round trips per assertion on M1-11's own budget and would hand
+    /// back an object that could not be compared by reference to <c>CommandResult.NewState</c>, which
+    /// several tests do.
+    /// </para>
+    /// </remarks>
     /// <exception cref="InvalidOperationException">This harness has no such player.</exception>
     public WorldSlice State(PlayerId player) => Session(player).Slice;
 
@@ -336,9 +430,11 @@ public sealed class InMemoryGame
     /// <param name="command">The command (`14` §2.3).</param>
     /// <returns>
     /// The <c>CommandResult</c> <c>Apply</c> produced: whether it was accepted, the domain-tier
-    /// reason if not, the resulting slice and this command's events. ⚠️ A <c>Deferred</c> row answers
-    /// <c>ILLEGAL_STATE</c> here — a <b>value</b>, not an exception (`30` §2.1's <b>P3</b>), which is
-    /// forty-eight of `14` §2.3's forty-nine rows today.
+    /// reason if not, the resulting slice and this command's events. ⚠️ A <b>deferred meta</b> row
+    /// answers <c>ILLEGAL_STATE</c> here — a <b>value</b>, not an exception (`30` §2.1's <b>P3</b>) —
+    /// which is twenty-nine of `14` §2.3's thirty meta rows today. The nineteen <b>run</b> rows do
+    /// not reach that arm at all: they are refused earlier as a loading defect, and the type's own
+    /// remarks say why and who owns it.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -372,7 +468,20 @@ public sealed class InMemoryGame
     /// leaves is the safe one, and <c>CommandVocabularyTests</c> already states its two halves: a ⚄
     /// row handed <b>no</b> seed is caught loudly (<c>HandlerInput.MetaDraws</c> throws), while a
     /// non-drawing row handed one silently ignores it. When M5-03 lands the column, the ternary
-    /// below reads it and nothing else moves.
+    /// below reads it and nothing else moves — <c>kind</c> already comes off the same registration.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Two consequences of that, named rather than left to be discovered.</b> First, this
+    /// harness therefore <b>cannot</b> exercise the pairing check <c>CommandSeedPin</c>'s own remarks
+    /// carry as an open item (<em>"nothing checks, when <c>Apply</c> runs, that this context's seed
+    /// matches this command's classification"</em>): it supplies a seed to every meta row, so it can
+    /// never produce the mispairing. Nobody should read this type's determinism suite as covering it.
+    /// Second, the ordinal below counts <b>every</b> command a player has been sent, not only the
+    /// drawing ones — so when M4 lands the draws, inserting one extra non-drawing meta command into a
+    /// profile's daily script re-rolls the seed of every later drawing command for that player. For
+    /// `21` §9 that is the difference between a simulation diff caused by a balance change and one
+    /// caused by a scripting change. There is no stable alternative today for the same reason there
+    /// is no ⚄ column; it becomes one when M5-03 lands it.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>

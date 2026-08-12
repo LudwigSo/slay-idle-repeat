@@ -341,11 +341,12 @@ public sealed class GapRegisterTests
         // reason: a literal, never the transcription's own Count.
         //
         // ⚠️ THIS ONE GUARDS THE MOST EXPENSIVE SILENCE IN THE REPOSITORY, which is why it is here
-        // as well as in SubjectSetFloorTests. DomainPurityTests.The_whole_game_is_playable_from_Core_
-        // alone is stated over InMemoryGame and REPORTS SUCCESS WHEN IT IS ABSENT — the state it was
-        // in from M0-08 until M1-11. Trimming this transcription would remove the one thing that
-        // demands the harness exist, with Expired silent (neither name is deferred), Unanchored
-        // silent (no entry dangles) and the whole suite green.
+        // as well as in SubjectSetFloorTests and — since M1-11 — inside the rule itself.
+        // DomainPurityTests.The_whole_game_is_playable_from_Core_alone reported success when
+        // InMemoryGame was ABSENT for the whole of M0-08..M1-11; that rule now has a presence arm,
+        // and this transcription is the second mechanism over the same fact. Trimming it would
+        // remove one of the two things that demand the harness exist, with Expired silent (neither
+        // name is deferred), Unanchored silent (no entry dangles) and the whole suite green.
         var harness = GapRegister.Surfaces.Single(
             s => s.Citation.StartsWith("30 §6", StringComparison.Ordinal));
 

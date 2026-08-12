@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Testing;
 using SlayIdleRepeat.Core.Tests.Content;
@@ -24,6 +25,19 @@ namespace SlayIdleRepeat.Core.Tests;
 /// across a boundary, idempotence per game day, the event list's contents and order — is asserted in
 /// <c>InMemoryGameDayCycleTests</c>, and the determinism of the whole in
 /// <c>InMemoryGameDeterminismTests</c>.
+/// <para>
+/// 🔒 <b>The fixture-only assertions, named exactly, so nobody mistakes one for a rule.</b>
+/// <see cref="A_created_player_starts_at_the_authored_floor_holding_nothing"/> and
+/// <see cref="A_created_player_sits_in_the_game_day_and_week_the_clock_is_in"/> assert
+/// <c>CreatePlayer</c>'s own contract, which is legitimate because that method is the subject.
+/// <see cref="The_session_defaults_are_no_Plus_and_no_kill_switch_thrown"/> is a property round trip
+/// and <em>no more</em>: nothing in M1 reads <c>Entitlements</c> or <c>FeatureFlags</c>, and this
+/// type exposes no <c>GameContext</c>, so "they reach the domain" is not assertable until the first
+/// milestone whose handler reads one. ⚠️ The <b>Legend Level</b> half of the first of those is the
+/// case M1-11's review caught: comparing against the shipped floor cannot tell a tuning read from a
+/// literal, so <see cref="A_created_player_reads_its_Legend_Level_from_the_content_set"/> exists to
+/// discriminate.
+/// </para>
 /// </remarks>
 public sealed class InMemoryGameTests
 {
@@ -104,9 +118,12 @@ public sealed class InMemoryGameTests
     /// writing one — inventing an amount here is exactly what steering <b>S6</b> forbids.
     /// </para>
     /// <para>
-    /// The Legend Level is compared against the <b>tuning</b>, not against the literal 1: `07` §1.1
-    /// authors the floor in <c>progression.json#/legendLevel/min</c>, and a test that restated it
-    /// would keep passing after the data moved.
+    /// ⚠️ The Legend Level assertion below compares against
+    /// <c>ProgressionDocuments.ShippedLegendLevelMin</c>, and on its own that is <b>not</b> a proof
+    /// that <c>CreatePlayer</c> reads the tuning — the shipped floor is 1, so replacing
+    /// <c>legend.Minimum</c> with the literal <c>1</c> leaves it green (measured on M1-11's review).
+    /// <see cref="A_created_player_reads_its_Legend_Level_from_the_content_set"/> is the assertion
+    /// that discriminates; this one pins the shipped value.
     /// </para>
     /// </remarks>
     [Fact]
@@ -136,6 +153,50 @@ public sealed class InMemoryGameTests
         game.State(player).Run.ShouldBeNull("nothing in M1 can start a run — START_RUN is Deferred to M3-15.");
         game.Events.ShouldBeEmpty("creating a player is not a command and produces no events.");
         game.CommandsIssued.ShouldBe(0L);
+    }
+
+    /// <summary>
+    /// 🔒 A created player's Legend Level comes from the <b>content set</b>, not from a literal.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `07` §1.1 authors the floor at <c>progression.json#/legendLevel/min</c> and `21` §3.1 makes
+    /// every such number a 📐 tunable — <em>"a 📐 tunable number that is not in this directory is a
+    /// bug"</em>. The only way to assert that <c>CreatePlayer</c> honours it is to hand the harness
+    /// a content set whose floor is <b>not</b> the shipped one: a comparison against the shipped
+    /// value cannot tell a read from a coincidence, because the shipped value is 1 and so is the
+    /// literal anyone would have written.
+    /// </para>
+    /// <para>
+    /// 🔒 Five is arbitrary and is the point — it is a number no document authors and no default
+    /// would produce, so the only way the player arrives at it is by the tuning being read. The
+    /// Energy assertion beside it is the consequence that makes it matter: `10` §3's Max Energy is
+    /// derived from the Legend Level, so a harness that hard-coded the level would silently hand
+    /// every simulated player the wrong tank.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_created_player_reads_its_Legend_Level_from_the_content_set()
+    {
+        const int UnshippedFloor = 5;
+
+        UnshippedFloor.ShouldNotBe(
+            ProgressionDocuments.ShippedLegendLevelMin,
+            "the whole test is that this floor is NOT the shipped one.");
+
+        var content = TuningDocuments.With(legendLevelMin: ContentValue.Number(UnshippedFloor));
+        var game = Harnesses.New(content: content);
+        var player = game.CreatePlayer();
+
+        game.State(player).Player.LegendLevel.ShouldBe(UnshippedFloor);
+
+        game.Clock.Advance(TimeSpan.FromDays(1));
+        game.Send(player, Harnesses.BeginSession);
+
+        game.State(player).Player.Energy.Energy.ShouldBe(
+            EnergyTuning.Read(content).MaxEnergyAt(UnshippedFloor),
+            "…and the level the harness read is the one 10 §3 derives Max Energy from, so getting it " +
+            "from a literal would give every simulated player the wrong tank.");
     }
 
     /// <summary>
@@ -185,14 +246,25 @@ public sealed class InMemoryGameTests
         var second = game.CreatePlayer("Ludwig the Unhurried");
 
         first.ShouldNotBe(second);
-        game.Players.ShouldBe(new[] { first, second }, ignoreOrder: true);
+
+        // 🔒 In CREATION ORDER, not ignoreOrder: Players is an insertion-ordered list precisely
+        // because Dictionary.Keys leaves the order unspecified, and `21` §9's sweep is the consumer
+        // that would iterate it. An ignoreOrder comparison would pass over the shape this was
+        // changed away from.
+        game.Players.ShouldBe(new[] { first, second });
+
         game.State(second).Player.DisplayName.ShouldBe("Ludwig the Unhurried");
         game.State(first).Player.DisplayName.ShouldBe(first.Value);
 
         game.Clock.Advance(TimeSpan.FromHours(8));
         game.Send(first, Harnesses.BeginSession);
 
-        game.State(first).Player.Energy.Energy.ShouldBeGreaterThan(0);
+        game.State(first).Player.Energy.ShouldBe(
+            new EnergyBanks(
+                Harnesses.Tuning.MaxEnergyAt(ProgressionDocuments.ShippedLegendLevelMin), 0),
+            "eight hours is exactly one full bar at the shipped rate — the acting player's half of " +
+            "this claim deserves the same sharpness as the other player's.");
+
         game.State(second).Player.Energy.ShouldBe(
             new EnergyBanks(0, 0),
             "a command sent to one player must not roll another player's state forward — catch-up " +
@@ -208,8 +280,20 @@ public sealed class InMemoryGameTests
         Should.Throw<ArgumentException>(() => game.CreatePlayer("   "))
             .ParamName.ShouldBe("displayName");
 
+        Should.Throw<ArgumentException>(() => game.CreatePlayer(string.Empty))
+            .ParamName.ShouldBe("displayName");
+
         var generated = game.CreatePlayer();
-        game.State(generated).Player.DisplayName.ShouldNotBeNullOrWhiteSpace();
+
+        game.State(generated).Player.DisplayName.ShouldBe(
+            generated.Value,
+            "'not blank' is true of almost every value; what null actually means is 'name it after " +
+            "the id', and that is the claim worth pinning.");
+
+        game.Players.ShouldBe(
+            new[] { generated },
+            "…and the two refusals created nothing — a guard that threw after adding the row would " +
+            "leave a player nobody can name.");
     }
 
     /// <summary>
@@ -228,12 +312,18 @@ public sealed class InMemoryGameTests
         var game = Harnesses.New();
         var stranger = new PlayerId("PLAYER_99999999");
 
+        // 🔒 The fragment is pinned at all three doors, not only the first. `Send` can raise
+        // InvalidOperationException from a SECOND place on this branch — GameRules' CommandKind.Run
+        // loading defect, pinned by its own test below — so the exception type alone does not say
+        // which guard fired, and the two have opposite fixes (S2).
         Should.Throw<InvalidOperationException>(() => game.State(stranger))
             .Message.ShouldContain("holds no player", Case.Sensitive);
 
-        Should.Throw<InvalidOperationException>(() => game.Send(stranger, Harnesses.BeginSession));
+        Should.Throw<InvalidOperationException>(() => game.Send(stranger, Harnesses.BeginSession))
+            .Message.ShouldContain("holds no player", Case.Sensitive);
 
-        Should.Throw<InvalidOperationException>(() => game.State(default));
+        Should.Throw<InvalidOperationException>(() => game.State(default))
+            .Message.ShouldContain("holds no player", Case.Sensitive);
     }
 
     /// <summary>
@@ -252,14 +342,48 @@ public sealed class InMemoryGameTests
     /// it. A harness that stored the working copy on a rejection would silently hand the player
     /// regeneration they were refused.
     /// </para>
+    /// <para>
+    /// 🔴 <b>Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not through
+    /// <c>PlayerSnapshot</c> record equality — and M1-11's review found the first draft doing the
+    /// latter.</b> A record compares its dictionary components by <b>reference</b>, so
+    /// <c>ToSnapshot().ShouldBe(before)</c> was trivially true of the wallet and both counter maps
+    /// whatever they held (<c>Player.Copy</c> even hands out one shared empty singleton), and only
+    /// the Energy half was under test. The same file that documents this hazard is
+    /// <c>InMemoryGameDeterminismTests</c>, and this is the assertion it was documenting it for.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The player is driven for a day first and the gap crosses a boundary</b>, for the same
+    /// reason: an empty counter map and a refusal inside one game day would be identical under any
+    /// comparison, so the first draft could not have seen a catch-up that <em>was</em> stored. Now
+    /// there is a counter to wipe and a boundary to cross, and both are things a stored catch-up
+    /// would move.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_deferred_command_is_refused_with_ILLEGAL_STATE_and_changes_nothing()
     {
         var (game, player) = Harnesses.WithPlayer();
-        var before = game.State(player).Player.ToSnapshot();
 
-        game.Clock.Advance(TimeSpan.FromHours(8));
+        Harnesses.Drive(game, player, days: 1, commandsPerDay: 2);
+
+        var settled = game.State(player).Player;
+        settled.DailyCount("begin_session").ShouldBe(
+            1L,
+            "there is a daily counter set, so a catch-up that was wrongly stored would have " +
+            "something visible to wipe.");
+
+        var before = CanonicalStateWriter.HashMetaCommandState(settled.ToSnapshot());
+        var rowsFromTheDrivenDay = game.Events.Count;
+
+        rowsFromTheDrivenDay.ShouldBeGreaterThan(
+            0,
+            "the driven day produced rows, so 'the refusals added none' is a comparison against " +
+            "something rather than two zeroes (S3).");
+
+        // More than a day, so every refused command below crosses a 05:00 UTC boundary as well as
+        // several regeneration intervals. Both are things AdvanceTime would move if the working copy
+        // survived a rejection.
+        game.Clock.Advance(TimeSpan.FromHours(25));
 
         GameCommand[] deferred =
         [
@@ -279,14 +403,18 @@ public sealed class InMemoryGameTests
             result.Events.ShouldBeEmpty("a refused command changed nothing, so it logs nothing.");
         }
 
-        game.State(player).Player.ToSnapshot().ShouldBe(
+        CanonicalStateWriter.HashMetaCommandState(game.State(player).Player.ToSnapshot()).ShouldBe(
             before,
-            "eight hours passed and five commands were refused; a rejected command discards the " +
-            "working copy AND the catch-up (30 §2.1's P4), so nothing moved — not the banks, not " +
-            "the anchor, not LastAppliedAtUtc.");
+            "twenty-five hours passed, a game day turned over and five commands were refused; a " +
+            "rejected command discards the working copy AND the catch-up (30 §2.1's P4), so nothing " +
+            "moved — not the banks, not the anchor, not LastAppliedAtUtc, and not the day's counter.");
 
-        game.Events.ShouldBeEmpty();
-        game.CommandsIssued.ShouldBe(5L, "a refused command is still a command that was issued.");
+        game.Events.Count.ShouldBe(
+            rowsFromTheDrivenDay,
+            "exactly the rows the DRIVEN day produced, and nothing from the five refusals — a " +
+            "refused command has nothing to append to 14 §7.1's economy log.");
+
+        game.CommandsIssued.ShouldBe(7L, "a refused command is still a command that was issued.");
     }
 
     /// <summary>
@@ -314,12 +442,28 @@ public sealed class InMemoryGameTests
     public void A_run_command_with_no_run_in_the_slice_is_a_defect_the_harness_does_not_soften()
     {
         var (game, player) = Harnesses.WithPlayer();
+        var before = game.State(player);
 
         var defect = Should.Throw<InvalidOperationException>(
             () => game.Send(player, new StartRunCommand(3, DifficultyTier.NORMAL)));
 
         defect.Message.ShouldContain("START_RUN", Case.Sensitive);
         defect.Message.ShouldContain("carries no Run", Case.Sensitive);
+
+        // 🔒 …and the throw left the harness untouched. Send increments its counters and appends the
+        // events AFTER Apply returns, so none of it runs — but "it does not run" and "nothing
+        // asserts that it does not run" are different states, and the clock's own guard is pinned
+        // this way one file over.
+        game.CommandsIssued.ShouldBe(0L);
+        game.Events.ShouldBeEmpty();
+        game.State(player).ShouldBeSameAs(before);
+
+        // 🔒 AND IT IS NOT ONLY START_RUN. All nineteen CommandKind.Run rows hit the same guard,
+        // because the harness's slice never carries a Run — the type's own remarks correct the
+        // "forty-eight rows answer ILLEGAL_STATE" reading this test used to imply. Driven over a
+        // second row so the claim is about the KIND rather than about the row that was picked.
+        Should.Throw<InvalidOperationException>(() => game.Send(player, new RollDiceCommand()))
+            .Message.ShouldContain("ROLL_DICE", Case.Sensitive);
     }
 
     /// <summary>
@@ -340,9 +484,19 @@ public sealed class InMemoryGameTests
         game.Send(player, Harnesses.BeginSession);
 
         game.Events.ShouldNotBeEmpty();
-        (game.Events as ICollection<DomainEvent>)?.IsReadOnly.ShouldBeTrue();
+
+        // 🔒 ShouldBeAssignableTo rather than `as … ?.`: a null-conditional swallows the assertion
+        // entirely when the cast fails, so an Events that stopped being an ICollection<T> would skip
+        // this check rather than fail it (S1).
+        game.Events.ShouldBeAssignableTo<ICollection<DomainEvent>>()!.IsReadOnly.ShouldBeTrue();
+
         (game.Events as DomainEvent[]).ShouldBeNull("a bare array casts back and is writable.");
         (game.Events as List<DomainEvent>).ShouldBeNull("a bare List casts back and is writable.");
+
+        // …and the same for Players, which M1-11's review turned from Dictionary.Keys — whose order
+        // the BCL leaves unspecified — into an insertion-ordered list behind a read-only wrapper.
+        game.Players.ShouldBeAssignableTo<ICollection<PlayerId>>()!.IsReadOnly.ShouldBeTrue();
+        (game.Players as List<PlayerId>).ShouldBeNull();
     }
 
     /// <summary>
@@ -371,11 +525,14 @@ public sealed class InMemoryGameTests
         game.Events.Take(first.Events.Count).ShouldBe(first.Events);
         game.Events.Skip(first.Events.Count).ShouldBe(second.Events);
 
-        game.Events.Select(e => e.Sequence).ShouldAllBe(s => s >= 1);
-        second.Events.Select(e => e.Sequence).ShouldBe(
-            Enumerable.Range(1, second.Events.Count),
-            "each command's list is numbered 1..n on its own — Apply stamps within one result, not " +
-            "across the simulation (30 §7).");
+        // 🔒 Both lists numbered exactly, not a `>= 1` predicate over the accumulation: each
+        // command's list is numbered 1..n on its own — Apply stamps within one result, not across
+        // the simulation (30 §7) — and a running counter would satisfy any weaker check.
+        first.Events.Select(e => e.Sequence).ShouldBe(Enumerable.Range(1, first.Events.Count));
+        second.Events.Select(e => e.Sequence).ShouldBe(Enumerable.Range(1, second.Events.Count));
+
+        first.Events.ShouldNotBeEmpty("…and neither range is empty (S3).");
+        second.Events.ShouldNotBeEmpty();
     }
 
     /// <summary>

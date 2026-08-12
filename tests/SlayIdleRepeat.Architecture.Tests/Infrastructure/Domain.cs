@@ -40,9 +40,9 @@ internal static class Domain
     /// namespace a build failure rather than a silent gap.
     /// <para>
     /// 🔒 <b>It said "five-row" until M1-11 and had been wrong since M1-06</b>, which added the
-    /// <c>Commands</c> row; M1-11 added the <c>Testing</c> row and the count is now left to the
-    /// table rather than transcribed a third time (steering <b>S4</b>'s known limit — a number
-    /// in prose beside the thing it counts is a number that goes stale silently).
+    /// <c>Commands</c> row; M1-11 added the <c>Events</c> and <c>Testing</c> rows and the count is
+    /// now left to the table rather than transcribed a third time (steering <b>S4</b>'s known
+    /// limit — a number in prose beside the thing it counts is a number that goes stale silently).
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PermittedCoreNamespaces { get; } = new[]

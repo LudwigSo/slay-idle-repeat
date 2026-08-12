@@ -66,7 +66,13 @@ public sealed class SubjectSetFloorTests
         // nowhere: a rename would empty the rule keyed on it permanently with the whole suite green
         // — the exact silence Every_rule_subject_is_present_or_declared_pending exists to break.
         // That rule was vacuous while Core/Rules/ was empty; M1-10 landed Core/Rules/Economy/, so it
-        // now quantifies over six real types (see the Rules namespace entry below).
+        // now quantifies over real types (see the Rules namespace entry below).
+        //
+        // ⚠️ M1-11 corrected "six" to "real": Handlers_and_Rules_are_internal filters
+        // `DeclaringType is null && !IsCompilerGenerated`, so its subject set under Core/Rules/ is
+        // the THREE author-written types (EnergyAccrual, EnergyMath, EnergySpend). Six is only
+        // reachable by counting compiler-generated closures, which the rule excludes. The number is
+        // dropped rather than fixed to 3, on the reasoning the Primitives row above records.
         new(Domain.EntitlementsType, SubjectKind.CoreType, "M1-07",
             "IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
 
@@ -78,10 +84,14 @@ public sealed class SubjectSetFloorTests
         // nothing until this commit.
         //
         // 🔒 M1-08 corrected two facts in the sentence above rather than leaving them to rot (S4's
-        // known limit, which this milestone has now hit three times). The table is SIX rows, not
-        // five: M1-06 added the Commands row, and it added Commands to this row's forbidden list at
-        // the same time — so what Primitives may not name is Content, Rng, Model, Rules, Commands
-        // or Handlers. Both halves were re-derived from the table itself, not from this comment.
+        // known limit, which this milestone keeps hitting). ⚠️ AND M1-11 CORRECTED M1-08's
+        // CORRECTION, three lines from the file that ALSO carried the same stale number: this
+        // comment said "the table is SIX rows, not five" and listed what Primitives may not name.
+        // Both went stale again the moment M1-11 added the Events and Testing rows. The row count is
+        // therefore gone from this comment rather than restated a third time — read
+        // Core_internal_layering_holds' table, which is the thing that decides. What is durable is
+        // the CLAIM: Primitives is the bottom layer, so it may name nothing above it, and this row's
+        // forbidden list is whatever that table says today.
         //
         // 🔒 M1-08 also made this row's subject set load-bearing in a way it had not been. It landed
         // Primitives/GameCalendar — 30 §2.3's 05:00 UTC day and Monday week — precisely BECAUSE
@@ -342,8 +352,8 @@ public sealed class SubjectSetFloorTests
         // note there for what it forbids and why the Events half is still open.
         // 🔒 M1-02 filled it: 49 commands plus one internal payload helper. The two layering rows
         // M1-06 added were LIVE-BUT-THIN over a single abstract base with no members; they now
-        // govern 50 types, and the Commands row's "may name Primitives, Content and Rng, may not
-        // name Model, Rules or Handlers" was tested for real by the payload decision — every field
+        // govern 50 types, and the Commands row — read it in the table rather than here, since
+        // M1-11 appended Testing to it — was tested for real by the payload decision: every field
         // in the vocabulary is an int, a string, a bool or Primitives.DifficultyTier, and no command
         // names a Model aggregate. M1-06's brief asked to be told if one had to; none does.
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
@@ -409,15 +419,21 @@ public sealed class SubjectSetFloorTests
         //
         // 🔒 WHAT WOKE UP WITH THEM, measured on this branch rather than assumed:
         //
-        //  · The_whole_game_is_playable_from_Core_alone — `30` §9's own "load-bearing" rule — had been
-        //    VACUOUS SINCE M0-08 in the most literal sense available: it is stated over InMemoryGame's
-        //    assembly closure, and there was no InMemoryGame. Its BFS over Core's references ran and
-        //    found nothing, which is a true statement about an assembly nobody could play the game
-        //    from. Core/Testing/ now holds the harness, so everything it names ships in Core and the
-        //    closure claim is a claim about the real thing. Proved by mutation: a ProjectReference
-        //    from Core to Application, named from InMemoryGame, turns it red with
-        //    'SlayIdleRepeat.Core -> SlayIdleRepeat.Application'. Reverted; the literal output is in
-        //    the task report (S1).
+        //  · The_whole_game_is_playable_from_Core_alone — `30` §9's own "load-bearing" rule.
+        //    ⚠️ AND THE FIRST DRAFT OF THIS NOTE SAID IT HAD BEEN "VACUOUS SINCE M0-08", WHICH IS
+        //    FALSE, and getting it wrong here would have been the S1 defect this file exists to
+        //    stop, sitting inside the mechanism. The rule has THREE arms and only one was dead:
+        //      – the CLOSURE arm walks Core's real AssemblyReferences and has asserted since M0. A
+        //        ProjectReference added to SlayIdleRepeat.Core.csproj turns it red whoever names the
+        //        reference, so a mutation of that shape demonstrates the arm that was ALREADY live.
+        //      – the PUBLIC-HARNESS arm sat behind `harness is not null` and had never run, because
+        //        there was no InMemoryGame. That is the one this commit wakes, and the mutation that
+        //        distinguishes it is making the harness internal: red with
+        //        'SlayIdleRepeat.Core.Testing.InMemoryGame is not public'. Both literal outputs are
+        //        in the task report (S1).
+        //      – the PRESENCE arm is M1-11's addition, on Apply_is_the_only_public_mutation's
+        //        precedent: without it the rule reported success over the ABSENCE of the very type
+        //        its name is about, which is the state it was in from M0-08 until this commit.
         //  · Core_internal_layering_holds gained a Testing ROW. ⚠️ It did not have one before, and
         //    that is the pre-existing inaccuracy M1-09 flagged by name and this entry closes: the
         //    Pending row for this namespace cited Core_internal_layering_holds, and that rule did not
@@ -434,19 +450,27 @@ public sealed class SubjectSetFloorTests
         // is the artefact that demonstrates it — a harness calling BeginSession.Handle or
         // EnergyMath.Grant directly would drive the domain behind Apply's back, which is the one
         // thing it exists not to do. Every layer beneath gained Testing in its own forbidden list at
-        // the same time, in the direction M1-06's Commands row had to be widened for: a production
-        // aggregate or rule naming the test harness is a cycle under every reading.
+        // the same time — plus an Events row and a root-side loop, because neither of those two had
+        // a Layer row to append to — in the direction M1-06's Commands row had to be widened for: a
+        // production type naming the test harness is a cycle under every reading.
+        //
+        // ⚠️ WHAT THAT ROW DOES NOT REACH, so this note does not promise more than the rule: it
+        // permits Testing -> Model, and must (30 §11.3's Rehydrate), so a harness calling an
+        // aggregate's INTERNAL mutator bypasses Apply exactly as calling a handler would and no
+        // namespace rule sees it. The row itself carries that limit in full.
         new(Domain.InMemoryGameType, SubjectKind.CoreType, "M1-11",
-            "DomainPurityTests.The_whole_game_is_playable_from_Core_alone (it is stated OVER this " +
-            "type — the rule was vacuous from M0-08 until this commit, and the public-harness arm " +
-            "inside it had never run at all)"),
+            "DomainPurityTests.The_whole_game_is_playable_from_Core_alone (the rule's NAME is stated " +
+            "over this type: its public-harness arm had never run before this commit, and M1-11 " +
+            "added the presence arm that makes deleting the harness red rather than green)"),
 
         new(Domain.TestingNamespace, SubjectKind.CoreNamespace, "M1-11",
             "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace (the rule " +
-            "that has ALWAYS keyed on this namespace, through Domain.PermittedCoreNamespaces — the " +
-            "Pending row this replaces cited a rule that did not key on it, which M1-09 flagged), " +
+            "that has named this namespace since M0-08, through Domain.PermittedCoreNamespaces — " +
+            "though it governed an EMPTY region until this commit, and the Pending row this replaces " +
+            "cited a different rule that did not key on it at all, which M1-09 flagged), " +
             "AccessibilityBoundaryTests.Core_internal_layering_holds (LIVE from this commit, when the " +
-            "Testing row was added: the harness may not name Rules or Handlers)"),
+            "Testing row was added: the harness may not name Rules or Handlers, and nothing beneath " +
+            "it — root included — may name the harness)"),
     };
 
     // ---------------------------------------------------------------- floors

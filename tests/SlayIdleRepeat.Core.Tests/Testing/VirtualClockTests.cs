@@ -175,6 +175,13 @@ public sealed class VirtualClockTests
             () => clock.Advance(DateTimeOffset.MaxValue - Harnesses.Start + TimeSpan.FromTicks(1)));
 
         refusal.ParamName.ShouldBe("by");
+
+        // 🔒 The fragment, like the other three guards on this type: both overflow and the negative
+        // advance throw ArgumentOutOfRangeException(nameof(by)), and a positive span cannot reach
+        // the negative guard today — but "cannot today" is a property of the arithmetic, not of the
+        // assertion, and this file's policy is that every guard says which one fired (S2).
+        refusal.Message.ShouldContain("end of representable time", Case.Sensitive);
+
         clock.NowUtc.ShouldBe(Harnesses.Start);
 
         // …and the boundary itself is reachable, so the guard is not off by one in the direction

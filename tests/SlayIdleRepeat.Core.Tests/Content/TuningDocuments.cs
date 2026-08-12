@@ -53,11 +53,22 @@ internal static class TuningDocuments
     /// <see cref="ContentValue.Unauthorised"/> to model a deliberate <c>null</c> hole, or omit a
     /// parameter to keep the shipped value.
     /// </summary>
-    internal static ContentSnapshot With(ContentValue? cycleDays = null) =>
+    /// <remarks>
+    /// ⚠️ <b><paramref name="legendLevelMin"/> is here because M1-11's review found a test that could
+    /// not fail without it.</b> <c>InMemoryGame.CreatePlayer</c> reads `07` §1.1's authored floor
+    /// through <c>LegendTuning</c> rather than writing the literal 1 — and the only assertion of that
+    /// compared against <c>ProgressionDocuments.ShippedLegendLevelMin</c>, which <em>is</em> 1, so
+    /// replacing the read with the literal left every test green. Proving the read needs a content
+    /// set whose floor is not the shipped one, which needs this document to be rebuildable rather
+    /// than lifted whole out of <c>ProgressionDocuments.Shipped</c>.
+    /// </remarks>
+    internal static ContentSnapshot With(
+        ContentValue? cycleDays = null, ContentValue? legendLevelMin = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
-                ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
+                ProgressionDocuments.With(legendLevelMin: legendLevelMin)
+                    .GetDocument(ProgressionDocuments.DocumentPath),
                 Currencies(cycleDays),
             ]);
 

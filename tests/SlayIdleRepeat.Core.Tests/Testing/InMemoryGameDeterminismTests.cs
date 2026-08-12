@@ -88,12 +88,24 @@ public sealed class InMemoryGameDeterminismTests
     /// 🔒 Two harnesses in flight <b>at once</b>, interleaved, do not contaminate each other.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The sequential test above cannot see this: it runs each simulation to completion. `21` §9's
     /// sweep is a loop over profiles, and the day one of them is run concurrently — or simply
     /// constructed before the previous one has finished — a harness holding shared mutable state
-    /// would produce a result that depended on the interleaving. The per-player command counter that
-    /// derives each <c>CommandSeed</c> is the specific thing this pins: it is per player, not global,
-    /// so one player's seeds do not shift when another's commands arrive between them.
+    /// would produce a result that depended on the interleaving.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>What this test does NOT pin, corrected on M1-11's review because the first draft claimed
+    /// it.</b> It does not pin that the per-command seed counter is <em>per player</em> rather than
+    /// global, and it structurally cannot, for two independent reasons: the two harnesses hold one
+    /// player each, so a harness-global counter would produce byte-identical sequences anyway; and
+    /// <see cref="A_different_seed_changes_nothing_yet_and_this_test_expires_at_M4_09"/> establishes
+    /// that <b>nothing in M1 reads <c>CommandSeed</c> at all</b>, so no seed derivation is observable
+    /// in state or events. Measured: changing <c>InMemoryGame.Send</c> to derive from the global
+    /// <c>CommandsIssued</c> leaves every determinism test green. The per-player counter becomes
+    /// testable on the same commit that makes the sibling test above go red — M4-09's first draw —
+    /// and no assertion is invented here in the meantime.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Two_interleaved_harnesses_do_not_contaminate_each_other()

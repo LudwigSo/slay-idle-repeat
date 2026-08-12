@@ -109,15 +109,17 @@ public sealed class InMemoryGamePerformanceTests
     [Fact]
     public void A_180_day_player_runs_well_inside_the_budget()
     {
-        Drive();
+        ShouldHaveDoneTheWork(Drive(), Days * CommandsPerDay, Days);
 
         var best = double.MaxValue;
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var watch = Stopwatch.StartNew();
-            Drive();
+            var game = Drive();
             watch.Stop();
             best = Math.Min(best, watch.Elapsed.TotalMilliseconds);
+
+            ShouldHaveDoneTheWork(game, Days * CommandsPerDay, Days);
         }
 
         best.ShouldBeLessThan(
@@ -155,8 +157,11 @@ public sealed class InMemoryGamePerformanceTests
     {
         const int Commands = Days * CommandsPerDay;
 
-        GapDrive(1, Commands);
-        GapDrive(3650, Commands);
+        // 🔒 The workload floor, on both halves — see Drive's remarks. Every command is accepted and
+        // every one of them crosses at least one game day, so a one-day gap grants once per command
+        // and a ten-year gap does too.
+        ShouldHaveDoneTheWork(GapDrive(1, Commands), Commands, Commands);
+        ShouldHaveDoneTheWork(GapDrive(3650, Commands), Commands, Commands);
 
         var oneDay = Fastest(() => GapDrive(1, Commands));
         var tenYears = Fastest(() => GapDrive(3650, Commands));
@@ -242,18 +247,29 @@ public sealed class InMemoryGamePerformanceTests
             "amount — the deltas differ only while the banks have room.");
     }
 
-    private static void Drive()
+    /// <summary>
+    /// One 180-day drive, returning the harness so the caller can floor the workload it measured.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>The floor is not decoration</b> (steering <b>S3</b>). If <c>BEGIN_SESSION</c> regressed
+    /// to a rejection, every timing test in this file would get <em>faster</em> and stay green over
+    /// 720 refusals — a perf suite measuring nothing, reporting success. So each test that times a
+    /// drive also asserts what the drive did.
+    /// </remarks>
+    private static InMemoryGame Drive()
     {
         var (game, player) = Harnesses.WithPlayer();
 
         Harnesses.Drive(game, player, Days, CommandsPerDay);
+
+        return game;
     }
 
     /// <summary>
     /// Sends <paramref name="commands"/> commands, each one <paramref name="gapDays"/> after the
-    /// last.
+    /// last. Returns the harness, for the reason <see cref="Drive"/> does.
     /// </summary>
-    private static void GapDrive(int gapDays, int commands)
+    private static InMemoryGame GapDrive(int gapDays, int commands)
     {
         var (game, player) = Harnesses.WithPlayer();
 
@@ -262,16 +278,34 @@ public sealed class InMemoryGamePerformanceTests
             game.Clock.Advance(TimeSpan.FromDays(gapDays));
             game.Send(player, Harnesses.BeginSession);
         }
+
+        return game;
     }
 
-    private static double Fastest(Action action)
+    /// <summary>
+    /// Asserts that a timed drive actually did the work it was measured doing — see
+    /// <see cref="Drive"/>'s remarks.
+    /// </summary>
+    private static void ShouldHaveDoneTheWork(InMemoryGame game, int commands, int acceptedDays)
+    {
+        game.CommandsIssued.ShouldBe(
+            commands,
+            "the measurement above is only about the domain if the domain actually ran. A regression " +
+            "that turned BEGIN_SESSION into a rejection would make every timing here FASTER (S3).");
+
+        Harnesses.CurrencyRows(game, Harnesses.DailyRefillReason).Count.ShouldBe(
+            acceptedDays,
+            "…and the commands were ACCEPTED: one daily free refill per game day the drive touched.");
+    }
+
+    private static double Fastest(Func<InMemoryGame> action)
     {
         var best = double.MaxValue;
 
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var watch = Stopwatch.StartNew();
-            action();
+            _ = action();
             watch.Stop();
             best = Math.Min(best, watch.Elapsed.TotalMilliseconds);
         }
