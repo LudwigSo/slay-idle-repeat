@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/asset_manifest_art.schema.json",
+  "title": "assets/asset_manifest_art.json",
+  "description": "15 §C (technical output spec, delivery sizes), §D1 (naming), §D2 (atlas grouping), §A5 (biome palettes, rarity colours), §E1–§E21 (the enumerations); 22 Parts A/B (perk and talent symbols, delegated there by 15 §E12/§E13); 08 §1 (the gear slot × family grid, delegated there by 15 §E11). One row per asset slot. 🔒 Counts are transcribed and never reconciled — a section whose row count disagrees with §E1 records the disagreement in `discrepancies`, because reconciling the manifest totals is O30's job at M11-01 and a quiet fix here destroys the evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "technical", "totals", "biomes", "rarities", "atlases", "sections", "discrepancies", "assets"],
+  "$defs": {
+    "assetId": {
+      "description": "15 §D1 snake_case. 🔒 The alternation is deliberately written so the pattern does NOT begin with two literal characters: ContentInvariants.IsIdNamespace would otherwise read it as a cross-file id namespace and demand that every string matching it elsewhere resolve to a declaration here. Duplicate ids are still caught — ContentInvariants.CheckIdUniqueness walks any array whose entries all carry `id`.",
+      "type": "string",
+      "pattern": "^(chr|pet|mnt|tile|board|bg|gear|icon|ui|die|vfx|store)_[a-z0-9_]+$"
+    },
+    "sectionId": {
+      "description": "The 15 §E-section a row was transcribed from.",
+      "enum": ["E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12", "E13", "E14", "E15", "E16", "E17", "E18", "E19", "E20", "E21"]
+    },
+    "hexColour": { "type": "string", "pattern": "^#[0-9A-F]{6}$" },
+    "rarityCode": { "enum": ["C", "B", "A", "S", "SS"] },
+    "biomeKey": { "enum": ["greenwood", "mire", "crypt", "ember", "frost", "clockwork", "bloom", "astral"] },
+    "palette": {
+      "description": "15 §A5 — the biome's locked six hues.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "shadow", "accent", "glow", "prop", "sky"],
+      "properties": {
+        "base": { "$ref": "#/$defs/hexColour" },
+        "shadow": { "$ref": "#/$defs/hexColour" },
+        "accent": { "$ref": "#/$defs/hexColour" },
+        "glow": { "$ref": "#/$defs/hexColour" },
+        "prop": { "$ref": "#/$defs/hexColour" },
+        "sky": { "$ref": "#/$defs/hexColour" }
+      }
+    },
+    "pixelSize": {
+      "description": "A delivery size in pixels, from 15 §C (or §E21's own table). 🔒 null where no doc states one — never a borrowed or plausible default (game-data/README.md, 16 R6).",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1, "maximum": 2048 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 2048 }
+      }
+    },
+    "nullableText": { "type": ["string", "null"], "minLength": 1 },
+    "discrepancy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sourceSection", "claim", "observed", "detail"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^DSC_[A-Z0-9_]+$" },
+        "sourceSection": { "type": "string", "minLength": 1 },
+        "claim": { "type": "string", "minLength": 1 },
+        "observed": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+
+    "technical": {
+      "description": "15 §C, plus the outline colour from §A3.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generationResolution", "deliveryFormat", "colourSpace", "compressionInEngine", "namingConvention", "pivotRule", "maxSingleTexture", "outlineColour", "_doc"],
+      "properties": {
+        "generationResolution": { "type": "string", "minLength": 1 },
+        "deliveryFormat": { "type": "string", "minLength": 1 },
+        "colourSpace": { "type": "string", "minLength": 1 },
+        "compressionInEngine": { "type": "string", "minLength": 1 },
+        "namingConvention": { "type": "string", "minLength": 1 },
+        "pivotRule": { "type": "string", "minLength": 1 },
+        "maxSingleTexture": { "type": "string", "minLength": 1 },
+        "outlineColour": { "$ref": "#/$defs/hexColour" },
+        "_doc": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "totals": {
+      "description": "🔒 `claimedBySummaryTable` is 15 §E1's stated TOTAL; `transcribed` is what this file holds. They are separate keys precisely so a disagreement is visible rather than resolved.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimedBySummaryTable", "transcribed", "cut", "active", "derived", "_doc"],
+      "properties": {
+        "claimedBySummaryTable": { "type": "integer", "minimum": 1 },
+        "transcribed": { "type": "integer", "minimum": 1 },
+        "cut": { "type": "integer", "minimum": 0 },
+        "active": { "type": "integer", "minimum": 1 },
+        "derived": { "type": "integer", "minimum": 0 },
+        "_doc": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "biomes": {
+      "description": "15 §A5 — eight chapters, eight locked palettes. A ninth is a design decision, not a data edit.",
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "chapter", "displayName", "palette"],
+        "properties": {
+          "key": { "$ref": "#/$defs/biomeKey" },
+          "chapter": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "displayName": { "type": "string", "minLength": 1 },
+          "palette": { "$ref": "#/$defs/palette" }
+        }
+      }
+    },
+
+    "rarities": {
+      "description": "15 §A5 rarity colours — identical across all biomes.",
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "colour"],
+        "properties": {
+          "code": { "$ref": "#/$defs/rarityCode" },
+          "colour": { "$ref": "#/$defs/hexColour" }
+        }
+      }
+    },
+
+    "atlases": {
+      "description": "15 §D2. `uncutAssetCount` exists so an atlas emptied by a ruling (atlas_vfx, after O8) is visible in the data instead of being silently deleted.",
+      "type": "array",
+      "minItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "contents", "assetCount", "uncutAssetCount"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^atlas_[a-z_{}0-9]+$" },
+          "contents": { "type": "string", "minLength": 1 },
+          "assetCount": { "type": "integer", "minimum": 0 },
+          "uncutAssetCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+
+    "sections": {
+      "description": "One entry per 15 §E-section, carrying §E1's claim beside the transcribed count. 🔒 `countsAgree` is stored, not computed at read time, so a mismatch survives in the committed artefact.",
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "claimedCount", "transcribedCount", "countsAgree", "cutCount", "derivedCount", "pivotClass", "cut", "sourceSection", "notes"],
+        "properties": {
+          "id": { "$ref": "#/$defs/sectionId" },
+          "category": { "type": "string", "minLength": 1 },
+          "claimedCount": { "type": "integer", "minimum": 0 },
+          "transcribedCount": { "type": "integer", "minimum": 0 },
+          "countsAgree": { "type": "boolean" },
+          "cutCount": { "type": "integer", "minimum": 0 },
+          "derivedCount": { "type": "integer", "minimum": 0 },
+          "pivotClass": {
+            "description": "15 §C names exactly two pivot classes. Every other section is null — §C states no pivot for panels, backgrounds, board pieces, die faces, VFX sheets or store art.",
+            "enum": ["character", "icon", null]
+          },
+          "cut": { "$ref": "#/$defs/nullableText" },
+          "sourceSection": { "type": "string", "minLength": 1 },
+          "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
+
+    "discrepancies": {
+      "description": "🔒 Every place this transcription disagrees with a claim in the design docs. Owned by O30 at M11-01. An empty array would mean the docs are perfectly self-consistent, which they are not — see the floor.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/discrepancy" }
+    },
+
+    "assets": {
+      "description": "One row per asset slot. Consumed by M8-01a (provenance keyed to `id`), M8-06 (deliverySize/pivot/atlas drive post-processing) and M8-10 (one placeholder per row).",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "section", "sourceSection", "derived", "idSource", "cut", "deliverySize", "pivot", "atlas", "biome", "palette", "subject"],
+        "properties": {
+          "id": { "$ref": "#/$defs/assetId" },
+          "section": { "$ref": "#/$defs/sectionId" },
+          "sourceSection": { "type": "string", "minLength": 1 },
+          "derived": {
+            "description": "🔒 true where the doc gave the group a COUNT but named no individual asset, so this row's existence is inferred. False where the doc enumerates the asset itself. Lets a reconciliation find every id no human authored.",
+            "type": "boolean"
+          },
+          "idSource": {
+            "description": "`doc` where the literal id string occurs in a design document; `convention` where it was constructed from 15 §D1's naming rule.",
+            "enum": ["doc", "convention"]
+          },
+          "cut": {
+            "description": "Non-null where a ruling removed the asset. The row is retained so a post-cut total stays derivable from the data.",
+            "$ref": "#/$defs/nullableText"
+          },
+          "deliverySize": { "$ref": "#/$defs/pixelSize" },
+          "pivot": {
+            "description": "15 §C: characters bottom-center, icons center. null where §C states none.",
+            "enum": ["bottom-center", "center", null]
+          },
+          "atlas": {
+            "description": "15 §D2. null where §D2 assigns none — backgrounds explicitly, misc UI icons and store art by omission, tile icons pending DSC_TILE_ATLAS.",
+            "type": ["string", "null"],
+            "pattern": "^atlas_[a-z_0-9]+$"
+          },
+          "biome": { "oneOf": [{ "$ref": "#/$defs/biomeKey" }, { "type": "null" }] },
+          "palette": { "oneOf": [{ "$ref": "#/$defs/palette" }, { "type": "null" }] },
+          "subject": {
+            "description": "The subject descriptor the doc gives for prompting. 🔒 null where no doc authorises one — never the asset's own name echoed back.",
+            "$ref": "#/$defs/nullableText"
+          },
+          "displayName": { "type": "string", "minLength": 1 },
+          "sourceContentId": { "type": "string", "minLength": 1 },
+          "pose": { "type": "string", "minLength": 1 },
+          "rarity": { "$ref": "#/$defs/rarityCode" },
+          "rarityTreatment": { "type": "string", "minLength": 1 },
+          "overlayFamily": { "type": "string", "minLength": 1 },
+          "gearSlot": { "enum": ["weapon", "helmet", "armor", "boots", "ring", "amulet"] },
+          "archetype": { "enum": ["GRUNT", "SWARM", "BRUTE", "SKIRMISHER", "WARDEN", "CASTER", "LEECH", "REAVER"] },
+          "boardPiece": { "type": "string", "minLength": 1 },
+          "parallaxLayer": { "enum": ["far", "mid", "near"] },
+          "perkCategory": { "type": "string", "minLength": 1 },
+          "talentBranch": { "enum": ["MIGHT", "WARD", "FORTUNE"] },
+          "talentTier": { "type": "integer", "minimum": 1, "maximum": 4 },
+          "keystone": { "type": "boolean" },
+          "frameShape": { "enum": ["circular", "hexagonal", "star-shaped"] },
+          "discColour": { "$ref": "#/$defs/hexColour" },
+          "uiGroup": { "type": "string", "minLength": 1 },
+          "phaseVariantRule": { "type": "string", "minLength": 1 },
+          "engineRendered": { "const": true }
+        }
+      }
+    }
+  }
+}
