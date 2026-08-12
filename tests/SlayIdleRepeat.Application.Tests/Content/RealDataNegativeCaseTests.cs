@@ -426,19 +426,37 @@ public sealed class RealDataNegativeCaseTests
     /// 🔒 Pins the <em>population</em> of unauthorised holes, not a sample of it.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The count is <b>96</b>, not the 98 the M0-09 brief states. Counted three ways — this
+    /// ⚠️ The count was <b>96</b> at M0-09, not the 98 that brief states. Counted three ways — this
     /// loader over the snapshot, a JSON walk over <c>tuning/*.json</c>, and per file — the shipped
-    /// data holds 96 JSON nulls, all in <c>tuning/</c> and none in <c>loc/</c>: guilds 32,
+    /// data held 96 JSON nulls, all in <c>tuning/</c> and none in <c>loc/</c>: guilds 32,
     /// drops 25, power_model 13, events 7, progression 5, luck 4, sim_profiles 4, currencies 2,
-    /// forge 2, beasts 1, calibration_builds 1. The brief is off by two; this records what is
+    /// forge 2, beasts 1, calibration_builds 1. The brief was off by two; this records what is
     /// actually there, because a guarded number that does not match the data guards nothing.
+    /// <para>
+    /// ⚠️ <b>M2-11 opened the first two holes outside <c>tuning/</c>, deliberately, and they are the
+    /// reason this number is now 98.</b> Both are in <c>content/enemies/enemies.json</c> and both are
+    /// `05` §6 declining to authorise a value:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><c>onHit/casterBiomeStatus/4/maxStacks</c> — `05` §6.1a states a stack count for five
+    /// of its eight <c>CASTER</c> rows and defers the rest to `05`'s status catalogue, which fixes
+    /// <c>BLEED</c> as non-stacking and says <em>nothing at all</em> about <c>FREEZE</c>. Chapter 5
+    /// is that row.</item>
+    /// <item><c>elites/modifiers/6/curseId</c> — `05` §6.2 says <c>CURSED</c> <em>"applies a
+    /// run-scoped curse"</em> and names none; <c>content/curses/</c> is empty.</item>
+    /// </list>
+    /// <para>
+    /// Both have a <c>Require…</c> accessor in <c>Core</c> that throws by name if anything tries to
+    /// use them, and both are asserted individually in <c>EnemiesDataTests</c>. Filling either is a
+    /// design decision that changes this number in the same commit — which is what this guard is for.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_96_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_98_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(96,
+        CountUnauthorised(snapshot).ShouldBe(98,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -446,7 +464,7 @@ public sealed class RealDataNegativeCaseTests
     }
 
     /// <summary>
-    /// 🔒 The same population, <b>per file</b>. A total of 96 cannot see a <em>compensating</em>
+    /// 🔒 The same population, <b>per file</b>. A total of 98 cannot see a <em>compensating</em>
     /// change — one hole filled in <c>guilds.json</c> and one opened in <c>drops.json</c> nets to
     /// zero, and the filled one is precisely the design decision this suite exists to make
     /// deliberate. The breakdown was already written down in the remark above; asserting it costs
@@ -471,6 +489,11 @@ public sealed class RealDataNegativeCaseTests
     [InlineData("tuning/sim_thresholds.json", 0)]
     [InlineData("loc/en.json", 0)]
     [InlineData("loc/de.json", 0)]
+
+    // M2-11 — the first two holes outside tuning/. 05 §6.1a authorises no stack count for the
+    // FREEZE row and 05 §6.2 names no curse for CURSED; see the remarks on the total above.
+    [InlineData("content/enemies/enemies.json", 2)]
+    [InlineData("content/combat_caps.json", 0)]
     public void Each_shipped_file_carries_exactly_the_unauthorised_holes_it_is_recorded_as_carrying(
         string documentPath, int expected)
     {

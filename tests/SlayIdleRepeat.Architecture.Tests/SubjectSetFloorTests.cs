@@ -172,6 +172,67 @@ public sealed class SubjectSetFloorTests
             "18 §6's six scopes into the three a battle ends and the three it does not. The three it " +
             "does not have had no consumer since M2-06 declared them"),
 
+        // ── M2-11 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Not a rule subject — a DEFERRAL, recorded in the one register the repo has so that it
+        // expires by itself (steering S4), on the precedent of the `Tier` and `RunController`
+        // entries above.
+        //
+        // `05` §6.2 is 🔒: "No Elite may draw the same modifier as the immediately preceding Elite
+        // in the same run — redraw on collision", and it points at `24` §4.10's B2 protection.
+        // That is RUN-SCOPED state, and the M2 kickoff's A4 ruling is that the run layer is declared
+        // and not wired. M2-11 therefore ships the seam — Rules.Combat.Enemies.IEliteModifierHistory,
+        // with EliteModifierHistory as the in-Core implementation and EliteModifierHistoryContract as
+        // the shared suite every implementation is run through (steering S7) — and deliberately
+        // builds no LuckService and no pity mechanism.
+        //
+        // ⚠️ Whoever lands `LuckService` inherits an obligation, and it is the one that makes the
+        // difference between the rule working and the rule being decoratively present: a run must
+        // hold ONE IEliteModifierHistory for its whole length and hand the same instance to every
+        // Elite encounter in it. A fresh instance per battle leaves PreviousEliteModifier
+        // permanently null, the redraw never fires, and every test of the draw still passes.
+        // IEliteModifierHistory's own remarks state the full five-point contract, because a note
+        // addressed to M4-01 is worthless in a test file M4-01 will never open.
+        //
+        // This entry is the expiry: Every_rule_subject_is_present_or_declared_pending fails the
+        // moment a type named LuckService exists, which is exactly when the obligation lands.
+        new("LuckService", SubjectKind.CoreType, "M4-01",
+            "SlayIdleRepeat.Core.Rules.Combat.Enemies.IEliteModifierHistory — see the note above this " +
+            "entry: 05 §6.2's no-repeat rule is run-scoped state that 24 §4.10 B2 owns, the seam only " +
+            "works if ONE history instance spans the whole run, and the implementation must live on " +
+            "the run-controller side rather than on LuckService itself, or Rules.Luck ends up naming " +
+            "Rules.Combat and R17 has no edge for it"),
+
+        // 🔒 A DEFERRAL with teeth, recorded because the architecture review found the hole it
+        // closes. 05 §6.2's eight modifiers are authored as named PARAMETER numbers rather than as
+        // embedded 18 §1 effect JSON — the content pipeline cannot validate embedded effect JSON
+        // (JsonSchemaValidator resolves same-document pointers only, and
+        // EffectSchemaTests.No_other_schema_restates_the_effect_vocabulary rejects a second copy of
+        // the op set), so authoring it would ship it unvalidated.
+        //
+        // ⚠️ The consequence is that each row has its OWN key vocabulary — atkMult+belowHpFraction,
+        // defMult+aspdMult, lifesteal, deathExplosionHeroMaxHpPct, startingWardMaxHpPct, aspdMult,
+        // killWithinSeconds, thorns — so a consumer must know which keys belong to which modifier,
+        // and the path of least resistance is `switch (modifier)` in the tick engine. That is per-
+        // enemy code, which 18's headnote forbids, and EnemyDerivationRuleTests.
+        // No_elite_identity_is_named_in_code cannot see it: EliteModifier is an ENUM, so a switch
+        // over it emits no string literal.
+        //
+        // M2-11 deliberately wrote NO consumer, because completing the eight effect shapes needs
+        // targets, triggers and a curse id 05 §6.2 does not state (steering S6) — CURSED's curse id
+        // is null in the data for exactly that reason. Whoever writes the first consumer owes ONE
+        // table from EliteModifier to its 18 §1 effects, in Rules/Combat/Enemies/, and a rule that
+        // fails a switch over EliteModifier anywhere else.
+        //
+        // This entry is the expiry: it fires the moment a type named EliteModifierEffects exists,
+        // which is when the obligation has been discharged and the note should be deleted. If the
+        // consumer picks another name, RENAME this entry rather than dropping it — the subject being
+        // tracked is "one table maps the modifiers to effects", not the string.
+        new("EliteModifierEffects", SubjectKind.CoreType, "M2-08 / M2-13 — the first consumer",
+            "05 §6.2's modifier parameters, which have no consumer yet; 18's headnote forbids the " +
+            "per-modifier branching that is otherwise the path of least resistance, and the elite-id " +
+            "rule in EnemyDerivationRuleTests is blind to an enum switch"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -326,6 +387,29 @@ public sealed class SubjectSetFloorTests
         new("IStatOpBehaviour", SubjectKind.CoreType, "M2-07",
             "SlayIdleRepeat.Core.Rules.Stats.StatOpBehaviour, which implements it where it sits " +
             "rather than with the other 41 ops (R17); M2-02 owns the relocation that closes the split"),
+
+        // ── M2-11 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 The two names EnemyDerivationRuleTests keys on that a rename could empty in silence.
+        // Its three rules are stated over a namespace FILTER (Rules.Combat.Enemies), which the floor
+        // in that file covers — but two of them additionally key on a NAME:
+        //
+        //   IEliteModifierHistory — the seam EliteModifierHistoryContract runs every implementation
+        //                           through (steering S7), and the counterpart of the LuckService
+        //                           entry in Pending, which is where its run-scoped persistence
+        //                           lands. It is the seam's NAME that carries the obligation.
+        //   EnemyCatalogue        — the one type that reads content/enemies/enemies.json. Rename or
+        //                           delete it and nothing reads 05 §6's tables at all, while the
+        //                           namespace floor stays satisfied by the value types beside it and
+        //                           the whole enemy-derivation suite goes on passing over fixtures.
+        new("IEliteModifierHistory", SubjectKind.CoreType, "M2-11",
+            "EliteModifierHistoryContract — the shared contract suite every implementation of 05 §6.2's " +
+            "run-scoped no-repeat memory is run through (steering S7); paired with the LuckService " +
+            "entry in Pending, which is where its persistence lands"),
+        new("EnemyCatalogue", SubjectKind.CoreType, "M2-11",
+            "the single reader of content/enemies/enemies.json — 05 §6's derivation constants, level " +
+            "table, archetype rows, on-hit tables, elite modifiers and identities and chapter pools " +
+            "all enter Core through it, and EnemiesDataTests asserts the document it names"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

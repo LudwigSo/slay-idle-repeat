@@ -95,6 +95,24 @@
     "loc.guildperk.full_coffers.name": "Full Coffers",
     "loc.guildperk.well_fed.name": "Well Fed",
     "loc.guildperk.second_wind.name": "Second Wind",
-    "loc.guildperk.quarried.name": "Quarried"
+    "loc.guildperk.quarried.name": "Quarried",
+
+    "loc.enemy_status.thorn_gash.name": "Thorn Gash",
+    "loc.enemy_status.bog_rot.name": "Bog Rot",
+    "loc.enemy_status.bone_splinter.name": "Bone Splinter",
+    "loc.enemy_status.magma_splash.name": "Magma Splash",
+    "loc.enemy_status.deep_chill.name": "Deep Chill",
+    "loc.enemy_status.shear.name": "Shear",
+    "loc.enemy_status.spore_cloud.name": "Spore Cloud",
+    "loc.enemy_status.starfire.name": "Starfire",
+
+    "loc.elite_modifier.enraged.name": "Enraged",
+    "loc.elite_modifier.armored.name": "Armored",
+    "loc.elite_modifier.vampiric.name": "Vampiric",
+    "loc.elite_modifier.volatile.name": "Volatile",
+    "loc.elite_modifier.shielded.name": "Shielded",
+    "loc.elite_modifier.swift.name": "Swift",
+    "loc.elite_modifier.cursed.name": "Cursed",
+    "loc.elite_modifier.reflective.name": "Reflective"
   }
 }

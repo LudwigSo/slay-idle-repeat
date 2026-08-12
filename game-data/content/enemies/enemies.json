@@ -1,0 +1,215 @@
+{
+  "$schema": "../../schema/enemies.schema.json",
+  "_doc": "05 §6-6.2 and §6.4 — enemy stat derivation from Power. Every stat of every enemy is computable from (power, archetype, chapter, tier) with no free variables. This file holds the coefficient rows, the enemy level table, the on-hit status parameters, the elite modifiers and identities, and the per-chapter draw weights. It lives under content/ rather than tuning/: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are content identity and combat balance rather than economy dials. The same ruling is recorded in TunableMarkerAudit.NonEconomyDataFiles, which already names enemies.json.",
+  "_status": "transcribed",
+
+  "derivation": {
+    "_doc": "05 §6's EnemyStats(power, archetype) pseudocode, coefficient by coefficient. MaxHP = power * hpPerPower * hpCoef; ATK = power * atkPerPower * atkCoef; DEF = power * defPerPower * defCoef; ASPD = baseAspd * aspdCoef. CRIT/CDMG/DODGE/LS come straight off the archetype row. The six stats in fixedStats are the same for every archetype.",
+    "hpPerPower": 0.6,
+    "atkPerPower": 0.045,
+    "defPerPower": 0.03,
+    "baseAspd": 1.0,
+    "roundingDecimals": 4,
+    "fixedStats": {
+      "_doc": "05 §6 — BLOCK 0.00, PEN 0.00, DMG% 0.00, DR% 0.00, HEAL% 1.00, THORN 0.00, for every archetype. Keyed by 18 §2.1 StatId name: 05 §6's DMG% is DMG_PCT, its DR% is DR_PCT, its HEAL% is HEAL_PCT and its THORN is THORNS.",
+      "BLOCK": 0.0,
+      "PEN": 0.0,
+      "DMG_PCT": 0.0,
+      "DR_PCT": 0.0,
+      "HEAL_PCT": 1.0,
+      "THORNS": 0.0
+    }
+  },
+
+  "enemyLevel": {
+    "_doc": "05 §6.0 — EnemyLevel(c, t) = BaseEnemyLevel(c) + TierLevelBonus(t). All enemies, Elites, Guardians (25 §3) and bosses in a (chapter, tier) share this level. ⚠️ ERRATUM: 05 §6.0 says this table 'lives in data/tuning/par_power.json beside the par table'. It does not, and it cannot be put there: 21 §3.1 fixes tuning/ at sixteen files and par_power.schema.json is additionalProperties:false with a closed required list, so the table would have to be added to a file this milestone is not permitted to edit. It is authored here with the rest of 05 §6 and the conflict is on the record.",
+    "baseByChapter": [
+      { "chapter": 1, "level": 10 },
+      { "chapter": 2, "level": 15 },
+      { "chapter": 3, "level": 20 },
+      { "chapter": 4, "level": 30 },
+      { "chapter": 5, "level": 40 },
+      { "chapter": 6, "level": 50 },
+      { "chapter": 7, "level": 60 },
+      { "chapter": 8, "level": 80 }
+    ],
+    "tierBonus": {
+      "_doc": "05 §6.0 — Normal +0 · Heroic +10 · Mythic +20. The three tier names are par_power.json's, which is the only other file in the repository that keys on them.",
+      "NORMAL": 0,
+      "HEROIC": 10,
+      "MYTHIC": 20
+    }
+  },
+
+  "archetypes": [
+    { "id": "GRUNT", "hpCoef": 1.0, "atkCoef": 1.0, "defCoef": 1.0, "aspdCoef": 1.0,
+      "crit": 0.05, "critDamage": 0.5, "dodge": 0.02, "lifesteal": 0.0,
+      "unitsPerDraw": 1, "onHit": "NONE" },
+    { "id": "SWARM", "hpCoef": 0.35, "atkCoef": 0.55, "defCoef": 0.6, "aspdCoef": 1.3,
+      "crit": 0.05, "critDamage": 0.5, "dodge": 0.05, "lifesteal": 0.0,
+      "unitsPerDraw": 3, "onHit": "NONE" },
+    { "id": "BRUTE", "hpCoef": 2.0, "atkCoef": 1.35, "defCoef": 1.2, "aspdCoef": 0.6,
+      "crit": 0.05, "critDamage": 0.75, "dodge": 0.0, "lifesteal": 0.0,
+      "unitsPerDraw": 1, "onHit": "NONE" },
+    { "id": "SKIRMISHER", "hpCoef": 0.7, "atkCoef": 0.85, "defCoef": 0.7, "aspdCoef": 1.7,
+      "crit": 0.1, "critDamage": 0.5, "dodge": 0.15, "lifesteal": 0.0,
+      "unitsPerDraw": 1, "onHit": "NONE" },
+    { "id": "WARDEN", "hpCoef": 1.6, "atkCoef": 0.7, "defCoef": 2.2, "aspdCoef": 0.85,
+      "crit": 0.03, "critDamage": 0.5, "dodge": 0.02, "lifesteal": 0.0,
+      "unitsPerDraw": 1, "onHit": "SUNDER" },
+    { "id": "CASTER", "hpCoef": 0.75, "atkCoef": 1.5, "defCoef": 0.55, "aspdCoef": 0.7,
+      "crit": 0.08, "critDamage": 0.6, "dodge": 0.03, "lifesteal": 0.0,
+      "unitsPerDraw": 1, "onHit": "BIOME_STATUS" },
+    { "id": "LEECH", "hpCoef": 1.1, "atkCoef": 0.95, "defCoef": 0.9, "aspdCoef": 1.1,
+      "crit": 0.05, "critDamage": 0.5, "dodge": 0.03, "lifesteal": 0.25,
+      "unitsPerDraw": 1, "onHit": "NONE" },
+    { "id": "REAVER", "hpCoef": 0.9, "atkCoef": 1.2, "defCoef": 0.8, "aspdCoef": 1.0,
+      "crit": 0.3, "critDamage": 1.2, "dodge": 0.05, "lifesteal": 0.0,
+      "unitsPerDraw": 1, "onHit": "NONE" }
+  ],
+
+  "onHit": {
+    "_doc": "05 §6.1a — the on-hit status parameters. Two rows of the archetype table carry one: WARDEN applies SUNDER wherever it appears (any chapter, including Cogitator Prime's drones — 17 §7), and CASTER applies its chapter's biome status. Every proc chance is per LANDED hit.",
+
+    "wardenSunder": {
+      "_doc": "05 §6.1a — WARDEN's SUNDER, one authored parameter set shared by every WARDEN in the game.",
+      "statusId": "SUNDER",
+      "procChancePerLandedHit": 0.35,
+      "potency": -0.05,
+      "potencyBasis": "TARGET_DEF_PCT_PER_STACK",
+      "durationSeconds": 6.0,
+      "refreshOnReapply": true,
+      "maxStacks": 5
+    },
+
+    "casterBiomeStatus": [
+      { "chapter": 1, "biome": "Greenwood Vale", "statusId": "BLEED",
+        "flavourName": "loc.enemy_status.thorn_gash.name",
+        "potency": 0.2, "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
+        "durationSeconds": 3.0, "maxStacks": 1, "procChancePerLandedHit": 0.3 },
+      { "chapter": 2, "biome": "Ashen Mire", "statusId": "POISON",
+        "flavourName": "loc.enemy_status.bog_rot.name",
+        "potency": 0.015, "potencyBasis": "TARGET_MAX_HP_PCT_PER_SECOND",
+        "durationSeconds": 4.0, "maxStacks": 3, "procChancePerLandedHit": 0.3 },
+      { "chapter": 3, "biome": "Sunken Crypt", "statusId": "BLEED",
+        "flavourName": "loc.enemy_status.bone_splinter.name",
+        "potency": 0.3, "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
+        "durationSeconds": 4.0, "maxStacks": 1, "procChancePerLandedHit": 0.35 },
+      { "chapter": 4, "biome": "Emberpeak", "statusId": "BURN",
+        "flavourName": "loc.enemy_status.magma_splash.name",
+        "potency": 0.3, "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
+        "durationSeconds": 3.0, "maxStacks": 5, "procChancePerLandedHit": 0.35 },
+      { "chapter": 5, "biome": "Frostbound Reach", "statusId": "FREEZE",
+        "flavourName": "loc.enemy_status.deep_chill.name",
+        "potency": -0.5, "potencyBasis": "TARGET_ASPD_PCT",
+        "durationSeconds": 2.0, "maxStacks": null, "procChancePerLandedHit": 0.25 },
+      { "chapter": 6, "biome": "Clockwork Vaults", "statusId": "SUNDER",
+        "flavourName": "loc.enemy_status.shear.name",
+        "potency": -0.05, "potencyBasis": "TARGET_DEF_PCT_PER_STACK",
+        "durationSeconds": 6.0, "maxStacks": 5, "procChancePerLandedHit": 0.35 },
+      { "chapter": 7, "biome": "Bloom of Decay", "statusId": "SPORE",
+        "flavourName": "loc.enemy_status.spore_cloud.name",
+        "potency": -0.1, "potencyBasis": "TARGET_HEALING_RECEIVED_PCT_PER_STACK",
+        "durationSeconds": 8.0, "maxStacks": 4, "procChancePerLandedHit": 0.35 },
+      { "chapter": 8, "biome": "Astral Spire", "statusId": "BURN",
+        "flavourName": "loc.enemy_status.starfire.name",
+        "potency": 0.4, "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
+        "durationSeconds": 3.0, "maxStacks": 5, "procChancePerLandedHit": 0.35 }
+    ]
+  },
+
+  "elites": {
+    "_doc": "05 §6.2 — Elite = base archetype × 2.2 power, plus exactly one Elite Modifier. The modifier is shown on the pre-battle banner: the player must be able to read the threat before it starts.",
+    "powerMultiplier": 2.2,
+    "modifiersPerElite": 1,
+    "noRepeatWithPreviousEliteInRun": true,
+
+    "modifiers": [
+      { "id": "ENRAGED", "displayName": "loc.elite_modifier.enraged.name",
+        "_doc": "05 §6.2 — +50% ATK below 40% HP. atkMult is the 18 §2.1 STAT_MULT multiplier (R1: the value IS the multiplier), and belowHpFraction is the self-HP gate.",
+        "parameters": { "atkMult": 1.5, "belowHpFraction": 0.4 } },
+
+      { "id": "ARMORED", "displayName": "loc.elite_modifier.armored.name",
+        "_doc": "05 §6.2 — +80% DEF, −20% ASPD. Both are STAT_MULT multipliers.",
+        "parameters": { "defMult": 1.8, "aspdMult": 0.8 } },
+
+      { "id": "VAMPIRIC", "displayName": "loc.elite_modifier.vampiric.name",
+        "_doc": "05 §6.2 — 35% LS. An absolute lifesteal value, not a multiplier: 05 §6.2 states the resulting stat, not a scaling of the archetype's own. ⚠️ 05 §1 caps LIFESTEAL at 0.40, so this sits under the cap.",
+        "parameters": { "lifesteal": 0.35 } },
+
+      { "id": "VOLATILE", "displayName": "loc.elite_modifier.volatile.name",
+        "_doc": "05 §6.2 — explodes on death for 15% of hero Max HP. 05 §4.2 routes DAMAGE_MAXHP_PCT: no dodge, crit, block, mitigation or floor; DR% and DAMAGE_TAKEN_MULT do apply, and wards absorb.",
+        "parameters": { "deathExplosionHeroMaxHpPct": 0.15 } },
+
+      { "id": "SHIELDED", "displayName": "loc.elite_modifier.shielded.name",
+        "_doc": "05 §6.2 — starts with a WARD equal to 30% Max HP. The ward's own semantics (stacking, bypass, ordering, WardBroken) are 05 §4.1's, not this row's.",
+        "parameters": { "startingWardMaxHpPct": 0.3 } },
+
+      { "id": "SWIFT", "displayName": "loc.elite_modifier.swift.name",
+        "_doc": "05 §6.2 — +60% ASPD, as a STAT_MULT multiplier.",
+        "parameters": { "aspdMult": 1.6 } },
+
+      { "id": "CURSED", "displayName": "loc.elite_modifier.cursed.name",
+        "_doc": "05 §6.2 — applies a run-scoped curse on victory unless the elite is killed within 20 s. 🔒 curseId is null because 05 §6.2 authorises no particular curse and content/curses/ is empty: a plausible id here would be exactly the fabricated number 16 R6 exists to forbid. It is the ONLY row that carries the key, and it carries it precisely so the hole is greppable.",
+        "parameters": { "killWithinSeconds": 20.0 },
+        "curseId": null },
+
+      { "id": "REFLECTIVE", "displayName": "loc.elite_modifier.reflective.name",
+        "_doc": "05 §6.2 — 25% thorns. An absolute THORNS value, not a multiplier: every archetype's THORN is 0.00, so a multiplier could not produce it.",
+        "parameters": { "thorns": 0.25 } }
+    ],
+
+    "identities": [
+      { "id": "EL_THORN_SENTINEL", "baseArchetype": "WARDEN" },
+      { "id": "EL_MOSSBACK_ALPHA", "baseArchetype": "BRUTE" },
+      { "id": "EL_BOGFATHER", "baseArchetype": "CASTER" },
+      { "id": "EL_MIRESTALKER", "baseArchetype": "SKIRMISHER" },
+      { "id": "EL_BONE_CHOIR", "baseArchetype": "CASTER" },
+      { "id": "EL_GRAVE_TITAN", "baseArchetype": "BRUTE" },
+      { "id": "EL_MAGMA_HERALD", "baseArchetype": "REAVER" },
+      { "id": "EL_ASHWING", "baseArchetype": "SKIRMISHER" },
+      { "id": "EL_RIMEFANG_WARDEN", "baseArchetype": "WARDEN" },
+      { "id": "EL_GLACIER_MAW", "baseArchetype": "BRUTE" },
+      { "id": "EL_COGWRIGHT", "baseArchetype": "CASTER" },
+      { "id": "EL_STEAMBREAKER", "baseArchetype": "BRUTE" },
+      { "id": "EL_SPORELORD", "baseArchetype": "CASTER" },
+      { "id": "EL_ROTVINE", "baseArchetype": "LEECH" },
+      { "id": "EL_STARSCRIBE", "baseArchetype": "CASTER" },
+      { "id": "EL_VOIDCALF", "baseArchetype": "LEECH" }
+    ]
+  },
+
+  "chapterPools": [
+    { "chapter": 1,
+      "weights": { "GRUNT": 40, "SWARM": 20, "BRUTE": 15, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 5, "LEECH": 5, "REAVER": 0 },
+      "elitePool": ["EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA"] },
+    { "chapter": 2,
+      "weights": { "GRUNT": 25, "SWARM": 15, "BRUTE": 10, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 20, "LEECH": 15, "REAVER": 0 },
+      "elitePool": ["EL_BOGFATHER", "EL_MIRESTALKER"] },
+    { "chapter": 3,
+      "weights": { "GRUNT": 20, "SWARM": 25, "BRUTE": 15, "SKIRMISHER": 5, "WARDEN": 10, "CASTER": 15, "LEECH": 5, "REAVER": 5 },
+      "elitePool": ["EL_BONE_CHOIR", "EL_GRAVE_TITAN"] },
+    { "chapter": 4,
+      "weights": { "GRUNT": 20, "SWARM": 10, "BRUTE": 20, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 20, "LEECH": 5, "REAVER": 10 },
+      "elitePool": ["EL_MAGMA_HERALD", "EL_ASHWING"] },
+    { "chapter": 5,
+      "weights": { "GRUNT": 15, "SWARM": 10, "BRUTE": 20, "SKIRMISHER": 15, "WARDEN": 20, "CASTER": 10, "LEECH": 5, "REAVER": 5 },
+      "elitePool": ["EL_RIMEFANG_WARDEN", "EL_GLACIER_MAW"] },
+    { "chapter": 6,
+      "weights": { "GRUNT": 15, "SWARM": 15, "BRUTE": 15, "SKIRMISHER": 15, "WARDEN": 20, "CASTER": 10, "LEECH": 0, "REAVER": 10 },
+      "elitePool": ["EL_COGWRIGHT", "EL_STEAMBREAKER"] },
+    { "chapter": 7,
+      "weights": { "GRUNT": 10, "SWARM": 20, "BRUTE": 10, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 20, "LEECH": 20, "REAVER": 5 },
+      "elitePool": ["EL_SPORELORD", "EL_ROTVINE"] },
+    { "chapter": 8,
+      "weights": { "GRUNT": 10, "SWARM": 10, "BRUTE": 15, "SKIRMISHER": 15, "WARDEN": 10, "CASTER": 15, "LEECH": 10, "REAVER": 15 },
+      "elitePool": ["EL_STARSCRIBE", "EL_VOIDCALF"] }
+  ],
+
+  "targetPriority": {
+    "_doc": "05 §3.2 / 17 §11 — the targetPriority field on an enemy definition, confirmed at the M2 kickoff. The hero targets the HIGHEST priority, ties broken by LOWEST current HP; −1 deprioritises (Sporequeen's sporelings) and +1 forces focus. This block declares the field's default and the two authored non-default values; the SELECTION ALGORITHM is M2-08's and is deliberately not implemented here.",
+    "default": 0,
+    "deprioritised": -1,
+    "forced": 1
+  }
+}
