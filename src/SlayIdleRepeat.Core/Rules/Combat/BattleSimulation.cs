@@ -1429,19 +1429,34 @@ internal sealed class BattleSimulation
         return index;
     }
 
-    private ushort EffectIndexOf(EffectDefinition effect) =>
-        _effectIndex.TryGetValue(effect.Id, out var index)
+    /// <summary>
+    /// 🔒 One effect's position in the battle's effect table — the <c>ushort</c> `05` §7's
+    /// <c>RunEffectQueued</c> and <c>Telegraph</c> both carry.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>One table, built once, read by everyone.</b> It is <c>internal</c> rather than private
+    /// because M2-12's telegraph pass needs the same positions, and the alternative — a seam
+    /// rebuilding <see cref="BuildEffectIndex"/>'s expression for itself — would be a second table
+    /// that has to be kept identical to this one by hand, on a number that is inside every committed
+    /// <c>LogHash</c>.
+    /// </remarks>
+    internal ushort EffectIndexOf(EffectDefinition effect)
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+
+        return _effectIndex.TryGetValue(effect.Id, out var index)
             ? index
             : throw new EffectContextException(
                 effect.Id,
                 "it is not in the battle's effect table",
-                "`05` §7's RunEffectQueued carries a battle-local INDEX into the table of authored " +
+                "`05` §7's RunEffectQueued and Telegraph carry a battle-local INDEX into the table of authored " +
                 "effect ids, built once from the opening roster in `18` §8's ordinal order — because " +
                 "no string fits a ushort and SimulationResult's five fields cannot carry the table. An " +
                 "effect that arrived mid-fight (a summon's) has no stable position in it: appending " +
                 "would shift nothing, but re-sorting would move indices that are already inside " +
                 "LogHash. No authored `18` §2.5 op is reachable from a summon, so this is refused " +
                 "rather than solved by guessing which of the two is meant.");
+    }
 
     // ══════════════════════════════════════════════════════════════════ the seams M2-08 implements
 

@@ -357,23 +357,36 @@ public sealed class BossTelegraphTests
             BossTestBench.InPhase(BossTestBench.Dicelord, 3, BossTestBench.AllIn()),
             BossTestBench.BuiltIn(BossTestBench.Dicelord, BossBuiltIns.Enrage));
 
-    private static BossEncounter Encounter() => new()
+    private static BossEncounter Encounter()
     {
-        BossId = BossTestBench.Dicelord,
-        Plan = BossPlan(),
-        FirstClear = false,
-        Phase2HpFraction = 0.66,
-        Phase3HpFraction = 0.33,
-        PhaseOfInstance = new Dictionary<EffectInstanceId, int>
+        var phaseOfInstance = new Dictionary<EffectInstanceId, int>
         {
             [BossBuiltIns.PhaseInstance(BossTestBench.Dicelord, 1, AnteEffect)] = 1,
             [EffectInstanceId.Of(AllInInstance)] = 3,
-        },
-        LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>
+        };
+
+        var leadSecondsOfInstance = new Dictionary<EffectInstanceId, double>
         {
             [EffectInstanceId.Of(AllInInstance)] = 1.5,
-        },
-    };
+        };
+
+        return new BossEncounter
+        {
+            BossId = BossTestBench.Dicelord,
+            Plan = BossPlan(),
+            FirstClear = false,
+            Phase2HpFraction = 0.66,
+            Phase3HpFraction = 0.33,
+            PhaseOfInstance = phaseOfInstance,
+            LeadSecondsOfInstance = leadSecondsOfInstance,
+
+            // 🔒 Derived, never restated: a fixture that hand-wrote both maps could author a lead
+            // the announce list did not carry, and the telegraph these cases exist to prove would
+            // simply never be emitted — a suite that cannot fail. Same derivation as Build's.
+            AnnouncingOfPhase = BossEncounterBuilder.AnnouncingByPhase(
+                phaseOfInstance, leadSecondsOfInstance),
+        };
+    }
 
     private static BossRun Fight(params (int Tick, string ActorId, double Fraction)[] script) =>
         BossTestBench.Run(

@@ -357,6 +357,9 @@ public sealed class BossSummonTests
             [EffectInstanceId.Of(SummonInstance)] = 3,
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
+
+        // No mechanic here authors a wind-up, so nothing is announced in any phase.
+        AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
     };
 
     private static BossRun Fight(

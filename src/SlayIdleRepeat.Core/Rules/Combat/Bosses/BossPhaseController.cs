@@ -67,6 +67,10 @@ internal sealed class BossPhaseController : IBossPhases
     /// <param name="encounters">The bosses it knows, one <see cref="BossEncounter"/> each.</param>
     internal BossPhaseController(BattleServices services, params BossEncounter[] encounters)
     {
+        // Both, at the boundary: a null `services` would otherwise surface as a NullReferenceException
+        // at pre-tick 0c — the first tick of a fight, and several frames away from the wiring that
+        // caused it. BossOutcomes guards the same argument the same way.
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(encounters);
 
         _services = services;
@@ -185,28 +189,22 @@ internal sealed class BossPhaseController : IBossPhases
             return;
         }
 
+        // 🔒 Already bucketed by phase and already ordered, at encounter-build time — see
+        // BossEncounter.AnnouncingOfPhase. Selecting and sorting here instead would allocate a
+        // filter, a closure and a sort buffer on every one of `05` §3's up-to-1800 ticks, for a list
+        // that cannot change during a fight; a phase with no wind-up costs one failed probe.
         if (EncounterOf(actor.Id) is not { } encounter ||
-            CurrentPhaseOf(actor.Id) is not { } phase)
+            CurrentPhaseOf(actor.Id) is not { } phase ||
+            !encounter.AnnouncingOfPhase.TryGetValue(phase, out var announcing))
         {
             return;
         }
 
-        // Ordered, because a Dictionary's enumeration order is not part of its contract and two
-        // wind-ups due on one tick would otherwise reach the log in an order nothing fixes — and the
-        // log is the replay (`05` §7).
-        foreach (var instance in Announcing(encounter, phase))
+        for (var i = 0; i < announcing.Count; i++)
         {
-            Announce(actor, encounter, instance, tick);
+            Announce(actor, encounter, announcing[i], tick);
         }
     }
-
-    /// <summary>
-    /// The instances of one phase that carry an authored wind-up, in ascending instance-id order.
-    /// </summary>
-    private static IEnumerable<EffectInstanceId> Announcing(BossEncounter encounter, int phase) =>
-        encounter.LeadSecondsOfInstance.Keys
-                 .Where(id => encounter.PhaseOfInstance.TryGetValue(id, out var owned) && owned == phase)
-                 .OrderBy(id => id.Value, EffectInstanceId.Comparer);
 
     /// <summary>
     /// Emits one instance's wind-up if this tick is the one <c>NextFiringTick − leadTicks</c> names.
@@ -246,7 +244,7 @@ internal sealed class BossPhaseController : IBossPhases
             tick,
             boss.LogId,
             AnnouncedTargetOf(boss, registered.Effect),
-            EffectIndexOf(registered.Effect.Id),
+            _services.EffectIndexOf(registered.Effect),
             lead);
     }
 
@@ -267,44 +265,6 @@ internal sealed class BossPhaseController : IBossPhases
         return resolved.Count == 1 && resolved[0] is BattleActor target
             ? target.LogId
             : CombatActor.None;
-    }
-
-    /// <summary>
-    /// 🔒 The battle's effect table, rebuilt from the <b>opening</b> roster with
-    /// <c>BattleSimulation.BuildEffectIndex</c>'s own expression — <c>05` §7's <c>Telegraph</c>
-    /// carries a position in it, and the replayer rebuilds the same table from the same roster.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <b>Summons are excluded, and that is what makes it the <em>opening</em> roster.</b>
-    /// <c>AdmitSummon</c> appends to <c>BattleServices.Actors</c> mid-fight; an add's effects in the
-    /// table would shift positions that are already inside every committed <c>LogHash</c>.
-    /// <para>
-    /// ⚠️ Recomputed per emission rather than cached, deliberately: a telegraph is emitted a handful
-    /// of times a fight, and a cache would be a second accumulator on the one type in this namespace
-    /// that is allowed state — for a table that is a pure function of the roster.
-    /// </para>
-    /// </remarks>
-    private ushort EffectIndexOf(string effectId)
-    {
-        var ids = _services.Actors
-                           .Where(a => !a.IsSummon)
-                           .SelectMany(a => a.Plan.Effects)
-                           .Select(e => e.Effect.Id)
-                           .Distinct(StringComparer.Ordinal)
-                           .OrderBy(id => id, EffectOrder.IdComparer)
-                           .ToArray();
-
-        var index = Array.IndexOf(ids, effectId);
-
-        return index >= 0
-            ? (ushort)index
-            : throw new EffectContextException(
-                effectId,
-                "it is not in the battle's effect table",
-                "`05` §7's Telegraph carries a battle-local INDEX into the table of authored effect " +
-                "ids, built once from the opening roster. Every boss mechanic is on ActorPlan.Effects " +
-                "for exactly this reason — a mechanic that arrived mid-fight has no stable position " +
-                "in a table the replayer rebuilds from the roster it started with.");
     }
 
     /// <summary>🔒 One phase entry — the four steps the class remarks enumerate.</summary>

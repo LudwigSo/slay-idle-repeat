@@ -120,6 +120,20 @@ internal sealed class BattleServices
         _simulation.ResolveOutcome(holder, effect);
 
     /// <summary>
+    /// 🔒 `05` §7 — one effect's position in <b>the</b> battle's effect table, the <c>ushort</c>
+    /// <c>Telegraph</c> and <c>RunEffectQueued</c> both carry.
+    /// </summary>
+    /// <param name="effect">The effect being named.</param>
+    /// <returns>Its 0-based position in the opening roster's table.</returns>
+    /// <remarks>
+    /// 🔒 <b>A reading of the one table, never a second one.</b> The loop builds it once from the
+    /// opening roster in `18` §8's ordinal order and its positions are inside every committed
+    /// <c>LogHash</c>; a seam that rebuilt the same expression for itself would be a second table
+    /// kept identical by hand, and would re-sort the whole roster on every emission.
+    /// </remarks>
+    internal ushort EffectIndexOf(EffectDefinition effect) => _simulation.EffectIndexOf(effect);
+
+    /// <summary>
     /// 🔒 `05` §3.1's phase check — <em>"runs immediately after <b>every</b> boss HP decrease
     /// (attack, DoT tick, thorns, true damage), once ward absorption and the floor are settled"</em>.
     /// </summary>

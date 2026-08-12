@@ -306,6 +306,34 @@ public sealed class RandomOutcomeOpTests
                           .ShouldContain(p => p.Contains($"names '{BossAtk}' twice", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// 🔴 A row that names <b>no</b> effect id. <see cref="RandomOutcomeEntry"/> is a record struct,
+    /// so <c>default</c> — and a JSON row that omits <c>effectId</c> — carries a null one; the boss
+    /// encounter builder's sibling lookup would then raise a bare <see cref="ArgumentNullException"/>
+    /// naming no rule at all (steering S2).
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The weight rule still reads the row, and the negative control below it is
+    /// <see cref="A_well_formed_RANDOM_OUTCOME_reports_no_problem"/>: a table whose ids are all present
+    /// raises none of this.
+    /// </remarks>
+    [Theory]
+    [InlineData(null, "an absent effectId")]
+    [InlineData("", "an empty one")]
+    [InlineData("   ", "a whitespace one")]
+    public void A_RANDOM_OUTCOME_row_naming_no_effect_id_is_refused(string? blank, string why)
+    {
+        var nameless = Roll(
+            "BOSS_X_ROLL",
+            new RandomOutcomeEntry(BossAtk, 1.0),
+            new RandomOutcomeEntry(blank!, 1.0));
+
+        EffectOpValidation.Problems(nameless)
+                          .ShouldContain(
+                              p => p.Contains("names no effectId", StringComparison.Ordinal),
+                              $"which rule fired — {why}");
+    }
+
     /// <summary>`14` §8.0 takes a finite, non-negative weight and nothing else.</summary>
     [Theory]
     [InlineData(-1.0)]

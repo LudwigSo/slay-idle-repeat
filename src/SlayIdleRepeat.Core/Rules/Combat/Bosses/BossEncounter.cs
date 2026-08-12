@@ -61,6 +61,23 @@ internal sealed record BossEncounter
     /// <see cref="BossMechanic.TelegraphSeconds"/>, and the lead in seconds.
     /// </summary>
     public required IReadOnlyDictionary<EffectInstanceId, double> LeadSecondsOfInstance { get; init; }
+
+    /// <summary>
+    /// 🔒 <see cref="LeadSecondsOfInstance"/> bucketed by phase and <b>already ordered</b>, which is
+    /// the only shape <see cref="BossPhaseController.AdvanceTick"/> ever asks for. A phase with no
+    /// wind-up is absent rather than empty, so the per-tick pass answers with a single failed
+    /// dictionary probe.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>It is precomputed because <c>AdvanceTick</c> runs once per boss on every one of `05`
+    /// §3's up-to-1800 ticks</b>, and `05` §3.1 budgets a whole fight at under 5 ms. Selecting and
+    /// sorting this out of the two maps at each of those ticks allocated a filter, a closure over
+    /// the phase, an ordering and its sort buffer for a list that cannot change during a fight —
+    /// both maps are fixed at build time. Deciding it here keeps the controller's one accumulator
+    /// (<c>BossPhaseController._phase</c>) the only state in the namespace: this is plan data, not a
+    /// cache.
+    /// </remarks>
+    public required IReadOnlyDictionary<int, IReadOnlyList<EffectInstanceId>> AnnouncingOfPhase { get; init; }
 }
 
 /// <summary>
@@ -151,7 +168,9 @@ internal sealed record BossEncounterRequest
 ///   <item>No script may name one of the three <see cref="BossBuiltIns"/>: they are attached here,
 ///   once, for every boss.</item>
 ///   <item><b>T1</b>, <b>T2</b> and <b>T3</b> — see <see cref="BossTelegraphs"/>.</item>
-///   <item>A <c>SUMMON</c> mechanic's <c>maxAlive</c> is at most <see cref="BossAdds.MaxAlive"/>.</item>
+///   <item>A <c>SUMMON</c> mechanic authors a <c>maxAlive</c>, and it is at most
+///   <see cref="BossAdds.MaxAlive"/>. 🔴 <b>Authoring none is refused too</b> — `18` §2.4 leaves the
+///   key optional and an absent one means <em>no cap</em>, which `17` §1 does not permit a boss.</item>
 ///   <item>
 ///   🔒 <b>O1 — every <c>RANDOM_OUTCOME</c> row names a <em>sibling</em>.</b> `18` §10.1 E6's
 ///   <c>outcomes</c> rows are effect ids, and the scope they resolve in is <b>this script's own
@@ -178,7 +197,7 @@ internal sealed record BossEncounterRequest
 ///   <item><term><c>A2</c></term><description>a mechanic names an effect the script does not declare.</description></item>
 ///   <item><term><c>A3</c></term><description>a script authors one of the three <see cref="BossBuiltIns"/>.</description></item>
 ///   <item><term><c>A4</c></term><description>a phase-2 or phase-3 block carries <c>ON_BATTLE_START</c>.</description></item>
-///   <item><term><c>A5</c></term><description>a <c>SUMMON</c> authors a <c>maxAlive</c> above <see cref="BossAdds.MaxAlive"/>.</description></item>
+///   <item><term><c>A5</c></term><description>a <c>SUMMON</c> authors <b>no</b> <c>maxAlive</c>, or one above <see cref="BossAdds.MaxAlive"/>.</description></item>
 ///   <item><term><c>T1</c>, <c>T2</c>, <c>T3</c></term><description>the wind-up rules — see <see cref="BossTelegraphs"/>.</description></item>
 ///   <item><term><c>O1</c></term><description>a <c>RANDOM_OUTCOME</c> row names a non-sibling effect id.</description></item>
 /// </list>
@@ -247,7 +266,59 @@ internal static class BossEncounterBuilder
             Phase3HpFraction = BossPhaseRules.Phase3HpFraction,
             PhaseOfInstance = phaseOfInstance,
             LeadSecondsOfInstance = leadSecondsOfInstance,
+            AnnouncingOfPhase = AnnouncingByPhase(phaseOfInstance, leadSecondsOfInstance),
         };
+    }
+
+    /// <summary>
+    /// 🔒 <see cref="BossEncounter.AnnouncingOfPhase"/> — the wind-up map bucketed by phase, each
+    /// bucket in ascending instance-id order, decided once here.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>The order is <c>Ordinal</c> and is fixed <em>here</em> rather than at emission</b>: two
+    /// wind-ups due on the same tick reach the log in this order, and the log <em>is</em> the replay
+    /// (`05` §7). A <see cref="Dictionary{TKey,TValue}"/>'s enumeration order is not part of its
+    /// contract, so leaving it to the walk would leave the log's order to an implementation detail.
+    /// <para>
+    /// ⚠️ <c>internal</c> rather than private so that a hand-built <see cref="BossEncounter"/> —
+    /// which the controller and telegraph suites use to test the controller <em>without</em>
+    /// <see cref="Build"/> — derives this map from its own lead map instead of restating it. A
+    /// fixture that stated both by hand could author a lead the announce list did not carry, and the
+    /// telegraph it was written to prove would simply never be emitted.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyDictionary<int, IReadOnlyList<EffectInstanceId>> AnnouncingByPhase(
+        IReadOnlyDictionary<EffectInstanceId, int> phaseOfInstance,
+        IReadOnlyDictionary<EffectInstanceId, double> leadSecondsOfInstance)
+    {
+        var byPhase = new Dictionary<int, List<EffectInstanceId>>();
+
+        foreach (var instance in leadSecondsOfInstance.Keys)
+        {
+            // Every instance carrying a lead was put in the phase map by the same loop that put it
+            // here, so the indexer is the assertion rather than a lookup that might miss.
+            var phase = phaseOfInstance[instance];
+
+            if (!byPhase.TryGetValue(phase, out var announcing))
+            {
+                announcing = new List<EffectInstanceId>();
+                byPhase[phase] = announcing;
+            }
+
+            announcing.Add(instance);
+        }
+
+        var ordered = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(byPhase.Count);
+
+        foreach (var (phase, announcing) in byPhase)
+        {
+            announcing.Sort(static (left, right) =>
+                EffectInstanceId.Comparer.Compare(left.Value, right.Value));
+
+            ordered[phase] = announcing;
+        }
+
+        return ordered;
     }
 
     /// <summary>
@@ -335,6 +406,19 @@ internal static class BossEncounterBuilder
             }
         }
 
+        // 🔴 Before the lookup, because Dictionary.TryGetValue(null) throws ArgumentNullException —
+        // a refusal that names no rule, no boss and no phase, which is exactly what S2 asks a
+        // refusal not to be. A BossMechanic is a record struct, so `default` is a reachable shape.
+        if (string.IsNullOrWhiteSpace(mechanic.EffectId))
+        {
+            throw new EffectContextException(
+                script.Id,
+                $"A2 — '{script.Id}' phase {Number(phase)} carries a mechanic that names no effect id",
+                "A mechanic is a SIBLING reference and a blank id names no sibling. Refused with the " +
+                "boss and the phase in hand, rather than left to the lookup — which would raise a " +
+                "bare ArgumentNullException that says neither.");
+        }
+
         if (effects.TryGetValue(mechanic.EffectId, out var effect))
         {
             return effect;
@@ -370,10 +454,35 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>🔒 <b>A5</b> — `17` §1's <em>"capped at 3 alive at once"</em>, checked at authoring.</summary>
+    /// <remarks>
+    /// 🔴 <b>An <em>absent</em> <c>maxAlive</c> is refused, not admitted.</b> `18` §2.4 makes the key
+    /// optional and <c>BattleFlowSink.Summon</c> reads <c>maxAlive is { } cap</c> — so no key means
+    /// <b>no cap</b>, and a boss <c>SUMMON</c> that simply omitted it would spawn adds without a
+    /// ceiling while passing a rule that only ever compared numbers. `17` §1 caps a <em>boss's</em>
+    /// adds unconditionally, so on this side of the DSL the key is required (steering S6: the hole is
+    /// refused rather than filled with a plausible <see cref="BossAdds.MaxAlive"/>, which would make
+    /// the engine author a number `17` gives to content).
+    /// </remarks>
     private static void RequireSummonCap(BossScript script, int phase, EffectDefinition effect)
     {
-        if (effect.Op != EffectOp.SUMMON || effect.MaxAlive is not { } maxAlive ||
-            maxAlive <= BossAdds.MaxAlive)
+        if (effect.Op != EffectOp.SUMMON)
+        {
+            return;
+        }
+
+        if (effect.MaxAlive is not { } maxAlive)
+        {
+            throw new EffectContextException(
+                effect.Id,
+                $"A5 — '{script.Id}' phase {Number(phase)} summons and authors no maxAlive at all",
+                $"`17` §1 caps a boss's adds at {Number(BossAdds.MaxAlive)} alive, unconditionally. " +
+                "`18` §2.4 leaves maxAlive optional and BattleSimulation reads an absent one as NO " +
+                "cap, so omitting it is the one authoring that produces an uncapped boss fight while " +
+                "looking entirely legal. Defaulting it here would have the engine choose a number " +
+                "`17` gives to content; author it on the effect.");
+        }
+
+        if (maxAlive <= BossAdds.MaxAlive)
         {
             return;
         }
@@ -402,20 +511,22 @@ internal static class BossEncounterBuilder
 
         foreach (var row in outcomes)
         {
-            if (effects.ContainsKey(row.EffectId))
+            // 🔴 Before the lookup: Dictionary.ContainsKey(null) throws ArgumentNullException, and a
+            // RandomOutcomeEntry is a record struct whose `default` carries a null id — so without
+            // this, the one authoring mistake that omits an effectId is refused by a message naming
+            // neither O1, nor the boss, nor the phase.
+            if (string.IsNullOrWhiteSpace(row.EffectId) || !effects.ContainsKey(row.EffectId))
             {
-                continue;
+                throw new EffectContextException(
+                    effect.Id,
+                    $"O1 — '{script.Id}' phase {Number(phase)} rolls it and its row " +
+                    $"'{row.EffectId}' is not an effect this script declares",
+                    "`18` §10.1 E6's outcome rows are effect ids, and an effect is embedded in the " +
+                    "content that owns it — so the scope a row resolves in is the owning script's own " +
+                    "effect set, and there is no registry to reach past it into. Deferring the check " +
+                    "would surface as BossOutcomes throwing mid-fight on whichever roll drew the bad " +
+                    "row: a defect that appears in one fight in three and never in the same place twice.");
             }
-
-            throw new EffectContextException(
-                effect.Id,
-                $"O1 — '{script.Id}' phase {Number(phase)} rolls it and its row '{row.EffectId}' is " +
-                "not an effect this script declares",
-                "`18` §10.1 E6's outcome rows are effect ids, and an effect is embedded in the " +
-                "content that owns it — so the scope a row resolves in is the owning script's own " +
-                "effect set, and there is no registry to reach past it into. Deferring the check " +
-                "would surface as BossOutcomes throwing mid-fight on whichever roll drew the bad " +
-                "row: a defect that appears in one fight in three and never in the same place twice.");
         }
     }
 

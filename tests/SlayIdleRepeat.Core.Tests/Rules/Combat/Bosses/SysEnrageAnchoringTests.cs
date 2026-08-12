@@ -191,6 +191,9 @@ public sealed class SysEnrageAnchoringTests
             [EffectInstanceId.Of(Phase2Instance)] = 2,
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
+
+        // No mechanic here authors a wind-up, so nothing is announced in any phase.
+        AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
     };
 
     private static BossRun Fight(params (int Tick, string ActorId, double Fraction)[] script) =>

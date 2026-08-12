@@ -297,6 +297,9 @@ public sealed class BossOutcomeTests
             [BossBuiltIns.PhaseInstance(BossTestBench.Dicelord, 1, roll.Id)] = 1,
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
+
+        // No mechanic here authors a wind-up, so nothing is announced in any phase.
+        AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
     };
 
     /// <summary>

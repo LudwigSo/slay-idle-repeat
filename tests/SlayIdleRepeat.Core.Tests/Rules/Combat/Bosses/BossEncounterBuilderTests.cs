@@ -316,8 +316,80 @@ public sealed class BossEncounterBuilderTests
             () => BossEncounterBuilder.Build(
                 BossTestBench.Request(script, BossTestBench.Lookup(summon))));
 
-        thrown.Message.ShouldContain("3", Case.Sensitive, "17 §1's cap");
-        thrown.Message.ShouldContain(summon.Id, Case.Sensitive);
+        // 🔴 The marker, not the number: "3" was satisfiable by the words "phase 3" that every
+        //    message in this class carries, so it could not tell A5's refusal from A4's (steering S2).
+        thrown.Message.ShouldContain("A5", Case.Sensitive, "which rule fired");
+        thrown.Message.ShouldContain("4", Case.Sensitive, "the maxAlive the script authored");
+        thrown.Message.ShouldContain(summon.Id, Case.Sensitive, "which mechanic");
+        thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive, "which boss");
+    }
+
+    /// <summary>
+    /// 🔴 `17` §1 caps a boss's adds <b>unconditionally</b>, and `18` §2.4 leaves <c>maxAlive</c>
+    /// optional — <c>BattleFlowSink.Summon</c> reads an absent one as <b>no cap</b>. So the one
+    /// authoring that produces an uncapped boss fight is the one that omits the key, and A5 has to
+    /// refuse it rather than only compare numbers it was given.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Two shapes and a negative control: the refusal fires whether the omission sits on an
+    /// <c>ON_PHASE_ENTER</c> summon or a <c>PERIODIC</c> one, and does not fire on the authored cap
+    /// (<see cref="A_SUMMON_mechanic_at_the_three_alive_cap_is_accepted"/>).
+    /// </remarks>
+    [Theory]
+    [InlineData(null, "an ON_PHASE_ENTER summon")]
+    [InlineData(6.0, "a PERIODIC summon")]
+    public void A_SUMMON_mechanic_that_authors_no_maxAlive_at_all_is_refused(
+        double? everySeconds, string why)
+    {
+        var summon = BossTestBench.Summon("BOSS_THORNMAW_P3_ADDS", everySeconds: everySeconds) with
+        {
+            MaxAlive = null,
+        };
+
+        summon.MaxAlive.ShouldBeNull($"the floor under the refusal — {why}");
+
+        var script = BossTestBench.Script(
+            "BOSS_THORNMAW",
+            BossTestBench.Block(1),
+            BossTestBench.Block(2),
+            BossTestBench.Block(3, new BossMechanic(summon.Id)));
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => BossEncounterBuilder.Build(
+                BossTestBench.Request(script, BossTestBench.Lookup(summon))));
+
+        thrown.Message.ShouldContain("A5", Case.Sensitive, $"which rule fired — {why}");
+        thrown.Message.ShouldContain("maxAlive", Case.Sensitive, "which key is missing");
+        thrown.Message.ShouldContain(summon.Id, Case.Sensitive, "which mechanic");
+        thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive, "which boss");
+    }
+
+    /// <summary>
+    /// 🔴 <b>A2</b> over a <b>blank</b> id. <see cref="BossMechanic"/> is a record struct, so
+    /// <c>default</c> — and a JSON row that omits the key — carries a null <c>effectId</c>; the
+    /// sibling lookup is a <see cref="Dictionary{TKey,TValue}"/>, whose <c>TryGetValue(null)</c>
+    /// raises a bare <see cref="ArgumentNullException"/> naming neither the rule, the boss nor the
+    /// phase (steering S2).
+    /// </summary>
+    [Theory]
+    [InlineData(null, "an absent effectId")]
+    [InlineData("", "an empty one")]
+    [InlineData("   ", "a whitespace one")]
+    public void A_mechanic_naming_a_blank_effect_id_is_refused_by_A2(string? blank, string why)
+    {
+        var script = BossTestBench.Script(
+            "BOSS_THORNMAW",
+            BossTestBench.Block(1, new BossMechanic(blank!)),
+            BossTestBench.Block(2),
+            BossTestBench.Block(3));
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => BossEncounterBuilder.Build(
+                BossTestBench.Request(script, BossTestBench.Lookup())));
+
+        thrown.Message.ShouldContain("A2", Case.Sensitive, $"which rule fired — {why}");
+        thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive, "which boss");
+        thrown.Message.ShouldContain("no effect id", Case.Insensitive, "and what is wrong with it");
     }
 
     /// <summary>The positive control: `17` §2's own phase-3 summon, at the authored cap, is accepted.</summary>
@@ -425,6 +497,44 @@ public sealed class BossEncounterBuilderTests
             "an outcome row is an ordinary phase mechanic: it has to be on the plan to be " +
             "registered, telegraphable and resolvable in the battle's effect table, which is why " +
             "the row references it instead of embedding a second copy of it");
+    }
+
+    /// <summary>
+    /// 🔴 <b>O1</b> over a <b>blank</b> row. <see cref="RandomOutcomeEntry"/> is a record struct, so
+    /// <c>default</c> — and a JSON row that omits <c>effectId</c> — carries a null one, and the
+    /// sibling lookup's <c>ContainsKey(null)</c> raises a bare <see cref="ArgumentNullException"/>:
+    /// a refusal naming neither O1, nor the boss, nor the phase.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "an absent effectId")]
+    [InlineData("", "an empty one")]
+    [InlineData("   ", "a whitespace one")]
+    public void A_RANDOM_OUTCOME_row_with_a_blank_effect_id_is_refused_by_O1(string? blank, string why)
+    {
+        var roll = BossTestBench.RollOfFateP1() with
+        {
+            Outcomes = new[]
+            {
+                new RandomOutcomeEntry(BossTestBench.FateBossAtk, 2.0),
+                new RandomOutcomeEntry(blank!, 2.0),
+            },
+        };
+
+        var script = BossTestBench.Script(
+            BossTestBench.Dicelord,
+            BossTestBench.Block(1, new BossMechanic(roll.Id)),
+            BossTestBench.Block(2),
+            BossTestBench.Block(3));
+
+        var effects = BossTestBench.Lookup(
+            roll, BossTestBench.FateOutcome(BossTestBench.FateBossAtk));
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => BossEncounterBuilder.Build(BossTestBench.Request(script, effects)));
+
+        thrown.Message.ShouldContain("O1", Case.Sensitive, $"which rule fired — {why}");
+        thrown.Message.ShouldContain(roll.Id, Case.Sensitive, "which RANDOM_OUTCOME");
+        thrown.Message.ShouldContain(BossTestBench.Dicelord, Case.Sensitive, "which boss");
     }
 
     // ════════════════════════════════════════════════════ fixtures

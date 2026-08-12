@@ -406,6 +406,31 @@ internal static class EffectOpValidation
 
         foreach (var outcome in outcomes)
         {
+            if (!double.IsFinite(outcome.Weight) || outcome.Weight < 0.0)
+            {
+                problems.Add($"RANDOM_OUTCOME weighs '{outcome.EffectId}' at " +
+                             $"{outcome.Weight.ToString("R", CultureInfo.InvariantCulture)}; 14 §8.0 takes " +
+                             "a finite, non-negative weight — anything else makes the cumulative walk " +
+                             "non-monotonic and its answer arbitrary");
+            }
+            else
+            {
+                total += outcome.Weight;
+            }
+
+            // 🔴 The id's own rule, and the two below it read the id — so a blank one stops here
+            //    rather than being reported three times over. A RandomOutcomeEntry is a record
+            //    struct, so `default` (and a JSON row that omits effectId) carries a null id; without
+            //    this rule, BossEncounterBuilder's O1 lookup raises a bare ArgumentNullException that
+            //    names neither the rule, the boss nor the phase (steering S2).
+            if (string.IsNullOrWhiteSpace(outcome.EffectId))
+            {
+                problems.Add("a RANDOM_OUTCOME row names no effectId; 18 §10.1 E6's rows ARE effect " +
+                             "ids — a blank one names no sibling of the content that owns the roll, " +
+                             "and there is no registry a wider lookup could fall back to");
+                continue;
+            }
+
             if (!seen.Add(outcome.EffectId))
             {
                 problems.Add($"RANDOM_OUTCOME names '{outcome.EffectId}' twice; 14 §8.0's weighted walk " +
@@ -418,18 +443,6 @@ internal static class EffectOpValidation
                 problems.Add($"RANDOM_OUTCOME names its own id '{effect.Id}' as an outcome, which rolls " +
                              "the roll — an unbounded recursion that spends a draw index per turn of it");
             }
-
-            if (!double.IsFinite(outcome.Weight) || outcome.Weight < 0.0)
-            {
-                problems.Add($"RANDOM_OUTCOME weighs '{outcome.EffectId}' at " +
-                             $"{outcome.Weight.ToString("R", CultureInfo.InvariantCulture)}; 14 §8.0 takes " +
-                             "a finite, non-negative weight — anything else makes the cumulative walk " +
-                             "non-monotonic and its answer arbitrary");
-            }
-            else
-            {
-                total += outcome.Weight;
-            }
         }
 
         if (outcomes.Count > 0 && total <= 0.0)
@@ -439,9 +452,23 @@ internal static class EffectOpValidation
         }
     }
 
+    /// <remarks>
+    /// ⚠️ The owner list is joined <b>inside</b> the failure and not on the way into it. This runs
+    /// seventeen times per <see cref="Problems"/> call and <see cref="Problems"/> is now on a battle
+    /// path — <c>CombatFlowOps.RandomOutcome</c> re-reads its own table before every draw — so an
+    /// eagerly built message was seventeen strings allocated per roll to describe a failure that had
+    /// not happened.
+    /// </remarks>
     private static void Exclusive(
-        EffectDefinition effect, List<string> problems, bool present, string key, params EffectOp[] owners) =>
-        ExclusiveTo(effect, problems, present, key, string.Join(", ", owners), owners.Contains(effect.Op));
+        EffectDefinition effect, List<string> problems, bool present, string key, params EffectOp[] owners)
+    {
+        if (!present || owners.Contains(effect.Op))
+        {
+            return;
+        }
+
+        ExclusiveTo(effect, problems, present: true, key, string.Join(", ", owners), owned: false);
+    }
 
     /// <summary>The same rule with the ownership stated as a predicate rather than as a list.</summary>
     private static void ExclusiveTo(

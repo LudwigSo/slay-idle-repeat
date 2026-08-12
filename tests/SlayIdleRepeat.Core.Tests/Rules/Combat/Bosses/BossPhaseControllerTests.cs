@@ -410,6 +410,9 @@ public sealed class BossPhaseControllerTests
                 [EffectInstanceId.Of(Phase3EnterInstance)] = 3,
             },
             LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
+
+            // No mechanic here authors a wind-up, so nothing is announced in any phase.
+            AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
         };
 
     /// <summary>One scripted fight against `17` §2's Thornmaw.</summary>
