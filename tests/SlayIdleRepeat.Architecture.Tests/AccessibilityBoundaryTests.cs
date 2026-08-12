@@ -114,8 +114,9 @@ public sealed class AccessibilityBoundaryTests
     /// <summary>
     /// `30` §11.4 — the internal layering holds: Handlers ▶ Rules ▶ Model ▶ Content ▶
     /// Primitives. `Rules` never references `Handlers`; `Model` never references `Rules`.
-    /// `Rng` is pure arithmetic (`14` §8.1) and sits below `Model` with `Content`. `Primitives`,
-    /// `Content`, `Rng` and `Events` never reach up into the `SlayIdleRepeat.Core` root.
+    /// `Rng` is pure arithmetic (`14` §8.1) and sits below `Model` with `Content`. `Commands`
+    /// sits above `Rng`/`Content`/`Primitives` and below `Handlers`. `Primitives`, `Content`,
+    /// `Rng`, `Events`, `Commands` and `Model` never reach up into the `SlayIdleRepeat.Core` root.
     /// </summary>
     [Fact]
     public void Core_internal_layering_holds()
@@ -123,11 +124,50 @@ public sealed class AccessibilityBoundaryTests
         // Each layer, with the layers it must never reference — everything above it.
         var forbidden = new (string Layer, string[] MustNotReference)[]
         {
-            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
-            (Domain.ContentNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
-            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
+            // 🔒 Commands appears in the three rows below as well as owning one of its own, and the
+            // symmetry is the point: 30 §11.4's tree puts Commands/ above Rng/, Content/ and
+            // Primitives/, so those three may not name a command either. Added in M1-06's
+            // architecture review — the Commands row landed one-directional, which left
+            // `Primitives.RunId naming Commands.GameCommand` matched by no row in either direction,
+            // exactly the ungoverned region the row was written to close. Measured on this branch:
+            // a `GameCommand`-typed member added to a Primitives type passed 58/58 before this.
+            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace }),
+            (Domain.ContentNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace }),
+            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace }),
+
+            // ⚠️ Model and Rules deliberately carry NO Commands entry, and that is the open half
+            // rather than an oversight. A handler consumes a command and reads the model, so
+            // Handlers -> Commands is required; whether a Rules calculator or an aggregate may name
+            // one is not settled by any document, and forbidding it on a guess would block a task
+            // rather than protect one. The Commands row below forbids the direction that IS settled.
             (Domain.ModelNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace }),
             (Domain.RulesNamespace, new[] { Domain.HandlersNamespace }),
+
+            // 🔒 M1-06's first cut at carried-forward item 8. 30 §11.4's chain — "Handlers -> Rules
+            // -> Model -> Content -> Primitives" — omits Commands and Events entirely, so both were
+            // ungoverned regions: a type under either was matched by no row in either direction,
+            // with this rule green. M1-03 closed the unambiguous half for Events; this closes it for
+            // Commands, and Commands is the easier of the two because nothing in the design set puts
+            // an aggregate inside a command.
+            //
+            // WHAT THIS ROW SAYS: a command may name Primitives, Content and Rng — ids, indices,
+            // content references, the vocabulary of 14 §2.3's parameter columns — and may not name
+            // Model, Rules or Handlers.
+            //
+            // WHY IT IS SAFE where the Events equivalent is not. 30 §7 forces Events -> Model:
+            // GearGranted(int, GearInstance, SourceClass, bool) carries a Model aggregate, so a row
+            // forbidding it would contradict 30 §7 and block M4-03 outright. Nothing forces the
+            // command equivalent. 14 §2.3's commands carry ids and indices — a merge names gear
+            // INSTANCE IDS, not GearInstances; the server owns the instance — and 30 §11.6's
+            // one-vocabulary rule makes a command a wire value, which an aggregate is not. A
+            // handler consumes a command and reads the model; a command naming its handler or its
+            // rules would be a cycle under every reading.
+            //
+            // ⚠️ IF M1-02 FINDS A COMMAND THAT MUST CARRY A MODEL TYPE, that is a design finding and
+            // belongs at a kickoff, not a row deleted to make a build green. The binding ruling on
+            // the Events half is due at the M4 kickoff, before M4-03 authors GearGranted, and its
+            // deliverable is a 30 §11.4 amendment rather than a table edit.
+            (Domain.CommandsNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
         };
 
         var offenders = new List<string>();
@@ -174,6 +214,34 @@ public sealed class AccessibilityBoundaryTests
             Domain.ContentNamespace,
             Domain.RngNamespace,
             Domain.EventsNamespace,
+
+            // 🔒 M1-06. A command naming GameRules is a cycle — Apply CONSUMES commands — and a
+            // command naming GameContext or CommandResult would be a second door onto Apply's own
+            // arguments and return: a command carrying its own NowUtc or its own CommandSeed is the
+            // ambient clock and the invented entropy 30 §3 exists to keep out, one indirection
+            // further out and past every guard on GameContext. WorldSlice is in the root too, and a
+            // command carrying one would smuggle the aggregates past the clone P4 depends on.
+            Domain.CommandsNamespace,
+
+            // 🔒 M1-06's architecture review. Model was ungoverned in this direction, and the cost
+            // of that went up on the commit that put GameRules, WorldSlice and CommandResult in the
+            // root beside GameContext: every one of those four is a cycle when an aggregate names
+            // it. Apply CLONES the slice and CONSUMES the aggregates (30 §2.1's P4), so an aggregate
+            // that named WorldSlice, CommandResult or GameRules would close a loop the layering
+            // forbids, and one that named GameContext would be handed the clock that 30 §3 exists to
+            // keep out of the domain — Player.MarkApplied takes the DateTimeOffset VALUE for exactly
+            // that reason. Entitlements is the sharpest case and it is already ruled: 30 §3 and
+            // 12 §2.1 put entitlement on the SESSION, never on the aggregate (GapRegister's Player
+            // -contents note records the ruling), and IsolationTests only forbids Rules from
+            // reaching it.
+            //
+            // ⚠️ RULES IS NOT HERE, and that is the open half, on the pattern of the Events row
+            // above. A rule branching on GameContext.FeatureFlags (26 §8, 30 §3 resolve remote
+            // config into that root type) is a shape nothing in the design set forbids, and a row
+            // written on a guess would block the first task that needs it. The ruling belongs at the
+            // kickoff of the milestone that first wants it, together with 30 §11.4's amendment for
+            // Events -> Model.
+            Domain.ModelNamespace,
         };
 
         foreach (var layer in mustNotReachTheRoot)
@@ -185,18 +253,22 @@ public sealed class AccessibilityBoundaryTests
                         .Where(IsCoreRootType)
                         .Select(referenced =>
                             $"{type.FullName} (in {layer}) references {referenced}, which is in the " +
-                            $"{Domain.CoreNamespace} root. The root holds GameRules and GameContext, the top of " +
-                            "the layering, so a layer beneath it reaching up inverts Handlers -> Rules -> Model " +
-                            "-> Content -> Primitives (30 §11.4). For Events specifically: Apply PRODUCES the " +
-                            "event list, so an event naming GameRules or GameContext is a cycle, and a timestamp " +
-                            "reached through GameContext.NowUtc is the clock 30 §3 keeps out of the domain."));
+                            $"{Domain.CoreNamespace} root. The root holds GameRules, WorldSlice, CommandResult " +
+                            "and GameContext — the top of the layering — so a layer beneath it reaching up " +
+                            "inverts Handlers -> Rules -> Model -> Content -> Primitives (30 §11.4). For Events: " +
+                            "Apply PRODUCES the event list, so an event naming GameRules or GameContext is a " +
+                            "cycle. For Model: Apply CLONES and CONSUMES the aggregates (30 §2.1's P4), so an " +
+                            "aggregate naming WorldSlice, CommandResult or GameRules closes that loop. And in " +
+                            "every layer, a timestamp reached through GameContext.NowUtc is the clock 30 §3 " +
+                            "keeps out of the domain — take the value, not the context."));
             }
         }
 
         ArchRule.Empty(
             offenders,
-            "Core's internal layering holds: Handlers -> Rules -> Model -> Content -> Primitives, and " +
-            "Primitives, Content, Rng and Events never reach up into the SlayIdleRepeat.Core root (30 §11.4).");
+            "Core's internal layering holds: Handlers -> Rules -> Model -> Content -> Primitives, Commands " +
+            "names nothing above it, and Primitives, Content, Rng, Events, Commands and Model never reach " +
+            "up into the SlayIdleRepeat.Core root (30 §11.4).");
     }
 
     /// <summary>

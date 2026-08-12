@@ -3,6 +3,7 @@ using Mono.Cecil.Cil;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
 namespace SlayIdleRepeat.Architecture.Tests;
@@ -187,6 +188,101 @@ public sealed class DomainPurityTests
 
         ArchRule.Empty(offenders, UnhandledCommandRule);
     }
+
+    /// <summary>
+    /// 🔒 `14` §8.1 / M1 kickoff decision 5 — <c>DeterministicRng</c> is constructed <b>only</b>
+    /// inside <c>Core/Rng/</c>. A handler never opens a stream of its own; it draws through the
+    /// <c>RunRngScope</c> <c>GameRules.Apply</c> hands it, and <c>Apply</c> folds the scope's final
+    /// positions back into the <c>Run</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The failure this closes is silent, and that is why it needs a rule rather than a review.</b>
+    /// `14` §8.1 makes the persisted stream position the draw counter. A handler that wrote
+    /// <c>new DeterministicRng(run.RunSeed, RngStreams.Dice)</c> would draw perfectly valid,
+    /// perfectly deterministic values — from draw 0, every time, with nothing written back. Nothing
+    /// throws, no test fails, the numbers look random, and the run replays differently for the rest
+    /// of its life. The client/server parity test (`14` §13) would then be comparing two universes
+    /// and reporting on neither.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Scoped to <c>Core/Rng/</c> rather than to the scope type alone</b>, because that is where
+    /// the scope lives and where <c>DeterministicRng</c> itself is. What matters is that no
+    /// <em>handler</em>, no <em>rule</em> and no <em>aggregate</em> can open a stream — and the
+    /// counter-model is <c>Core/Rng/</c>'s to own.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is an <b>IL</b> rule, not an accessibility one. <c>DeterministicRng</c>'s constructor
+    /// stays public: `14` §2.4 has the client simulate a battle from a server-issued
+    /// <c>battleSeed</c>, and the public seam for that is <c>CombatSimulator</c>. Accessibility could
+    /// only stop callers <em>outside</em> the assembly; every caller this rule is about is inside it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The floor, pinned by identity</b> (steering S3). The subject set is "construction sites
+    /// in <c>Core</c>", which becomes empty the moment the scope stops constructing one — at which
+    /// point the rule would report success forever over a domain that had lost its only sanctioned
+    /// draw path. A count-only floor is satisfied by any construction anywhere, so the assertion
+    /// names <c>RunRngScope</c>: moving the scope out of <c>Core/Rng/</c>, or having it stop opening
+    /// streams, fails here rather than quietly.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DeterministicRng_is_constructed_only_inside_Core_Rng()
+    {
+        var sites = Il.MethodsWithBodies(ProductionAssemblies.CoreModule)
+            .Where(ConstructsADeterministicRng)
+            .ToArray();
+
+        Assert.Contains(
+            sites,
+            m => m.DeclaringType.Name.Equals(Domain.RunRngScopeType, StringComparison.Ordinal));
+
+        var offenders = sites
+            .Where(m => !Il.IsUnder(Il.NamespaceOf(m.DeclaringType), Domain.RngNamespace))
+            .Select(m =>
+                $"{Il.Describe(m)} constructs a {Domain.DeterministicRngType}. 14 §8.1 makes the PERSISTED " +
+                "stream position the draw counter, so a stream opened outside Core/Rng/ draws from " +
+                "index 0 with nothing to write its counter back — valid-looking, deterministic, and " +
+                "silently unreproducible for the rest of the run. Draw through the RunRngScope " +
+                "GameRules.Apply hands the handler; Apply folds the final positions into the Run " +
+                "(M1 kickoff decision 5).");
+
+        ArchRule.Empty(
+            offenders,
+            $"{Domain.DeterministicRngType} is constructed only inside {Domain.RngNamespace} — every in-run " +
+            "draw goes through the RunRngScope, and Apply owns the write-back (14 §8.1).");
+    }
+
+    /// <summary>
+    /// 🔒 `14` §8.1 — the teeth of the predicate above: it must recognise a <c>newobj</c> on the
+    /// stream type and <b>refuse</b> a method that merely mentions one.
+    /// </summary>
+    /// <remarks>
+    /// Driven against this assembly's own IL, because the shape that matters — a method that holds a
+    /// <c>DeterministicRng</c> without opening one — is exactly what a legitimate future handler
+    /// looks like, and a rule that flagged it would be weakened back out within a commit.
+    /// </remarks>
+    [Fact]
+    public void The_stream_construction_check_recognises_a_newobj_and_refuses_a_mention()
+    {
+        Assert.True(
+            ConstructsADeterministicRng(Fixture(nameof(CurrencyEmissionFixtures.OpensAStream))),
+            "a method that calls the constructor opens a stream. If this is false the rule above is " +
+            "matching nothing and Core/Rng/ is the only place it appears to look.");
+
+        Assert.False(
+            ConstructsADeterministicRng(Fixture(nameof(CurrencyEmissionFixtures.OnlyDrawsFromOne))),
+            "drawing from a stream the method was HANDED is not opening one — it is precisely what a " +
+            "handler is supposed to do with the scope's stream. If this is true the rule forbids the " +
+            "sanctioned path and would be deleted rather than obeyed.");
+    }
+
+    /// <summary>True when a method body contains a <c>newobj</c> on <c>DeterministicRng</c>.</summary>
+    private static bool ConstructsADeterministicRng(MethodDefinition method) =>
+        Il.Instructions(method).Any(i =>
+            i.OpCode == OpCodes.Newobj &&
+            i.Operand is MethodReference reference &&
+            reference.DeclaringType.Name.Equals(Domain.DeterministicRngType, StringComparison.Ordinal));
 
     /// <summary>
     /// 🔒 `30` §9 / §7 — every currency mutation emits `CurrencyChanged`. IL scan: a write
@@ -706,6 +802,19 @@ public sealed class DomainPurityTests
     /// </summary>
     private static class CurrencyEmissionFixtures
     {
+        /// <summary>
+        /// Opens a stream — a <c>newobj</c> on `DeterministicRng`. The shape
+        /// <see cref="DeterministicRng_is_constructed_only_inside_Core_Rng"/> must catch, and it
+        /// lives here rather than in `Core` because outside `Core/Rng/` it IS the violation.
+        /// </summary>
+        internal static object OpensAStream() => new DeterministicRng(1UL, RngStreams.Dice);
+
+        /// <summary>
+        /// Draws from a stream it was handed. The shape the rule must NOT catch: this is exactly
+        /// what a handler does with `RunRngScope.Stream(...)`.
+        /// </summary>
+        internal static uint OnlyDrawsFromOne(DeterministicRng handed) => handed.NextUInt();
+
         /// <summary>Produces an event — a <c>newobj</c> on `CurrencyChanged`.</summary>
         internal static object Emits() =>
             new CurrencyChanged(0, CurrencyId.CROWNS, 1, "architecture_rule_teeth_check");

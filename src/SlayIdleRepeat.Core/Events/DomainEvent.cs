@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 namespace SlayIdleRepeat.Core.Events;
 
 /// <summary>
@@ -84,4 +87,48 @@ public abstract record DomainEvent(int Sequence)
     /// <c>Apply</c> can no longer tell an unstamped event from a first one.
     /// </remarks>
     internal const int UnstampedSequence = 0;
+
+    /// <summary>
+    /// 🔒 Renders this event's members with <see cref="CultureInfo.InvariantCulture"/>. Every event
+    /// in the hierarchy overrides it and appends its own; this base renders
+    /// <see cref="Sequence"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why the hierarchy needs a hand-written one at all</b> (carried-forward item 9). A
+    /// record's <em>synthesized</em> <c>PrintMembers</c> appends each member through
+    /// <c>StringBuilder.Append(object)</c>, which formats with the <b>ambient</b> culture: a
+    /// <c>Delta</c> of −10 renders as <c>−10</c> (U+2212 MINUS SIGN) under <c>sv-SE</c> and as
+    /// <c>-10</c> (U+002D) in the CI container. `14` §8.2 wants <c>Core</c> reading identically on
+    /// every platform, and
+    /// <c>AmbientApiTests.Core_and_Application_contain_no_culture_sensitive_formatting</c> cannot
+    /// see it — the IL scan matches a call whose declaring type is the formattable's, and the boxing
+    /// hides that.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Diagnostic only, today, and that is why it is cheap to fix now.</b> Events feed no
+    /// <c>stateHash</c> — `14` §16.6 hashes the snapshots, through
+    /// <c>CanonicalStateWriter</c>, which is invariant by construction — so nothing about the game's
+    /// correctness turns on this text. What turns on it is every log line, every test failure and
+    /// every bug report that quotes an event, and the fix gets one event more expensive with each
+    /// one M3, M4, M12 and M14 add. <c>GameContext</c> made the same call for the same reason.
+    /// </para>
+    /// <para>
+    /// 🔒 It is a <b>convention with a rule behind it</b>:
+    /// <c>AmbientApiTests.Every_domain_event_declares_an_invariant_PrintMembers</c> fails the build
+    /// for an event under <c>Core/Events/</c> that does not declare one, so the next event inherits
+    /// the convention rather than having to be told about it.
+    /// </para>
+    /// </remarks>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="builder"/> is null.</exception>
+    protected virtual bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(Sequence)} = {Sequence}");
+
+        return true;
+    }
 }

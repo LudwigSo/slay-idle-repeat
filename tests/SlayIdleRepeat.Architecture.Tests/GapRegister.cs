@@ -33,8 +33,9 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   ("a renamed or deleted project must take its exemption with it"): an entry whose
 ///   <see cref="Gap.Subject"/> appears in no transcription is deferring something no specification
 ///   asks for. It can never be <i>satisfied</i>, only deleted by hand — which is the state this
-///   register replaces. It is also what holds M1-06 to the promise below: transcribe the command
-///   inventory into <see cref="Surfaces"/>, do not just add entries to <see cref="Deferred"/>.</item>
+///   register replaces. It is also what holds <b>M1-02</b> to the promise below: transcribe
+///   `14` §2.3's command inventory into <see cref="Surfaces"/>, do not just add entries to
+///   <see cref="Deferred"/>.</item>
 ///   <item><b>Vacuous.</b> Both sets have floors, and both predicates are proven to distinguish a
 ///   type that exists from one that does not — see <c>GapRegisterTests</c>. A register whose
 ///   subject set can silently become empty is steering <b>S3</b>'s failure mode, and the three
@@ -44,8 +45,19 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// 🔒 <b>One register for the repository, not one per milestone</b> (steering S4: one mechanism per
 /// repo). It is named <c>GapRegister</c> rather than <c>M1GapRegister</c> for exactly that reason —
 /// a milestone-stamped name invites an <c>M2GapRegister</c> beside it, and then the "is every gap
-/// declared?" question has two answers. M1-06 adds its deferred commands to <see cref="Deferred"/>
-/// and its command inventory to <see cref="Surfaces"/>; it does not add a sibling file.
+/// declared?" question has two answers. Each task adds to <see cref="Deferred"/> and
+/// <see cref="Surfaces"/>; none adds a sibling file.
+/// </para>
+/// <para>
+/// ⚠️ <b>The owner of the command inventory is M1-02, not M1-06 — corrected in M1-06's own
+/// architecture review, which is the kickoff re-read the limit below asks for.</b> M1-06 landed the
+/// abstract <c>GameCommand</c>, the dispatch table and `30` §4.1's <c>WorldSlice</c> row (the
+/// <c>GuildView</c> and <c>GhostSnapshot</c> entries below); it deliberately landed <b>no</b>
+/// command types, because <c>Every_command_type_is_handled_by_Apply</c> fails the build for a
+/// concrete subtype no dispatch row names and the base therefore has to precede the vocabulary. So
+/// the promise about the 49 rows of `14` §2.3 — every <c>CommandDispatch.Deferred</c> row carrying
+/// an entry here, and the inventory transcribed into <see cref="Surfaces"/> — belongs to M1-02, and
+/// naming M1-06 was a reason that went stale on the commit that satisfied the rest of it.
 /// </para>
 /// <para>
 /// It joins three older instances of the same shape, and is modelled on the last of them:
@@ -223,6 +235,42 @@ internal static class GapRegister
             "TileType because RESOLVE_TILE branches by it. ⚠️ THE CONSEQUENCE, STATED: without a " +
             "phase, Apply cannot produce 14 §16.2's RUN_ALREADY_ENDED or ILLEGAL_STATE, and M3-05 " +
             "pays a SchemaVersion bump to add it. That cost is named here rather than discovered."),
+
+        // ---------------------------------------------------------------- M1-06, 30 §4.1
+        //
+        // 30 §4.1 sketches WorldSlice(Player, Run?, GuildView?, GhostSnapshot?). M1-06 built the
+        // first two; milestone assumption A4 froze the M1 shape at that pair.
+        //
+        // 🔒 THE REASON THESE TWO ARE CHEAPER TO DEFER THAN ANY OTHER ENTRY IN THIS REGISTER, and it
+        // is worth stating because it is what made A4 a decision rather than a shortcut: a
+        // WorldSlice is NOT A PERSISTED SNAPSHOT. Nothing hashes it, no row stores it, and
+        // CanonicalStateWriter never sees it — so adding a nullable member later costs no
+        // SnapshotSchema.SchemaVersion bump and breaks no stored state, which is the cost every
+        // other deferral in this file is weighed against. An empty placeholder GuildView authored
+        // now would buy nothing and would be the plausible-looking hole S6 forbids, sitting under
+        // M12's duel and M14's guild rules for two milestones.
+
+        new("GuildView", "M14-01", "GuildId",
+            "30 §4.1's third WorldSlice member, and 30 §5 fixes its shape before its contents: it is " +
+            "a READ-ONLY PROJECTION, because 27 §11 makes guild quest counters and Guild Boss damage " +
+            "the game's only contended writes — up to 30 simultaneous writers — so the domain returns " +
+            "a GuildContribution INTENT and the Application layer applies it as an atomic increment. " +
+            "A projection of a guild cannot be written before the guild aggregate has an identity, " +
+            "which is M14-01's. Keyed on GuildId, the same predicate as GuildContribution: both " +
+            "become writable on the same day, and pointing this one at a different type to make the " +
+            "register look more granular would buy silence with a predicate that does not describe " +
+            "the reason. IsolationTests.GuildView_is_a_read_only_projection is already written " +
+            "against it and holds vacuously until then."),
+
+        new("GhostSnapshot", "M12-01", "GhostId",
+            "30 §4.1's fourth WorldSlice member — the stored opponent a duel is fought against, and " +
+            "'duels only'. 11 §2 makes a Ghost an immutable server-generated snapshot of a player's " +
+            "PvP loadout: ghostId, rating, and a resolved build of gear, pets, mount, talents and " +
+            "PvP perks. It is keyed on GhostId — the identity M12-01 authors together with the " +
+            "snapshot — rather than on GearInstance, and that choice is the point: gear arrives at " +
+            "M4-03 and would expire this entry six milestones early, while the ghost still could not " +
+            "be written because pets (M4-07), mounts (M4-08) and talents (M4-06) are not there " +
+            "either. A predicate that expires before its subject is writable is worse than none."),
     };
 
     /// <summary>
@@ -313,6 +361,25 @@ internal static class GapRegister
         new("02 §1.1 (the run state machine)", Domain.PrimitivesNamespace, new[]
         {
             "RunPhase",
+        }),
+
+        // 🔒 M1-06. 30 §4.1's WorldSlice is FOUR members and this is the whole row, not a fragment:
+        // unlike §4's aggregate-contents rows, every one of the four IS a type name, so all four
+        // can be transcribed and the arithmetic is exact — two built (Player, Run, both authored
+        // under this namespace and therefore satisfied by the authored half) and two deferred.
+        //
+        // The namespace is Model rather than the Core root that holds WorldSlice itself, and that is
+        // deliberate: IsAuthoredUnder matches by PREFIX, so SlayIdleRepeat.Core.Model reaches
+        // Model/Guild/ (where a GuildView would live, beside 30 §11.4's Model/ ├── Guild/) and
+        // Model/Snapshots/ (where a GhostSnapshot would, beside the other persisted shapes). The
+        // Core root would reach neither, and naming the root would also mean the undeclared
+        // direction was checking the wrong place for two types that will never be built there.
+        new("30 §4.1 (the WorldSlice members M1-06 did not build)", Domain.ModelNamespace, new[]
+        {
+            "Player",
+            "Run",
+            "GuildView",
+            "GhostSnapshot",
         }),
     };
 

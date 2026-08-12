@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Tests.TestSupport;
 using Xunit;
@@ -174,38 +175,47 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// The wire-name heuristic maps a command type to `14` §2.3's SCREAMING_SNAKE name, with and
-    /// without the conventional <c>Command</c> suffix.
+    /// 🔒 `14` §2.3 — the wire name is <b>read off the dispatch row that declares it</b>, not
+    /// derived from the type's name (carried-forward item 4, closed by M1-06).
     /// </summary>
     /// <remarks>
-    /// ⚠️ A heuristic, not an authored scheme — see <see cref="CommandSeedPin.WireName"/>. It is
-    /// tested so that when it stops matching M1-02's real names, the failure is understood as
-    /// "teach this the real convention", not "the rule is broken".
+    /// The predecessor of this test pinned a heuristic — <c>SpinWheelCommand</c> → <c>SPIN_WHEEL</c>,
+    /// and <c>OpenPvPCommand</c> → <c>OPEN_PV_P</c>, a limit it could only document. It existed
+    /// because no authored scheme did. This drives the real lookup against a dispatch table built
+    /// here, so the mechanism is proven before the 49 rows M1-02 adds exist to prove it on.
     /// </remarks>
     [Fact]
-    public void WireName_maps_a_command_type_to_its_SCREAMING_SNAKE_name()
+    public void A_wire_name_is_read_off_the_dispatch_row_that_declares_it()
     {
-        CommandSeedPin.WireName(typeof(SpinWheelCommand)).ShouldBe("SPIN_WHEEL");
-        CommandSeedPin.WireName(typeof(BeginSessionCommand)).ShouldBe("BEGIN_SESSION");
-        CommandSeedPin.WireName(typeof(OpenChest)).ShouldBe("OPEN_CHEST");
+        var dispatch = new CommandDispatch()
+            .Deferred<PinFixtureCommand>("A_FIXTURE_COMMAND", CommandKind.Meta, "M1-06");
+
+        dispatch.TypesByWireName["A_FIXTURE_COMMAND"].ShouldBe(typeof(PinFixtureCommand));
+        dispatch.For(typeof(PinFixtureCommand))!.WireName.ShouldBe("A_FIXTURE_COMMAND");
     }
 
     /// <summary>
-    /// ⚠️ The heuristic's known limit, pinned rather than papered over: a run of capitals is not an
-    /// acronym to it. Pinning it means the eventual mismatch against M1-02's real names reads as
-    /// "teach this the convention", not "the mapper is subtly broken".
+    /// 🔒 `14` §2.3 — a type the dispatch table does not name has no declared wire name, and says
+    /// <c>null</c> rather than inventing one from its type name.
     /// </summary>
+    /// <remarks>
+    /// This is the assertion that fails if the heuristic is ever reintroduced beside the
+    /// declaration: a guesser would answer <c>PIN_FIXTURE</c> here. The unregistered command itself
+    /// is reported by <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c>, which is why
+    /// this file does not complain about it a second time (steering S4).
+    /// </remarks>
     [Fact]
-    public void WireName_does_not_understand_an_acronym_and_says_so_here()
+    public void An_unregistered_command_type_has_no_declared_wire_name()
     {
-        CommandSeedPin.WireName(typeof(OpenPvPCommand)).ShouldBe("OPEN_PV_P");
+        CommandSeedPin.WireNameOf(typeof(PinFixtureCommand)).ShouldBeNull();
     }
 
     /// <summary>A missing type is a caller bug, not an empty wire name.</summary>
     [Fact]
-    public void WireName_refuses_a_null_type()
+    public void WireNameOf_refuses_a_null_type()
     {
-        Should.Throw<ArgumentNullException>(() => CommandSeedPin.WireName(null!));
+        Should.Throw<ArgumentNullException>(() => CommandSeedPin.WireNameOf(null!))
+            .ParamName.ShouldBe("commandType");
     }
 
     /// <summary>
@@ -217,7 +227,7 @@ public sealed class CommandSeedPinTests
     [Fact]
     public void The_command_type_selector_reaches_a_namespace_that_exists_today()
     {
-        CommandSeedPin.TypesUnder("SlayIdleRepeat.Core.Content")
+        CommandSeedPin.ConcreteTypesUnder("SlayIdleRepeat.Core.Content")
             .Select(t => t.Name)
             .ShouldContain(nameof(ContentSnapshot));
 
@@ -238,7 +248,9 @@ public sealed class CommandSeedPinTests
     public void Every_seed_bearing_command_name_names_a_real_command_type()
     {
         var declared = CommandSeedPin.CommandTypes
-            .Select(CommandSeedPin.WireName)
+            .Select(CommandSeedPin.WireNameOf)
+            .Where(name => name is not null)
+            .Select(name => name!)
             .ToHashSet(StringComparer.Ordinal);
 
         var offenders = declared.Count == 0
@@ -248,9 +260,9 @@ public sealed class CommandSeedPinTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .Select(name =>
                     $"'{name}' is declared seed-bearing but no type under {CommandSeedPin.CommandsNamespace} " +
-                    $"maps to it. Declared: [{string.Join(", ", declared.OrderBy(n => n, StringComparer.Ordinal))}]. " +
-                    "Either the name is wrong, or CommandSeedPin.WireName does not know M1-02's naming " +
-                    $"convention — teach it, do not delete the rule. {CommandSeedPin.Consequence}")
+                    $"declares it. Declared: [{string.Join(", ", declared.OrderBy(n => n, StringComparer.Ordinal))}]. " +
+                    "Either this list has a typo, or M1-02's dispatch row for that command declares a " +
+                    $"different wire name — fix the disagreement, do not delete the rule. {CommandSeedPin.Consequence}")
                 .ToArray();
 
         offenders.ShouldBeEmpty();
@@ -263,12 +275,22 @@ public sealed class CommandSeedPinTests
     /// </summary>
     /// <remarks>
     /// <para>
+    /// 🔒 <b>Named for its own subject, and not for the vocabulary.</b> This quantifies over
+    /// <em>concrete types under <c>SlayIdleRepeat.Core.Commands</c></em>, which is not the same set
+    /// as <c>Commands.GameCommandTests.The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives</c>'s
+    /// — concrete <c>GameCommand</c> subtypes, wherever declared. A command declared elsewhere wakes
+    /// that one and not this; a helper type dropped into this namespace wakes this one and not that.
+    /// Two mechanisms with two failure messages, so they carry two names.
+    /// </para>
+    /// <para>
     /// 🔒 This tripwire and the rule above share one predicate — whether
     /// <see cref="CommandSeedPin.CommandTypes"/> is empty — which is why that selector filters
     /// nesting only and not accessibility: an <c>internal</c> vocabulary must wake both, or the two
-    /// would go silent together. The independent backstop is
-    /// <c>SubjectSetFloorTests.Pending[SlayIdleRepeat.Core.Commands]</c> in the architecture suite,
-    /// which reads the same assembly with Mono.Cecil and fails the build when the namespace appears.
+    /// would go silent together. ⚠️ The independent backstop is <b>not</b>
+    /// <c>SubjectSetFloorTests</c>'s entry for this namespace: M1-06 moved that entry out of
+    /// <c>Pending</c> and it now watches only that the namespace <em>exists</em>, which the abstract
+    /// base already made true. It is the two rules named above, which read the assembly with
+    /// Mono.Cecil and see internal types.
     /// </para>
     /// <para>
     /// <b>When this fails, the pin has woken up.</b> M1-02 landed the command vocabulary. Check
@@ -279,7 +301,7 @@ public sealed class CommandSeedPinTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives()
+    public void No_concrete_type_under_the_commands_namespace_exists_yet_and_says_so_when_one_does()
     {
         CommandSeedPin.CommandTypes.ShouldBeEmpty(
             "when this fails the CommandSeed pin has woken up — M1-02 landed the command vocabulary. " +
@@ -288,13 +310,10 @@ public sealed class CommandSeedPinTests
             "Do not weaken the selector: an empty subject set is the failure this file exists to prevent.");
     }
 
-    // Wire-name fixtures. Shapes only — CommandSeedPin.WireName reads Type.Name and nothing else,
-    // so these prove the mapping without pretending to be M1-02's command types.
-    private sealed record SpinWheelCommand;
-
-    private sealed record BeginSessionCommand;
-
-    private sealed record OpenChest;
-
-    private sealed record OpenPvPCommand;
+    /// <summary>
+    /// A command shape for driving the dispatch table's lookup. Deliberately <b>not</b> named after
+    /// any of `14` §2.3's 49 rows and deliberately not under <c>Core/Commands/</c>: the vocabulary
+    /// is M1-02's, and a fixture that borrowed a real name would read as one.
+    /// </summary>
+    private sealed record PinFixtureCommand : GameCommand;
 }

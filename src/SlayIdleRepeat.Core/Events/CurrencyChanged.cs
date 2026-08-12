@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Events;
@@ -76,6 +78,30 @@ public sealed record CurrencyChanged(int Sequence, CurrencyId Id, long Delta, st
     /// </para>
     /// </remarks>
     public string Reason { get; } = RequireReason(Reason);
+
+    /// <summary>
+    /// 🔒 Renders this event with <see cref="CultureInfo.InvariantCulture"/> — see
+    /// <see cref="DomainEvent.PrintMembers"/> for why the hierarchy declares these by hand.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Delta"/> is the member that makes it matter: a spend of −10 renders through
+    /// <c>StringBuilder.Append(object)</c> as <c>−10</c> (U+2212) under <c>sv-SE</c> and as
+    /// <c>-10</c> (U+002D) in the CI container, so the same movement reads as two different strings
+    /// in two logs.
+    /// </remarks>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="builder"/> is null.</exception>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        base.PrintMembers(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Id)} = {Id}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Delta)} = {Delta}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Reason)} = {Reason}");
+
+        return true;
+    }
 
     /// <summary>
     /// The 🔒 guard behind <see cref="Reason"/>. Throws rather than substituting a placeholder:
