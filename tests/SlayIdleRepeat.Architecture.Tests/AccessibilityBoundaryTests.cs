@@ -1,5 +1,7 @@
+using System.Collections.ObjectModel;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -43,6 +45,15 @@ public sealed class AccessibilityBoundaryTests
                 type.Methods
                     .Where(IsPublicMutator)
                     .Select(m => $"{Il.Describe(m)} is a public method that writes to the aggregate's own state"));
+
+            // 🔒 The fifth surface, added in M1-05's architecture review. The four above read
+            // setters, fields, constructors and mutating methods — none of which sees a MUTABLE
+            // COLLECTION handed out through a read-only-looking view. `Player.WalletCurrencies`
+            // records the hole in its own remarks: a bare array behind an IReadOnlyList<T> casts
+            // straight back to T[], so a caller rewrites the aggregate's state through a getter
+            // and every rule in this file stays green. Measured on this branch before the check
+            // existed: a `public IReadOnlyList<int> P => _array;` added to `Run` passed 54/54.
+            offenders.AddRange(ExposedMutableCollections(type));
         }
 
         // The single documented public mutation must itself be public and static (30 §11.2).
@@ -296,6 +307,199 @@ public sealed class AccessibilityBoundaryTests
         ArchRule.Empty(
             offenders,
             "Contracts re-declares no command, event or domain type — it is wire envelopes only (30 §11.6).");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.2 — the teeth of the exposed-collection half of
+    /// <see cref="Apply_is_the_only_public_mutation"/>, driven against real IL compiled from
+    /// <see cref="ExposedCollectionFixtures"/>. The shape it must catch is a violation, and a
+    /// violation is never committed to `Core` to prove a rule works.
+    /// </summary>
+    /// <remarks>
+    /// The negative half carries the same weight as the positive one. Every collection an
+    /// aggregate in this repository exposes today goes out behind a
+    /// <c>ReadOnlyDictionary&lt;,&gt;</c>, a <c>ReadOnlyCollection&lt;T&gt;</c> or an
+    /// <c>IReadOnly*</c>-typed field, and none of those casts back to its mutable store — so a
+    /// check that flagged them would be reverted within a commit, and the hole would stay open.
+    /// </remarks>
+    [Fact]
+    public void The_exposed_collection_check_catches_a_mutable_store_behind_a_read_only_view()
+    {
+        var hole = ExposedMutableCollections(
+            SuiteAssembly.Type(nameof(ExposedCollectionFixtures.ArrayBehindAReadOnlyView)));
+
+        hole.ShouldNotBeEmpty(
+            "an int[] handed out as IReadOnlyList<int> casts straight back to int[]. If this is empty " +
+            "the check is blind to the exact shape it was written for, and 30 §11.2's 'everything the " +
+            "outside world can see is a getter' is a claim nothing enforces.");
+
+        hole.ShouldHaveSingleItem().ShouldContain("System.Int32[]", Case.Sensitive);
+
+        ExposedMutableCollections(
+                SuiteAssembly.Type(nameof(ExposedCollectionFixtures.MutableFieldBehindAnInterfaceView)))
+            .ShouldNotBeEmpty(
+                "a Dictionary<,> reached through a getter typed IReadOnlyDictionary<,> casts back just as " +
+                "an array does. A check that only knew about arrays would miss the commoner shape.");
+
+        ExposedMutableCollections(
+                SuiteAssembly.Type(nameof(ExposedCollectionFixtures.ReadOnlyWrapperOverAMutableStore)))
+            .ShouldBeEmpty(
+                "a ReadOnlyDictionary<,> view over a private Dictionary<,> is the house idiom — Player's " +
+                "counters and Run's ad uses are both built this way. If this fires, the check flags the " +
+                "correct construction and would be weakened back out again.");
+
+        ExposedMutableCollections(
+                SuiteAssembly.Type(nameof(ExposedCollectionFixtures.ReadOnlyInterfaceOverAnImmutableStore)))
+            .ShouldBeEmpty(
+                "a field DECLARED as IReadOnlyDictionary<,> is the shape Run.RngStreamPositions and " +
+                "Player.Wallet use. It cannot be proven immutable from metadata and it is not the hole " +
+                "this check is about — flagging it would make the rule unsatisfiable.");
+    }
+
+    /// <summary>
+    /// The mutable collection types a read-only-looking getter can be cast straight back to.
+    /// </summary>
+    /// <remarks>
+    /// Arrays are handled separately (they are an <see cref="ArrayType"/>, not a named type). The
+    /// interfaces are here as well as the concrete classes because <c>IList&lt;T&gt;</c> and
+    /// <c>ICollection&lt;T&gt;</c> carry <c>Add</c>/<c>Clear</c> in their own signature — a field
+    /// declared as one is a mutation surface without any cast at all.
+    /// </remarks>
+    private static readonly string[] MutableCollectionTypes =
+    {
+        "System.Collections.Generic.List`1",
+        "System.Collections.Generic.Dictionary`2",
+        "System.Collections.Generic.HashSet`1",
+        "System.Collections.Generic.SortedDictionary`2",
+        "System.Collections.Generic.SortedList`2",
+        "System.Collections.Generic.SortedSet`1",
+        "System.Collections.Generic.LinkedList`1",
+        "System.Collections.Generic.Queue`1",
+        "System.Collections.Generic.Stack`1",
+        "System.Collections.ObjectModel.Collection`1",
+        "System.Collections.ObjectModel.KeyedCollection`2",
+        "System.Collections.Generic.ICollection`1",
+        "System.Collections.Generic.IList`1",
+        "System.Collections.Generic.IDictionary`2",
+        "System.Collections.Generic.ISet`1",
+        "System.Collections.IList",
+        "System.Collections.IDictionary",
+    };
+
+    /// <summary>True for an array or a mutable collection type, generic instantiation included.</summary>
+    private static bool IsMutableCollection(TypeReference? reference) =>
+        reference is ArrayType ||
+        (reference is not null &&
+         MutableCollectionTypes.Contains(reference.GetElementType().FullName, StringComparer.Ordinal));
+
+    /// <summary>
+    /// Every mutable collection an aggregate hands out: a public getter (or public field) whose own
+    /// type is mutable, and — the shape that matters — one whose read-only-looking type is backed
+    /// by a field declared mutable, which a caller casts straight back to.
+    /// </summary>
+    /// <remarks>
+    /// The backing field is read from the getter's IL rather than assumed to be an auto-property's,
+    /// because the hole is written by hand: <c>public IReadOnlyList&lt;T&gt; Items =&gt; _items;</c>
+    /// compiles to a <c>ldfld</c> on a field the property type says nothing about.
+    /// </remarks>
+    private static IReadOnlyList<string> ExposedMutableCollections(TypeDefinition type)
+    {
+        var offenders = new List<string>();
+
+        foreach (var property in type.Properties)
+        {
+            var getter = property.GetMethod;
+            if (getter is null || !getter.IsPublic || Domain.IsCompilerGenerated(getter))
+            {
+                continue;
+            }
+
+            if (IsMutableCollection(property.PropertyType))
+            {
+                offenders.Add(
+                    $"{type.FullName}.{property.Name} is typed {property.PropertyType.FullName}, a mutable " +
+                    "collection. A caller adds, clears or overwrites the aggregate's state through a getter, " +
+                    "which is a public mutation path around GameRules.Apply (30 §11.2).");
+                continue;
+            }
+
+            offenders.AddRange(
+                ReturnedFields(getter)
+                    .Where(field => IsMutableCollection(field.FieldType))
+                    .Select(field =>
+                        $"{type.FullName}.{property.Name} is typed {property.PropertyType.FullName} but returns " +
+                        $"{Il.Describe(field)}, declared {field.FieldType.FullName} — a mutable store a caller " +
+                        "casts straight back to. Wrap it (Array.AsReadOnly, ReadOnlyDictionary<,>) or hand out " +
+                        "a copy; a read-only-looking type is not a boundary (30 §11.2)."));
+        }
+
+        offenders.AddRange(
+            type.Fields
+                .Where(f => f.IsPublic && !Domain.IsCompilerGenerated(f) && IsMutableCollection(f.FieldType))
+                .Select(f =>
+                    $"{Il.Describe(f)} is a public {f.FieldType.FullName} — a mutable collection anyone can " +
+                    "write to, readonly or not (30 §11.2)."));
+
+        return offenders;
+    }
+
+    /// <summary>Every field of the declaring type a getter loads and returns.</summary>
+    private static IEnumerable<FieldDefinition> ReturnedFields(MethodDefinition getter) =>
+        Il.Instructions(getter)
+          .Where(i => i.OpCode == OpCodes.Ldfld || i.OpCode == OpCodes.Ldsfld)
+          .Select(i => (i.Operand as FieldReference)?.Resolve())
+          .Where(f => f is not null &&
+                      f.DeclaringType.FullName.Equals(getter.DeclaringType.FullName, StringComparison.Ordinal))
+          .Select(f => f!);
+
+    /// <summary>
+    /// The four shapes <see cref="ExposedMutableCollections"/> has to tell apart. They live here
+    /// rather than in `Core` because two of them are violations, and a violation is never committed
+    /// to the domain to prove a rule works.
+    /// </summary>
+    private static class ExposedCollectionFixtures
+    {
+        /// <summary>The hole `Player.WalletCurrencies` documents: an array behind a read-only view.</summary>
+        internal sealed class ArrayBehindAReadOnlyView
+        {
+            private readonly int[] _items = new int[1];
+
+            /// <summary>Casts straight back to <c>int[]</c>.</summary>
+            public IReadOnlyList<int> Items => _items;
+        }
+
+        /// <summary>The commoner spelling of the same hole: a <c>Dictionary</c> behind an interface.</summary>
+        internal sealed class MutableFieldBehindAnInterfaceView
+        {
+            private readonly Dictionary<string, long> _counters = new(StringComparer.Ordinal);
+
+            /// <summary>Casts straight back to <c>Dictionary&lt;string, long&gt;</c>.</summary>
+            public IReadOnlyDictionary<string, long> Counters => _counters;
+        }
+
+        /// <summary>The house idiom, and it must not be flagged: `Player`'s counters, `Run`'s ad uses.</summary>
+        internal sealed class ReadOnlyWrapperOverAMutableStore
+        {
+            private readonly Dictionary<string, long> _counters = new(StringComparer.Ordinal);
+            private readonly ReadOnlyDictionary<string, long> _view;
+
+            /// <summary>Builds the view once, exactly as the aggregates do.</summary>
+            internal ReadOnlyWrapperOverAMutableStore() =>
+                _view = new ReadOnlyDictionary<string, long>(_counters);
+
+            /// <summary>A live view that cannot be written through.</summary>
+            public IReadOnlyDictionary<string, long> Counters => _view;
+        }
+
+        /// <summary>The other legitimate shape: a field DECLARED read-only, replaced wholesale.</summary>
+        internal sealed class ReadOnlyInterfaceOverAnImmutableStore
+        {
+            private readonly IReadOnlyDictionary<string, ulong> _positions =
+                new ReadOnlyDictionary<string, ulong>(new Dictionary<string, ulong>(0, StringComparer.Ordinal));
+
+            /// <summary>`Run.RngStreamPositions`' shape.</summary>
+            public IReadOnlyDictionary<string, ulong> Positions => _positions;
+        }
     }
 
     /// <summary>Public types under `Core/Model/`, excluding the persistence DTOs of `Model/Snapshots/`.</summary>

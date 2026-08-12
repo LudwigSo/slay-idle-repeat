@@ -343,7 +343,7 @@ public sealed class DomainPurityTests
     [Fact]
     public void The_construction_exemption_covers_a_records_init_accessor_and_nothing_else()
     {
-        var snapshotLike = Il.AllTypes(OwnModule.Value)
+        var snapshotLike = Il.AllTypes(OwnModule)
             .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures.SnapshotLike), StringComparison.Ordinal));
 
         var init = snapshotLike.Methods.Single(m => m.Name.Equals("set_Wallet", StringComparison.Ordinal));
@@ -380,7 +380,7 @@ public sealed class DomainPurityTests
         // method) &&` from IsRehydrationOrConstruction leaves every test in the repository green:
         // set_Loose is refused by the init-only half and MutatesWithoutEmitting is not a setter at
         // all, so nothing would notice that a HAND-WRITTEN init body had just been exempted.
-        var handWritten = Il.AllTypes(OwnModule.Value)
+        var handWritten = Il.AllTypes(OwnModule)
             .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures.HandWrittenInit), StringComparison.Ordinal))
             .Methods.Single(m => m.Name.Equals("set_WalletBalance", StringComparison.Ordinal));
 
@@ -680,8 +680,12 @@ public sealed class DomainPurityTests
     /// against real IL rather than a hand-built <c>MethodDefinition</c> that could be wrong in the
     /// same direction as the predicate.
     /// </summary>
-    private static readonly Lazy<ModuleDefinition> OwnModule = new(() =>
-        ModuleDefinition.ReadModule(typeof(DomainPurityTests).Assembly.Location));
+    /// <remarks>
+    /// Delegates to <see cref="SuiteAssembly"/> rather than reading the file a second time:
+    /// <c>AccessibilityBoundaryTests</c> drives its exposed-collection fixture the same way, and
+    /// two spellings of "read my own metadata" are two places to fix (steering S4).
+    /// </remarks>
+    private static ModuleDefinition OwnModule => SuiteAssembly.Module;
 
     /// <summary>One fixture method, by name, out of this assembly's own metadata.</summary>
     private static MethodDefinition Fixture(string name) =>
@@ -692,7 +696,7 @@ public sealed class DomainPurityTests
         FixtureHost().NestedTypes.Single(t => t.Name.Equals(name, StringComparison.Ordinal));
 
     private static TypeDefinition FixtureHost() =>
-        Il.AllTypes(OwnModule.Value)
+        Il.AllTypes(OwnModule)
           .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures), StringComparison.Ordinal));
 
     /// <summary>
