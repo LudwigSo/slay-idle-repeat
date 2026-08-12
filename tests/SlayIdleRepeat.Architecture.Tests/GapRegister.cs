@@ -183,8 +183,9 @@ internal static class GapRegister
             "node identity exists. 🔒 THIS ENTRY ALSO CARRIES A DEFERRED INVARIANT, which is why it " +
             "matters more than a missing field: 30 §11.5 names 'a run's position is a valid node' as " +
             "an invariant of this aggregate, and it CANNOT be implemented today. Run.Position " +
-            "therefore stores the linear index and validates only non-negativity — deliberately, " +
-            "because a range check invented here (0..40, say) would be a PARTIAL invariant wearing " +
+            "therefore stores the linear index and validates only 03 §1.1's authored floor — the " +
+            "virtual trailhead at -1, where every run stands before its first roll — deliberately, " +
+            "because a range check invented here (0..42, say) would be a PARTIAL invariant wearing " +
             "the real one's name and would be trusted as such by every rule downstream."),
 
         new("DraftedPerks", "M3-06", "PerkDefinition",

@@ -226,7 +226,10 @@ public sealed class RunRehydrateTests
         result.Error.ShouldContain("offset", Case.Sensitive);
     }
 
-    /// <summary>A negative position is refused — and that is the whole position check (see M3-01).</summary>
+    /// <summary>
+    /// A position below `03` §1.1's trailhead is refused — and that is the whole position check
+    /// (see M3-01).
+    /// </summary>
     /// <remarks>
     /// ⚠️ The fault <b>count</b> is asserted beside the fragment, because <c>Position</c> is a
     /// substring of <c>RngStreamPositions</c>: on its own, that fragment would be satisfied by a
@@ -234,13 +237,30 @@ public sealed class RunRehydrateTests
     /// (steering S2).
     /// </remarks>
     [Fact]
-    public void A_negative_position_is_refused()
+    public void A_position_below_the_trailhead_is_refused()
     {
-        var result = Run.Rehydrate(RunSnapshots.With(position: -1));
+        var result = Run.Rehydrate(RunSnapshots.With(position: -2));
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldContain("(1 problem(s))", Case.Sensitive);
         result.Error.ShouldContain("Position", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 …but the <b>trailhead itself</b> rehydrates, because that is where every run starts.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The case a floor of 0 would have got wrong. `03` §1.1 (ruled in `16` A7) begins every run
+    /// at <em>"a virtual trailhead one step before node 0 (position −1)"</em>, and the movement
+    /// arithmetic closes from there — <em>"a first roll of <c>1</c> therefore lands on node 0"</em>.
+    /// A run that <c>START_RUN</c> (M3-15) created and the player left before their first
+    /// <c>ROLL_DICE</c> is persisted at −1, and `14` §16.3's sliding 48-hour TTL exists precisely to
+    /// let that row come back — so <c>Rehydrate</c> has to read it.
+    /// </remarks>
+    [Fact]
+    public void The_trailhead_position_rehydrates_because_that_is_where_every_run_starts()
+    {
+        Run.Rehydrate(RunSnapshots.With(position: -1)).Value.Position.ShouldBe(-1);
     }
 
     /// <summary>

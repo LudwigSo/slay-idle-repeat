@@ -75,7 +75,19 @@ public static class SeedDerivation
     public static ulong RunSeed(
         PlayerId playerId, int chapterId, DifficultyTier tier, DateTimeOffset nowUtc, long runCounter)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(chapterId, 1);
+        // The three guards say WHICH rule refused and cite it, rather than leaning on the framework's
+        // "must be greater than or equal to '1'" — a seed derivation that failed with an ordinary
+        // bounds message is one a reader fixes by widening the bound (steering S2).
+        if (chapterId < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(chapterId),
+                chapterId,
+                "02 §1 runs chapters from 1 and chapter.schema.json sets \"minimum\": 1. There is " +
+                "deliberately no upper bound here — content/chapters/ is empty (M3-14) — but a " +
+                "chapter below 1 names no chapter at all, and hashing it would produce a perfectly " +
+                "stable runSeed for a run that cannot be played.");
+        }
 
         if (!Enum.IsDefined(tier))
         {
@@ -87,7 +99,17 @@ public static class SeedDerivation
                 "perfectly stable runSeed for a difficulty the game does not have.");
         }
 
-        ArgumentOutOfRangeException.ThrowIfNegative(runCounter);
+        if (runCounter < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(runCounter),
+                runCounter,
+                "02 §2's runCounter is the player's lifetime runs-started counter — Player.BeginRun's " +
+                "return, after the increment — so it counts upwards from zero and is never reset. " +
+                "Zero is accepted (nothing in 02 §2 says the first value is 1, and refusing it would " +
+                "be a claim the documents do not authorise); a NEGATIVE counter is not a count, and " +
+                "seeding from one would produce a run no play could have produced.");
+        }
 
         // 🔒 Argument for argument, in 02 §2's order. playerId.Value rather than playerId because
         // 14 §8.0's canonical encoding has exactly two shapes and a PlayerId is the string it wraps;

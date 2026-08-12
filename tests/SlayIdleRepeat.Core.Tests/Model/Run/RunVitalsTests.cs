@@ -129,12 +129,22 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// ⚠️ A move <b>backwards</b> is legal, and this case is why <c>MoveTo</c> has no monotonicity
-    /// guard: `03` §1.1's Portal jumps and the board's back-edges move a run in both directions, so a
-    /// forwards-only rule would refuse legal play.
+    /// ⚠️ A move to a <b>lower</b> index is accepted, and this case pins the <em>absence</em> of a
+    /// monotonicity guard rather than a claim that the board goes backwards.
     /// </summary>
+    /// <remarks>
+    /// 🔒 The reason is the deferral, not the design of the board: `03` §1 says the opposite in so
+    /// many words — <em>"movement is always forward. There is no backtracking"</em> — and §1.1 lists
+    /// Portal jumps under <em>forward</em> movement, so a forwards-only rule would refuse nothing the
+    /// design authorises today. It is still not written, because which index may follow which is a
+    /// property of the board graph and the aggregate holds no graph; a direction rule here would be
+    /// the same partial invariant wearing the real one's name that a range check would be (`30`
+    /// §11.5's <em>"a run's position is a valid node"</em>, registered against M3-01). Movement
+    /// legality is M3-01's and M3-02's. If a later milestone moves that rule into the aggregate, this
+    /// case turns red and points at the register rather than at a guard nobody remembers omitting.
+    /// </remarks>
     [Fact]
-    public void MoveTo_accepts_a_move_backwards_because_the_board_has_portals()
+    public void MoveTo_accepts_a_lower_index_because_movement_legality_is_M3_01s_not_the_aggregates()
     {
         var run = Fresh(position: 19);
 
@@ -143,13 +153,35 @@ public sealed class RunVitalsTests
         run.Position.ShouldBe(4);
     }
 
-    /// <summary>A negative position is refused — and that is the whole check.</summary>
+    /// <summary>
+    /// 🔒 `03` §1.1 — the <b>trailhead</b> at −1 is accepted: it is where every run stands before its
+    /// first roll, not an invalid position.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ This is the case a floor of 0 would have got wrong. §1.1 (ruled in `16` A7) puts the hero
+    /// at <em>"a virtual trailhead one step before node 0 (position −1)"</em> and makes the movement
+    /// arithmetic close from there — <em>"a first roll of <c>1</c> therefore lands on node 0"</em> —
+    /// so a run created by <c>START_RUN</c> (M3-15) and abandoned before its first <c>ROLL_DICE</c>
+    /// persists at −1. That is exactly the state `14` §16.3's sliding 48-hour TTL exists to keep
+    /// alive, so refusing it would make the commonest resumable run unstorable.
+    /// </remarks>
     [Fact]
-    public void MoveTo_refuses_a_negative_position()
+    public void MoveTo_accepts_the_trailhead_because_that_is_where_every_run_starts()
     {
         var run = Fresh(position: 7);
 
-        var act = () => run.MoveTo(-1);
+        run.MoveTo(-1);
+
+        run.Position.ShouldBe(-1);
+    }
+
+    /// <summary>A position below the trailhead is refused — and that is the whole check.</summary>
+    [Fact]
+    public void MoveTo_refuses_a_position_below_the_trailhead()
+    {
+        var run = Fresh(position: 7);
+
+        var act = () => run.MoveTo(-2);
 
         Should.Throw<ArgumentOutOfRangeException>(act)
               .ParamName.ShouldBe(

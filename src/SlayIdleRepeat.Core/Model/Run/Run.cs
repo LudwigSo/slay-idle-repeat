@@ -61,6 +61,28 @@ namespace SlayIdleRepeat.Core.Model;
 public sealed class Run
 {
     /// <summary>
+    /// 🔒 `03` §1.1 (ruled in `16` A7) — the lowest position a run can stand at: the <b>virtual
+    /// trailhead</b>, one step before node 0.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Minus one is an authored position, not a sentinel and not an invented bound.</b> §1.1
+    /// writes it out — <em>"the hero begins every run at a virtual trailhead one step before node 0
+    /// (position −1) … a first roll of <c>1</c> therefore lands on node 0"</em> — and the movement
+    /// arithmetic only closes from there: −1 + 1 = 0, so a run stored at 0 instead would skip node 0
+    /// forever. It is therefore the position <b>every</b> run holds between <c>START_RUN</c> (M3-15)
+    /// and its first <c>ROLL_DICE</c>: exactly the state a player who starts a run and closes the app
+    /// leaves behind, and exactly the state `14` §16.3's sliding 48-hour TTL exists to preserve. A
+    /// floor of zero would refuse to store or rehydrate it.
+    /// </para>
+    /// <para>
+    /// A named constant rather than a literal, so the floor is greppable and the two places that
+    /// hold it — <see cref="MoveTo"/> and <see cref="Rehydrate"/> — cannot drift apart.
+    /// </para>
+    /// </remarks>
+    private const int TrailheadPosition = -1;
+
+    /// <summary>
     /// 🔒 The run's <c>GOLD</c> balance — and the field name is <b>load-bearing</b>, not stylistic.
     /// </summary>
     /// <remarks>
@@ -233,14 +255,21 @@ public sealed class Run
 
     /// <summary>The linear node index the run stands on (`14` §2.3's <c>newPosition</c>).</summary>
     /// <remarks>
-    /// ⚠️ <b>Stored, and only checked for non-negativity.</b> `30` §11.5 names <em>"a run's position
-    /// is a valid node"</em> as an invariant of this aggregate and it <b>cannot be implemented
-    /// today</b>: there is no board and no node identity until M3-01. Inventing a range check —
-    /// "0..40", say — would be a partial invariant that reads like the real one and would be trusted
-    /// as such by everything downstream, which is worse than an absent one. The real validation is
-    /// registered as the <c>Board</c> entry in
+    /// <para>
+    /// ⚠️ <b>Stored, and checked only against `03` §1.1's trailhead floor.</b> `30` §11.5 names
+    /// <em>"a run's position is a valid node"</em> as an invariant of this aggregate and it
+    /// <b>cannot be implemented today</b>: there is no board and no node identity until M3-01.
+    /// Inventing a range check — "0..42", say — would be a partial invariant that reads like the real
+    /// one and would be trusted as such by everything downstream, which is worse than an absent one.
+    /// The real validation is registered as the <c>Board</c> entry in
     /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, keyed on <c>NodeId</c>, so the build
     /// fails on the day node identity arrives.
+    /// </para>
+    /// <para>
+    /// 🔒 The one bound that <b>is</b> checked is not invented either: see
+    /// <see cref="TrailheadPosition"/>. `03` §1.1 authors −1 as the position every run stands at
+    /// before its first roll, so that — and not zero — is the floor.
+    /// </para>
     /// </remarks>
     public int Position => _position;
 
@@ -332,6 +361,10 @@ public sealed class Run
     /// <exception cref="ArgumentException"><paramref name="streamName"/> is not in the registry of `14` §8.1.</exception>
     public ulong StreamPosition(string streamName)
     {
+        // Null is checked HERE rather than inside RequireRegisteredStream because here the null is
+        // genuinely the argument, while a null KEY inside CommitStreamPositions' map is not — see
+        // that guard's remarks.
+        ArgumentNullException.ThrowIfNull(streamName);
         RequireRegisteredStream(streamName, nameof(streamName));
 
         return _streamPositions.TryGetValue(streamName, out var position) ? position : 0UL;
@@ -560,17 +593,44 @@ public sealed class Run
     /// <summary>
     /// `14` §2.3 — records the node index the run has moved to.
     /// </summary>
-    /// <param name="position">The new linear node index. Never negative.</param>
+    /// <param name="position">
+    /// The new linear node index. Never below <see cref="TrailheadPosition"/>, `03` §1.1's virtual
+    /// trailhead.
+    /// </param>
     /// <remarks>
-    /// ⚠️ Non-negativity is the <b>whole</b> check, and see <see cref="Position"/> for why: `30`
+    /// <para>
+    /// ⚠️ The trailhead floor is the <b>whole</b> check, and see <see cref="Position"/> for why: `30`
     /// §11.5's <em>"a run's position is a valid node"</em> needs node identity, which is M3-01's.
-    /// Movement is not required to be forwards — `03` §1.1's Portal jumps and the board's back-edges
-    /// move a run in both directions, so a monotonicity guard here would refuse legal play.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>There is no monotonicity guard either — and the reason is that same deferral, not a
+    /// claim about the board.</b> `03` §1 is explicit the other way (<em>"movement is always forward.
+    /// There is no backtracking"</em>, and §1.1 lists Portal jumps under <em>forward</em> movement),
+    /// so a forwards-only rule would refuse nothing the design authorises. It is still not written
+    /// here: which index may follow which is a property of the board graph, and this aggregate holds
+    /// no graph — a rule about the direction of travel would be the same partial invariant wearing
+    /// the real one's name that a range check would be. Movement legality is M3-01's (the graph) and
+    /// M3-02's (the movement engine, including `03` §1.1's junction pause); this seam records the
+    /// index they computed.
+    /// </para>
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="position"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="position"/> is below <see cref="TrailheadPosition"/>.
+    /// </exception>
     internal void MoveTo(int position)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(position);
+        if (position < TrailheadPosition)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(position),
+                position,
+                "The lowest position a run can stand at is " + Text(TrailheadPosition) + " — 03 " +
+                "§1.1's virtual trailhead, one step before node 0, where every run stands before " +
+                "its first roll — and " + Text(position) + " is below it. That floor is the WHOLE " +
+                "position check: 30 §11.5's 'a run's position is a valid node' needs node identity, " +
+                "which is M3-01's and is registered as the Board entry in the gap register. A range " +
+                "check invented here would be a partial invariant wearing the real one's name.");
+        }
 
         _position = position;
     }
@@ -860,26 +920,35 @@ public sealed class Run
     /// uses: a name that cannot be drawn from cannot be read or persisted either.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The offending key is quoted <b>exactly</b> as it arrived, case and all. The registry is
     /// ordinal, so <c>DICE</c> and <c>dice</c> are two different questions, and a message that
     /// normalised the key would point a reader at a row the data does not carry.
+    /// </para>
+    /// <para>
+    /// ⚠️ It takes a <c>string?</c> and answers a <b>membership</b> question about null, exactly as
+    /// <c>RngStreams.IsRegistered</c> does, rather than raising
+    /// <see cref="ArgumentNullException"/>. Its two callers differ: <see cref="StreamPosition"/>'s
+    /// null <em>is</em> the argument and checks for it itself, whereas a null <b>key</b> inside
+    /// <see cref="CommitStreamPositions"/>' map is a bad row of a perfectly present map — reporting
+    /// that as "positions is null" would send the reader looking for a map that is right in front of
+    /// them.
+    /// </para>
     /// </remarks>
-    private static void RequireRegisteredStream(string streamName, string parameterName)
+    private static void RequireRegisteredStream(string? streamName, string parameterName)
     {
-        ArgumentNullException.ThrowIfNull(streamName, parameterName);
-
         if (RngStreams.IsRegistered(streamName))
         {
             return;
         }
 
         throw new ArgumentException(
-            "'" + streamName + "' is not a row of the 14 §8.1 stream registry, which is the eight " +
-            "fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus minigame:{index} " +
-            "for a non-negative index in canonical decimal form. The comparison is ordinal and " +
-            "case-sensitive, and minigame:03 is deliberately a different string from minigame:3: a " +
-            "name the registry does not recognise cannot be drawn from, so a run cannot stand at a " +
-            "position in it either.",
+            "'" + (streamName ?? "null") + "' is not a row of the 14 §8.1 stream registry, which is " +
+            "the eight fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus " +
+            "minigame:{index} for a non-negative index in canonical decimal form. The comparison " +
+            "is ordinal and case-sensitive, and minigame:03 is deliberately a different string " +
+            "from minigame:3: a name the registry does not recognise cannot be drawn from, so a " +
+            "run cannot stand at a position in it either.",
             parameterName);
     }
 
@@ -974,14 +1043,16 @@ public sealed class Run
 
     private static void RequireVitals(RunSnapshot snapshot, List<string> faults)
     {
-        if (snapshot.Position < 0)
+        if (snapshot.Position < TrailheadPosition)
         {
             faults.Add(
-                nameof(RunSnapshot.Position) + " is " + Text(snapshot.Position) + ". ⚠️ That is the " +
-                "WHOLE position check: 30 §11.5's 'a run's position is a valid node' needs node " +
-                "identity, which is M3-01's and is registered as the Board entry in the gap " +
-                "register. A range check invented here would be a partial invariant wearing the " +
-                "real one's name.");
+                nameof(RunSnapshot.Position) + " is " + Text(snapshot.Position) + ", below 03 §1.1's " +
+                "virtual trailhead at " + Text(TrailheadPosition) + " — the position every run " +
+                "stands at before its first roll, and therefore the lowest one a row can carry. ⚠️ " +
+                "That floor is the WHOLE position check: 30 §11.5's 'a run's position is a valid " +
+                "node' needs node identity, which is M3-01's and is registered as the Board entry in " +
+                "the gap register. A range check invented here would be a partial invariant wearing " +
+                "the real one's name.");
         }
 
         var maxIsValid = snapshot.MaxHp >= 1;

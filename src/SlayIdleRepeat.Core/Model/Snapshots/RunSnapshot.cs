@@ -56,9 +56,16 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// </param>
 /// <param name="Position">
 /// The linear node index the run stands on. `14` §2.3's <c>"newPosition": 19</c> makes it
-/// authoritative run state and an integer. ⚠️ Validated only for non-negativity — see the
-/// aggregate's remarks and the <c>Board</c> entry in
-/// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>.
+/// authoritative run state and an integer.
+/// <para>
+/// 🔒 Its floor is <b>−1</b>, not 0: `03` §1.1 (ruled in `16` A7) begins every run at a virtual
+/// trailhead one step before node 0 — <em>"a first roll of <c>1</c> therefore lands on node 0"</em>
+/// — so −1 is the position a started-but-unrolled run legitimately persists at, and a floor of zero
+/// would refuse to store the state every run passes through. ⚠️ That floor is the <b>only</b>
+/// validation: the real invariant, `30` §11.5's <em>"a run's position is a valid node"</em>, needs
+/// node identity and is registered as the <c>Board</c> entry in
+/// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c> against M3-01.
+/// </para>
 /// </param>
 /// <param name="CurrentHp">The hero's current hit points. Never negative, never above <paramref name="MaxHp"/>.</param>
 /// <param name="MaxHp">
