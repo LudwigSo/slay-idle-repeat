@@ -1,0 +1,29 @@
+{
+  "_doc": {
+    "what": "Every number the `15` §B4 pipeline, the Part F QA checklist and the §A4 silhouette gate need that doc `15` does not authorise. Seventeen of them. All null.",
+    "steeringRuleS6": "S6 · Never fill a hole with a plausible value. [M0] If the design docs do not authorise a number, leave it absent and greppable (`null`), and say so. A fabricated number that looks precise is worse than a missing one — `16` R6 exists for this. Never coerce such a hole to a default at read time; fail loudly.",
+    "whatNullMeans": "Nobody has calibrated this. SlayIdleRepeat.AssetPipeline's ThresholdSet throws UncalibratedThresholdException naming the key rather than substituting a value, so a run stops with the name of the hole that stopped it.",
+    "firstBatchThatCouldCalibrate": "M8-10. Six of M8's eight original tasks are capability-blocked, so at the time this file was written there was no real generated asset to measure anything against. M8-10 enumerates the manifest, generates one placeholder per uncut slot and drives the full pipeline — it is the first run that produces enough images for a number here to mean something. A value filled in before then would be a guess wearing a decimal point.",
+    "callersMayStateValues": "A caller — a test, or M8-10 — MAY construct a ThresholdSet in code with explicit values via ThresholdSet.With / .WithColours. That is a caller's stated decision, recorded at the call site, and it is not a default: nothing in this file and nothing in the pipeline supplies a value when one is absent. A test that states a value must say in a comment why it is arbitrary-but-sufficient for the fixture it drives.",
+    "whatIsNotHere": "The four values `15` DOES authorise are hardcoded as named constants in Doc15Authorised, each citing its section: the outline colour #231A2E (§A3), the 3-4 px outline band at a 512 px canvas scaled proportionally (§A3), the 2048x2048 max single texture (§C) and the sharpen amount 0.4 (§B4 step 5). Delivery size, pivot, atlas and biome palette are per-row and come from game-data/assets/asset_manifest_art.json.",
+    "whyNotUnderGameData": "game-data/ is enumerated recursively into the ContentSnapshot whose hash M0-09 makes load-bearing for replay and CONTENT_VERSION_MISMATCH. A production-pipeline tuning file has no business moving that stamp, so it lives under assets/ instead."
+  },
+
+  "backgroundKeyTolerance": null,
+  "matteDecontaminationStrength": null,
+  "outlineColourTolerance": null,
+  "outlineGapClosureRadius": null,
+  "outlineWidthUniformityTolerance": null,
+  "paletteNeutrals": null,
+  "paletteMatchTolerance": null,
+  "resizeSharpenRadius": null,
+  "exportColourBudget": null,
+  "exportMaxMeanError": null,
+  "haloMaxFringeRatio": null,
+  "haloMaxLuminanceDeviation": null,
+  "silhouetteMinCoverageRatio": null,
+  "silhouetteMinBoundingBoxFill": null,
+  "silhouetteMaxComponentCount": null,
+  "silhouetteMinDistinguishability": null,
+  "watermarkCornerOpacityCeiling": null
+}
