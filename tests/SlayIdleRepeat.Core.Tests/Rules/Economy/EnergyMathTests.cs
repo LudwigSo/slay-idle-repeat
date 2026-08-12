@@ -1,6 +1,8 @@
 using System.Reflection;
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Rules.Economy;
 using Xunit;
 
@@ -23,32 +25,49 @@ public sealed class EnergyMathTests
 
     /// <summary>`10` §3 — Max Energy is 120 (+2 per Legend Level, cap 200).</summary>
     /// <remarks>
-    /// ⚠️ Note row <c>(1, 122)</c>. `07` §1.1 starts a player at Legend Level <b>1</b>, so under
-    /// the formula the M1 kickoff authored — <c>baseMax + perLegendLevel × legendLevel</c> — the
-    /// base 120 belongs to Legend Level 0, a level no player occupies. See
-    /// <c>EnergyMath.MaxEnergy</c>'s remarks: it is a live contradiction with three other `10` §3
-    /// numbers, implemented as ruled and registered rather than silently renumbered here.
+    /// 🔒 Row <c>(1, 120)</c> is the headline. The increment counts levels <em>gained</em>, so a
+    /// starting player (`07` §1.1 begins at Legend Level 1) has exactly the 120 `10` §3 authors —
+    /// which is what makes §3's "8 hours from empty" and "6 runs on a full tank" exact rather than
+    /// approximate. Row <c>(41, 200)</c> is where the cap first binds.
     /// </remarks>
     [Theory]
-    [InlineData(0, 120)]
-    [InlineData(1, 122)]
-    [InlineData(10, 140)]
-    [InlineData(39, 198)]
-    [InlineData(40, 200)]
+    [InlineData(1, 120)]
+    [InlineData(2, 122)]
+    [InlineData(11, 140)]
+    [InlineData(40, 198)]
     [InlineData(41, 200)]
+    [InlineData(42, 200)]
     [InlineData(200, 200)]
     public void Max_energy_is_120_plus_2_per_legend_level_capped_at_200(int legendLevel, int expected) =>
         EnergyMath.MaxEnergy(Shipped, legendLevel).ShouldBe(expected);
+
+    /// <summary>
+    /// 🔒 The three `10` §3 numbers that are arithmetic on Max Energy, checked against a
+    /// <b>starting</b> player rather than against a level no player occupies. All three are exact,
+    /// and all three are off by one increment if the formula ever counts levels <em>held</em>
+    /// instead of levels gained.
+    /// </summary>
+    [Fact]
+    public void A_starting_players_tank_makes_every_10_3_number_exact()
+    {
+        var max = EnergyMath.MaxEnergy(Shipped, legendLevel: 1);
+
+        max.ShouldBe(120, "10 §3: Max Energy 120, and 10 §3.2's budget line '120 (start)'.");
+
+        (max / Shipped.RunCost).ShouldBe(6, "10 §3: runs on a full tank, 6 — exactly, no remainder.");
+        (max * Shipped.RegenInterval).ShouldBe(
+            TimeSpan.FromHours(8), "10 §3: full refill time, 8 hours from empty — exactly.");
+    }
 
     /// <summary>
     /// 🔒 `28` C2 — the Reserve holds <b>1× Max Energy</b>, not a hard-coded 200. At a low Legend
     /// Level the two are 120, and a reader that had baked in the cap would say 200 here.
     /// </summary>
     [Theory]
-    [InlineData(0, 120)]
-    [InlineData(1, 122)]
-    [InlineData(39, 198)]
-    [InlineData(40, 200)]
+    [InlineData(1, 120)]
+    [InlineData(2, 122)]
+    [InlineData(40, 198)]
+    [InlineData(41, 200)]
     [InlineData(200, 200)]
     public void Reserve_capacity_tracks_current_max_energy_not_the_cap(int legendLevel, int expected)
     {
@@ -64,8 +83,8 @@ public sealed class EnergyMathTests
         var doubled = EnergyTuning.Read(
             ProgressionDocuments.With(reserveMultipleOfMax: ContentValue.Number(2)));
 
-        EnergyMath.ReserveCapacity(doubled, legendLevel: 40).ShouldBe(400);
-        EnergyMath.MaxEnergy(doubled, legendLevel: 40).ShouldBe(200);
+        EnergyMath.ReserveCapacity(doubled, legendLevel: 41).ShouldBe(400);
+        EnergyMath.MaxEnergy(doubled, legendLevel: 41).ShouldBe(200);
     }
 
     /// <summary>
@@ -74,14 +93,23 @@ public sealed class EnergyMathTests
     /// entry point, deleting either call changes nothing observable (the nested <c>MaxEnergy</c>
     /// still throws) and no test notices the guard has gone.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Zero is refused, not just negatives.</b> Since the increment counts levels gained,
+    /// Legend Level 0 would subtract one increment from the base and hand back 118 — a plausible
+    /// number for a state `07` §1.1 says cannot exist. The boundary is 1.
+    /// </remarks>
     [Theory]
     [MemberData(nameof(EveryEntryPoint))]
-    public void A_negative_legend_level_is_refused_by_every_entry_point(
+    public void A_legend_level_below_one_is_refused_by_every_entry_point(
         string name, Action<int> call)
     {
-        var thrown = Should.Throw<ArgumentOutOfRangeException>(() => call(-1));
+        foreach (var below in new[] { 0, -1 })
+        {
+            var thrown = Should.Throw<ArgumentOutOfRangeException>(() => call(below));
 
-        thrown.ParamName.ShouldBe("legendLevel", $"{name} did not name the offending parameter.");
+            thrown.ParamName.ShouldBe(
+                "legendLevel", $"{name} did not name the offending parameter for {below}.");
+        }
     }
 
     /// <summary>
@@ -134,7 +162,8 @@ public sealed class EnergyMathTests
         var swept = EnergyTuning.Read(
             ProgressionDocuments.With(perLegendLevel: ContentValue.Number(2_000_000_000)));
 
-        // In 32-bit, 2e9 * 2 wraps to about -295 million, which then wins Math.Min against the cap.
+        // In 32-bit, 120 + 2e9 wraps to about -2.29 billion, which then wins Math.Min against the
+        // cap and hands every rule below it a negative Max Energy.
         EnergyMath.MaxEnergy(swept, legendLevel: 2).ShouldBe(200);
         EnergyMath.MaxEnergy(swept, legendLevel: 200).ShouldBe(200);
     }
@@ -146,45 +175,35 @@ public sealed class EnergyMathTests
         var swept = EnergyTuning.Read(
             ProgressionDocuments.With(reserveMultipleOfMax: ContentValue.Number(2_000_000_000)));
 
-        EnergyMath.ReserveCapacity(swept, legendLevel: 40).ShouldBe(int.MaxValue);
+        EnergyMath.ReserveCapacity(swept, legendLevel: 41).ShouldBe(int.MaxValue);
     }
 
     // ------------------------------------------------------------------ accrual arithmetic
 
-    /// <summary>`10` §3 — "Full refill time: 8 hours from empty", at the base Max Energy of 120.</summary>
+    /// <summary>
+    /// `10` §3 — "Full refill time: 8 hours from empty", at a <b>starting</b> player's tank.
+    /// </summary>
     /// <remarks>
-    /// ⚠️ 8 hours is 120 units, and 120 is Max Energy at Legend Level <b>0</b>. At Legend Level 1 —
-    /// the lowest a player can actually be (`07` §1.1) — Max Energy is 122 under the authored
-    /// formula and the true refill time is 8h08m, which the companion case below states rather than
-    /// hides. `10` §3's "8 hours" is one of the four numbers the registered contradiction is about.
+    /// 🔒 Legend Level 1, not 0. Eight hours is exactly 120 units and a starting player's maximum is
+    /// exactly 120, so the bar fills to the brim and not one unit past or short — the whole point of
+    /// counting levels gained. Under <c>× legendLevel</c> this same case would leave them on 120 of
+    /// 122.
     /// </remarks>
     [Fact]
-    public void Eight_hours_fills_an_empty_bar_at_the_base_max()
+    public void Eight_hours_fills_a_starting_players_empty_bar_exactly()
     {
         var accrued = EnergyMath.Accrue(
-            Shipped, legendLevel: 0, new EnergyBanks(0, 0), TimeSpan.FromHours(8));
-
-        accrued.Banks.ShouldBe(new EnergyBanks(120, 0));
-        accrued.AnchorAdvance.ShouldBe(TimeSpan.FromHours(8));
-    }
-
-    /// <summary>
-    /// 🔒 The same claim at the lowest Legend Level a player can hold. Eight hours leaves them two
-    /// Energy short of the 122 the authored formula gives them, and it takes 8h08m to fill.
-    /// </summary>
-    [Fact]
-    public void At_the_lowest_reachable_legend_level_eight_hours_leaves_the_bar_two_short()
-    {
-        var atEightHours = EnergyMath.Accrue(
             Shipped, legendLevel: 1, new EnergyBanks(0, 0), TimeSpan.FromHours(8));
 
-        atEightHours.Banks.ShouldBe(new EnergyBanks(120, 0));
-        EnergyMath.MaxEnergy(Shipped, legendLevel: 1).ShouldBe(122);
+        accrued.Banks.ShouldBe(new EnergyBanks(120, 0));
+        accrued.Banks.Energy.ShouldBe(EnergyMath.MaxEnergy(Shipped, legendLevel: 1));
+        accrued.AnchorAdvance.ShouldBe(TimeSpan.FromHours(8));
 
-        var atFull = EnergyMath.Accrue(
-            Shipped, legendLevel: 1, new EnergyBanks(0, 0), TimeSpan.FromHours(8) + TimeSpan.FromMinutes(8));
-
-        atFull.Banks.ShouldBe(new EnergyBanks(122, 0));
+        // One unit short of eight hours is one Energy short of full — the boundary from below.
+        EnergyMath.Accrue(
+                Shipped, legendLevel: 1, new EnergyBanks(0, 0),
+                TimeSpan.FromHours(8) - TimeSpan.FromMinutes(4))
+            .Banks.ShouldBe(new EnergyBanks(119, 0));
     }
 
     /// <summary>`10` §3 — one Energy per four minutes, and nothing for the three minutes before it.</summary>
@@ -198,7 +217,7 @@ public sealed class EnergyMathTests
     public void Regeneration_is_one_energy_per_four_minutes(int elapsedMinutes, int expectedEnergy)
     {
         var accrued = EnergyMath.Accrue(
-            Shipped, legendLevel: 0, new EnergyBanks(0, 0), TimeSpan.FromMinutes(elapsedMinutes));
+            Shipped, legendLevel: 1, new EnergyBanks(0, 0), TimeSpan.FromMinutes(elapsedMinutes));
 
         accrued.Banks.Energy.ShouldBe(expectedEnergy);
         accrued.AnchorAdvance.ShouldBe(TimeSpan.FromMinutes(expectedEnergy * 4));
@@ -213,7 +232,7 @@ public sealed class EnergyMathTests
     public void Two_days_offline_banks_a_full_bar_and_a_full_reserve()
     {
         var accrued = EnergyMath.Accrue(
-            Shipped, legendLevel: 40, new EnergyBanks(0, 0), TimeSpan.FromDays(2));
+            Shipped, legendLevel: 41, new EnergyBanks(0, 0), TimeSpan.FromDays(2));
 
         accrued.Banks.ShouldBe(new EnergyBanks(200, 200));
         accrued.AnchorAdvance.ShouldBe(TimeSpan.FromDays(2));
@@ -228,10 +247,10 @@ public sealed class EnergyMathTests
     public void Overflow_past_the_reserve_cap_is_discarded_and_the_reserve_does_not_grow()
     {
         var threeWeeks = EnergyMath.Accrue(
-            Shipped, legendLevel: 40, new EnergyBanks(0, 0), TimeSpan.FromDays(21));
+            Shipped, legendLevel: 41, new EnergyBanks(0, 0), TimeSpan.FromDays(21));
 
         var twoDays = EnergyMath.Accrue(
-            Shipped, legendLevel: 40, new EnergyBanks(0, 0), TimeSpan.FromDays(2));
+            Shipped, legendLevel: 41, new EnergyBanks(0, 0), TimeSpan.FromDays(2));
 
         // The interesting claim, and the only one here: ten times the absence banks nothing more.
         // A literal (200, 200) on both would be two copies of the case above it.
@@ -259,7 +278,7 @@ public sealed class EnergyMathTests
         // Four hours is 60 units. The bar is 100 short of its 200 and the Reserve is 150 short of
         // its own, so a Reserve that regenerated independently would have somewhere to put it.
         var accrued = EnergyMath.Accrue(
-            Shipped, legendLevel: 40, new EnergyBanks(100, 50), TimeSpan.FromHours(4));
+            Shipped, legendLevel: 41, new EnergyBanks(100, 50), TimeSpan.FromHours(4));
 
         accrued.Banks.Reserve.ShouldBe(
             50,
@@ -277,7 +296,7 @@ public sealed class EnergyMathTests
     {
         var full = new EnergyBanks(200, 200);
 
-        var accrued = EnergyMath.Accrue(Shipped, legendLevel: 40, full, TimeSpan.FromHours(10));
+        var accrued = EnergyMath.Accrue(Shipped, legendLevel: 41, full, TimeSpan.FromHours(10));
 
         accrued.Banks.ShouldBe(full);
     }
@@ -291,7 +310,7 @@ public sealed class EnergyMathTests
     public void The_anchor_advances_even_when_both_banks_are_full()
     {
         var accrued = EnergyMath.Accrue(
-            Shipped, legendLevel: 40, new EnergyBanks(200, 200), TimeSpan.FromHours(10));
+            Shipped, legendLevel: 41, new EnergyBanks(200, 200), TimeSpan.FromHours(10));
 
         accrued.AnchorAdvance.ShouldBe(TimeSpan.FromHours(10));
     }
@@ -305,7 +324,7 @@ public sealed class EnergyMathTests
     {
         // 30 minutes is 7 whole units; the bar is 5 short of its 200.
         var accrued = EnergyMath.Accrue(
-            Shipped, legendLevel: 40, new EnergyBanks(195, 0), TimeSpan.FromMinutes(30));
+            Shipped, legendLevel: 41, new EnergyBanks(195, 0), TimeSpan.FromMinutes(30));
 
         accrued.Banks.ShouldBe(new EnergyBanks(200, 2));
     }
@@ -321,7 +340,7 @@ public sealed class EnergyMathTests
             ProgressionDocuments.With(reserveMultipleOfMax: ContentValue.Number(0)));
 
         var accrued = EnergyMath.Accrue(
-            noReserve, legendLevel: 40, new EnergyBanks(0, 0), TimeSpan.FromDays(2));
+            noReserve, legendLevel: 41, new EnergyBanks(0, 0), TimeSpan.FromDays(2));
 
         accrued.Banks.ShouldBe(new EnergyBanks(200, 0));
     }
@@ -331,7 +350,7 @@ public sealed class EnergyMathTests
     {
         var thrown = Should.Throw<ArgumentOutOfRangeException>(
             () => EnergyMath.Accrue(
-                Shipped, legendLevel: 0, new EnergyBanks(0, 0), TimeSpan.FromMinutes(-4)));
+                Shipped, legendLevel: 1, new EnergyBanks(0, 0), TimeSpan.FromMinutes(-4)));
 
         thrown.ParamName.ShouldBe("sinceAnchor");
     }
@@ -348,7 +367,7 @@ public sealed class EnergyMathTests
     [Fact]
     public void A_grant_fills_the_bar_first()
     {
-        var granted = EnergyMath.Grant(Shipped, legendLevel: 40, new EnergyBanks(140, 0), 40);
+        var granted = EnergyMath.Grant(Shipped, legendLevel: 41, new EnergyBanks(140, 0), 40);
 
         granted.ShouldBe(new EnergyBanks(180, 0));
     }
@@ -360,7 +379,7 @@ public sealed class EnergyMathTests
     [Fact]
     public void A_grant_the_bar_cannot_hold_overflows_into_the_reserve()
     {
-        var granted = EnergyMath.Grant(Shipped, legendLevel: 40, new EnergyBanks(180, 0), 40);
+        var granted = EnergyMath.Grant(Shipped, legendLevel: 41, new EnergyBanks(180, 0), 40);
 
         granted.ShouldBe(new EnergyBanks(200, 20));
     }
@@ -369,7 +388,7 @@ public sealed class EnergyMathTests
     [Fact]
     public void A_grant_past_the_reserve_cap_is_discarded()
     {
-        var granted = EnergyMath.Grant(Shipped, legendLevel: 40, new EnergyBanks(200, 190), 40);
+        var granted = EnergyMath.Grant(Shipped, legendLevel: 41, new EnergyBanks(200, 190), 40);
 
         granted.ShouldBe(new EnergyBanks(200, 200));
     }
@@ -380,7 +399,7 @@ public sealed class EnergyMathTests
     [InlineData(10, 100, 110)]
     public void A_grant_of_any_size_routes_through_the_same_cascade(int amount, int from, int expected)
     {
-        EnergyMath.Grant(Shipped, legendLevel: 40, new EnergyBanks(from, 0), amount)
+        EnergyMath.Grant(Shipped, legendLevel: 41, new EnergyBanks(from, 0), amount)
             .ShouldBe(new EnergyBanks(expected, 0));
     }
 
@@ -389,14 +408,14 @@ public sealed class EnergyMathTests
     {
         var banks = new EnergyBanks(37, 11);
 
-        EnergyMath.Grant(Shipped, legendLevel: 40, banks, 0).ShouldBe(banks);
+        EnergyMath.Grant(Shipped, legendLevel: 41, banks, 0).ShouldBe(banks);
     }
 
     [Fact]
     public void A_negative_grant_is_refused()
     {
         var thrown = Should.Throw<ArgumentOutOfRangeException>(
-            () => EnergyMath.Grant(Shipped, legendLevel: 40, new EnergyBanks(0, 0), -1));
+            () => EnergyMath.Grant(Shipped, legendLevel: 41, new EnergyBanks(0, 0), -1));
 
         thrown.ParamName.ShouldBe("amount");
     }
@@ -409,7 +428,7 @@ public sealed class EnergyMathTests
     [Fact]
     public void A_refill_to_full_tops_the_main_bar_up()
     {
-        EnergyMath.RefillToFull(Shipped, legendLevel: 40, new EnergyBanks(60, 30))
+        EnergyMath.RefillToFull(Shipped, legendLevel: 41, new EnergyBanks(60, 30))
             .ShouldBe(new EnergyBanks(200, 30));
     }
 
@@ -431,7 +450,7 @@ public sealed class EnergyMathTests
     {
         var full = new EnergyBanks(200, 50);
 
-        EnergyMath.RefillToFull(Shipped, legendLevel: 40, full).ShouldBe(full);
+        EnergyMath.RefillToFull(Shipped, legendLevel: 41, full).ShouldBe(full);
     }
 
     /// <summary>
@@ -442,7 +461,7 @@ public sealed class EnergyMathTests
     [Fact]
     public void A_refill_grants_exactly_the_deficit_and_never_more()
     {
-        EnergyMath.RefillToFull(Shipped, legendLevel: 40, new EnergyBanks(199, 0))
+        EnergyMath.RefillToFull(Shipped, legendLevel: 41, new EnergyBanks(199, 0))
             .ShouldBe(new EnergyBanks(200, 0));
     }
 
@@ -450,7 +469,7 @@ public sealed class EnergyMathTests
     [Fact]
     public void A_refill_fills_to_the_current_max_not_to_the_cap()
     {
-        EnergyMath.RefillToFull(Shipped, legendLevel: 0, new EnergyBanks(0, 0))
+        EnergyMath.RefillToFull(Shipped, legendLevel: 1, new EnergyBanks(0, 0))
             .ShouldBe(new EnergyBanks(120, 0));
     }
 
@@ -524,25 +543,23 @@ public sealed class EnergyMathTests
         EnergyMath.Spend(new EnergyBanks(10, 9), 20).IsAffordable.ShouldBeFalse();
     }
 
-    /// <summary>`10` §3 — "Runs on a full tank: 6", at the base Max Energy of 120 and 20 per run.</summary>
+    /// <summary>
+    /// `10` §3 — "Runs on a full tank: 6", at a starting player's 120 and 20 per run.
+    /// </summary>
     /// <remarks>
-    /// ⚠️ Exact at Legend Level 0. At Legend Level 1, the lowest a player can hold, the authored
-    /// formula gives 122 and the sixth run leaves 2 Energy stranded — still six runs, but not the
-    /// clean division `10` §3 states. Part of the registered contradiction.
+    /// 🔒 Exact, and the <c>left</c> assertion is the half that matters: 120 ÷ 20 leaves nothing
+    /// stranded. Under <c>× legendLevel</c> a starting player would hold 122 and finish with 2
+    /// Energy they can never spend, which is six runs by count and not the clean tank `10` §3
+    /// describes.
     /// </remarks>
     [Fact]
-    public void A_full_base_tank_pays_for_exactly_six_runs()
+    public void A_starting_players_full_tank_pays_for_exactly_six_runs_with_nothing_left()
     {
-        var (runs, left) = RunsAffordableFrom(new EnergyBanks(EnergyMath.MaxEnergy(Shipped, 0), 0));
+        var (runs, left) = RunsAffordableFrom(
+            new EnergyBanks(EnergyMath.MaxEnergy(Shipped, legendLevel: 1), 0));
 
         runs.ShouldBe(6);
         left.ShouldBe(new EnergyBanks(0, 0));
-
-        var (atLevelOne, stranded) =
-            RunsAffordableFrom(new EnergyBanks(EnergyMath.MaxEnergy(Shipped, 1), 0));
-
-        atLevelOne.ShouldBe(6);
-        stranded.ShouldBe(new EnergyBanks(2, 0));
     }
 
     /// <summary>
@@ -596,11 +613,13 @@ public sealed class EnergyMathTests
 
     /// <summary>
     /// 🔒 S2 — the two guards are separate, so each case pins which one fired. Collapsing them into
-    /// one that always reports <c>energy</c> would otherwise stay green with a wrong diagnostic.
+    /// one that always reports <c>Energy</c> would otherwise stay green with a wrong diagnostic.
+    /// The names are capitalised because they are positional-record <em>parameters</em>, which is
+    /// the shape <c>CanonicalStateWriter</c> requires (`14` §16.6).
     /// </summary>
     [Theory]
-    [InlineData(-1, 0, "energy")]
-    [InlineData(0, -1, "reserve")]
+    [InlineData(-1, 0, "Energy")]
+    [InlineData(0, -1, "Reserve")]
     public void Neither_bank_can_hold_a_negative_amount(int energy, int reserve, string parameter)
     {
         var thrown = Should.Throw<ArgumentOutOfRangeException>(() => new EnergyBanks(energy, reserve));
@@ -622,7 +641,7 @@ public sealed class EnergyMathTests
         new EnergyBanks(138, 200).ToString()
             .ShouldBe("EnergyBanks { 138 (+200) }");
 
-        EnergyMath.Accrue(Shipped, legendLevel: 40, new EnergyBanks(0, 0), TimeSpan.FromHours(2))
+        EnergyMath.Accrue(Shipped, legendLevel: 41, new EnergyBanks(0, 0), TimeSpan.FromHours(2))
             .ToString()
             .ShouldBe("EnergyAccrual { Banks = EnergyBanks { 30 (+0) }, AnchorAdvance = 02:00:00 }");
 
@@ -646,9 +665,9 @@ public sealed class EnergyMathTests
     {
         var overCap = new EnergyBanks(260, 260);
 
-        EnergyMath.Grant(Shipped, legendLevel: 40, overCap, 40).ShouldBe(overCap);
-        EnergyMath.RefillToFull(Shipped, legendLevel: 40, overCap).ShouldBe(overCap);
-        EnergyMath.Accrue(Shipped, legendLevel: 40, overCap, TimeSpan.FromHours(4)).Banks.ShouldBe(overCap);
+        EnergyMath.Grant(Shipped, legendLevel: 41, overCap, 40).ShouldBe(overCap);
+        EnergyMath.RefillToFull(Shipped, legendLevel: 41, overCap).ShouldBe(overCap);
+        EnergyMath.Accrue(Shipped, legendLevel: 41, overCap, TimeSpan.FromHours(4)).Banks.ShouldBe(overCap);
         EnergyMath.Spend(overCap, 20).Banks.ShouldBe(new EnergyBanks(240, 260));
     }
 

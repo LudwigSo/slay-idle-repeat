@@ -1,6 +1,6 @@
 using SlayIdleRepeat.Core.Content;
 
-namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
+namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
 /// Hermetic <c>tuning/progression.json</c> fixtures — the <c>energy</c> block only, built as a

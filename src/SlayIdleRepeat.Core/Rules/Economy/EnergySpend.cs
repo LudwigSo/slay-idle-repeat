@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
 
+using SlayIdleRepeat.Core.Primitives;
+
 namespace SlayIdleRepeat.Core.Rules.Economy;
 
 /// <summary>

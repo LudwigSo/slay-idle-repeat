@@ -1,7 +1,6 @@
 using System.Globalization;
-using SlayIdleRepeat.Core.Content;
 
-namespace SlayIdleRepeat.Core.Rules.Economy;
+namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
 /// 🔒 The `10` §3 / `28` C energy numbers, read out of <c>tuning/progression.json</c>.
@@ -13,6 +12,15 @@ namespace SlayIdleRepeat.Core.Rules.Economy;
 /// rules through this type — there is no <c>const int MaxEnergy = 120</c> anywhere in <c>Core</c>,
 /// because a number in code is a number the economy simulator (`21`) cannot sweep, and one it
 /// cannot sweep will never be tuned.
+/// </para>
+/// <para>
+/// 🔒 <b>Why it lives in <c>Content/</c> and not beside the energy math in <c>Rules/Economy/</c>,
+/// which is where M1-10 first put it.</b> `30` §11.4 describes <c>Content/</c> as
+/// "<c>ContentSnapshot</c> + every definition type", and this is one: it reads a snapshot and
+/// answers with values. The layering is what forces it. <c>Model</c> may not reference
+/// <c>Rules</c>, so an aggregate holding `30` §11.5's "Energy never exceeds max + reserve" could
+/// not have named it there; <c>Content</c> is beneath both <c>Model</c> and <c>Rules</c>, so both
+/// may read it. <c>internal</c> all the same — nothing outside <c>Core</c> needs it.
 /// </para>
 /// <para>
 /// 🔒 <b>A hole is never a default.</b> A <c>null</c> in the data files means "the design docs do
@@ -120,7 +128,7 @@ internal sealed class EnergyTuning
     /// A whole-number tunable holds a fraction. `10` §3 authors whole Energy points and no document
     /// authors a rounding rule, so the read fails rather than picking one (S6).
     /// </exception>
-    /// <exception cref="InvalidEnergyTuningException">A value is authorised but unusable.</exception>
+    /// <exception cref="InvalidTunableException">A value is authorised but unusable.</exception>
     internal static EnergyTuning Read(ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -128,7 +136,7 @@ internal sealed class EnergyTuning
         var baseMax = content.ReadInt32(BaseMaxReference);
         if (baseMax < 1)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 BaseMaxReference,
                 "Max Energy must start at at least one point. 10 §3 authors a base Max Energy of " +
                 "120; this document authors " + Render(baseMax) + ".");
@@ -137,7 +145,7 @@ internal sealed class EnergyTuning
         var perLegendLevel = content.ReadInt32(PerLegendLevelReference);
         if (perLegendLevel < 0)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 PerLegendLevelReference,
                 "Max Energy must not shrink as a player gains a Legend Level. 10 §3 authors +2 per " +
                 "Legend Level; this document authors " + Render(perLegendLevel) + ".");
@@ -146,7 +154,7 @@ internal sealed class EnergyTuning
         var maxCap = content.ReadInt32(MaxCapReference);
         if (maxCap < baseMax)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 MaxCapReference,
                 "The Max Energy cap of " + Render(maxCap) + " is below the base Max Energy of " +
                 Render(baseMax) + ", so a player would be capped below the tank they start with. " +
@@ -158,7 +166,7 @@ internal sealed class EnergyTuning
         var runCost = content.ReadInt32(RunCostReference);
         if (runCost < 1)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 RunCostReference,
                 "A run must cost at least one Energy, or Energy paces nothing at all. 10 §3 authors " +
                 "20; this document authors " + Render(runCost) + ".");
@@ -167,7 +175,7 @@ internal sealed class EnergyTuning
         var reserveMultipleOfMax = content.ReadInt32(ReserveMultipleOfMaxReference);
         if (reserveMultipleOfMax < 0)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 ReserveMultipleOfMaxReference,
                 "The Energy Reserve cannot hold a negative multiple of Max Energy. 28 C2 authors " +
                 "1x Max Energy and calls that multiple the dial; this document authors " +
@@ -198,7 +206,7 @@ internal sealed class EnergyTuning
         var minutes = content.ReadNumber(RegenMinutesPerPointReference);
         if (minutes > maxMinutes)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 RegenMinutesPerPointReference,
                 "The regeneration interval of " + Render(minutes) + " minute(s) is longer than any " +
                 "span the runtime can represent, so no elapsed time would ever accrue a point. " +
@@ -207,7 +215,7 @@ internal sealed class EnergyTuning
 
         if (minutes <= 0m)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 RegenMinutesPerPointReference,
                 "The regeneration interval must be a positive span; every accrual divides an " +
                 "elapsed time by it. 10 §3 authors one Energy per 4 minutes; this document authors " +
@@ -217,7 +225,7 @@ internal sealed class EnergyTuning
         var ticks = decimal.Truncate(minutes * TimeSpan.TicksPerMinute);
         if (ticks < 1m)
         {
-            throw new InvalidEnergyTuningException(
+            throw new InvalidTunableException(
                 RegenMinutesPerPointReference,
                 "The regeneration interval of " + Render(minutes) + " minute(s) is shorter than one " +
                 "tick, which truncates to a zero-length interval and would make every elapsed span " +

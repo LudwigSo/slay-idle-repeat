@@ -1,6 +1,9 @@
 using System.Globalization;
 using Shouldly;
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Economy;
+using SlayIdleRepeat.Core.Tests.Content;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
@@ -60,7 +63,7 @@ public sealed class EnergyAccrualPropertyTests
 
         for (var i = 0; i < Cases; i++)
         {
-            var legendLevel = random.Next(0, 61);
+            var legendLevel = random.Next(1, 61);
             var max = EnergyMath.MaxEnergy(Shipped, legendLevel);
             var reserveCapacity = EnergyMath.ReserveCapacity(Shipped, legendLevel);
             var start = new EnergyBanks(random.Next(0, max + 1), random.Next(0, reserveCapacity + 1));
@@ -153,7 +156,7 @@ public sealed class EnergyAccrualPropertyTests
         for (var command = 1; command <= commands; command++)
         {
             var now = TimeSpan.FromTicks(hour.Ticks * command / commands);
-            var step = EnergyMath.Accrue(Shipped, legendLevel: 0, banks, now - anchor);
+            var step = EnergyMath.Accrue(Shipped, legendLevel: 1, banks, now - anchor);
             banks = step.Banks;
             anchor += step.AnchorAdvance;
         }
@@ -174,7 +177,7 @@ public sealed class EnergyAccrualPropertyTests
     public void The_remainder_survives_in_the_gap_between_the_anchor_and_now()
     {
         var first = EnergyMath.Accrue(
-            Shipped, legendLevel: 0, new EnergyBanks(0, 0), TimeSpan.FromMinutes(3));
+            Shipped, legendLevel: 1, new EnergyBanks(0, 0), TimeSpan.FromMinutes(3));
 
         first.Banks.Energy.ShouldBe(0);
         first.AnchorAdvance.ShouldBe(
@@ -184,7 +187,7 @@ public sealed class EnergyAccrualPropertyTests
 
         // The anchor did not move, so one minute later the gap is four minutes, not one.
         var second = EnergyMath.Accrue(
-            Shipped, legendLevel: 0, first.Banks, TimeSpan.FromMinutes(4));
+            Shipped, legendLevel: 1, first.Banks, TimeSpan.FromMinutes(4));
 
         second.Banks.Energy.ShouldBe(1);
         second.AnchorAdvance.ShouldBe(TimeSpan.FromMinutes(4));
@@ -203,7 +206,7 @@ public sealed class EnergyAccrualPropertyTests
 
         for (var i = 0; i < Cases; i++)
         {
-            var legendLevel = random.Next(0, 61);
+            var legendLevel = random.Next(1, 61);
             var elapsed = TimeSpan.FromTicks(random.NextInt64(0, TimeSpan.FromDays(40).Ticks));
             var advance = EnergyMath
                 .Accrue(Shipped, legendLevel, new EnergyBanks(0, 0), elapsed)

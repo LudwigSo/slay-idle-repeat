@@ -1,3 +1,6 @@
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Primitives;
+
 namespace SlayIdleRepeat.Core.Rules.Economy;
 
 /// <summary>
@@ -35,27 +38,25 @@ internal static class EnergyMath
     /// </summary>
     /// <remarks>
     /// <para>
-    /// ⚠️ <b>An open contradiction, implemented as the kickoff ruled and registered as a gap.</b>
-    /// The formula is <c>baseMax + perLegendLevel × legendLevel</c>, which the M1 kickoff authored
-    /// verbatim. <c>07</c> §1.1 starts a player at Legend <b>Level 1</b> and
-    /// <c>progression.json#/legendLevel/min</c> is 1, so under this formula the reachable minimum
-    /// Max Energy is <b>122</b>, not the 120 of `10` §3 — and three other `10` §3 numbers are
-    /// arithmetic on 120 rather than 122: "full refill time 8 hours from empty" (120 × 4 min),
-    /// "runs on a full tank 6" (120 / 20), and `10` §3.2's budget line "120 (start)".
+    /// 🔒 <b>The increment counts levels <em>gained</em>, so it is <c>(legendLevel − 1)</c>.</b>
+    /// `07` §1.1 starts a player at Legend Level <b>1</b> and
+    /// <c>progression.json#/legendLevel/min</c> is 1, so Level 1 is where the authored base of 120
+    /// belongs. Four numbers in `10` §3/§3.2 agree and are exact under this reading and off by a
+    /// hair under <c>× legendLevel</c>: the headline "120 (+2 per Legend Level)"; "full refill time
+    /// 8 hours from empty" (120 ÷ 15/hr); "runs on a full tank: 6" (120 ÷ 20); and §3.2's budget
+    /// line "120 (start)".
     /// </para>
     /// <para>
-    /// <c>baseMax + perLegendLevel × (legendLevel − 1)</c> reconciles all four. It is <b>not</b>
-    /// implemented here, because the kickoff authored the other one and S6 does not license a rule
-    /// to renumber the economy on its own reading. The conflict is registered for a ruling; until it
-    /// lands, the cases in <c>EnergyMathTests</c> pin both the shipped arithmetic and the fact that
-    /// Legend Level 0 — where the base 120 actually appears — is a level no player occupies.
+    /// ⚠️ The M1 kickoff notes wrote the formula as <c>baseMax + perLegendLevel × legendLevel</c>,
+    /// M1-10 implemented that as dispatched, and it was corrected to this on review as a
+    /// transcription slip rather than a design change. The visible consequence: the 200 cap is first
+    /// reached at Legend Level <b>41</b>, not 40.
     /// </para>
     /// </remarks>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
     /// <param name="legendLevel">
-    /// The player's Legend Level (`07` §1.1 runs it 1..200; the aggregate holds that range, `30`
-    /// §11.5). Zero is accepted as the formula's base rather than as a player state — see the
-    /// remarks.
+    /// The player's Legend Level. `07` §1.1 runs it 1..200 and the aggregate holds that range
+    /// (`30` §11.5); this refuses anything below 1, which the formula has no meaning for.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
@@ -67,7 +68,7 @@ internal static class EnergyMath
         // 64-bit, because both operands are authored numbers: a per-level increment of a few
         // million at Legend Level 200 would silently wrap in 32-bit and hand back a small or
         // negative Max Energy, which every rule below would then treat as the truth.
-        var grown = tuning.BaseMax + ((long)tuning.PerLegendLevel * legendLevel);
+        var grown = tuning.BaseMax + ((long)tuning.PerLegendLevel * (legendLevel - 1));
 
         return (int)Math.Min(grown, tuning.MaxCap);
     }
@@ -325,15 +326,15 @@ internal static class EnergyMath
 
     private static void RequireLegendLevel(int legendLevel)
     {
-        if (legendLevel < 0)
+        if (legendLevel < 1)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(legendLevel),
                 legendLevel,
-                "A Legend Level is never negative — 07 §1.1 runs it from 1 to 200, and the range " +
-                "itself is the Player aggregate's invariant to hold (30 §11.5). A negative one here " +
-                "would shrink Max Energy below the base 120 that 10 §3 authors. Zero is permitted " +
-                "as the arithmetic base of MaxEnergy's formula, not as a player state.");
+                "A Legend Level starts at 1 — 07 §1.1 runs it from 1 to 200, and the range itself " +
+                "is the Player aggregate's invariant to hold (30 §11.5). MaxEnergy counts levels " +
+                "GAINED, so anything below 1 subtracts from the base 120 that 10 §3 authors for a " +
+                "starting player. Zero is not a player state and is refused with the rest.");
         }
     }
 }

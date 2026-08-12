@@ -1,10 +1,9 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
-using SlayIdleRepeat.Core.Rules.Economy;
 using SlayIdleRepeat.TestSupport;
 using Xunit;
 
-namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
+namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
 /// `21` §3.1 — 🔒 every energy number is read from <c>game-data/tuning/</c>, never written as a C#
@@ -282,8 +281,8 @@ public sealed class EnergyTuningTests
         tuning.ReserveMultipleOfMax.ShouldBe(0);
     }
 
-    private static InvalidEnergyTuningException Refuses(string leaf, ContentValue authored) =>
-        Should.Throw<InvalidEnergyTuningException>(() => EnergyTuning.Read(Replace(leaf, authored)));
+    private static InvalidTunableException Refuses(string leaf, ContentValue authored) =>
+        Should.Throw<InvalidTunableException>(() => EnergyTuning.Read(Replace(leaf, authored)));
 
     private static ContentSnapshot Replace(string leaf, ContentValue value) => leaf switch
     {
