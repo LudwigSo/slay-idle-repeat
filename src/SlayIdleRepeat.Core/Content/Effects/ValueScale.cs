@@ -1,3 +1,5 @@
+using SlayIdleRepeat.Core.Primitives;
+
 namespace SlayIdleRepeat.Core.Content.Effects;
 
 /// <summary>
@@ -149,7 +151,7 @@ public sealed record ValueScale
         }
 
         // 🔒 Round the READING, then divide. See the remarks above for why the order is load-bearing.
-        var steps = Math.Floor(Math.Round(functionValue, 4) / _per);
+        var steps = Math.Floor(DeterminismRounding.Round(functionValue) / _per);
 
         // 🔒 The cap is applied BEFORE the range check, not after. A capped scale over an enormous
         // reading is well defined — `min(…, cap)` is the cap — and throwing there would turn
@@ -191,5 +193,5 @@ public sealed record ValueScale
     /// of zero.
     /// </remarks>
     public double EffectiveValue(double value, double functionValue) =>
-        Math.Round(value * StepsFor(functionValue), 4) + 0.0;
+        DeterminismRounding.Round(value * StepsFor(functionValue));
 }

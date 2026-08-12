@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Stats;
 

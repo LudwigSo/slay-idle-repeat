@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 
@@ -153,7 +154,7 @@ internal static class TriggerRouting
                 "append, the op would be silently lost.");
         }
 
-        sink.QueueRunEffect(occurrence.Tick, source, effect, Math.Round(argument, 4, MidpointRounding.ToEven));
+        sink.QueueRunEffect(occurrence.Tick, source, effect, DeterminismRounding.Round(argument));
 
         return routing;
     }

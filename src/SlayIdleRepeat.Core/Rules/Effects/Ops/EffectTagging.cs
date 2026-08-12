@@ -80,19 +80,21 @@ internal static class EffectTagging
     /// cursed perk armour penetration nobody wrote.
     /// </para>
     /// <para>
-    /// ⚠️ <c>target: null</c> reads as <b>not</b> a self-inflicted cost, though today the answer is
-    /// discarded: the only caller resolves the effect's target two lines later and
-    /// <see cref="OpTargets.Resolve"/> refuses an absent one. The arm is stated anyway because `18`
-    /// authors no default target (M2-01 records it as errata, M2-02 rules on it) — whichever way
-    /// that ruling lands, the conservative reading here loses a drawback rather than inventing a
-    /// ward bypass, and that is a decision rather than an accident.
+    /// 🔴 <b>M2-02 has ruled, and the answer here changed.</b> An absent <c>target</c> is
+    /// <c>SELF</c> (<see cref="EffectDefaults"/> ruling 2, read from `18` §2.4's <c>CLEAR_SUMMONS</c>
+    /// row), so a <c>drawback</c>-tagged effect with no target is now read as a self-inflicted cost
+    /// where M2-03 read it as not. That is the correct direction: `18` §7.5's <c>CP_BLOOD_PRICE</c> is
+    /// the clause `05` §4.1's bypass list (b) was written for, and under the ruling a sibling drawback
+    /// that omitted its target keeps the bypass instead of silently losing it to a ward. The second
+    /// condition still does its job — a <c>drawback</c> tag pointed at an <em>enemy</em> is an author
+    /// label on an offensive clause and gets no bypass.
     /// </para>
     /// </remarks>
     internal static bool IsSelfInflictedCost(EffectDefinition effect)
     {
         ArgumentNullException.ThrowIfNull(effect);
 
-        return IsDrawback(effect) && effect.Target == EffectTarget.SELF;
+        return IsDrawback(effect) && EffectDefaults.TargetOf(effect) == EffectTarget.SELF;
     }
 
     /// <summary>

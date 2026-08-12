@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
@@ -164,11 +165,18 @@ internal static class EnemyDerivation
                 "multiplier would make an elite weaker than the grunt standing next to it.");
         }
 
-        // 🔒 Rounded to 05 §1.1's places like every other term of §6, but NOT through
-        // StatRounding.Round: that method names a StatId in its failure message, and the value here
-        // is an 02 §4.3 Power, not a stat. An overflow reported as "produced ∞ for MAX_HP" sends the
-        // reader to a formula that was never evaluated.
-        var elite = Math.Round(power * powerMultiplier, StatRounding.Decimals) + 0.0;
+        // 🔒 Rounded to 05 §1.1's places like every other term of §6, through the one primitive that
+        // states that rule — Primitives.DeterminismRounding.Round (14 §8.2, 18 §8 step 10, 16 A3).
+        //
+        // Deliberately NOT StatRounding.Round: that method names a StatId in its failure message, and
+        // the value here is an 02 §4.3 Power, not a stat. An overflow reported as "produced ∞ for
+        // MAX_HP" sends the reader to a formula that was never evaluated. DeterminismRounding is the
+        // stat-agnostic statement, which is exactly what this call site needs.
+        //
+        // (Written as Math.Round(…, StatRounding.Decimals) + 0.0 when M2-11 was authored in parallel
+        // with M2-02, before DeterminismRounding existed. M2-02 consolidated six such statements onto
+        // one and added the rule that forbids a seventh; this was the collision it caught at merge.)
+        var elite = DeterminismRounding.Round(power * powerMultiplier);
 
         if (!double.IsFinite(elite))
         {

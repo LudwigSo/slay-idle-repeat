@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Stats;
 
@@ -13,38 +14,16 @@ namespace SlayIdleRepeat.Core.Rules.Stats;
 /// </param>
 internal readonly record struct StatDelta(StatId Stat, double Amount);
 
-/// <summary>
-/// 🔒 `18` §8 <b>step 2</b> — <em>"filter by condition, evaluated against current state."</em> The
-/// seam <b>M2-05</b> implements.
-/// </summary>
-/// <remarks>
-/// Condition evaluation needs the live fight: `18` §4's functions read HP fractions, enemy counts,
-/// battle time, status stacks, gold held and the <c>IS_PVP</c> flag. None of that is the stat
-/// pipeline's, so the pipeline asks rather than decides. The default,
-/// <see cref="UnconditionalEffectsOnly"/>, is strict on purpose — see its remarks.
-/// </remarks>
-internal interface IEffectConditionGate
-{
-    /// <summary>True when the effect's `18` §4 condition holds against current state.</summary>
-    bool IsActive(EffectDefinition effect);
-}
-
-/// <summary>
-/// 🔒 `18` §1.1 / §2.2 — an effect's <em>effective</em> value: its authored <c>value</c> after
-/// <c>valueScale</c> and <c>valueMode</c>. The seam <b>M2-06</b> (and, for the stat-op subset,
-/// <b>M2-03</b>) implements.
-/// </summary>
-/// <remarks>
-/// <c>valueScale</c> multiplies by a step count read from live state (`18` §1.1), so it is the same
-/// dependency <see cref="IEffectConditionGate"/> has. <see cref="ValueScale.EffectiveValue"/> in
-/// <c>Content</c> already owns the arithmetic and its rounding order; what is missing here is only
-/// the state reading, which is why this is a seam and not a re-implementation.
-/// </remarks>
-internal interface IEffectValueReader
-{
-    /// <summary>The effect's value after `18` §1.1's scaling and `18` §2.2's value mode.</summary>
-    double EffectiveValue(EffectDefinition effect);
-}
+// 🔒 `IEffectConditionGate` (`18` §8 step 2) and `IEffectValueReader` (`18` §1.1 / §2.2) WERE
+//    declared here and were MOVED to Rules/Effects/EffectResolutionSeams.cs by M2-02.
+//
+//    Both are `18` concerns, which `30` §11.4 assigns to Rules/Effects/, and R17 makes the move
+//    mandatory rather than tidy: the intra-Rules layering is Rules.Combat -> Rules.Stats ->
+//    Rules.Effects, so Rules.Effects is the BOTTOM and cannot be the layer borrowing an abstraction
+//    from Rules.Stats. M2-07 declared them here only because reaching into a sibling task's
+//    directory mid-wave was the larger risk, and recorded that they did not belong.
+//
+//    ⚠️ IStatOpBehaviour below did NOT move, and could not. See its remarks.
 
 /// <summary>
 /// 🔒 `18` §8 <b>steps 6 and 9</b> — <c>STAT_CONVERT</c>'s arithmetic and
@@ -68,6 +47,63 @@ internal interface IEffectValueReader
 /// only stated redirect — `09`'s <em>Perfect Strike</em>, "crit chance above the 75% cap converts to
 /// crit damage at 1:4" — appears in no DSL example at all. Filling either in would be inventing a
 /// rule, so the pipeline refuses effects it cannot resolve instead.
+/// </para>
+/// <para>
+/// 🔴 <b>M2-02 was assigned this interface's relocation to <c>Rules/Effects/</c> and found it
+/// impossible. Recorded here because the finding, not the move, is the durable result.</b> Its two
+/// siblings moved: their whole signature is <see cref="EffectDefinition"/>, which is
+/// <c>Content</c> and below both layers. This one's is not. <see cref="Convert"/> takes an
+/// <see cref="ActorStats"/>, <see cref="OverrideCaps"/> takes and returns a <see cref="StatCaps"/>,
+/// and both convert-shaped members return <see cref="StatDelta"/> — three <c>Rules.Stats</c> types.
+/// Moving the interface down to <c>Rules.Effects</c> would therefore make the <b>bottom</b> layer
+/// name the one above it, which is the precise edge
+/// <c>IntraRulesLayeringRuleTests.Rules_Effects_is_the_bottom_of_the_intra_Rules_layering</c> forbids.
+/// R17 is what was cited to require the move and is what blocks it: the two are the same rule read on
+/// the two different signatures.
+/// </para>
+/// <para>
+/// 🔒 <b>Two options WOULD close it, and neither is free. Recorded so the next attempt starts from
+/// here rather than rediscovering the wall.</b>
+/// </para>
+/// <list type="number">
+///   <item>
+///   <b>A read-only view seam, which is the pattern this codebase already uses one directory over.</b>
+///   <c>Rules/Effects/Ops/EffectOpSeams.cs</c> declares <c>IResolvedStatReader</c> for precisely this
+///   problem, with precisely this note: <em>"R17 forbids <c>Rules.Effects</c> naming
+///   <c>Rules.Stats</c>, so the op reads through this seam rather than through M2-07's
+///   <c>ActorStats</c> directly."</em> The same move works here — <see cref="Convert"/> could take a
+///   stat-block <em>view</em> and the cap members could take and return cap <em>views</em>, all named
+///   in <c>Content.Effects.StatId</c> — and then the whole interface and
+///   <see cref="StatOpBehaviour"/> move to <c>Rules/Effects/Ops/</c>. M2-02 chose against it on cost:
+///   it means three new view interfaces plus their implementations, in a task that owns `18` §8 steps
+///   1-2, to relocate an interface whose only consumer is <see cref="StatAggregation"/> — which sits
+///   on the legal side of R17 already. That is a judgement about scope, not an impossibility, and a
+///   later task with reason to touch this seam should reconsider it.
+///   </item>
+///   <item>
+///   <b>Moving the vocabulary.</b> `05` §1's stat block and cap table would sit at or below
+///   <c>Rules.Effects</c>. That is a decision about where `05` §1 lives rather than where `18` §8
+///   does, and `30` §11.4 puts it in <c>Rules/Stats/</c> by name (<em>"Stats/ — 05 §1.1, 29"</em>) —
+///   a locked-section change, not a mechanical edit.
+///   </item>
+/// </list>
+/// <para>
+/// ⚠️ <b>And the wall is smaller than it first looks.</b> Of the three types cited above,
+/// <see cref="StatDelta"/> is <em>not</em> a blocker — it is <c>(StatId, double)</c>, and
+/// <see cref="StatId"/> is <c>Content</c>, below both layers — so it could move today at zero cost.
+/// <see cref="HealCeilingFraction"/> is not a blocker either: its whole signature is
+/// <see cref="EffectDefinition"/> plus <see cref="IEffectValueReader"/>, and by this interface's own
+/// remarks it is <em>"not a `18` §8 step"</em> at all. Only <see cref="Convert"/>,
+/// <see cref="OverrideCaps"/> and <see cref="RedirectCappedExcess"/> genuinely name
+/// <see cref="ActorStats"/> or <see cref="StatCaps"/>.
+/// </para>
+/// <para>
+/// So the consequence M2-03 recorded stands for now and is not a defect:
+/// <see cref="StatOpBehaviour"/>'s plumbing is here while its arithmetic is with the other 41 ops in
+/// <c>Rules/Effects/Ops/StatOps.cs</c>. The <em>other</em> consequence M2-03 recorded — a second
+/// statement of `05` §1.1's 4-dp rule in <c>OpRounding</c>, forced by the same layering — <b>is
+/// closed</b>, by <c>Primitives.DeterminismRounding</c>: <c>Primitives</c> is beneath every layer that
+/// rounds, so it is reachable from both sides of R17 where <c>Rules.Stats</c> was not.
 /// </para>
 /// </remarks>
 internal interface IStatOpBehaviour

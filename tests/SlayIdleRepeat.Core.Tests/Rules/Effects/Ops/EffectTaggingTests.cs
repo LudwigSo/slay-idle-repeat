@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Effects.Ops;
 using SlayIdleRepeat.Core.Rules.Stats;
 using Xunit;
@@ -72,11 +73,21 @@ public sealed class EffectTaggingTests
     /// 🔒 `05` §4.1's class (b) is <em>"self-inflicted costs"</em> — the tag alone is not enough,
     /// the damage must point at the holder. Otherwise every cursed perk would get ward penetration.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The <c>target: null</c> row FLIPPED when M2-02 ruled.</b> M2-03 wrote it as
+    /// <c>false</c> and recorded that it was reading an unresolved question conservatively —
+    /// <em>"whichever way that ruling lands, the conservative reading here loses a drawback rather
+    /// than inventing a ward bypass."</em> The ruling landed the other way: an absent <c>target</c>
+    /// is <c>SELF</c> (<c>EffectDefaults</c> ruling 2, from `18` §2.4's <c>CLEAR_SUMMONS</c> row),
+    /// so an untargeted drawback is a self-inflicted cost and keeps its bypass. The row is kept
+    /// rather than deleted precisely because it is the one the ruling moved.
+    /// </remarks>
     [Theory]
     [InlineData(true, EffectTarget.SELF, true)]
     [InlineData(true, EffectTarget.ALL_ENEMIES, false)]
     [InlineData(false, EffectTarget.SELF, false)]
-    [InlineData(true, null, false)]
+    [InlineData(true, null, true)]
+    [InlineData(false, null, false)]
     public void A_self_inflicted_cost_is_a_drawback_tag_AND_a_SELF_target(
         bool tagged, EffectTarget? target, bool expected)
     {
@@ -94,14 +105,27 @@ public sealed class EffectTaggingTests
 }
 
 /// <summary>
-/// 🔒 `05` §1.1's rounding is <b>one</b> rule stated in two places, because R17 puts
-/// <c>Rules.Effects</c> below <c>Rules.Stats</c> and it cannot reach <c>StatRounding</c>.
+/// 🔒 `05` §1.1's rounding is <b>one</b> rule, and since M2-02 it is stated once — in
+/// <c>Core.Primitives.DeterminismRounding</c>, which `30` §11.4 puts beneath every layer that rounds.
 /// </summary>
 /// <remarks>
-/// This is the mechanism that stops the two drifting. The test assembly can see both namespaces;
-/// production code cannot. If a shared primitive ever lands under <c>Core.Primitives</c> — which is
-/// the real fix, and belongs with M2-02's relocation of the `18` seams out of <c>Rules/Stats/</c> —
-/// this test is what proves the replacement is numerically identical.
+/// <para>
+/// 🔴 <b>This class's claim changed when the duplication was removed.</b> M2-03 wrote it as the
+/// mechanism stopping two independent statements from drifting: <c>OpRounding</c> in
+/// <c>Rules/Effects/Ops/</c> and <c>StatRounding</c> in <c>Rules/Stats/</c>, forced apart by R17,
+/// pinned together from a test assembly that can see both namespaces. M2-02 landed the shared
+/// primitive M2-03 named as the real fix, so both now delegate and the comparison below is close to
+/// a tautology.
+/// </para>
+/// <para>
+/// 🔒 <b>Kept anyway, and the reason is not sentiment.</b> The two types still exist and still carry
+/// their own — deliberately different — failure messages (steering S2: <c>OpRounding</c> names the
+/// effect, <c>StatRounding</c> names the `18` §8 step and the stat). Nothing but this test says
+/// their <em>arithmetic</em> must stay identical, and the cheapest moment for them to diverge again
+/// is the next time somebody edits one of the two files. The rule that catches a <em>new</em>
+/// statement being added is <c>DeterminismRoundingRuleTests</c>; this one catches these two coming
+/// apart, and <c>DeterminismRoundingTests</c> pins what the shared primitive actually computes.
+/// </para>
 /// </remarks>
 public sealed class OpRoundingTests
 {
@@ -115,10 +139,18 @@ public sealed class OpRoundingTests
     [InlineData(2400.0)]
     public void The_op_rounding_and_the_stat_rounding_are_one_rule(double value)
     {
-        OpRounding.Round(value, "X", "a value")
-                  .ShouldBe(StatRounding.Round(value, StatId.ATK, "a step"));
+        var op = OpRounding.Round(value, "X", "a value");
 
-        OpRounding.Decimals.ShouldBe(StatRounding.Decimals);
+        op.ShouldBe(StatRounding.Round(value, StatId.ATK, "a step"));
+
+        // 🔒 …and both are the shared primitive, not merely each other. Comparing the two constants
+        //    with one another would be `4.ShouldBe(4)` after Roslyn folds them — a comparison that
+        //    cannot fail under any edit, which is steering S1's definition of a defect. Comparing
+        //    each ROUNDED VALUE against the primitive is what actually bites if either stops
+        //    delegating.
+        op.ShouldBe(DeterminismRounding.Round(value));
+        OpRounding.Decimals.ShouldBe(DeterminismRounding.Decimals);
+        StatRounding.Decimals.ShouldBe(DeterminismRounding.Decimals);
     }
 
     /// <summary>

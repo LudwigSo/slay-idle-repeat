@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
 using Xunit;
 

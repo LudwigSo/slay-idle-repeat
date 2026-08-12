@@ -233,6 +233,71 @@ public sealed class SubjectSetFloorTests
             "per-modifier branching that is otherwise the path of least resistance, and the elite-id " +
             "rule in EnemyDerivationRuleTests is blind to an enum switch"),
 
+        // ══════════════════════════════════════════════════════════════════════════════════════
+        // ── M2-02 · `18` §8 step 1's NINE ABSENT SOURCES ──────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════════════════════
+        //
+        // 🔒 Nine DEFERRALS, not rule subjects — recorded here because this is the repo's one
+        // register and each must expire by itself (steering S4), on the precedent of the `Tier` and
+        // `RunController` entries above.
+        //
+        // `18` §8 step 1 is "collect all active effects from: gear → affixes → set bonuses →
+        // talents → pet auras → mount → run buffs → shrine buffs → curses → perks (in draft
+        // order)". M2-02 owns that step and built the collector — Rules.Effects.EffectSourceSet,
+        // over Rules.Effects.EffectSourceCatalogue's ten declared rows. NINE of the ten have no data
+        // model anywhere in the repository, so nine of the ten slots can never be filled today and
+        // the collector walks past them. Steering S6 forbids stubbing them with plausible shapes,
+        // and nine invented models would be nine things nine later milestones each had to find and
+        // delete. So each is DECLARED and each is tracked here.
+        //
+        // ⚠️ Each is keyed on the name whose ARRIVAL fires — the opposite direction from M2-03's two
+        // entries below, and the right one here: the deferral is discharged when the owning
+        // milestone lands a data model, which is exactly when somebody has to come back to
+        // EffectSourceCatalogue and wire that source.
+        //
+        // ⚠️ THE NAMES ARE INFERENCES, on the RunController entry's precedent — each is the type the
+        // tracker row for that milestone describes. If the owning milestone picks another name, the
+        // correct action is to RENAME the entry, not delete it: the subject being tracked is "this
+        // 18 §8 step 1 source now has something to collect from", not the string. The inbound path
+        // is in the PRODUCTION code — EffectSourceCatalogue's remarks name this file — because a
+        // note addressed to M4-03 is worthless in a test file M4-03 will never open. And
+        // EffectSourceCatalogueTests.The_pending_expiry_subjects_are_distinct keeps two sources from
+        // sharing one entry, which would untrack the second when the first arrived.
+
+        new("GearItem", SubjectKind.CoreType, "M4-03",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 1 of 10, " +
+            "'gear'. Its IEffectSource has no data model until M4-03's gear instance schema lands"),
+        new("GearAffix", SubjectKind.CoreType, "M4-03",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 2 of 10, " +
+            "'affixes'. 08 §3's 14 affixes are M4-03's"),
+        new("SetBonus", SubjectKind.CoreType, "M4-03",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 3 of 10, " +
+            "'set bonuses'. 08 §3's 4 SS set-bonus engines are M4-03's"),
+        new("TalentNode", SubjectKind.CoreType, "M4-06",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 4 of 10, " +
+            "'talents'. 09's 60-node tree is M4-06's"),
+        new("PetDefinition", SubjectKind.CoreType, "M4-07",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 5 of 10, " +
+            "'pet auras'. ⚠️ 18 §7.7's `aura` block ONLY — the sibling `active` block is an ability " +
+            "on the pet's own cooldown and step 1 does not collect it, which is what scopes " +
+            "EffectDefaults' absent-trigger ruling"),
+        new("MountDefinition", SubjectKind.CoreType, "M4-08",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 6 of 10, " +
+            "'mount'. 07 §3's 12 mounts are M4-08's"),
+        new("RunBuff", SubjectKind.CoreType, "M3-08",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 7 of 10, " +
+            "'run buffs'. 03 §7's shop consumables and run-scoped grants are M3-08's"),
+        new("ShrineBuff", SubjectKind.CoreType, "M3-11",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 8 of 10, " +
+            "'shrine buffs'. 03 §7a's shrine is M3-11's"),
+        new("Curse", SubjectKind.CoreType, "M3-11",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 9 of 10, " +
+            "'curses'. 19 E's 12-curse catalogue is M3-11's"),
+        new("PerkDefinition", SubjectKind.CoreType, "M3-07",
+            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 10 of 10, " +
+            "'perks (in draft order)'. 06's 98 perks are M3-07's. ⚠️ '(in draft order)' is R5's " +
+            "COLLECTION order; the application order is EffectResolutionOrder's, and is total"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -357,36 +422,53 @@ public sealed class SubjectSetFloorTests
             "EffectEvaluationPurityRuleTests' two rules — 05 §3.1 re-reads its Count at the moment " +
             "each 20 Hz tick lands, which is where a cache would be added"),
 
-        // ── M2-03 ───────────────────────────────────────────────────────────────────────────
+        // ── M2-03, as M2-02 left them ───────────────────────────────────────────────────────
         //
-        // 🔒 Neither is a rule subject: they are DEFERRALS, recorded in the one register the repo
-        // has so that they expire by themselves (steering S4), on the precedent of the `Tier` entry
-        // above. Both exist because R17 makes `Rules.Effects` the bottom of the intra-`Rules`
-        // layering and it therefore cannot reach `Rules.Stats`.
+        // M2-03 recorded TWO deferrals here, both caused by R17 making `Rules.Effects` the bottom of
+        // the intra-`Rules` layering, and both keyed to M2-02's relocation of the `18` seams out of
+        // `Rules/Stats/`. M2-02 has now run. ONE of them is discharged and its entry is DELETED; the
+        // other turned out to be impossible and its entry is REWRITTEN rather than removed.
         //
-        // ⚠️ Both are keyed on a name whose DISAPPEARANCE fires, which is the shape that matches
-        // what actually closes them. A namespace move — M2-02 relocating the three `18` seams out of
-        // `Rules/Stats/` — is invisible to `Domain.FindInCore`, which looks up simple names, so an
-        // entry keyed on the destination would never fire and would be exactly the silent-forever
-        // subject this file exists to prevent.
+        // 🔴 DELETED — `StatRounding` / `OpRounding`. The entry read: "OpRounding is a SECOND
+        // statement of `05` §1.1's 4-dp rule … the real fix is a shared primitive under
+        // Core.Primitives; when StatRounding moves or is replaced, this entry fails and whoever did
+        // it has to delete OpRounding." That primitive is now
+        // SlayIdleRepeat.Core.Primitives.DeterminismRounding, and it works where StatRounding could
+        // not because `30` §11.4 puts Primitives beneath EVERY layer that rounds — under
+        // Rules.Effects and Rules.Stats alike, and under Content, which rounds too and may name
+        // neither. SIX statements of the rule collapsed onto it, not two: StatRounding, OpRounding,
+        // ValueScale, ConditionEvaluator, TriggerInstance and TriggerRouting. StatRounding and
+        // OpRounding survive as their own FAILURE MESSAGES — which were never the duplicated part,
+        // and which steering S2 wants kept distinct — so the entry is satisfied and a satisfied
+        // exemption that stays is a stale one (steering S4).
+        //
+        // ⚠️ What replaces it is a real rule rather than nothing:
+        // DeterminismRoundingRuleTests.The_4_dp_rule_of_05_1_1_is_stated_in_exactly_one_place scans
+        // the IL of Core and Application for a Math.Round with a literal precision of 4 outside the
+        // primitive, and carries its own S3 floor. A tracked NAME could only ever have caught the
+        // duplication being removed; the rule catches a seventh being added.
 
-        // `Rules/Effects/Ops/OpRounding` is a SECOND statement of `05` §1.1's 4-dp rule, because the
-        // bottom layer cannot name StatRounding. OpRoundingTests pins the two numerically identical
-        // — but that fires on DRIFT, not on the day the duplication becomes removable. The real fix
-        // is a shared primitive under Core.Primitives; when StatRounding moves or is replaced, this
-        // entry fails and whoever did it has to delete OpRounding rather than leave two statements
-        // of a determinism rule (`14` §8.2).
-        new("StatRounding", SubjectKind.CoreType, "M2-07",
-            "SlayIdleRepeat.Core.Rules.Effects.Ops.OpRounding, which duplicates it for the layer R17 " +
-            "puts below Rules.Stats; OpRoundingTests.The_op_rounding_and_the_stat_rounding_are_one_rule"),
-
-        // The same split, one layer up: M2-03 implements IStatOpBehaviour in Rules/Stats/ while the
-        // op arithmetic it delegates to lives with the other 41 ops in Rules/Effects/Ops/StatOps.cs.
-        // The split closes when M2-02 moves this interface to Rules/Effects/ — at which point
-        // StatOpBehaviour can follow it. Renaming or deleting the interface fires this entry.
-        new("IStatOpBehaviour", SubjectKind.CoreType, "M2-07",
-            "SlayIdleRepeat.Core.Rules.Stats.StatOpBehaviour, which implements it where it sits " +
-            "rather than with the other 41 ops (R17); M2-02 owns the relocation that closes the split"),
+        // 🔴 ALSO DELETED — `IStatOpBehaviour`. Not because the deferral was discharged (it was not),
+        // but because this register is the wrong home for it, by this file's own stated filter.
+        //
+        // The entry read: "M2-02 owns the relocation that closes the split." M2-02 attempted it and
+        // found R17 forbids it: Convert takes an ActorStats and OverrideCaps takes and returns a
+        // StatCaps, so moving the interface DOWN to Rules.Effects would make the bottom layer name
+        // the one above it. R17 is both what was cited to require the move and what blocks it.
+        //
+        // ⚠️ THAT FINDING IS NOT LOST — it is in PRODUCTION CODE, in StatAggregationSeams.cs's
+        // remarks on the interface itself, with the two designs that WOULD close it (a read-only
+        // view seam on IResolvedStatReader's precedent; or moving `05` §1's vocabulary) and why
+        // M2-02 chose neither. That is where the next reader of the interface will actually look,
+        // and it is the same argument this file makes for EffectSourceCatalogue's inbound path.
+        //
+        // 🔒 Why not keep the entry as well: `Live` exists for subjects whose SILENT disappearance
+        // would leave a rule vacuous, and this file says so itself thirty lines up — "most of M2-04's
+        // types are named in C# by the tests that cover them, so a rename is a compile error rather
+        // than a silent vacuity and an entry here would buy nothing but DILUTION". IStatOpBehaviour
+        // is named in C# by production code (StatAggregationSeams' record), so renaming or deleting
+        // it is a compile error across the solution, and no namespace-filtered rule keys on it, so a
+        // MOVE costs nothing either. The entry could never fire for the reason Live entries exist.
 
         // ── M2-11 ───────────────────────────────────────────────────────────────────────────
         //

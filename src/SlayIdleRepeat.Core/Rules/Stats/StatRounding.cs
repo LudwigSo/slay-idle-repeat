@@ -1,5 +1,6 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Stats;
 
@@ -47,8 +48,15 @@ namespace SlayIdleRepeat.Core.Rules.Stats;
 /// </remarks>
 internal static class StatRounding
 {
-    /// <summary>🔒 The number of decimal places `05` §1.1 and `18` §8 step 10 lock.</summary>
-    internal const int Decimals = 4;
+    /// <summary>
+    /// 🔒 The number of decimal places `05` §1.1 and `18` §8 step 10 lock — <b>not a second
+    /// statement of it</b>. Since M2-02 the number and the arithmetic live once, in
+    /// <see cref="DeterminismRounding"/>; this is the stat pipeline's name for it, and the
+    /// architecture rule
+    /// <c>DeterminismRoundingRuleTests.The_4_dp_rule_of_05_1_1_is_stated_in_exactly_one_place</c> is
+    /// what stops it drifting back into a copy.
+    /// </summary>
+    internal const int Decimals = DeterminismRounding.Decimals;
 
     /// <summary>
     /// Rounds one accumulated stat value to <see cref="Decimals"/> places and normalises
@@ -72,8 +80,9 @@ internal static class StatRounding
                 "aggregation step that produced it.");
         }
 
-        // 🔒 `+ 0.0` turns -0.0 into +0.0 and changes nothing else. See the remarks.
-        return Math.Round(value, Decimals) + 0.0;
+        // 🔒 One statement of the rule, in Primitives — see DeterminismRounding for why the failure
+        //    message stays here while the arithmetic does not.
+        return DeterminismRounding.Round(value);
     }
 
     /// <summary>
@@ -86,8 +95,5 @@ internal static class StatRounding
     /// <c>Math.Round(NaN, 4) != NaN</c> — deliberately, since a NaN is exactly the value that must
     /// not be waved through.
     /// </remarks>
-    internal static bool IsRounded(double value) =>
-        double.IsFinite(value) &&
-        Math.Round(value, Decimals) == value &&
-        !(double.IsNegative(value) && value == 0.0);
+    internal static bool IsRounded(double value) => DeterminismRounding.IsRounded(value);
 }

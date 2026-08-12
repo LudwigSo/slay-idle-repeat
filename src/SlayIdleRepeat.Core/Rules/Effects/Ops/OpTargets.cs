@@ -10,68 +10,59 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>`18` states no default target, and none is invented here.</b> M2-01 recorded it as errata —
-/// §7.4, §7.5, §7.6 and §7.8 all author effects with no <c>target</c> — and M2-02 owns the ruling.
-/// What this class does instead is split the ops into the two groups the document itself
-/// distinguishes, so that no op has to guess:
+/// 🔴 <b>M2-02 has ruled: an absent <c>target</c> is <c>SELF</c>.</b> The ruling, and the clause it
+/// is read from — `18` §2.4's <c>CLEAR_SUMMONS</c> row, <em>"(default <c>SELF</c>)"</em>, the one
+/// place the document states a default target at all — are in <see cref="EffectDefaults"/>. M2-03
+/// wrote this class before it existed and refused instead; the refusal is now gone, and the reasoning
+/// that produced it (<em>"<c>SELF</c> turns a perk into self-harm"</em>) is answered there.
+/// </para>
+/// <para>
+/// The three-way split below survives the ruling and is still what stops an op guessing, because the
+/// default is only the <b>last</b> of the three arms:
 /// </para>
 /// <list type="bullet">
 ///   <item><b>Holder-scoped ops never read <c>target</c> at all.</b> <c>SURVIVE_LETHAL</c>,
 ///   <c>REVIVE</c>, <c>SUMMON</c>, <c>ATTACK_MULT_NEXT</c> and <c>FORCE_CRIT_NEXT</c> act on
 ///   whoever holds them by their own §2.4 wording — <em>"survive"</em>, <em>"the next N
 ///   attacks"</em> — which is exactly why `18`'s worked examples for them carry no target. They call
-///   <see cref="Holder"/>.</item>
-///   <item><b><c>CLEAR_SUMMONS</c> has an authored default.</b> §2.4 writes it out:
-///   <em>"despawn all living summons owned by the target (default <c>SELF</c>)"</em>. It is the one
-///   op in the DSL that does, and <see cref="OrSelf"/> is that clause and nothing wider.</item>
-///   <item><b>Everything else refuses.</b> A <c>DAMAGE</c> or an <c>APPLY_STATUS</c> with no target
-///   is an authoring hole, and both available guesses are wrong in a way nothing goes red for:
-///   <c>SELF</c> turns a perk into self-harm, <c>CURRENT_TARGET</c> silently narrows an intended
-///   AoE.</item>
+///   <see cref="Holder"/>, and an authored target on one changes nothing.</item>
+///   <item><b><c>CLEAR_SUMMONS</c>' authored default is now an instance of the general rule</b>
+///   rather than the DSL's one special case. <see cref="OrSelf"/> is kept as its own member because
+///   §2.4 states it explicitly and a reader of that row should find it, but it and
+///   <see cref="Resolve"/> now agree by construction.</item>
+///   <item><b>Everything else resolves through <see cref="EffectDefaults.TargetOf"/>.</b> A
+///   <c>DAMAGE</c> with no target hits the holder — which is what §7.5's <c>CP_BLOOD_PRICE</c>
+///   drawback is, and it is the only reading under which §7.4, §7.5, §7.6 and §9.1 run at all.</item>
 /// </list>
 /// </remarks>
 internal static class OpTargets
 {
-    /// <summary>The actors the effect's `18` §5 token names.</summary>
+    /// <summary>
+    /// The actors the effect's `18` §5 token names — or, where it authors none, `18` §5's
+    /// <c>SELF</c> (<see cref="EffectDefaults"/> ruling 2).
+    /// </summary>
     /// <exception cref="EffectContextException">
-    /// The effect authors no target, or the token's subject is absent from the context (M2-05's
-    /// uniform rule).
+    /// The token's subject is absent from the context (M2-05's uniform rule).
     /// </exception>
     internal static IReadOnlyList<IEffectActorView> Resolve(EffectDefinition effect, EffectOpContext context)
     {
         ArgumentNullException.ThrowIfNull(effect);
         ArgumentNullException.ThrowIfNull(context);
 
-        var token = effect.Target ?? throw new EffectContextException(
-            effect.Id,
-            $"{effect.Op} needs a target and the effect authors none",
-            "18 §1's eight-part shape names 'target', and 18 states no default for an effect that " +
-            "omits it (§7.4, §7.5, §7.6 and §7.8 all do) — M2-01 recorded that as errata and M2-02 " +
-            "owns the ruling. Both guesses available here are silent balance bugs: SELF turns an " +
-            "offensive clause into self-harm, CURRENT_TARGET narrows an intended AoE to one actor " +
-            "(steering S6).");
-
-        return TargetResolver.Resolve(token, context.Evaluation);
+        return TargetResolver.Resolve(EffectDefaults.TargetOf(effect), context.Evaluation);
     }
 
     /// <summary>
-    /// 🔒 §2.4's one authored default: <c>CLEAR_SUMMONS</c>'s <em>"(default <c>SELF</c>)"</em>.
+    /// 🔒 §2.4's authored default: <c>CLEAR_SUMMONS</c>'s <em>"(default <c>SELF</c>)"</em>.
     /// </summary>
-    internal static IReadOnlyList<IEffectActorView> OrSelf(EffectDefinition effect, EffectOpContext context)
-    {
-        ArgumentNullException.ThrowIfNull(effect);
-        ArgumentNullException.ThrowIfNull(context);
-
-        // ⚠️ `new[] { … }`, not the collection expression `[…]`. For a single element targeting
-        // IReadOnlyList<T>, Roslyn synthesises <>z__ReadOnlySingleElementList in the GLOBAL
-        // namespace with no CompilerGeneratedAttribute, and
-        // AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace — which
-        // filters on that attribute — reports it as an undocumented 30 §11.4 namespace. M2-01 hit it
-        // in EffectCondition and M2-05 in TargetResolver.Only; this is the third.
-        return effect.Target is null
-            ? new[] { context.Holder }
-            : TargetResolver.Resolve(effect.Target.Value, context.Evaluation);
-    }
+    /// <remarks>
+    /// Since M2-02's ruling this is the same answer <see cref="Resolve"/> gives, and it is kept as its
+    /// own member because §2.4 writes the default into that op's row: a reader following the document
+    /// to <c>CLEAR_SUMMONS</c> should find the clause named, not have to infer that the general rule
+    /// happens to cover it. Delegating rather than restating is what keeps the two from drifting.
+    /// </remarks>
+    internal static IReadOnlyList<IEffectActorView> OrSelf(EffectDefinition effect, EffectOpContext context) =>
+        Resolve(effect, context);
 
     /// <summary>
     /// The effect's holder, for the §2.4 ops whose own wording scopes them to it. Reads

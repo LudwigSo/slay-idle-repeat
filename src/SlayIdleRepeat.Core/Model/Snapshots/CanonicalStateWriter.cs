@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Model.Snapshots;
 
@@ -669,7 +670,8 @@ public static class CanonicalStateWriter
         }
 
         // 🔒 The one value where record equality and stateHash would disagree. It passes the
-        // rounding guard below untouched — Math.Round(-0.0, 4) is -0.0 — so it has to be named here.
+        // rounding guard below untouched — DeterminismRounding.Round(-0.0) is +0.0, which compares EQUAL to
+        // -0.0 — so it has to be named here.
         if (double.IsNegative(value) && value == 0.0)
         {
             throw new NotSupportedException(
@@ -688,7 +690,7 @@ public static class CanonicalStateWriter
         // project's CI builds and tests in Release (`.github/workflows/ci.yml`), so a
         // [Conditional("DEBUG")] guard would be silent in the one place it is meant to fire. The
         // cost is one Math.Round per double in a per-command hash.
-        if (Math.Round(value, 4) != value)
+        if (DeterminismRounding.Round(value) != value)
         {
             throw new NotSupportedException(
                 $"{value.ToString("R", CultureInfo.InvariantCulture)} is not rounded to 4 decimal " +
