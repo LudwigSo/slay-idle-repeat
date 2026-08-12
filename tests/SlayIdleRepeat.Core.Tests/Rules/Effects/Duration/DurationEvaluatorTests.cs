@@ -158,6 +158,7 @@ public sealed class DurationEvaluatorTests
             () => DurationEvaluator.Evaluate(applied, At(20.0) with { CurrentPhase = null }));
 
         thrown.Token.ShouldBe(nameof(DurationScope.PHASE));
+        thrown.Message.ShouldContain("BOSS_MECHANIC_UNDER_TEST", Case.Sensitive);
     }
 
     // ───────────────────────────────────────────── the WARD_BROKEN terminator
@@ -210,6 +211,13 @@ public sealed class DurationEvaluatorTests
         DurationEvaluator.Evaluate(
             ossify, At(16.0) with { OwnerWardEvent = WardPoolEvent.SegmentExpired }).HasEnded.ShouldBeFalse(
             "05 §4.1: segment expiry emits StatusExpired and never WardBroken");
+
+        // 🔒 The discriminating half, in the same test: an evaluator that ended nothing at all would
+        // satisfy the line above. The only thing that differs between the two probes is HOW the pool
+        // emptied, so this pair pins the distinction rather than the absence of an ending.
+        DurationEvaluator.Evaluate(
+            ossify, At(16.0) with { OwnerWardEvent = WardPoolEvent.BrokenByDamage }).HasEnded.ShouldBeTrue(
+            "the same probe one second later, differing only in how the pool emptied, does end it");
     }
 
     /// <summary>
@@ -219,11 +227,26 @@ public sealed class DurationEvaluatorTests
     [Fact]
     public void A_ward_breaking_does_not_end_an_effect_that_declared_no_terminator()
     {
+        var breaking = At(16.0) with { OwnerWardEvent = WardPoolEvent.BrokenByDamage };
+
         var plainBuff = Applied(
             new EffectDuration { Scope = DurationScope.BATTLE, Seconds = 6.0 }, appliedAtSeconds: 14.0);
 
-        DurationEvaluator.Evaluate(
-            plainBuff, At(16.0) with { OwnerWardEvent = WardPoolEvent.BrokenByDamage }).HasEnded.ShouldBeFalse();
+        var terminated = Applied(
+            new EffectDuration
+            {
+                Scope = DurationScope.BATTLE,
+                Seconds = 6.0,
+                Until = DurationTerminator.WARD_BROKEN,
+            },
+            appliedAtSeconds: 14.0);
+
+        DurationEvaluator.Evaluate(plainBuff, breaking).HasEnded.ShouldBeFalse();
+
+        // 🔒 The discriminating half: the two applications differ only in the `until` key, so an
+        // evaluator that ended nothing on this probe cannot satisfy both lines.
+        DurationEvaluator.Evaluate(terminated, breaking).HasEnded.ShouldBeTrue(
+            "the same ward break, on the effect that did declare the terminator");
     }
 
     /// <summary>
@@ -315,28 +338,48 @@ public sealed class DurationEvaluatorTests
     // ───────────────────────────────────────────── S3 · the subject-set floor
 
     /// <summary>
-    /// 🔒 <b>Every scope is handled.</b> S3 — this evaluator's subject set is the six
-    /// <see cref="DurationScope"/>s, and a scope that reached no arm would make an effect immortal
-    /// with nothing going red. Driving all six is what turns a seventh member into a failure here.
+    /// 🔒 <b>Every scope is handled, and each answers with its own boundary.</b> S3 — this
+    /// evaluator's subject set is the six <see cref="DurationScope"/>s, and a scope that reached no
+    /// arm would make an effect immortal with nothing going red.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Why an expected reason per scope rather than <c>Should.NotThrow</c>.</b> A
+    /// <c>Should.NotThrow</c> loop is satisfied by a single <c>default</c> arm answering all six —
+    /// proven by stubbing <c>Evaluate</c> as <c>=&gt; default</c>, at which point the loop went green
+    /// while every per-scope fact above went red.
+    /// <para>
+    /// The probe is the end of an ordinary 90 s fight with no boss phase, which is the one probe that
+    /// splits the six three ways: <c>INSTANT</c> ended before it began, <c>BATTLE</c> and — with no
+    /// phase to exit — <c>PHASE</c> end with the battle, and the three run-layer scopes outlive it
+    /// (A4). The <c>OutlivesTheBattle</c> half of the floor is the two theories above, which pin all
+    /// six members exactly rather than merely calling them.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void Every_18_6_duration_scope_is_handled()
     {
+        var expected = new Dictionary<DurationScope, DurationEndReason>
+        {
+            [DurationScope.INSTANT] = DurationEndReason.Instant,
+            [DurationScope.BATTLE] = DurationEndReason.BattleEnded,
+            [DurationScope.PHASE] = DurationEndReason.BattleEnded,
+            [DurationScope.STAGE] = DurationEndReason.NotEnded,
+            [DurationScope.RUN] = DurationEndReason.NotEnded,
+            [DurationScope.PERMANENT] = DurationEndReason.NotEnded,
+        };
+
         var scopes = Enum.GetValues<DurationScope>();
 
         scopes.Length.ShouldBe(6, "18 §11: '6 duration scopes = 5 + PHASE'");
+        expected.Keys.Order().ShouldBe(
+            scopes.Order(), "a seventh scope is unhandled here until this table answers for it");
 
         foreach (var scope in scopes)
         {
-            Should.NotThrow(
-                () => DurationEvaluator.Evaluate(
-                    Applied(new EffectDuration { Scope = scope }, 0.0),
-                    At(1.0)),
-                $"18 §6's {scope} reached no handler in DurationEvaluator");
-
-            Should.NotThrow(
-                () => DurationScopes.OutlivesTheBattle(scope),
-                $"18 §6's {scope} reached no handler in DurationScopes.OutlivesTheBattle");
+            DurationEvaluator.Evaluate(
+                Applied(new EffectDuration { Scope = scope }, 0.0),
+                At(90.0) with { BattleEnded = true }).Reason.ShouldBe(
+                expected[scope], $"18 §6's {scope} reached no handler of its own in DurationEvaluator");
         }
     }
 
@@ -353,12 +396,12 @@ public sealed class DurationEvaluatorTests
 
         foreach (var terminator in terminators)
         {
-            Should.NotThrow(
-                () => DurationEvaluator.Evaluate(
-                    Applied(
-                        new EffectDuration { Scope = DurationScope.BATTLE, Until = terminator },
-                        0.0),
-                    At(1.0) with { OwnerWardEvent = WardPoolEvent.BrokenByDamage }),
+            DurationEvaluator.Evaluate(
+                Applied(
+                    new EffectDuration { Scope = DurationScope.BATTLE, Until = terminator },
+                    0.0),
+                At(1.0) with { OwnerWardEvent = WardPoolEvent.BrokenByDamage }).Reason.ShouldBe(
+                DurationEndReason.WardBroken,
                 $"18 §6's until:{terminator} reached no handler in DurationEvaluator");
         }
     }

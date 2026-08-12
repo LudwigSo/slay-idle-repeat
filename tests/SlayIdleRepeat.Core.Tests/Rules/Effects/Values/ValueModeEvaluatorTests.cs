@@ -85,23 +85,45 @@ public sealed class ValueModeEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 <b>Every mode is handled.</b> S3 — the subject set of this evaluator is the eight
-    /// <see cref="ValueMode"/>s, and a mode reaching an unhandled arm must fail rather than fall
-    /// through. Driving all eight over a complete subject bundle is what makes a ninth member fail
-    /// here instead of silently resolving to nothing.
+    /// 🔒 <b>Every mode is handled, and each answers with its own subject.</b> S3 — the subject set
+    /// of this evaluator is the eight <see cref="ValueMode"/>s, and a mode reaching an unhandled arm
+    /// must fail rather than fall through.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Why an expected value per mode rather than <c>Should.NotThrow</c>.</b> A
+    /// <c>Should.NotThrow</c> loop is satisfied by a single <c>default</c> arm answering all eight —
+    /// proven by stubbing <c>Resolve</c> as <c>=&gt; 0.0</c>, at which point the loop went green while
+    /// every per-mode fact above went red. The loop's whole claim is that no mode falls through, so
+    /// it has to read each mode's own subject. At <c>value = 1.0</c> over <see cref="Full"/> the
+    /// eight answers are just the eight subjects — 300 ATK, a flat 1, 800 source Max HP, 500 target
+    /// Max HP, 200 missing, 120 dealt, 80 healed, 30 overhealed — each already pinned individually
+    /// above, and all eight distinct, so no <c>default</c> arm of any shape survives.
+    /// </remarks>
     [Fact]
     public void Every_18_2_2_value_mode_is_handled()
     {
+        var expected = new Dictionary<ValueMode, double>
+        {
+            [ValueMode.ATK_MULT] = 300.0,
+            [ValueMode.FLAT] = 1.0,
+            [ValueMode.SELF_MAXHP_PCT] = 800.0,
+            [ValueMode.TARGET_MAXHP_PCT] = 500.0,
+            [ValueMode.TARGET_MISSING_HP_PCT] = 200.0,
+            [ValueMode.DAMAGE_DEALT_PCT] = 120.0,
+            [ValueMode.HEAL_AMOUNT] = 80.0,
+            [ValueMode.OVERHEAL_AMOUNT] = 30.0,
+        };
+
         var modes = Enum.GetValues<ValueMode>();
 
         modes.Length.ShouldBe(8, "18 §2.2 lists eight value modes");
+        expected.Keys.Order().ShouldBe(
+            modes.Order(), "a ninth mode is unhandled here until this table answers for it");
 
         foreach (var mode in modes)
         {
-            Should.NotThrow(
-                () => Resolve(mode, 1.0, Full()),
-                $"18 §2.2's {mode} reached no handler in ValueModeEvaluator");
+            Resolve(mode, 1.0, Full()).ShouldBe(
+                expected[mode], $"18 §2.2's {mode} reached no handler of its own in ValueModeEvaluator");
         }
     }
 
@@ -166,10 +188,18 @@ public sealed class ValueModeEvaluatorTests
     /// `18` §2.2: <em>"<c>valueMode</c>: <c>ATK_MULT</c> (default)"</em> — stated once, here, so the
     /// forty-three ops do not each restate it.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ The constant alone cannot fail for any implementation bug — it is a literal compared to a
+    /// literal. What makes the claim testable is resolving <em>through</em> it: the default has to
+    /// behave as <c>ATK_MULT</c>, not merely spell it.
+    /// </remarks>
     [Fact]
     public void The_documented_default_for_the_damage_and_healing_ops_is_ATK_MULT()
     {
         ValueModeEvaluator.DamageAndHealingDefault.ShouldBe(ValueMode.ATK_MULT);
+
+        Resolve(ValueModeEvaluator.DamageAndHealingDefault, 2.0, Full()).ShouldBe(
+            600.0, "an op that authors no valueMode is a multiple of the source's 300 ATK");
     }
 
     // ───────────────────────────────────────────── fixtures

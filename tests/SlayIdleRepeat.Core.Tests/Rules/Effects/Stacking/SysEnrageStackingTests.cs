@@ -65,14 +65,13 @@ public sealed class SysEnrageStackingTests
 
         combined.ShouldBe(1.259712, 1e-15, "1.08^3");
 
-        Math.Round(combined, 4).ShouldBe(
-            1.2597, "the value a combiner that rounded at 4 dp would hand on");
-
-        (100.0 * Math.Round(combined, 4)).ShouldBe(
-            125.97,
-            1e-12,
-            "125.97 is what a double-rounded enrage produces — 0.0012 ATK short of 05 §3.1's number, " +
-            "compounding once a second");
+        // 🔒 The property this test is named for, stated directly rather than demonstrated: the
+        // combiner's answer still carries digits past the fourth decimal place. A combiner that
+        // rounded would return 1.2597, which IS its own 4-dp rounding.
+        combined.ShouldNotBe(
+            Math.Round(combined, 4),
+            "a combiner that rounded at 4 dp would hand on 1.2597, and 100 x 1.2597 is 125.97 — " +
+            "0.0012 ATK short of 05 §3.1's number, compounding once a second");
 
         AtkAfterEnrage(seconds: 3).ShouldNotBe(
             125.97, "18 §8 step 7 is the accumulation point, and it is the only one on this path");
@@ -94,13 +93,34 @@ public sealed class SysEnrageStackingTests
     }
 
     /// <summary>
-    /// `05` §3.1 gives <c>SYS_ENRAGE</c> <c>BATTLE</c> scope, which is a battle-bounded scope: the
-    /// enrage does not follow the hero out of the fight.
+    /// `05` §3.1 gives <c>SYS_ENRAGE</c> <c>BATTLE</c> scope, and the enrage therefore does not
+    /// follow the hero out of the fight.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ The claim is about <em>this effect's</em> duration, so it is read off the effect rather
+    /// than asserted of the <c>BATTLE</c> scope in the abstract — that second reading is
+    /// <c>DurationEvaluatorTests.A_battle_bounded_scope_does_not_outlive_the_battle</c>'s, and
+    /// restating it here would pass unchanged if <c>SYS_ENRAGE</c> were re-authored as <c>RUN</c>.
+    /// </remarks>
     [Fact]
     public void SYS_ENRAGE_is_BATTLE_scoped()
     {
-        DurationScopes.OutlivesTheBattle(DurationScope.BATTLE).ShouldBeFalse();
+        var enrage = EnrageEffect(seconds: 3);
+
+        enrage.Duration.ShouldNotBeNull("05 §3.1 authors the enrage with a scope");
+        enrage.Duration.Scope.ShouldBe(
+            DurationScope.BATTLE, "05 §3.1: 'multiplicative stacking, uncapped, BATTLE scope'");
+
+        DurationEvaluator.Evaluate(
+            new EffectApplication
+            {
+                EffectId = enrage.Id,
+                Duration = enrage.Duration,
+                AppliedAtSeconds = 70.0,
+            },
+            new DurationProbe { BattleTimeSeconds = 90.0, BattleEnded = true }).Reason.ShouldBe(
+            DurationEndReason.BattleEnded,
+            "the enrage ends with the fight it belongs to, rather than outliving it (A4's scopes do)");
     }
 
     // ───────────────────────────────────────────── fixtures
@@ -120,9 +140,9 @@ public sealed class SysEnrageStackingTests
         return stacks;
     }
 
-    private static double AtkAfterEnrage(int seconds)
-    {
-        var enrage = new EffectDefinition
+    /// <summary>`05` §3.1's built-in <c>SYS_ENRAGE</c>, with <paramref name="seconds"/> stacks on it.</summary>
+    private static EffectDefinition EnrageEffect(int seconds) =>
+        new()
         {
             Id = "SYS_ENRAGE",
             Op = EffectOp.STAT_MULT,
@@ -133,6 +153,10 @@ public sealed class SysEnrageStackingTests
             Duration = new EffectDuration { Scope = DurationScope.BATTLE },
             Stacking = new EffectStacking { Mode = StackingMode.MULTIPLICATIVE, MaxStacks = null },
         };
+
+    private static double AtkAfterEnrage(int seconds)
+    {
+        var enrage = EnrageEffect(seconds);
 
         var boss = ActorStats.From(
             StatIds.Combat.ToDictionary(stat => stat, stat => stat == StatId.ATK ? 100.0 : 0.0));

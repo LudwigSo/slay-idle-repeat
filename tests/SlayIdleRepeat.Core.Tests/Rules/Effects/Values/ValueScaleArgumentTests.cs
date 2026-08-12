@@ -67,6 +67,9 @@ public sealed class ValueScaleArgumentTests
             value: 0.03);
 
         ValueScaleEvaluator.EffectiveValue(perStar, WithFaces("Star", 4)).ShouldBe(0.12);
+
+        ValueScaleEvaluator.EffectiveValue(perStar, WithFaces("Pip", 4)).ShouldBe(
+            0.0, "the scale names Star, and the run's dice carry none");
     }
 
     /// <summary>
@@ -150,6 +153,12 @@ public sealed class ValueScaleArgumentTests
     /// The three keys are all optional, so every scale `18` §1.1 already authored keeps working
     /// untouched — <c>PK_BERSERK</c> and <c>PK_HOARD</c> name no argument and need none.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Reading the three properties back off the record they were never set on cannot fail for
+    /// any behavioural bug. What can is the <em>conversion</em>: an argumentless scale has to reach
+    /// the shared seam as <see cref="ConditionArguments.None"/>, so that
+    /// <c>SELF_MISSING_HP_PCT</c> is read against no argument rather than a manufactured one.
+    /// </remarks>
     [Fact]
     public void The_argument_keys_are_optional()
     {
@@ -158,9 +167,8 @@ public sealed class ValueScaleArgumentTests
             Fn = ConditionFunction.SELF_MISSING_HP_PCT, Per = 0.01, Cap = 45,
         };
 
-        berserk.StatusId.ShouldBeNull();
-        berserk.Category.ShouldBeNull();
-        berserk.FaceKind.ShouldBeNull();
+        ConditionArguments.Of(berserk).ShouldBe(
+            ConditionArguments.None, "18 §1.1's two authored scales name no argument and need none");
     }
 
     // ───────────────────────────────────────────── fixtures

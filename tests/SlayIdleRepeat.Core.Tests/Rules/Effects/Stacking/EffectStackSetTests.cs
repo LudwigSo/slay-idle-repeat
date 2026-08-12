@@ -35,7 +35,9 @@ public sealed class EffectStackSetTests
 
         enraged.Count.ShouldBe(3);
         enraged.CombinedValue.ShouldBe(
-            1.08 * 1.08 * 1.08, "05 §3.1: SYS_ENRAGE is STAT_MULT ATK x1.08, multiplicative");
+            1.259712,
+            1e-12,
+            "05 §3.1: SYS_ENRAGE is STAT_MULT ATK x1.08, multiplicative — and 1.08^3 is 1.259712");
     }
 
     /// <summary>`18` §6's <c>REPLACE</c> — a new application replaces the existing one.</summary>
@@ -81,26 +83,48 @@ public sealed class EffectStackSetTests
     }
 
     /// <summary>
-    /// 🔒 <b>Every mode is handled.</b> S3 — this type's subject set is the five
-    /// <see cref="StackingMode"/>s, and one falling through would leave a status stacking as
-    /// whatever the last arm happened to do.
+    /// 🔒 <b>Every mode is handled, and each combines its own way.</b> S3 — this type's subject set
+    /// is the five <see cref="StackingMode"/>s, and one falling through would leave a status stacking
+    /// as whatever the last arm happened to do.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Why an expected value per mode rather than <c>Should.NotThrow</c>.</b> A
+    /// <c>Should.NotThrow</c> loop is satisfied by a single <c>default</c> arm answering all five —
+    /// proven by stubbing <c>Apply</c> and <c>CombinedValue</c> to constants, at which point the loop
+    /// went green while every per-mode fact above went red.
+    /// <para>
+    /// The sequence <c>0.25 → 0.5 → 0.125</c> is chosen because it is the shortest one that separates
+    /// all five: two applications cannot tell <c>REPLACE</c> from <c>HIGHEST_WINS</c> (second
+    /// stronger) or from <c>NONE</c> (second weaker), and a monotone three cannot tell
+    /// <c>HIGHEST_WINS</c> from <c>NONE</c>. Putting the strongest in the middle does. Every value is
+    /// a negative power of two, so the sums and products below are exact in binary and need no
+    /// tolerance.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void Every_18_6_stacking_mode_is_handled()
     {
+        var expected = new Dictionary<StackingMode, double>
+        {
+            [StackingMode.ADDITIVE] = 0.875,            // 0.25 + 0.5 + 0.125
+            [StackingMode.MULTIPLICATIVE] = 0.015625,   // 0.25 x 0.5 x 0.125
+            [StackingMode.REPLACE] = 0.125,             // the newest
+            [StackingMode.HIGHEST_WINS] = 0.5,          // the strongest
+            [StackingMode.NONE] = 0.25,                 // the first, and only it
+        };
+
         var modes = Enum.GetValues<StackingMode>();
 
         modes.Length.ShouldBe(5, "18 §6: ADDITIVE, MULTIPLICATIVE, REPLACE, HIGHEST_WINS, NONE");
+        expected.Keys.Order().ShouldBe(
+            modes.Order(), "a sixth mode is unhandled here until this table answers for it");
 
         foreach (var mode in modes)
         {
-            var applied = Should.NotThrow(
-                () => Set(mode).Apply(0.5).Stacks.Apply(0.5).Stacks,
-                $"18 §6's {mode} reached no handler in EffectStackSet.Apply");
+            var applied = Set(mode).Apply(0.25).Stacks.Apply(0.5).Stacks.Apply(0.125).Stacks;
 
-            Should.NotThrow(
-                () => applied.CombinedValue,
-                $"18 §6's {mode} reached no handler in EffectStackSet.CombinedValue");
+            applied.CombinedValue.ShouldBe(
+                expected[mode], $"18 §6's {mode} reached no handler of its own in EffectStackSet");
         }
     }
 
@@ -133,7 +157,6 @@ public sealed class EffectStackSetTests
         var enraged = Enrage(seconds: 20);
 
         enraged.Count.ShouldBe(20, "18 §6: maxStacks null is uncapped, and the enrage ticks once a second");
-        enraged.Stacking.MaxStacks.ShouldBeNull();
     }
 
     /// <summary>
@@ -193,10 +216,10 @@ public sealed class EffectStackSetTests
     [Fact]
     public void An_absent_refreshOnReapply_does_not_refresh()
     {
-        var set = Set(StackingMode.ADDITIVE, maxStacks: 5);
+        var set = Set(StackingMode.ADDITIVE, maxStacks: 5).Apply(0.1).Stacks;
 
-        set.Stacking.RefreshOnReapply.ShouldBeNull();
-        set.Apply(0.1).RefreshDuration.ShouldBeFalse();
+        set.Apply(0.1).RefreshDuration.ShouldBeFalse(
+            "and this one IS a reapplication — the first application's own false is a different rule");
     }
 
     /// <summary>
