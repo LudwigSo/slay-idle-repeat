@@ -73,33 +73,50 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        // 🔒 An UNRESOLVED DOC CONTRADICTION, parked where it expires by itself. It is not a
-        // file-contention deferral, and the difference matters to whoever picks it up.
+        // 🔒 CombatSimulator's entry lived here and was DELETED by M2-08, which is the mechanism
+        // working exactly as this file's remarks describe. The entry recorded an unresolved
+        // contradiction — `05` §7 declares CombatEvent, CombatEventType and SimulationResult public
+        // while `30` §11.2 is 🔒 that CombatSimulator and PowerCalculator are "the only two `Rules`
+        // types that are public" — and said that whoever landed the type had to get a ruling first
+        // and then do both halves in one commit.
         //
-        // `05` §7 declares CombatEvent, CombatEventType and SimulationResult PUBLIC, because
-        // `05` §8 has the client replay the log and `11` §6 has the PvP backend recompute LogHash
-        // over it. C# forces the same conclusion: a public CombatSimulator.Simulate returning an
-        // internal SimulationResult does not compile.
+        // Both halves are in that commit. R15 ruled that §11.2 enumerates public ENTRY POINTS rather
+        // than the closure of the public surface, because C# requires a public Simulate's return and
+        // parameter types to be public too (CS0050/CS0051), and R16 widened Domain.PublicRuleTypes to
+        // the ENUMERATED signature closure — see its remarks, which carry both rulings. The type now
+        // exists, so leaving the entry would fail Every_rule_subject_is_present_or_declared_pending.
         //
-        // But `30` §11.2 is 🔒 and reads "The only two `Rules` types that are public", naming
-        // CombatSimulator and PowerCalculator — and Domain.PublicRuleTypes is a faithful
-        // transcription of that closed list. So the two documents disagree, and widening the list
-        // is a change to a LOCKED section, not a mechanical edit.
+        // The names it left behind are tracked in Live below rather than dropped — this file's own
+        // doctrine, stated three times over ("Moved out of Pending by M1-01 RATHER THAN DELETED",
+        // "It has to be tracked HERE, not nowhere").
+
+        // 🔒 A DEFERRAL, in the RunController entry's shape and for its reason (steering S4).
         //
-        // ⚠️ Whoever lands CombatSimulator must therefore get a CONDUCTOR RULING on the `05` §7 /
-        // `30` §11.2 conflict first, and then do both halves in one commit: make the three result
-        // types public, and add them to Domain.PublicRuleTypes. M2-15 left them internal — fully
-        // tested through the `30` §11.3 InternalsVisibleTo grant, so nothing is unverified; only
-        // the visibility is deferred. (M1-12 was also holding Domain.cs at the time, but that is
-        // the lesser reason and it will have passed.)
+        // `05` §3.1's tick order has a slot 5 — "pet ability cooldowns advance; ready abilities fire,
+        // pets in slot order" — and M2-08 built it as a seam, Rules.Combat.IPetAbilities, whose
+        // default NoPetAbilities does nothing. That default is CORRECT today and not a silent hole:
+        // `18` §7.7's pet actives are a WRAPPER holding an effect list plus a cooldown, no such
+        // wrapper type exists anywhere in the repository, and `05` §3 makes pets optional — so no pet
+        // can currently carry an authored active for the slot to fire.
         //
-        // This entry is the expiry: Every_rule_subject_is_present_or_declared_pending fails the
-        // moment a type named CombatSimulator exists, which is exactly when the ruling is needed.
-        new("CombatSimulator", SubjectKind.CoreType, "M2-08",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — see the note above this entry: " +
-            "landing CombatSimulator needs a ruling on the `05` §7 / `30` §11.2 contradiction, then makes " +
-            "CombatEvent, CombatEventType and SimulationResult public and adds them to Domain.PublicRuleTypes " +
-            "in the same commit"),
+        // ⚠️ But no M2 task owns it. The milestone's remaining tasks are M2-09 (damage), M2-10
+        // (statuses), M2-12/M2-13 (bosses) and M2-14 (duels); `07` §2.1's pet actives belong to the
+        // hero/pet milestone, which is not yet assigned. Without an entry here, nothing fires on the
+        // day the wrapper type lands and NoPetAbilities must stop being the default — slot 5 would
+        // keep running and keep doing nothing, which is a balance bug the harness would attribute to
+        // pets being weak.
+        //
+        // ⚠️ THE NAME IS AN INFERENCE, recorded as one, exactly as the RunController entry records
+        // its own. `05` §7 already spells the log event PetAbility (CombatEventType.PetAbility), so
+        // PascalCasing the same noun for the wrapper is the precedent the documents set rather than a
+        // name picked out of the air. If the hero/pet milestone picks another, RENAME this entry
+        // rather than delete it: the subject being tracked is "something makes a pet ability fire",
+        // not the string. NoPetAbilities' own remarks carry the inbound pointer, on DurationScopes'
+        // precedent, because a note addressed to a future milestone is worthless in a test file it
+        // will never open.
+        new("PetAbility", SubjectKind.CoreType, "unassigned — the hero/pet milestone",
+            "SlayIdleRepeat.Core.Rules.Combat.IPetAbilities and its NoPetAbilities default, which is " +
+            "05 §3.1's slot 5 running and firing nothing"),
 
         // The other member of Domain.PublicRuleTypes. Tracked for the same reason its sibling is:
         // the list is a transcription of a 🔒 section, and a rule keyed on it must not be able to
@@ -508,6 +525,31 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new("CanonicalStateWriter", SubjectKind.CoreType, "M0-07",
             "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests"),
+
+        // 🔒 M2-08's five. Moved out of Pending rather than deleted, on this file's own doctrine —
+        // and the count floor in PublicRuleTypeFloorTests is NOT a substitute for them.
+        //
+        // That floor is `resolved >= 5` over a six-name list. Today it has zero headroom and a rename
+        // does fail it. The moment M2-07's PowerCalculator lands, resolved becomes 6 — and renaming
+        // CombatSimulator (folding the entry point into GameRules, say) would leave resolved at 5,
+        // every rule green, Domain.PublicRuleTypes carrying a dead name, and `30` §11.2's public entry
+        // point silently gone. A count cannot pin a name; only a name can.
+        //
+        // All five are the enumerated signature closure R16 authorised, so each is load-bearing for
+        // the exemption arm of Handlers_and_Rules_are_internal.
+        new("CombatSimulator", SubjectKind.CoreType, "M2-08",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — the exemption arm; " +
+            "Domain.PublicRuleTypes names it and it is 30 §11.2's public entry point"),
+        new("SimulationResult", SubjectKind.CoreType, "M2-08",
+            "Domain.PublicRuleTypes — Simulate's return type, public by consequence (R15)"),
+        new("CombatEvent", SubjectKind.CoreType, "M2-08",
+            "Domain.PublicRuleTypes — reached through SimulationResult.Log (R15)"),
+        new("CombatEventType", SubjectKind.CoreType, "M2-08",
+            "Domain.PublicRuleTypes — reached through CombatEvent.Type (R15)"),
+        new("ActorStats", SubjectKind.CoreType, "M2-08",
+            "Domain.PublicRuleTypes — Simulate's parameter type (R15), and the one type in the " +
+            "closure with a public factory, which PublicRuleTypeFloorTests." +
+            "Every_public_entry_points_parameters_can_be_built_from_outside_Core requires"),
 
         // Moved out of Pending by M1-01 rather than deleted, for the reason the type list exists:
         // DomainPurityTests.CurrencyFields() recognises a currency field by the hard-coded simple

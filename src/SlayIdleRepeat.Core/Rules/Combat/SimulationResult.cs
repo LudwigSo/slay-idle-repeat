@@ -61,7 +61,7 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// </para>
 /// </para>
 /// </remarks>
-internal sealed record SimulationResult(
+public sealed record SimulationResult(
     bool HeroWon,
     int DurationTicks,
     double HeroHpRemaining,
