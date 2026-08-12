@@ -692,8 +692,19 @@ public sealed class Player
     /// <remarks>
     /// ⚠️ Equal is allowed, strictly-earlier is not. Two commands can legitimately share an instant
     /// — the server stamps <c>NowUtc</c> once per command and a client can send two inside the same
-    /// millisecond — whereas an earlier instant means a clock moved backwards, and M1-08's
-    /// <c>AdvanceTime</c> is specified to clamp that rather than pass it on.
+    /// millisecond — whereas an earlier instant means a clock moved backwards.
+    /// <para>
+    /// 🔒 <b>Corrected in M1-12, and the correction is carried-forward item 20.</b> This paragraph
+    /// used to end <em>"and M1-08's <c>AdvanceTime</c> is specified to clamp that rather than pass it
+    /// on"</em> — which was false in the only way that matters: <c>AdvanceTime</c> clamps the
+    /// <em>energy span</em>, and nothing clamped the instant handed to this method, so under host
+    /// clock skew this throw came straight out of <c>GameRules.Apply</c> and violated `30` §2.1's
+    /// <b>P3</b>. <c>GameRules.MarkApplied</c> now floors the value it passes here, so the clamp the
+    /// sentence promised exists. ⚠️ The refusal below is deliberately <b>kept</b>: an anchor moving
+    /// backwards inside the model is a persistence defect, and accepting it silently is what
+    /// <c>EnergyMath.Accrue</c>'s remarks warn about — it would make an anchor stored in the future,
+    /// which never self-corrects, indistinguishable from skew.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="nowUtc"/> is offset or goes backwards.</exception>
     internal void MarkApplied(DateTimeOffset nowUtc)

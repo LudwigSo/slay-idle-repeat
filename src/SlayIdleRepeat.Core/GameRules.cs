@@ -839,16 +839,54 @@ public static class GameRules
     /// <em>from</em> these anchors: an <c>Apply</c> that never advanced them would have every command
     /// re-accrue from the same instant forever.
     /// </para>
+    /// <para>
+    /// 🔒 <b>THE SECOND CLAMP, and it settles carried-forward item 20.</b> Both aggregates
+    /// <em>throw</em> on an instant before the one they hold, and until M1-12 this method handed them
+    /// <c>context.NowUtc</c> raw — so a host clock behind the persisted anchor came out of
+    /// <see cref="Apply"/> as an <c>ArgumentOutOfRangeException</c>, which `30` §2.1's <b>P3</b>
+    /// forbids. That was a contradiction inside one ruling rather than an open question: <b>the same
+    /// <c>Apply</c></b> already floors the energy span at zero and already writes both reset guards
+    /// as <c>&gt;=</c>, each citing P3 in as many words, and <c>Player.MarkApplied</c>'s own remarks
+    /// already asserted that <c>AdvanceTime</c> <em>"is specified to clamp that rather than pass it
+    /// on"</em> — a protection nothing implemented.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The invariant stays in the aggregate; the flooring happens here.</b> Exactly the shape
+    /// M1-08 chose for energy, and for the reason recorded there: clamping inside the model would
+    /// make a persistence defect — an anchor stored in the future, which never self-corrects —
+    /// indistinguishable from skew. So the aggregates keep refusing a backwards instant, and
+    /// <c>Apply</c> stops producing one.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Floored, not skipped, and the difference is `14` §16.3's TTL.</b> Passing the stored
+    /// value writes the field to what it already held; skipping the call would do the same today and
+    /// would silently stop doing it the moment either aggregate does anything else in
+    /// <c>MarkApplied</c>. A backwards clock therefore costs the player nothing and grants them
+    /// nothing — it cannot hold a run open and cannot expire one early — which is the same sentence
+    /// the energy clamp is written under.
+    /// </para>
     /// </remarks>
     private static void MarkApplied(WorldSlice state, DateTimeOffset nowUtc, CommandKind kind)
     {
-        state.Player.MarkApplied(nowUtc);
+        state.Player.MarkApplied(NotBefore(nowUtc, state.Player.LastAppliedAtUtc));
 
         if (kind == CommandKind.Run)
         {
-            state.Run!.MarkApplied(nowUtc);
+            state.Run!.MarkApplied(NotBefore(nowUtc, state.Run.LastAppliedAtUtc));
         }
     }
+
+    /// <summary>
+    /// 🔒 `30` §2.1's <b>P3</b> clamp for a host clock behind a persisted anchor: the later of the
+    /// two, so an accepted command never asks an aggregate to move its timestamp backwards.
+    /// </summary>
+    /// <remarks>
+    /// Written once and applied to both aggregates rather than inlined twice: the run's anchor and
+    /// the player's are the same ruling, and two spellings of it would eventually disagree about
+    /// which one skew is allowed to move (steering <b>S4</b>).
+    /// </remarks>
+    private static DateTimeOffset NotBefore(DateTimeOffset nowUtc, DateTimeOffset stored) =>
+        nowUtc < stored ? stored : nowUtc;
 
     /// <summary>
     /// 🔒 Stamps each event with its ordinal within <b>this</b> <c>CommandResult</c>'s list — the

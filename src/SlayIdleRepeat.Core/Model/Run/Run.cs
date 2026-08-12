@@ -711,6 +711,13 @@ public sealed class Run
     /// <c>Player.MarkApplied</c>. Two commands can legitimately share an instant, whereas an earlier
     /// instant means a clock moved backwards, and moving this field backwards would extend a run's
     /// TTL past the point `14` §16.3 expires it.
+    /// <para>
+    /// 🔒 <b>M1-12 — <c>GameRules.MarkApplied</c> floors the instant it passes here</b>, so host
+    /// clock skew reaches this method as the stored value rather than as a throw out of
+    /// <c>Apply</c> (`30` §2.1's <b>P3</b>, carried-forward item 20). The refusal below is kept for
+    /// the reason <c>Player.MarkApplied</c>'s remarks record: the clamp belongs to the caller, and
+    /// this aggregate goes on treating a backwards anchor as the persistence defect it would be.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="nowUtc"/> is offset or goes backwards.</exception>
     internal void MarkApplied(DateTimeOffset nowUtc)
