@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Effects;
 using Xunit;
@@ -340,6 +341,9 @@ internal sealed class DespawnedShard : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
 /// <summary>Sets the standings once, on tick 0's slot 1 — a fight already in progress.</summary>
@@ -388,4 +392,7 @@ internal sealed class WoundedAtStart : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }

@@ -204,6 +204,9 @@ internal sealed class RecordingTimeline : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
 /// <summary>A phase controller that records `05` §3.1's two hooks and can register a phase block.</summary>

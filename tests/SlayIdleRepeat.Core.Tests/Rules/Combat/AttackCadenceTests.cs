@@ -294,4 +294,7 @@ internal sealed class HasteAtTick : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }

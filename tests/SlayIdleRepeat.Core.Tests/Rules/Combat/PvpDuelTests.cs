@@ -964,6 +964,19 @@ internal sealed class DuelStandings : IStatusTimeline
     private readonly double _attackerHp;
     private readonly double _defenderHp;
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// 🔒 The integration edit M2-14 predicted in its own report, applied by the conductor at merge.
+    /// M2-10 appended <c>StatModifiers</c> as <see cref="IStatusTimeline"/>'s fifth member — six of
+    /// `05` §5's twelve statuses are stat modifiers and without it they reach `18` §8 step 1 never —
+    /// and patched every double that existed on ITS branch. This one did not, because M2-14 and
+    /// M2-10 ran in parallel. Empty is correct here and not a stub: these fixtures set HP directly to
+    /// stage `11` §4.3's tie cases and carry no statuses at all, so a non-empty return would be the
+    /// invention. (<c>[]</c> is the safe collection-expression form; <c>[value]</c> synthesises a
+    /// global-namespace type that Every_Core_type_lives_under_a_documented_namespace rejects.)
+    /// </remarks>
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
+
     internal DuelStandings(double attackerHp, double defenderHp)
     {
         _attackerHp = attackerHp;

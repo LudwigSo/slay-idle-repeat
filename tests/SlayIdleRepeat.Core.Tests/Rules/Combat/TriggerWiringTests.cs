@@ -454,6 +454,9 @@ internal sealed class MaxHpRebaseAtTick : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
 /// <summary>A status engine that records the tick each application landed on.</summary>
@@ -470,8 +473,8 @@ internal sealed class TickCapturingStatusEngine : IStatusEngine
 
     /// <inheritdoc />
     public void Apply(
-        IEffectActorView target, string statusId, double potency, EffectDuration? duration,
-        EffectStacking? stacking, string sourceEffectId) =>
+        IEffectActorView applier, IEffectActorView target, string statusId, double potency,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
         _ticks.Add(_services.Tick);
 
     /// <inheritdoc />

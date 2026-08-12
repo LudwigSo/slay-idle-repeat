@@ -343,8 +343,8 @@ internal sealed class CapturingStatusEngine : IStatusEngine
 
     /// <inheritdoc />
     public void Apply(
-        IEffectActorView target, string statusId, double potency, EffectDuration? duration,
-        EffectStacking? stacking, string sourceEffectId) =>
+        IEffectActorView applier, IEffectActorView target, string statusId, double potency,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
         _applied.Add(sourceEffectId);
 
     /// <inheritdoc />
