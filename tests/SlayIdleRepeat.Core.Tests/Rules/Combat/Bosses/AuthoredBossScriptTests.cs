@@ -35,10 +35,17 @@ public sealed class AuthoredBossScriptTests
     private const string Thornmaw = "BOSS_THORNMAW";
     private const string Gulgrot = "BOSS_GULGROT";
     private const string OssuaryKing = "BOSS_OSSUARY_KING";
+    private const string Sporequeen = "BOSS_SPOREQUEEN_VELL";
     private const string Dicelord = "BOSS_DICELORD";
     private const string Ftue = "BOSS_FTUE";
 
-    private static BossEncounter Build(AuthoredBossScripts.Authored authored) =>
+    /// <summary>
+    /// The shipped document, read through <see cref="BossCatalogue"/> — the production reader, off
+    /// disk, cached once for the whole class.
+    /// </summary>
+    private static BossCatalogue Catalogue => ShippedBosses.Catalogue;
+
+    private static BossEncounter Build(BossScriptEntry authored) =>
         BossEncounterBuilder.Build(BossTestBench.Request(authored.Script, authored.Effects));
 
     // ─────────────────────────────────────────────────────── the data builds, and there is data
@@ -49,17 +56,29 @@ public sealed class AuthoredBossScriptTests
     /// the boss being weak.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// S3 — the subject set is floored at <see cref="AuthoredScriptCount"/>. Without it, a reader
     /// that returned an empty list would make this and every case below pass over nothing, which is
     /// exactly the vacuous pass a data-driven suite is prone to.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>A count is not enough on its own, and the named row beside it is why.</b> Since M2-16a
+    /// these cases read the shipped file through <see cref="BossCatalogue"/> and
+    /// <c>GameDataLoader</c> rather than through an embedded resource, so "nine of something" could
+    /// in principle be nine rows of a document that is not this one. Naming a row pins that the
+    /// nine are `17` §1.2's.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_authored_script_builds_into_an_encounter()
     {
-        var authored = AuthoredBossScripts.All;
+        var authored = Catalogue.Scripts;
 
         authored.Count.ShouldBe(
             AuthoredScriptCount, "17 §1.2's table has nine rows: the eight campaign bosses and BOSS_FTUE");
+
+        authored.Select(a => a.Script.Id).ShouldContain(
+            Sporequeen, "S3 — the nine rows are 17 §1.2's, not nine rows of some other document");
 
         foreach (var script in authored)
         {
@@ -87,7 +106,7 @@ public sealed class AuthoredBossScriptTests
     public void The_coefficient_rows_are_17_section_1_2s(
         string bossId, int? chapter, double hp, double atk, double def, double aspd)
     {
-        var authored = AuthoredBossScripts.Of(bossId);
+        var authored = Catalogue.Of(bossId);
 
         authored.Script.Coefficients.Hp.ShouldBe(hp);
         authored.Script.Coefficients.Atk.ShouldBe(atk);
@@ -103,12 +122,12 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void Only_the_FTUE_row_carries_17_section_1_2s_fixed_authored_inputs()
     {
-        var ftue = AuthoredBossScripts.Of(Ftue);
+        var ftue = Catalogue.Of(Ftue);
 
         ftue.FixedPower.ShouldBe(900.0);
         ftue.FixedLevel.ShouldBe(1);
 
-        var campaign = AuthoredBossScripts.All
+        var campaign = Catalogue.Scripts
             .Where(a => !string.Equals(a.Script.Id, Ftue, StringComparison.Ordinal))
             .ToArray();
 
@@ -125,12 +144,10 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void The_secondary_stats_are_17_section_1_2s_baseline()
     {
-        var (crit, critDamage, dodge, lifesteal) = AuthoredBossScripts.SecondaryStats;
-
-        crit.ShouldBe(0.05);
-        critDamage.ShouldBe(0.50);
-        dodge.ShouldBe(0.0);
-        lifesteal.ShouldBe(
+        Catalogue.Crit.ShouldBe(0.05);
+        Catalogue.CritDamage.ShouldBe(0.50);
+        Catalogue.Dodge.ShouldBe(0.0);
+        Catalogue.Lifesteal.ShouldBe(
             0.0, "17 §1.2: Gulgrot's 30% is a phase mechanic in the fight script, never a base stat");
     }
 
@@ -141,14 +158,14 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void The_two_secondaries_17_section_1_2_calls_phase_mechanics_are_authored_as_effects()
     {
-        var lifesteal = AuthoredBossScripts.Of(Gulgrot).Effects["BOSS_GULGROT_P3_GORGE_LIFESTEAL"];
+        var lifesteal = Catalogue.Of(Gulgrot).Effects["BOSS_GULGROT_P3_GORGE_LIFESTEAL"];
 
         lifesteal.Op.ShouldBe(EffectOp.STAT_ADD_PCT);
         lifesteal.Stat!.Value.Stat.ShouldBe(StatId.LIFESTEAL);
         lifesteal.Value.ShouldBe(0.30, "17 §3's phase 3: 'boss gains 30% Lifesteal'");
         lifesteal.Duration!.Scope.ShouldBe(DurationScope.PHASE, "R3 — every boss AURA is PHASE-scoped");
 
-        AuthoredBossScripts.Of(Dicelord).Effects["BOSS_DICELORD_P3_LOADED_CRIT"]
+        Catalogue.Of(Dicelord).Effects["BOSS_DICELORD_P3_LOADED_CRIT"]
             .Op.ShouldBe(EffectOp.FORCE_CRIT_NEXT);
     }
 
@@ -240,7 +257,7 @@ public sealed class AuthoredBossScriptTests
     public void The_authored_magnitudes_and_periods_are_17_section_2_to_9s(
         string effectId, double value, double? intervalSeconds, string quotation)
     {
-        var effect = AuthoredBossScripts.All
+        var effect = Catalogue.Scripts
             .Select(a => a.Effects.TryGetValue(effectId, out var found) ? found : null)
             .FirstOrDefault(e => e is not null)
             ?? throw new InvalidOperationException(
@@ -273,7 +290,7 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void Every_authored_effect_carrying_a_value_has_a_transcription_row()
     {
-        var carryingAValue = AuthoredBossScripts.All
+        var carryingAValue = Catalogue.Scripts
             .SelectMany(a => a.Effects.Values)
             .Where(e => e.Value is not null)
             .Select(e => e.Id)
@@ -316,7 +333,7 @@ public sealed class AuthoredBossScriptTests
     {
         var summoning = new List<string>();
 
-        foreach (var authored in AuthoredBossScripts.All)
+        foreach (var authored in Catalogue.Scripts)
         {
             var summons = authored.Effects.Values.Any(e => e.Op == EffectOp.SUMMON);
             var fraction = authored.Script.AddsPowerFraction;
@@ -355,7 +372,7 @@ public sealed class AuthoredBossScriptTests
     {
         var summoners = 0;
 
-        foreach (var authored in AuthoredBossScripts.All)
+        foreach (var authored in Catalogue.Scripts)
         {
             var archetypes = authored.Effects.Values
                 .Where(e => e.Op == EffectOp.SUMMON)
@@ -404,7 +421,7 @@ public sealed class AuthoredBossScriptTests
         var auras = 0;
         var durations = 0;
 
-        foreach (var authored in AuthoredBossScripts.All)
+        foreach (var authored in Catalogue.Scripts)
         {
             foreach (var effect in authored.Effects.Values)
             {
@@ -451,7 +468,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData(false, "two blocks are out of order")]
     public void A1_refuses_a_script_whose_phase_blocks_are_not_1_2_3_in_order(bool drop, string why)
     {
-        var authored = AuthoredBossScripts.Of(Thornmaw);
+        var authored = Catalogue.Of(Thornmaw);
         var blocks = authored.Script.Phases.ToList();
 
         var mutated = drop
@@ -476,7 +493,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_GULGROT_P2_BOG_AIR", "a real effect id of a DIFFERENT boss's script")]
     public void A2_refuses_a_mechanic_that_is_not_a_sibling(string outsider, string why)
     {
-        var authored = AuthoredBossScripts.Of(Thornmaw);
+        var authored = Catalogue.Of(Thornmaw);
 
         var thrown = Should.Throw<EffectContextException>(() => BossEncounterBuilder.Build(
             BossTestBench.Request(WithPhase2(authored, new BossMechanic(outsider)), authored.Effects)));
@@ -499,7 +516,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData(BossBuiltIns.Phase3FreezeImmunityId)]
     public void A3_refuses_a_script_that_authors_a_built_in(string builtIn)
     {
-        var authored = AuthoredBossScripts.Of(Thornmaw);
+        var authored = Catalogue.Of(Thornmaw);
 
         var thrown = Should.Throw<EffectContextException>(() => BossEncounterBuilder.Build(
             BossTestBench.Request(WithPhase2(authored, new BossMechanic(builtIn)), authored.Effects)));
@@ -518,7 +535,7 @@ public sealed class AuthoredBossScriptTests
 
         var effects = 0;
 
-        foreach (var authored in AuthoredBossScripts.All)
+        foreach (var authored in Catalogue.Scripts)
         {
             foreach (var id in authored.Effects.Keys)
             {
@@ -539,7 +556,7 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void A4_refuses_an_ON_BATTLE_START_outside_phase_1()
     {
-        var authored = AuthoredBossScripts.Of(Thornmaw);
+        var authored = Catalogue.Of(Thornmaw);
         var opener = authored.Effects["BOSS_THORNMAW_P2_ROOT"] with
         {
             Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_START },
@@ -572,7 +589,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData(4, "a fourth add, which is a fight nobody tuned")]
     public void A5_refuses_a_summon_whose_maxAlive_is_absent_or_above_three(int? maxAlive, string why)
     {
-        var authored = AuthoredBossScripts.Of(Thornmaw);
+        var authored = Catalogue.Of(Thornmaw);
         var uncapped = authored.Effects["BOSS_THORNMAW_P3_BLOOM"] with { MaxAlive = maxAlive };
 
         var effects = new Dictionary<string, EffectDefinition>(authored.Effects, StringComparer.Ordinal)
@@ -613,7 +630,7 @@ public sealed class AuthoredBossScriptTests
     public void Every_authored_summon_caps_at_its_own_sections_standing_add_count(
         string effectId, int maxAlive, string quotation)
     {
-        var effect = AuthoredBossScripts.All
+        var effect = Catalogue.Scripts
             .Select(a => a.Effects.TryGetValue(effectId, out var found) ? found : null)
             .FirstOrDefault(e => e is not null)
             ?? throw new InvalidOperationException($"no authored script declares '{effectId}'");
@@ -628,7 +645,7 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void Every_authored_summon_has_a_cap_row()
     {
-        AuthoredBossScripts.All
+        Catalogue.Scripts
             .SelectMany(a => a.Effects.Values)
             .Count(e => e.Op == EffectOp.SUMMON)
             .ShouldBe(8, "17 §2, §4, §6, §7 and §8 author eight summons between them");
@@ -648,7 +665,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData(1.23, "inside the band, but between two ticks")]
     public void T1_refuses_a_wind_up_outside_the_band_or_off_the_tick_grid(double lead, string why)
     {
-        var authored = AuthoredBossScripts.Of(Thornmaw);
+        var authored = Catalogue.Of(Thornmaw);
 
         var thrown = Should.Throw<EffectContextException>(() => BossEncounterBuilder.Build(
             BossTestBench.Request(
@@ -664,7 +681,7 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void T2_refuses_a_wind_up_at_least_as_long_as_the_period()
     {
-        var authored = AuthoredBossScripts.Of(Thornmaw);
+        var authored = Catalogue.Of(Thornmaw);
         var rapid = authored.Effects["BOSS_THORNMAW_P2_ROOT"] with
         {
             Trigger = new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 1.0 },
@@ -690,7 +707,7 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void T3_refuses_a_damaging_periodic_that_authors_no_wind_up()
     {
-        var authored = AuthoredBossScripts.Of(Dicelord);
+        var authored = Catalogue.Of(Dicelord);
         var blocks = authored.Script.Phases.ToList();
 
         // 17 §9's All In, stripped of the 1.5 s 17 §9 authors for it.
@@ -718,7 +735,7 @@ public sealed class AuthoredBossScriptTests
     {
         var leads = 0;
 
-        foreach (var authored in AuthoredBossScripts.All)
+        foreach (var authored in Catalogue.Scripts)
         {
             foreach (var (phase, effectId, lead) in authored.TelegraphSeconds)
             {
@@ -763,7 +780,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_THORNMAW_P3_RAGE", "a real effect id of a DIFFERENT boss's script")]
     public void O1_refuses_a_RANDOM_OUTCOME_row_naming_a_non_sibling(string outsider, string why)
     {
-        var authored = AuthoredBossScripts.Of(Dicelord);
+        var authored = Catalogue.Of(Dicelord);
         var roll = authored.Effects["BOSS_DICELORD_P1_ROLL_OF_FATE"];
 
         var rows = roll.Outcomes!.ToList();
@@ -797,7 +814,7 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void R21_the_every_sixth_attack_lands_at_exactly_three_times_damage()
     {
-        var dicelord = AuthoredBossScripts.Of(Dicelord);
+        var dicelord = Catalogue.Of(Dicelord);
         var forced = dicelord.Effects["BOSS_DICELORD_P3_LOADED_CRIT"];
         var multiplier = dicelord.Effects["BOSS_DICELORD_P3_LOADED_CRIT_MULT"];
 
@@ -811,7 +828,7 @@ public sealed class AuthoredBossScriptTests
         multiplier.Charges.ShouldBe(1);
         multiplier.Trigger!.EveryNth.ShouldBe(6, "the two halves fire on the same attack");
 
-        var critDamage = AuthoredBossScripts.SecondaryStats.CritDamage;
+        var critDamage = Catalogue.CritDamage;
         var landed = (1.0 + critDamage) * multiplier.Value!.Value;
 
         landed.ShouldBe(3.0, "17 §9's ×3: 05 §4 step 4's 1.5 from CDMG times the authored 2.0");
@@ -824,7 +841,7 @@ public sealed class AuthoredBossScriptTests
     [Fact]
     public void The_Roll_of_Fate_tables_are_a_d6_in_both_phases()
     {
-        var dicelord = AuthoredBossScripts.Of(Dicelord);
+        var dicelord = Catalogue.Of(Dicelord);
 
         var phase1 = dicelord.Effects["BOSS_DICELORD_P1_ROLL_OF_FATE"].Outcomes!;
         var phase2 = dicelord.Effects["BOSS_DICELORD_P2_LOADED_DICE"].Outcomes!;
@@ -853,11 +870,11 @@ public sealed class AuthoredBossScriptTests
     /// </summary>
     /// <summary>One authored wind-up, named by the mechanic it sits on rather than by its effect.</summary>
     private static double Lead(string bossId, int phase, string effectId) =>
-        AuthoredBossScripts.Of(bossId).TelegraphSeconds
+        Catalogue.Of(bossId).TelegraphSeconds
             .Single(t => t.Phase == phase && string.Equals(t.EffectId, effectId, StringComparison.Ordinal))
             .Lead;
 
-    private static BossScript WithPhase2(AuthoredBossScripts.Authored authored, BossMechanic mechanic)
+    private static BossScript WithPhase2(BossScriptEntry authored, BossMechanic mechanic)
     {
         var blocks = authored.Script.Phases.ToList();
 

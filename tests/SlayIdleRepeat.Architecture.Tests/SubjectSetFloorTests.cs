@@ -73,26 +73,31 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        // 🔴 M2-13 registered this one against ITSELF, which is the use this register was built for.
-        // M2-13 authored content/bosses/bosses.json and, to prove the shipped scripts satisfy
-        // BossEncounterBuilder's eight authoring rules, gave SlayIdleRepeat.Core.Tests a
+        // 🔒 BossCatalogue's entry lived here and was DELETED by M2-16a — the second discharge this
+        // register has recorded, and the first one M2-13 wrote against ITSELF.
+        //
+        // The entry said: M2-13 authored content/bosses/bosses.json and, to prove the shipped scripts
+        // satisfy BossEncounterBuilder's eight authoring rules, gave SlayIdleRepeat.Core.Tests a
         // System.Text.Json reader (AuthoredBossScripts) plus an EmbeddedResource reaching into
-        // game-data/. That INVERTS the convention EnemyFixtures and StatFixtures both state — this
-        // suite has no JSON reader, so a shipped file is restated as a fixture here and its
-        // transcription asserted in SlayIdleRepeat.Application.Tests instead.
+        // game-data/ — which INVERTS the convention EnemyFixtures and StatFixtures both state. The
+        // proper home was a Core reader on EnemyCatalogue's precedent, and M2-16a needed it anyway:
+        // its balance harness has to build a boss encounter from that file, and tools/BalanceHarness
+        // is pinned to Core with no package references, so it could reach neither the test reader nor
+        // the Application pipeline.
         //
-        // The proper home is a Core reader on EnemyCatalogue's and StatusCatalogue's precedent, and
-        // M2-16a needs it regardless: its balance harness must build a boss encounter from that file
-        // and tools/BalanceHarness is pinned to Core with no package references, so it can reach
-        // neither the test reader nor the Application pipeline.
+        // 🔒 All of it is in that commit. SlayIdleRepeat.Core.Rules.Combat.Bosses.BossCatalogue reads
+        // the document through ContentSnapshot, and it is INTERNAL on EnemyCatalogue's precedent —
+        // Domain.PublicRuleTypes is an enumerated six-name list and a seventh public Rules type would
+        // fail Handlers_and_Rules_are_internal. AuthoredBossScripts and its EmbeddedResource were
+        // DELETED in the SAME commit, not kept alongside as a second mapping of one file into one set
+        // of types, which is exactly what this entry existed to force; the two suites that read them
+        // now read BossCatalogue.Read(GameDataLoader.Load()), off disk, with no fixture in between.
+        // Leaving the entry would fail Every_rule_subject_is_present_or_declared_pending.
         //
-        // 🔒 The entry is here rather than in a comment because THIS FILE FAILS THE DAY THE TYPE
-        // ARRIVES. That failure is the reminder that AuthoredBossScripts and its EmbeddedResource are
-        // to be DELETED in the same commit, not kept alongside as a second mapping of one file into
-        // one set of types.
-        new("BossCatalogue", SubjectKind.CoreType, "M2-16a",
-            "AuthoredBossScriptTests and AuthoredBossFightTests, which read the shipped bosses.json " +
-            "through the test-side AuthoredBossScripts reader until this type replaces it"),
+        // The name it left behind is tracked in Live below rather than dropped, on EnemyCatalogue's
+        // and StatusCatalogue's precedent: it is the ONE type that reads content/bosses/bosses.json,
+        // and the floor BossEngineRuleTests states over the boss namespace would stay satisfied by
+        // the phase controller and its neighbours if it went away.
 
         // 🔒 CombatSimulator's entry lived here and was DELETED by M2-08, which is the mechanism
         // working exactly as this file's remarks describe. The entry recorded an unresolved
@@ -588,6 +593,23 @@ public sealed class SubjectSetFloorTests
             "the single reader of content/enemies/enemies.json — 05 §6's derivation constants, level " +
             "table, archetype rows, on-hit tables, elite modifiers and identities and chapter pools " +
             "all enter Core through it, and EnemiesDataTests asserts the document it names"),
+
+        // ── M2-16a ──────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Moved out of Pending by M2-16a rather than deleted, on EnemyCatalogue's precedent
+        // directly above and for its reason. It is the ONE type that reads
+        // content/bosses/bosses.json: rename or delete it and nothing reads 17 §1.2's nine rows at
+        // all, while BossEngineRuleTests' own floor over Rules.Combat.Bosses stays satisfied by the
+        // phase controller, the telegraphs and the built-ins beside it.
+        //
+        // See the discharge note in Pending above for what landed with it — the test-side
+        // AuthoredBossScripts reader and its game-data EmbeddedResource both went in the same commit.
+        new("BossCatalogue", SubjectKind.CoreType, "M2-16a",
+            "the single reader of content/bosses/bosses.json — 17 §1.2's nine coefficient rows, the " +
+            "baseline secondaries, every script's own effect set and every 17 §1 wind-up enter Core " +
+            "through it; AuthoredBossScriptTests, AuthoredBossFightTests and BossCatalogueTests all " +
+            "assert the shipped document through it, and tools/BalanceHarness builds its boss " +
+            "encounters from it"),
 
         // ── M2-10 ───────────────────────────────────────────────────────────────────────────
         //
