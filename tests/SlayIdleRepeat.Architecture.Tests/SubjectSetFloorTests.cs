@@ -50,10 +50,6 @@ public sealed class SubjectSetFloorTests
     /// </remarks>
     private static readonly PendingSubject[] Pending =
     {
-        new("GameRules", SubjectKind.CoreType, "M1-06",
-            "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation, DomainPurityTests.Every_command_type_is_handled_by_Apply"),
-        new("GameCommand", SubjectKind.CoreType, "M1-06",
-            "DomainPurityTests.Every_command_type_is_handled_by_Apply, AccessibilityBoundaryTests.Contracts_never_redeclares_a_domain_type"),
         new("GuildView", SubjectKind.CoreType, "M14",
             "IsolationTests.GuildView_is_a_read_only_projection"),
         new("InMemoryGame", SubjectKind.CoreType, "M1-11",
@@ -61,8 +57,6 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
-            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.HandlersNamespace, SubjectKind.CoreNamespace, "M1-09",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, DomainPurityTests.Every_command_type_is_handled_by_Apply"),
         new(Domain.TestingNamespace, SubjectKind.CoreNamespace, "M1-11",
@@ -247,6 +241,58 @@ public sealed class SubjectSetFloorTests
         // architecture suite is where "a rule went quiet" is supposed to be noticed.
         new("RunSnapshot", SubjectKind.CoreType, "M1-05",
             "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests"),
+
+        // ---------------------------------------------------------------- M1-06, 30 §2
+        //
+        // 🔒 MOVED out of Pending, not deleted. Both directions of
+        // Every_rule_subject_is_present_or_declared_pending need them here: a Pending entry whose
+        // subject now exists fails, and a type-name constant appearing in NEITHER array fails too.
+        //
+        // 🔒 WHAT WOKE UP WITH THEM, measured on this branch rather than assumed:
+        //
+        //  · Apply_is_the_only_public_mutation had a THIRD arm that had never run — the one that
+        //    fails when GameRules exists but declares no method named Apply, and the one that fails
+        //    when an Apply overload is not public static. Both were behind `if (gameRules is not
+        //    null)`. Renaming Apply to Handle now goes red naming GameRules; before this commit it
+        //    was silent.
+        //  · Every_command_type_is_handled_by_Apply stops short-circuiting on a missing
+        //    GameCommand. It still quantifies over ZERO concrete subtypes — M1-02 authors the 49 —
+        //    but the dispatch surface is now real, so the day M1-02 lands a command without a
+        //    dispatch row the rule fires instead of returning early. That ordering is why M1-06
+        //    lands first.
+        //  · Contracts_never_redeclares_a_domain_type gains its derivation half for commands:
+        //    DerivesFrom(t, "GameCommand") could not match anything while no such base existed.
+        new("GameRules", SubjectKind.CoreType, "M1-06",
+            "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the Apply-exists and " +
+            "public-static arms, live from this commit), DomainPurityTests." +
+            "Every_command_type_is_handled_by_Apply (the dispatch surface half)"),
+
+        new("GameCommand", SubjectKind.CoreType, "M1-06",
+            "DomainPurityTests.Every_command_type_is_handled_by_Apply (the rule no longer " +
+            "short-circuits; it quantifies over 0 concrete subtypes until M1-02), " +
+            "AccessibilityBoundaryTests.Contracts_never_redeclares_a_domain_type (the " +
+            "DerivesFrom(GameCommand) half)"),
+
+        // 🔒 The two names M1 kickoff decision 5's rule keys on, and they fail in opposite
+        // directions. DeterministicRng is what the IL scan looks for a `newobj` on: rename it and
+        // the rule matches nothing while every handler is free to open its own stream. RunRngScope
+        // is the rule's IDENTITY FLOOR: it is the one sanctioned construction site, and a count-only
+        // floor would be satisfied by whatever construction replaced it.
+        new(Domain.DeterministicRngType, SubjectKind.CoreType, "M0-06",
+            "DomainPurityTests.DeterministicRng_is_constructed_only_inside_Core_Rng (the name the " +
+            "newobj scan matches)"),
+        new(Domain.RunRngScopeType, SubjectKind.CoreType, "M1-06",
+            "DomainPurityTests.DeterministicRng_is_constructed_only_inside_Core_Rng (the identity " +
+            "floor — the one construction site the rule proves it can see)"),
+
+        // The namespace, moved for the reason Primitives and Rules were moved: every namespace
+        // 30 §11.4 enumerates has to appear in one of these two arrays or its layering row governs
+        // nothing. 🔒 Core_internal_layering_holds gained a Commands ROW on this commit — see the
+        // note there for what it forbids and why the Events half is still open.
+        new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (the Commands row and the " +
+            "mustNotReachTheRoot row, both added and both live from this commit), " +
+            "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace"),
     };
 
     // ---------------------------------------------------------------- floors

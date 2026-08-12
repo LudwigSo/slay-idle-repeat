@@ -67,6 +67,21 @@ internal static class Domain
     internal const string ClockPortType = "IClockPort";
 
     /// <summary>
+    /// 🔒 `14` §8.1's counter-based draw stream. The name
+    /// <c>DomainPurityTests.DeterministicRng_is_constructed_only_inside_Core_Rng</c> looks for a
+    /// <c>newobj</c> on — rename the type without renaming this and the rule matches nothing, with
+    /// every handler free to open its own stream and never write the counter back.
+    /// </summary>
+    internal const string DeterministicRngType = "DeterministicRng";
+
+    /// <summary>
+    /// 🔒 The one sanctioned <see cref="DeterministicRngType"/> construction site, and the identity
+    /// floor under the rule above (steering S3): a count-only floor is satisfied by a construction
+    /// anywhere, including the one that replaced the scope.
+    /// </summary>
+    internal const string RunRngScopeType = "RunRngScope";
+
+    /// <summary>
     /// The two <c>Rules</c> types <c>30</c> §11.2 documents as public, each with a named
     /// external consumer: the client's local battle simulation (<c>14</c> §2.4) and the
     /// Hero screen's power readout (<c>29</c> §1).

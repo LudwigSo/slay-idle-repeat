@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 
 namespace SlayIdleRepeat.Core.Tests;
 
@@ -66,17 +65,33 @@ internal static class CommandSeedPin
     /// <summary>The namespace `30` §11.4 reserves for the command vocabulary. Empty until M1-02.</summary>
     internal const string CommandsNamespace = "SlayIdleRepeat.Core.Commands";
 
-    /// <summary>Every non-nested command type. Empty until M1-02 lands the vocabulary.</summary>
+    /// <summary>
+    /// Every <b>concrete</b> non-nested command type. Empty until M1-02 lands the vocabulary.
+    /// </summary>
     /// <remarks>
-    /// 🔒 Cross-check: <c>SubjectSetFloorTests.Pending</c> in the architecture suite declares
-    /// <c>SlayIdleRepeat.Core.Commands</c> absent and owned by M1-06/M1-02, and fails the build the
-    /// day it arrives. That entry reads the assembly with Mono.Cecil and sees internal types, so it
-    /// is the independent backstop for this set — but only if <em>this</em> selector sees the same
-    /// types, which is why accessibility is not filtered below.
+    /// <para>
+    /// 🔒 <b>Concrete, and the filter is a sharpening rather than a weakening.</b> M1-06 landed the
+    /// abstract <c>GameCommand</c> base and nothing else, which is the whole point of that task
+    /// landing first: <c>Every_command_type_is_handled_by_Apply</c> fails the build for any concrete
+    /// subtype no dispatch row names, so the base must exist before the vocabulary does. A base with
+    /// no wire name and no seed is not a command anybody sends — `14` §2.3's registry is 49 named
+    /// rows — and counting it here would have woken this file's rules over a vocabulary of one
+    /// abstraction. The architecture suite draws the same line in the same place
+    /// (<c>!t.IsAbstract</c>).
+    /// </para>
+    /// <para>
+    /// 🔒 Cross-check: <c>SubjectSetFloorTests</c> in the architecture suite now tracks
+    /// <c>SlayIdleRepeat.Core.Commands</c> as LIVE (M1-06), so the namespace's existence is watched
+    /// there rather than here. That entry reads the assembly with Mono.Cecil and sees internal
+    /// types, so it is the independent backstop for this set — but only if <em>this</em> selector
+    /// sees the same types, which is why accessibility is not filtered below.
+    /// </para>
     /// </remarks>
-    internal static IReadOnlyList<Type> CommandTypes { get; } = TypesUnder(CommandsNamespace);
+    internal static IReadOnlyList<Type> CommandTypes { get; } = ConcreteTypesUnder(CommandsNamespace);
 
-    /// <summary>Every non-nested type declared in <c>Core</c> under a namespace or below it.</summary>
+    /// <summary>
+    /// Every non-nested, non-abstract type declared in <c>Core</c> under a namespace or below it.
+    /// </summary>
     /// <remarks>
     /// <para>
     /// Exposed rather than inlined so the self-tests can prove this half is not the vacuity source:
@@ -91,10 +106,10 @@ internal static class CommandSeedPin
     /// the tripwire that announces it, together, on the same accessibility choice.
     /// </para>
     /// </remarks>
-    internal static IReadOnlyList<Type> TypesUnder(string namespacePrefix) =>
+    internal static IReadOnlyList<Type> ConcreteTypesUnder(string namespacePrefix) =>
         typeof(GameContext).Assembly
             .GetTypes()
-            .Where(t => !t.IsNested)
+            .Where(t => !t.IsNested && !t.IsAbstract)
             .Where(t => IsUnder(t.Namespace, namespacePrefix))
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToArray();
@@ -106,51 +121,38 @@ internal static class CommandSeedPin
          candidate.StartsWith(prefix + ".", StringComparison.Ordinal));
 
     /// <summary>
-    /// The SCREAMING_SNAKE wire name a command type corresponds to:
-    /// <c>SpinWheelCommand</c> → <c>SPIN_WHEEL</c>.
+    /// 🔒 The `14` §2.3 wire name a command type <b>declares</b>, or <c>null</c> when no dispatch
+    /// row names the type.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// ⚠️ This is a <b>matching heuristic, not an authored naming scheme</b> — nothing in the design
-    /// set says how M1-02's type names map to `14` §2.3's wire names. It fails LOUDLY rather than
-    /// silently: if M1-02 uses a different convention, every one of the nine names below stops
-    /// matching and <c>Every_seed_bearing_command_name_names_a_real_command_type</c> goes red. The
-    /// fix then is to teach this method M1-02's real convention — better still, to have M1-02
-    /// declare the wire name on the command type and read it here instead of guessing — never to
-    /// delete the rule.
+    /// 🔒 <b>Read, not guessed — and that is a change of kind rather than of implementation</b>
+    /// (carried-forward item 4, closed by M1-06). This method used to be a documented <em>heuristic</em>:
+    /// strip a <c>Command</c> suffix, split on the capitals, upper-case the lot, so
+    /// <c>SpinWheelCommand</c> became <c>SPIN_WHEEL</c> — and <c>OpenPvPCommand</c> became
+    /// <c>OPEN_PV_P</c>, a known limit it could only pin rather than fix. It existed because no
+    /// authored scheme did. M1-06's dispatch table declares the wire name beside the command's
+    /// handler and its kind, so there is now a scheme to read, and a heuristic beside it would be a
+    /// second answer to a question that has one (steering <b>S4</b>).
     /// </para>
     /// <para>
-    /// Known limit, pinned by the tests rather than papered over: a run of capitals is not treated
-    /// as an acronym, so <c>OpenPvPCommand</c> reads as <c>OPEN_PV_P</c>. That is a loud mismatch,
-    /// not a silent one.
+    /// ⚠️ A type that declares no row answers <c>null</c> rather than a name. That is not this
+    /// file's failure to report: <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c>
+    /// fails the build for a concrete command no dispatch row names, and duplicating the complaint
+    /// here would be a second mechanism for one rule.
     /// </para>
     /// </remarks>
-    internal static string WireName(Type commandType)
+    /// <param name="commandType">A concrete <c>GameCommand</c> subtype.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="commandType"/> is null.</exception>
+    internal static string? WireNameOf(Type commandType)
     {
         ArgumentNullException.ThrowIfNull(commandType);
 
-        const string suffix = "Command";
-        var name = commandType.Name;
-
-        if (name.Length > suffix.Length && name.EndsWith(suffix, StringComparison.Ordinal))
-        {
-            name = name[..^suffix.Length];
-        }
-
-        var builder = new StringBuilder(name.Length + 4);
-
-        for (var i = 0; i < name.Length; i++)
-        {
-            if (i > 0 && char.IsUpper(name[i]) && !char.IsUpper(name[i - 1]))
-            {
-                builder.Append('_');
-            }
-
-            builder.Append(char.ToUpperInvariant(name[i]));
-        }
-
-        return builder.ToString();
+        return GameRules.RegistrationFor(commandType)?.WireName;
     }
+
+    /// <summary>Every wire name the dispatch table declares. Empty until M1-02 lands the vocabulary.</summary>
+    internal static IReadOnlyDictionary<string, Type> DeclaredCommands => GameRules.CommandTypesByWireName;
 
     /// <summary>
     /// 🔒 The invariant itself: everything wrong with pairing <paramref name="commandName"/> with

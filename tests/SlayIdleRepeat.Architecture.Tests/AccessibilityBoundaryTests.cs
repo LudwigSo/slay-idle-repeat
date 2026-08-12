@@ -128,6 +128,32 @@ public sealed class AccessibilityBoundaryTests
             (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
             (Domain.ModelNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace }),
             (Domain.RulesNamespace, new[] { Domain.HandlersNamespace }),
+
+            // 🔒 M1-06's first cut at carried-forward item 8. 30 §11.4's chain — "Handlers -> Rules
+            // -> Model -> Content -> Primitives" — omits Commands and Events entirely, so both were
+            // ungoverned regions: a type under either was matched by no row in either direction,
+            // with this rule green. M1-03 closed the unambiguous half for Events; this closes it for
+            // Commands, and Commands is the easier of the two because nothing in the design set puts
+            // an aggregate inside a command.
+            //
+            // WHAT THIS ROW SAYS: a command may name Primitives, Content and Rng — ids, indices,
+            // content references, the vocabulary of 14 §2.3's parameter columns — and may not name
+            // Model, Rules or Handlers.
+            //
+            // WHY IT IS SAFE where the Events equivalent is not. 30 §7 forces Events -> Model:
+            // GearGranted(int, GearInstance, SourceClass, bool) carries a Model aggregate, so a row
+            // forbidding it would contradict 30 §7 and block M4-03 outright. Nothing forces the
+            // command equivalent. 14 §2.3's commands carry ids and indices — a merge names gear
+            // INSTANCE IDS, not GearInstances; the server owns the instance — and 30 §11.6's
+            // one-vocabulary rule makes a command a wire value, which an aggregate is not. A
+            // handler consumes a command and reads the model; a command naming its handler or its
+            // rules would be a cycle under every reading.
+            //
+            // ⚠️ IF M1-02 FINDS A COMMAND THAT MUST CARRY A MODEL TYPE, that is a design finding and
+            // belongs at a kickoff, not a row deleted to make a build green. The binding ruling on
+            // the Events half is due at the M4 kickoff, before M4-03 authors GearGranted, and its
+            // deliverable is a 30 §11.4 amendment rather than a table edit.
+            (Domain.CommandsNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
         };
 
         var offenders = new List<string>();
@@ -174,6 +200,14 @@ public sealed class AccessibilityBoundaryTests
             Domain.ContentNamespace,
             Domain.RngNamespace,
             Domain.EventsNamespace,
+
+            // 🔒 M1-06. A command naming GameRules is a cycle — Apply CONSUMES commands — and a
+            // command naming GameContext or CommandResult would be a second door onto Apply's own
+            // arguments and return: a command carrying its own NowUtc or its own CommandSeed is the
+            // ambient clock and the invented entropy 30 §3 exists to keep out, one indirection
+            // further out and past every guard on GameContext. WorldSlice is in the root too, and a
+            // command carrying one would smuggle the aggregates past the clone P4 depends on.
+            Domain.CommandsNamespace,
         };
 
         foreach (var layer in mustNotReachTheRoot)
