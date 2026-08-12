@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
@@ -524,7 +525,7 @@ internal sealed class CombatLog
                 "point (`x + 0.0` is `+0.0`), not here.");
         }
 
-        if (Math.Round(value, 4) != value)
+        if (DeterminismRounding.Round(value) != value)
         {
             throw new InvalidOperationException(
                 $"{what} is {Format(value)}, which is not rounded to 4 decimal places. `05` §1.1 rounds at " +

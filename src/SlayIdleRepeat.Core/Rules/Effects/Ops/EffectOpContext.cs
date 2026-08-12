@@ -1,5 +1,6 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
@@ -62,34 +63,42 @@ internal sealed record EffectOpContext
 }
 
 /// <summary>
-/// 🔒 `05` §1.1's 4-decimal-place rounding, stated for the layer that cannot reach
-/// <c>Rules.Stats.StatRounding</c>.
+/// 🔒 `05` §1.1's 4-decimal-place rounding, as the op layer names it — <b>the failure message, not a
+/// second statement of the rule</b>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>This is a second statement of one rule, and it is deliberate.</b> R17 makes
-/// <c>Rules.Effects</c> the bottom of the intra-<c>Rules</c> layering, so nothing here may name
-/// <c>Rules.Stats</c>, where M2-07 put <c>StatRounding</c>. The alternatives were worse: reversing
-/// the layering for one <c>Math.Round</c>, or leaving every op's number unrounded and breaking
-/// `05` §1.1's <em>"at every accumulation point — after each damage calculation, each heal"</em> for
-/// the whole DSL.
+/// 🔴 <b>Closed by M2-02.</b> This WAS a second statement of `05` §1.1's rule. M2-03 wrote it that
+/// way with the reason recorded — R17 makes <c>Rules.Effects</c> the bottom of the intra-<c>Rules</c>
+/// layering, so nothing here may name <c>Rules.Stats.StatRounding</c> — and named the fix:
+/// <em>"a shared primitive under <c>Core.Primitives</c> is the real fix and belongs with M2-02's
+/// relocation of the `18` seams out of <c>Rules/Stats/</c>."</em> That primitive is
+/// <see cref="DeterminismRounding"/>, and it works where <c>StatRounding</c> could not because `30`
+/// §11.4 puts <c>Primitives</c> beneath <b>every</b> layer that rounds — under
+/// <c>Rules.Effects</c> and <c>Rules.Stats</c> alike, and under <c>Content</c>, which rounds too and
+/// may name neither.
 /// </para>
 /// <para>
-/// 🔒 The two are pinned together by
-/// <c>OpRoundingTests.The_op_rounding_and_the_stat_rounding_are_one_rule</c>, which runs both over
-/// the same values from the test assembly, which can see both namespaces. A shared primitive under
-/// <c>Core.Primitives</c> is the real fix and belongs with M2-02's relocation of the `18` seams out
-/// of <c>Rules/Stats/</c>.
+/// 🔒 <b>What is left here is the part that was never duplicated: the refusal.</b> A NaN or an
+/// infinity is not a rounding question, and the useful thing to say about one is <em>which effect
+/// produced it and what the number was meant to be</em> — steering S2. <c>StatRounding</c> keeps its
+/// own, naming the `18` §8 step and the stat instead. Two messages, one rule; the drift hazard was
+/// the <c>4</c>, the midpoint mode and the trailing <c>+ 0.0</c>, and those are now stated once.
 /// </para>
 /// <para>
-/// The trailing <c>+ 0.0</c> is not redundant — it normalises <c>-0.0</c>, which
-/// <c>CanonicalStateWriter</c> refuses and <c>CombatLog</c> refuses after it.
+/// <c>OpRoundingTests.The_op_rounding_and_the_stat_rounding_are_one_rule</c> still runs both over the
+/// same values and is now a tautology by construction — kept because a test that becomes trivially
+/// true when a duplication is removed is the cheapest possible regression guard against its return,
+/// and <c>DeterminismRoundingRuleTests</c> is what makes the return a build failure.
 /// </para>
 /// </remarks>
 internal static class OpRounding
 {
-    /// <summary>🔒 The number of decimal places `05` §1.1 locks.</summary>
-    internal const int Decimals = 4;
+    /// <summary>
+    /// 🔒 The number of decimal places `05` §1.1 locks — an alias of
+    /// <see cref="DeterminismRounding.Decimals"/>, not a copy of it.
+    /// </summary>
+    internal const int Decimals = DeterminismRounding.Decimals;
 
     /// <summary>Rounds one accumulated combat number and normalises <c>-0.0</c> to <c>+0.0</c>.</summary>
     /// <param name="value">The accumulated value.</param>
@@ -108,6 +117,6 @@ internal static class OpRounding
                 "three layers later naming the serialiser instead of the effect.");
         }
 
-        return Math.Round(value, Decimals) + 0.0;
+        return DeterminismRounding.Round(value);
     }
 }

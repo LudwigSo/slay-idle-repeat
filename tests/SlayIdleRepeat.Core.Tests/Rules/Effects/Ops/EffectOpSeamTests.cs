@@ -96,22 +96,50 @@ public sealed class EffectOpSeamTests
     }
 
     /// <summary>
-    /// 🔒 An op that needs a target and authors none is refused, naming M2-02 as the owner of the
-    /// default question — never silently pointed at <c>SELF</c> or the current target.
+    /// 🔴 <b>M2-02's ruling 2, at the op layer: an op that authors no <c>target</c> resolves against
+    /// the holder.</b> This test previously asserted the opposite — that the op was <em>refused</em>
+    /// with M2-02 named as the owner of the open question — and is inverted here rather than deleted,
+    /// because it is the one that pins which way the ruling went.
     /// </summary>
+    /// <remarks>
+    /// <c>EffectDefaults</c> carries the ruling and the clause: `18` §2.4's <c>CLEAR_SUMMONS</c> row,
+    /// <em>"(default <c>SELF</c>)"</em> — the only default target `18` states. A <c>HEAL</c> with no
+    /// target therefore heals the holder, which is what §7.5's and §7.6's untargeted clauses mean.
+    /// </remarks>
     [Fact]
-    public void An_op_with_no_authored_target_names_the_unresolved_default_rather_than_guessing()
+    public void An_op_with_no_authored_target_resolves_against_the_holder()
     {
-        var hero = EffectTestBattle.Hero();
+        var hero = EffectTestBattle.Hero(currentHp: 40);
         var bench = new OpTestBench();
 
         var untargeted = OpFixtures.Effect("PK_X", EffectOp.HEAL, 10.0) with { ValueMode = ValueMode.FLAT };
 
-        var thrown = Should.Throw<EffectContextException>(
-            () => EffectOpResolver.Resolve(untargeted, bench.Context(EffectTestBattle.Context(hero, hero))));
+        EffectOpResolver.Resolve(untargeted, bench.Context(EffectTestBattle.Context(hero, hero)));
 
-        thrown.Message.ShouldContain("M2-02", Case.Sensitive);
-        bench.Calls.ShouldBeEmpty();
+        // S2 — not merely "something happened": the heal landed on the HOLDER by name, which is the
+        // whole content of ruling 2. A CURRENT_TARGET default would have thrown (this context has
+        // none) and any enemy default would name a different actor here.
+        bench.Only("Heal").Actor.ShouldBe("HERO");
+    }
+
+    /// <summary>
+    /// 🔒 Ruling 2 stated directly, and against the two `18` examples it is read from — so the
+    /// resolver above and the op layer cannot disagree about what an absent target means.
+    /// </summary>
+    [Fact]
+    public void An_absent_target_is_SELF_per_18_2_4s_CLEAR_SUMMONS_row()
+    {
+        // `18` §7.4's PK_UNBREAKABLE clause 1 and §7.6's Avatar of War: no target authored.
+        var surviveLethal = new EffectDefinition
+        {
+            Id = "PK_UNBREAKABLE", Op = EffectOp.SURVIVE_LETHAL, Value = 1, ValueMode = ValueMode.FLAT,
+        };
+
+        EffectDefaults.TargetOf(surviveLethal).ShouldBe(EffectTarget.SELF);
+
+        // An authored target is never overridden.
+        EffectDefaults.TargetOf(surviveLethal with { Target = EffectTarget.ALL_ENEMIES })
+                      .ShouldBe(EffectTarget.ALL_ENEMIES);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Conditions;
 
@@ -132,7 +133,7 @@ internal static class ConditionEvaluator
         // 🔒 The `+ 0.0` normalises a negative zero, for the reason ValueScale.EffectiveValue records:
         // CanonicalStateWriter THROWS on -0.0 rather than encoding one, because -0.0 and 0.0 have
         // different bit patterns and would produce two stateHashes for one state.
-        return Math.Round(Reading(function, arguments, context), 4) + 0.0;
+        return DeterminismRounding.Round(Reading(function, arguments, context));
     }
 
     /// <summary>

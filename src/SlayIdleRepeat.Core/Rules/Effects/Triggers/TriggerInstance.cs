@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
@@ -484,5 +485,5 @@ internal sealed class TriggerInstance
     }
 
     /// <summary>🔒 `05` §1.1 — 4 dp, at the one place this file derives a number.</summary>
-    private static double Round(double value) => Math.Round(value, 4, MidpointRounding.ToEven);
+    private static double Round(double value) => DeterminismRounding.Round(value);
 }

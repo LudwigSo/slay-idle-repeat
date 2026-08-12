@@ -72,11 +72,21 @@ public sealed class EffectTaggingTests
     /// 🔒 `05` §4.1's class (b) is <em>"self-inflicted costs"</em> — the tag alone is not enough,
     /// the damage must point at the holder. Otherwise every cursed perk would get ward penetration.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The <c>target: null</c> row FLIPPED when M2-02 ruled.</b> M2-03 wrote it as
+    /// <c>false</c> and recorded that it was reading an unresolved question conservatively —
+    /// <em>"whichever way that ruling lands, the conservative reading here loses a drawback rather
+    /// than inventing a ward bypass."</em> The ruling landed the other way: an absent <c>target</c>
+    /// is <c>SELF</c> (<c>EffectDefaults</c> ruling 2, from `18` §2.4's <c>CLEAR_SUMMONS</c> row),
+    /// so an untargeted drawback is a self-inflicted cost and keeps its bypass. The row is kept
+    /// rather than deleted precisely because it is the one the ruling moved.
+    /// </remarks>
     [Theory]
     [InlineData(true, EffectTarget.SELF, true)]
     [InlineData(true, EffectTarget.ALL_ENEMIES, false)]
     [InlineData(false, EffectTarget.SELF, false)]
-    [InlineData(true, null, false)]
+    [InlineData(true, null, true)]
+    [InlineData(false, null, false)]
     public void A_self_inflicted_cost_is_a_drawback_tag_AND_a_SELF_target(
         bool tagged, EffectTarget? target, bool expected)
     {
