@@ -300,6 +300,41 @@ internal static class GapRegister
             "M4-03 and would expire this entry six milestones early, while the ghost still could not " +
             "be written because pets (M4-07), mounts (M4-08) and talents (M4-06) are not there " +
             "either. A predicate that expires before its subject is writable is worse than none."),
+
+        // ---------------------------------------------------------------- M1-08, 30 §2.3
+        //
+        // 30 §2.3 enumerates the boundaries lazy catch-up rolls forward across. M1-08 built the
+        // mechanism and every boundary whose state exists; these three act on state no milestone has
+        // authored, so GameRules.AdvanceTime does nothing for them and says so in its own remarks.
+        // The arithmetic — what is built, what is ruled off, what is left — is on the Surfaces
+        // transcription below, where a reader checking the register against the document will look.
+
+        new("QuestSlate", "M4-09", "QuestDefinition",
+            "30 §2.3 makes QUEST EXPIRY one of the 05:00 UTC catch-up boundaries, and 19 B draws the " +
+            "day's three quests from a 20-quest pool under BEGIN_SESSION's seed. Expiring a slate " +
+            "needs the slate: what a quest IS — its objective vocabulary, its reward shape, whether a " +
+            "reroll is a fourth draw or a replacement — is all M4-09's, and a list authored now would " +
+            "freeze it under the draw rules, the reroll rules and the 3-of-3 chest alike (S6). Keyed " +
+            "on QuestDefinition, the type that reads the pool, rather than on the slate's own " +
+            "container: the container is trivial and the element is what is missing. ⚠️ Catch-up owns " +
+            "only the EXPIRY; 30 §2.3 leaves the day's redraw to BEGIN_SESSION's seed (M1-09)."),
+
+        new("DailyShopStock", "M4-09", "ShopOffer",
+            "30 §2.3 gives catch-up the Daily tab's STOCK EXPIRY and explicitly leaves the REDRAW to " +
+            "the day's BEGIN_SESSION seed — the two halves land in different milestones and the " +
+            "expiry half is the one that must not wait for a login. 10 §5.1 authors the tab as a " +
+            "6-offer block with a draw rule and staples, and none of an offer's shape exists: what is " +
+            "sold, at what price, in which currency, and whether a bought offer is removed or marked. " +
+            "Expiring stock needs the stock. Keyed on ShopOffer rather than on the wallet model M4-09 " +
+            "also lands, because the offer is the thing being expired."),
+
+        new("EventWindow", "M13-01", "EventDefinition",
+            "30 §2.3 lists 'event-window state' among the boundaries catch-up rolls forward, and 26 §4 " +
+            "authors the windows themselves — start, end, membership, the per-event feature flag and " +
+            "the mid-flight kill. NOTHING IN M1 CAN OPEN OR CLOSE ONE: there is no event package, no " +
+            "schema and no server-side window resolution until M13-01, so a window type authored here " +
+            "would be a field catch-up read and never wrote. Keyed on EventDefinition, the type that " +
+            "reads 26 §2's package — a window without its event is a date range with no meaning."),
     };
 
     /// <summary>
@@ -487,6 +522,47 @@ internal static class GapRegister
             "UploadGhostCommand",
             "StartDuelCommand",
             "SubmitDuelCommand",
+        }),
+
+        // 🔒 M1-08, `30` §2.3 — THE LAZY-CATCH-UP BOUNDARIES, and this is a FRAGMENT, exactly like
+        // the two aggregate-contents rows above. The section enumerates what AdvanceTime rolls
+        // forward across: "Energy regeneration accrual, the 05:00 UTC daily resets (quest expiry,
+        // wheel free-spin, ad caps, dungeon entries, daily shop stock expiry), weekly boundaries,
+        // Plus expiry, event-window state". Most of those are not type names, so the arithmetic is
+        // written out here rather than transcribed verbatim — the same reason the Player row is a
+        // fragment, and the same honesty bar.
+        //
+        // BUILT (M1-08, and therefore not deferred):
+        //   · Energy regeneration accrual — Player.Energy + Player.EnergyAnchorUtc, accrued through
+        //     EnergyMath.Accrue on every command.
+        //   · the 05:00 UTC daily reset MECHANISM — Player.DailyPeriodStartUtc + the daily counters,
+        //     driven by GameRules.AdvanceTime across every boundary crossed since the last command.
+        //     ⚠️ AD CAPS, DUNGEON ENTRIES AND THE WHEEL'S FREE SPIN ARE BUILT WITH IT and are
+        //     deliberately NOT deferred below: each is a daily counter, and the counter mechanism is
+        //     precisely what they are. This register's own Player-contents note already records it
+        //     ("ad caps is built too — it is the daily counter mechanism"). Deferring something that
+        //     is built is an entry Expired fires on, or worse, a promise about nothing.
+        //   · weekly boundaries — Player.WeeklyPeriodStartUtc + the weekly counters, on A2's Monday.
+        //
+        // RULED OFF (neither built nor deferred, exactly as `entitlement` is ruled off 30 §4's
+        // Player-contents row):
+        //   · PLUS EXPIRY. 30 §3 and 12 §2.1 put entitlement on the SESSION — Entitlements is a
+        //     read-only value the composition root resolves against its own NowUtc — so there is no
+        //     aggregate state to roll forward, and a comparison inside AdvanceTime would be an
+        //     entitlement branch in the domain (12 §3.2). The ruling is written into
+        //     GameRules.AdvanceTime's remarks; there is nothing here for a milestone to close.
+        //
+        // GENUINELY ABSENT AND TYPE-SHAPED — the three below, and only these three.
+        //
+        // ⚠️ 14 §16.3's RUN TTL is not here at all, and that is not an omission: it is not one of
+        // §2.3's boundaries. Catch-up never touches Run.LastAppliedAtUtc (M1-05's ruling), and
+        // EXPIRING a run needs RunPhase, which is already an entry above owned by M3-05 whose Why
+        // states this very consequence. A second entry for it would be two promises about one gap.
+        new("30 §2.3 (the lazy-catch-up boundaries whose state does not exist)", Domain.ModelNamespace, new[]
+        {
+            "QuestSlate",
+            "DailyShopStock",
+            "EventWindow",
         }),
     };
 
