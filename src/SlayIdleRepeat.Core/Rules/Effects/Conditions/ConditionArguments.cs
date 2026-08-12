@@ -14,12 +14,14 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Conditions;
 /// <c>STATUS_STACKS</c> and <c>DIE_FACE_COUNT</c> — both of which need an argument.
 /// </para>
 /// <para>
-/// ⚠️ <b><see cref="ValueScale"/> has nowhere to put one.</b> It carries <c>fn</c>, <c>per</c> and
-/// <c>cap</c> and no argument key, because `18` §1.1's table declares no fourth field and M2-01
-/// declared no more than the document authorises. So a scale over <c>STATUS_STACKS</c> is
-/// unexpressible today. That is a genuine gap in `18` §1.1 rather than something to paper over here
-/// (steering S6), and it is recorded as an erratum. This type is the seam that closes it without a
-/// rewrite: M2-06 passes <see cref="None"/> today, and whatever `18` §1.1 grows to carry tomorrow.
+/// 🔴 <b>The gap M2-05 recorded here is now closed, through this seam and not around it.</b> When
+/// this type was written, <see cref="ValueScale"/> carried <c>fn</c>, <c>per</c> and <c>cap</c> and
+/// no argument key — because `18` §1.1's table declared no fourth field — so a scale over
+/// <c>STATUS_STACKS</c> or <c>DIE_FACE_COUNT</c> was unexpressible although §1.1 named both. M2-06
+/// closed it by `18` §10's route, giving <see cref="ValueScale"/> the <em>same</em> three optional
+/// keys a <see cref="ConditionTerm"/> carries and adding <see cref="Of(ValueScale)"/> below.
+/// <b>This type stayed the one argument type</b>, which is what stops a function answering a scale
+/// differently from a condition. Erratum recorded against `18` §1.1.
 /// </para>
 /// </remarks>
 /// <param name="StatusId">The `05` §5 status <c>HAS_STATUS</c> and <c>STATUS_STACKS</c> read.</param>
@@ -37,5 +39,19 @@ internal readonly record struct ConditionArguments(string? StatusId, string? Cat
         ArgumentNullException.ThrowIfNull(term);
 
         return new ConditionArguments(term.StatusId, term.Category, term.FaceKind);
+    }
+
+    /// <summary>The arguments carried by a `18` §1.1 <c>valueScale</c>.</summary>
+    /// <remarks>
+    /// 🔒 The counterpart of <see cref="Of(ConditionTerm)"/>, and deliberately its mirror image: the
+    /// three keys are read the same way from both, so <c>STATUS_STACKS</c> cannot mean one thing to a
+    /// condition and another to a scale.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The scale is null.</exception>
+    internal static ConditionArguments Of(ValueScale scale)
+    {
+        ArgumentNullException.ThrowIfNull(scale);
+
+        return new ConditionArguments(scale.StatusId, scale.Category, scale.FaceKind);
     }
 }

@@ -193,6 +193,27 @@ public sealed class EffectSchemaTests
             """
         },
         {
+            // 🔴 The M2-06 extension, by 18 §10's route. 18 §1.1 offers fn "any condition function
+            // from §4" and names STATUS_STACKS and DIE_FACE_COUNT in its own list, but §4 types
+            // those "by status id" and "by face kind" and §1.1's table declared no field to carry
+            // one — so both were offered for something the vocabulary could not express. The three
+            // keys are conditionTerm's own, pointed at the same $defs. Erratum on §1.1.
+            "18 §1.1 — a valueScale over STATUS_STACKS, which needs an argument",
+            """
+            { "id": "PK_SUNDERER", "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.05,
+              "trigger": {"kind":"ALWAYS"}, "target": "CURRENT_TARGET",
+              "valueScale": { "fn": "STATUS_STACKS", "per": 1, "cap": 5, "statusId": "SUNDER" } }
+            """
+        },
+        {
+            "18 §1.1 — a valueScale over DIE_FACE_COUNT, likewise",
+            """
+            { "id": "PK_STARGAZER", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.03,
+              "trigger": {"kind":"ALWAYS"}, "target": "SELF",
+              "valueScale": { "fn": "DIE_FACE_COUNT", "per": 1, "cap": null, "faceKind": "Star" } }
+            """
+        },
+        {
             "18 §2.2 — PK_TRANSFUSION, an overheal shield with a source cap",
             """
             { "id": "PK_TRANSFUSION", "op": "SHIELD", "valueMode": "OVERHEAL_AMOUNT", "value": 1.0,
@@ -745,6 +766,14 @@ public sealed class EffectSchemaTests
     [InlineData("\"fn\": \"MOON_PHASE\", \"per\": 100, \"cap\": 1")]
     [InlineData("\"fn\": \"GOLD_HELD\", \"per\": 100, \"cap\": -1")]
     [InlineData("\"fn\": \"GOLD_HELD\", \"cap\": 1")]
+
+    // 🔴 The M2-06 argument keys are conditionTerm's own, and they are closed the same way: the
+    // enum member has to exist, and a key nobody agreed on is still a validation failure rather
+    // than a field that silently means nothing. Without these rows the extension would have
+    // widened the schema with nothing pinning where the new surface stops.
+    [InlineData("\"fn\": \"STATUS_STACKS\", \"per\": 1, \"cap\": 1, \"statusId\": \"NOT_A_STATUS\"")]
+    [InlineData("\"fn\": \"DIE_FACE_COUNT\", \"per\": 1, \"cap\": 1, \"faceKind\": \"Sparkle\"")]
+    [InlineData("\"fn\": \"STATUS_STACKS\", \"per\": 1, \"cap\": 1, \"arg\": \"SUNDER\"")]
     public void A_malformed_value_scale_is_rejected(string brokenScale)
     {
         Validate("""

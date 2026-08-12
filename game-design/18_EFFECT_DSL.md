@@ -41,6 +41,17 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 | `fn` | Any condition function from §4 (`SELF_MISSING_HP_PCT`, `GOLD_HELD`, `PET_COUNT`, `STATUS_STACKS`, `DIE_FACE_COUNT`, `PERK_COUNT`, `DISTINCT_PERK_CATEGORIES`, `BATTLES_WON_THIS_RUN`, …), evaluated against current state and rounded to 4 dp **before** the division |
 | `per` | State units per step |
 | `cap` | Maximum number of steps; `null` = uncapped |
+| `statusId` | The status `HAS_STATUS` and `STATUS_STACKS` read — §4's *"by status id"*. Required by both, meaningless to the rest |
+| `faceKind` | The `04` §1 face kind `DIE_FACE_COUNT` counts — §4's *"by face kind"*. Same rule |
+| `category` | The perk category `PERK_COUNT` restricts to — §4's *"optionally by category"*. Genuinely optional; its absence counts every perk |
+
+🔴 **Erratum, closed by M2-06 via §10's route.** The last three rows were missing. This table offered `fn` *"any condition function from §4"* and named `STATUS_STACKS` and `DIE_FACE_COUNT` in its own worked list — but both take an argument (§4 types `DIE_FACE_COUNT` *"by face kind"*; `STATUS_STACKS` counts one status, the same one §4 types `HAS_STATUS` *"by status id"* — §4's own `STATUS_STACKS` row states no argument at all, which is this gap one section over) and there was no field to carry either, so **a scale driven by either was unexpressible** and the two functions were offered for something the vocabulary could not do. The three keys are **not new vocabulary**: they are the same three keys a §4 condition term already carries, with the same names, types and meanings, so a function reads an argument the same way from a scale as from a condition. A scale over `STATUS_STACKS` that names no status is **refused**, not read as "every status" or as zero.
+
+```json
+{ "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.05,
+  "trigger": {"kind":"ALWAYS"}, "target": "CURRENT_TARGET",
+  "valueScale": { "fn": "STATUS_STACKS", "per": 1, "cap": 5, "statusId": "SUNDER" } }
+```
 
 `valueScale` is re-evaluated exactly when conditions are (§4): at every resolution pass for `ALWAYS` effects, at fire time for triggered ones. `valueScale: null` (the default) means `effectiveValue = value`.
 
@@ -257,6 +268,13 @@ Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all
 ```
 `mode`: `ADDITIVE · MULTIPLICATIVE · REPLACE · HIGHEST_WINS · NONE`
 
+🔴 **Erratum, recorded by M2-06 — this section names the five modes and describes none of them.** The implementation reads each mode as its name: `ADDITIVE` sums the applications, `MULTIPLICATIVE` multiplies them, `REPLACE` keeps the newest, `HIGHEST_WINS` keeps the strongest, `NONE` keeps the first and ignores the rest. Three are pinned to authored behaviour and are not inferences: `MULTIPLICATIVE` is `05` §3.1's `SYS_ENRAGE` (*"multiplicative stacking, uncapped"*), `ADDITIVE` is `05` §5's `SUNDER`/`BURN` (*"stacks to 5"*), `NONE` is `05` §5's `BLEED` (*"does not stack; reapplication refreshes"*). `REPLACE` and `HIGHEST_WINS` have no authored user yet.
+
+🔴 **`HIGHEST_WINS` compares the two values *literally*, not by magnitude** — it keeps the larger number. The consequence, stated so nobody has to rediscover it: a **negative**-valued debuff authored with `HIGHEST_WINS` keeps the **least** negative application, i.e. the *weakest* one. No authored content does this today. Taking the larger number is the only reading that invents nothing; the day a design needs "largest magnitude", this section is what has to say so.
+
+- `maxStacks`: the stack ceiling; absent or `null` is **uncapped** (`SYS_ENRAGE`), never one. A surplus application past the ceiling is **dropped** — §6 states the ceiling and authors no eviction, so nothing is evicted — and it still refreshes the duration if `refreshOnReapply` asks, because `05` §3.1 keeps the two questions apart (*"reapplication adds stacks / refreshes duration"*).
+- `refreshOnReapply`: an independent key, honoured for **every** mode including `NONE` (`BLEED` is exactly `NONE` + `refreshOnReapply`). Absent is not `true`. It restarts the effect's **duration** only — `05` §3.1 is explicit that reapplication *"never re-anchors the cadence"*.
+
 ---
 
 ## 7. Worked examples
@@ -326,6 +344,9 @@ Comparators: `eq · neq · lt · lte · gt · gte · between`. Combinators: `all
 ```
 
 ### 7.8 A boss mechanic — Thornmaw phase 3
+
+🔴 **Erratum (conductor ruling R3): the `RAGE` block below is a pre-`PHASE` artifact. Every boss `AURA` mechanic is `"duration": {"scope": "PHASE"}`.** §6 says `AURA` mechanics are `PHASE`-scoped *by definition* and §7.10 authors Gulgrot's Bog Air that way; `PHASE` itself was added by the `16` A7 batch (§11: *"6 duration scopes = 5 + `PHASE`"*), so this example simply predates it. The two forms are equivalent **for Thornmaw only**, because phase 3 is never exited — which is why the artifact survived review. Applied in any earlier phase they differ: the `PHASE` form ends at the exit and `{999, BATTLE}` does not. `M2-13` authors the boss data with `scope: PHASE`; the `{"seconds": 999}` idiom is not to be used anywhere.
+
 ```json
 {
   "phase": 3,

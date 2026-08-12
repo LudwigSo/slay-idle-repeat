@@ -438,7 +438,7 @@
     },
 
     "valueScale": {
-      "description": "🔒 18 §1.1 — effectiveValue = value × steps, steps = min(floor(fn / per), cap). fn is evaluated against current state and rounded to 4 decimal places BEFORE the division. null — the default — means effectiveValue = value.",
+      "description": "🔒 18 §1.1 — effectiveValue = value × steps, steps = min(floor(fn / per), cap). fn is evaluated against current state and rounded to 4 decimal places BEFORE the division. null — the default — means effectiveValue = value. 🔴 ERRATUM ON 18 §1.1, closed by M2-06 via §10's route: §1.1 offers fn 'any condition function from §4' and its own worked list names STATUS_STACKS and DIE_FACE_COUNT, but both take an argument (§4 types DIE_FACE_COUNT 'by face kind'; STATUS_STACKS counts one status, the same one §4 types HAS_STATUS 'by status id' — §4's own STATUS_STACKS row states no argument at all, which is the same gap one section over) and §1.1's table declared no field to carry either — so a scale over either was unexpressible, and the two functions were offered for something the vocabulary could not do. The three argument keys below close it. They are NOT new vocabulary: they are conditionTerm's own three keys, pointed at the same $defs, so a function reads an argument the same way from a scale as from a condition.",
       "type": ["object", "null"],
       "additionalProperties": false,
       "required": ["fn", "per"],
@@ -453,6 +453,18 @@
           "description": "18 §1.1 — the maximum number of steps; null is uncapped (PK_HOARD).",
           "type": ["integer", "null"],
           "minimum": 0
+        },
+        "statusId": {
+          "description": "18 §4 — the status STATUS_STACKS and HAS_STATUS read ('by status id'). Required in practice by those two functions and meaningless to the rest; the evaluator refuses a STATUS_STACKS scale that names none rather than counting every status.",
+          "$ref": "#/$defs/statusId"
+        },
+        "faceKind": {
+          "description": "18 §4 — the 04 §1 face kind DIE_FACE_COUNT counts ('by face kind'). Same rule as statusId.",
+          "$ref": "#/$defs/dieFaceKind"
+        },
+        "category": {
+          "description": "18 §4 — the perk category PERK_COUNT restricts to ('optionally by category'). Genuinely optional, exactly as it is on a condition term: its absence counts every perk.",
+          "$ref": "#/$defs/perkCategory"
         }
       }
     },
