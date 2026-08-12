@@ -211,6 +211,9 @@ internal class RecordingStatusPipeline : IAttackPipeline
     /// <summary>Every <c>GrantWard</c>, as <c>(tick, target, amount, id)</c>.</summary>
     internal List<(int Tick, string Target, double Amount, string SourceEffectId)> Wards { get; } = new();
 
+    /// <summary>Every resolved swing, as <c>(tick, attacker)</c> — `05` §3.1 slot 4's actual output.</summary>
+    internal List<(int Tick, string Attacker)> Swings { get; } = new();
+
     /// <summary>How many times the pipeline ran `05` §3.1's phase check plus <c>ON_LOW_HP</c>.</summary>
     internal int HpDecreaseNotifications { get; private set; }
 
@@ -228,6 +231,7 @@ internal class RecordingStatusPipeline : IAttackPipeline
     public AttackResolution ResolveAttack(
         IEffectActorView attacker, IEffectActorView defender, double attackMultiplier, string sourceEffectId)
     {
+        Swings.Add((_services.Tick, ((BattleActor)attacker).Id));
         OnAttack();
 
         return new AttackResolution(Missed: false, Crit: false, Blocked: false, 0.0, 0.0);
@@ -269,6 +273,33 @@ internal class RecordingStatusPipeline : IAttackPipeline
     public void AddThorns(
         IEffectActorView target, double fraction, EffectDuration? duration, string sourceEffectId)
     {
+    }
+
+    /// <summary>
+    /// A phase controller that counts `05` §3.1's phase check — the call that is <b>doubled</b> if a
+    /// DoT tick routes <c>AfterHpDecrease</c> itself as well as through `05` §4 step 9.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Why this exists rather than a counter on the pipeline double.</b> Review found that
+    /// counting inside <see cref="RecordingStatusPipeline"/> measures how many times the timeline
+    /// called the pipeline — which the <c>Dots.Count</c> assertion beside it already says — and is
+    /// structurally blind to the defect it was written for: a timeline that <em>also</em> called
+    /// <c>_services.AfterHpDecrease</c> leaves that counter unchanged.
+    /// <c>BattleSimulation.AfterHpDecrease</c> fans out to <see cref="IBossPhases.AfterHpDecrease"/>
+    /// and the <c>ON_LOW_HP</c> sweep, so counting here sees the double.
+    /// </remarks>
+    internal sealed class CountingPhases : IBossPhases
+    {
+        /// <summary>How many times `05` §3.1's phase check ran.</summary>
+        internal int HpDecreaseCalls { get; private set; }
+
+        /// <inheritdoc />
+        public void EnterInitialPhase(BattleActor actor, int tick)
+        {
+        }
+
+        /// <inheritdoc />
+        public void AfterHpDecrease(BattleActor actor, int tick) => HpDecreaseCalls++;
     }
 
     private void Notify(BattleActor actor)

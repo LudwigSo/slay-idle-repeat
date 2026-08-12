@@ -30,7 +30,7 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Status;
 ///     write and therefore the phase check that `05` §4 step 9 puts immediately after it. Calling
 ///     <c>AfterHpDecrease</c> here <em>as well</em> would fire <c>ON_LOW_HP</c> twice for one HP
 ///     change, and <c>ON_LOW_HP</c> is a <b>crossing</b>: a doubled observation is a doubled firing.
-///     <c>StatusTimelineObligationTests</c> pins it at exactly one.
+///     <c>StatusTimelineTests.Each_DoT_HP_change_runs_the_phase_check_and_ON_LOW_HP_exactly_once</c> pins it at exactly one.
 ///   </item>
 ///   <item>
 ///     <b><c>ON_LOW_HP</c> after every HP change</b> — same call, same reason.
@@ -65,9 +65,14 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Status;
 /// the caller.
 /// </para>
 /// <para>
-/// ⚠️ <b>A stateful class under <c>Rules/</c></b>, on <c>BattleSimulation</c>'s, <c>BattleActor</c>'s
-/// and <c>CombatFlowState</c>'s precedent and for their reason: statuses are written by one tick and
-/// read by a later one. One instance per fight, one caller, never static.
+/// ⚠️ <b>Four stateful types under <c>Rules/</c></b>, which `30` §11.4 annotates as <em>"internal,
+/// static, stateless calculators"</em> — recorded here once for all four, on
+/// <c>BattleSimulation</c>'s, <c>BattleActor</c>'s and <c>CombatFlowState</c>'s precedent and for
+/// their reason: a status is written by one tick and read by a later one, so it has to live
+/// somewhere across ticks. They are <b>this type</b>, <see cref="ActorStatuses"/> (one per actor),
+/// <see cref="StunWindow"/> (one per actor) and <see cref="StatusInstance"/> (one per status per
+/// actor). This type is the sole owner of the other three: nothing else constructs them, they are
+/// per-battle, never shared and never static. A grep for the departure finds all four from here.
 /// </para>
 /// </remarks>
 internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
@@ -129,7 +134,9 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     {
         ArgumentNullException.ThrowIfNull(actor);
 
-        if (!_byActor.TryGetValue(actor.Id, out var statuses))
+        // 🔒 The early-out is on a counter, for StatModifiers' measured reason: this runs for every
+        // actor on every one of 1800 ticks, and an actor carrying only a FREEZE has nothing here.
+        if (!_byActor.TryGetValue(actor.Id, out var statuses) || statuses.TickingCount == 0)
         {
             return;
         }
@@ -148,6 +155,18 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
                 return;
             }
 
+            // 🔴 THE SNAPSHOT CAN GO STALE UNDER THIS WALK, and liveness is not the only way — found
+            // by review. A tick reaches BattleSimulation.AfterHpDecrease through the pipeline, which
+            // fires the phase check AND ON_LOW_HP, and either can resolve an `18` §2.3
+            // REMOVE_STATUS on an actor that is still alive. The instance is then gone from the
+            // store but still in this materialised list, so without this it would tick AFTER its own
+            // StatusExpired was logged. Remove-and-reapply in one handler is worse: the snapshot's
+            // old instance would tick beside the new one, on the old stacks.
+            if (!ReferenceEquals(statuses.Find(instance.Definition.Id), instance))
+            {
+                continue;
+            }
+
             Tick(actor, instance, tick);
         }
     }
@@ -163,8 +182,8 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     /// timer elapses on the same tick as a cadence boundary has already ticked by the time this runs.
     /// That means the rule is only true while <see cref="AdvanceTimers"/> refuses to expire anything
     /// and this refuses to tick anything — which is why neither does the other's work, and why
-    /// <c>StatusExpiryTests</c> pins a DoT whose duration lands exactly on its boundary at one tick
-    /// of damage rather than zero.
+    /// <c>StatusTimelineTests.A_DoT_expiring_on_a_cadence_boundary_deals_that_tick_first_then_expires</c>
+    /// pins a DoT whose duration lands exactly on its boundary at one tick of damage rather than zero.
     /// </para>
     /// </remarks>
     public void ExpireDue(BattleActor actor, int tick)
@@ -251,7 +270,10 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     {
         ArgumentNullException.ThrowIfNull(actor);
 
-        if (!_byActor.TryGetValue(actor.Id, out var statuses))
+        // 🔒 The early-out is on a counter, not on a walk. This runs for every state-dependent actor
+        // on every one of 1800 ticks and `05` budgets a whole fight at < 5 ms; the commonest answer
+        // is "none", because a BURN and a REGEN feed no stat. See ActorStatuses.StatModifierCount.
+        if (!_byActor.TryGetValue(actor.Id, out var statuses) || statuses.StatModifierCount == 0)
         {
             return [];
         }
@@ -297,25 +319,44 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
             return;
         }
 
+        // 🔒 STUN first, because it is the one row with no magnitude at all — `05` §5 gives it a
+        // duration and nothing else. Computing a potency for it and discarding it (which the first
+        // version of this method did) runs the STATUS_POWER_PCT multiply for nothing.
+        if (definition.Basis == StatusPotencyBasis.None)
+        {
+            ApplyStun(receiver, statuses, duration, sourceEffectId);
+            return;
+        }
+
         // 🔒 `05` §5's FREEZE is the one row stated as a literal rather than as X — "−50% ASPD" — so
         // the number is the status's and not the applying effect's. Everything else takes the
         // effect's value, scaled by whatever STATUS_POWER_PCT the APPLIER carries (§2.3: "the potency
         // of statuses THIS ACTOR APPLIES" — outgoing, read off the applier, never the target).
+        //
+        // ⚠️ FREEZE is therefore the one status a STATUS_POWER_PCT build cannot amplify, and that is
+        // a ruling rather than an oversight: `05` §5 states the −50% as the status's own constant,
+        // not as an X the applier supplies, so there is no authored X for §2.3 to scale. If a later
+        // design wants FREEZE amplifiable, `05` §5 is what has to restate it as an X.
         var x = definition.FixedPotency ?? StatRounding.Round(
             potency * OutgoingPowerScale(applier, sourceEffectId));
 
-        switch (definition.Basis)
+        if (definition.Basis == StatusPotencyBasis.FlatHp)
         {
-            case StatusPotencyBasis.FlatHp:
-                // 🔒 `05` §5 defers WARD wholly to §4.1, whose pool, segments, cap, ordering and
-                // WardBroken are M2-09's. Granting a segment IS applying the status; a second record
-                // here would be a second pool.
-                Attack.GrantWard(target, x, sourceCapPct: null, sourceEffectId);
-                return;
+            // 🔒 `05` §5 defers WARD wholly to §4.1, whose pool, segments, cap, ordering and
+            // WardBroken are M2-09's. Granting a segment IS applying the status; a second record
+            // here would be a second pool.
+            //
+            // ⚠️ TWO THINGS ARE LOST HERE AND BOTH ARE M2-09'S TO GIVE BACK, recorded rather than
+            // hidden. (1) The application's `duration` is dropped: `05` §4.1 types a segment as
+            // {amount, expiresAt?, sourceEffectId} but IAttackPipeline.GrantWard carries no duration
+            // parameter, so an APPLY_STATUS WARD with a D produces a PERMANENT segment. (2) No
+            // StatusApplied event is emitted from here, so `05` §7's replay sees a ward grant only
+            // if GrantWard emits its own §4.1 Shield event. M2-09 is in flight on that interface and
+            // widening it underneath a running task is how a merge stops being reviewable, so this
+            // is reported rather than fixed.
+            Attack.GrantWard(target, x, sourceCapPct: null, sourceEffectId);
 
-            case StatusPotencyBasis.None:
-                ApplyStun(receiver, statuses, duration, sourceEffectId);
-                return;
+            return;
         }
 
         var contribution = definition.Basis == StatusPotencyBasis.ApplierAtkPctPerSecond
@@ -329,7 +370,7 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
         var application = new EffectApplication
         {
             EffectId = sourceEffectId,
-            Duration = ScaledDuration(receiver, duration, sourceEffectId),
+            Duration = ScaledDuration(receiver, duration),
             AppliedAtSeconds = BattleClock.SecondsAt(_services.Tick),
         };
 
@@ -398,19 +439,41 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔒 <b>Removes nothing today, and that is `18` §2.3's state rather than a stub.</b> R12: the
-    /// tag group is a <see cref="StatusTag"/>, a different type from the <c>AuthorTag</c>s in an
-    /// effect's own <c>tags</c> array — and <c>StatusTag</c> is deliberately empty of members,
-    /// because <em>"the twelve statuses that document fixes carry no tags yet, and enumerating a
-    /// guess would invent a taxonomy nobody agreed"</em>. `05` §5 tags none of the twelve. So every
-    /// status carries no tags, no tag matches, and nothing is removed — which is the correct answer
-    /// to a question no authored content asks, not a hole.
+    /// <para>
+    /// 🔴 <b>A REFUSAL, not a no-op — the first version of this method was the silent kind and
+    /// review caught it.</b> That version argued that <see cref="StatusTag"/> is <em>"deliberately
+    /// empty of members"</em> so no tag could ever match. The premise is false:
+    /// <c>StatusTag</c> is a <b>string-valued</b> record struct, so every label is expressible and
+    /// <c>game-data/schema/effect.schema.json</c> already accepts any <c>^[a-z][a-z0-9_]*$</c> for
+    /// <c>statusTag</c>. What is actually missing is the <em>vocabulary</em>: `05` §5 tags none of
+    /// its twelve, <c>content/statuses.json</c> authors no <c>tags</c> key, and
+    /// <c>StatusTag</c>'s own remarks hand that over — <em>"which labels exist is M2-10's status
+    /// catalogue to author"</em> — which this task did not do, because inventing a taxonomy nobody
+    /// agreed is exactly steering S6.
+    /// </para>
+    /// <para>
+    /// 🔒 So an authored <c>REMOVE_STATUS {statusTag}</c> reaches a feature that does not exist, and
+    /// that is <c>EffectOpSeams</c>' stated shape for exactly this case: <em>"a silent no-op turns
+    /// 'M2-09 has not landed' into 'this perk does nothing', which is a balance bug rather than an
+    /// error, and the balance harness would attribute it to the content."</em> It fails loudly
+    /// instead. No authored content in the repository uses the tag form today, so nothing regresses.
+    /// </para>
     /// </remarks>
+    /// <exception cref="EffectContextException">Always — no status carries a tag to match.</exception>
     public void RemoveByTag(IEffectActorView target, StatusTag tag, string sourceEffectId)
     {
         ArgumentNullException.ThrowIfNull(target);
 
         _ = Actor(target, sourceEffectId);
+
+        throw new EffectContextException(
+            sourceEffectId,
+            $"it clears the status tag group '{tag.Value}' and no status carries a tag",
+            "18 §2.3's REMOVE_STATUS takes a statusId OR a statusTag, and the tag form needs a " +
+            "vocabulary. 05 §5 tags none of its twelve statuses, content/statuses.json authors no " +
+            "tags key, and StatusTag's own remarks assign that vocabulary to the status catalogue — " +
+            "M2-10 declined to invent one (16 R6). Removing nothing and reporting success would be " +
+            "indistinguishable from removing the right thing. Author the tags, or clear by statusId.");
     }
 
     /// <inheritdoc />
@@ -490,8 +553,8 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     /// ⚠️ <b>No draw is taken.</b> `05` §3.1 is explicit that a DoT tick is <em>"a damage event, not
     /// an attack: no dodge, crit or block"</em>, and all three of those are the only things in `05`
     /// §4 that draw. Nothing on this path touches <c>BattleServices.Rng</c>, and
-    /// <c>StatusDeterminismTests</c> pins the draw count across a fight full of DoTs at exactly the
-    /// count of a fight with none.
+    /// <c>StatusDeterminismTests.A_fight_full_of_status_ticks_takes_exactly_the_draws_a_fight_with_none_takes</c>
+    /// pins the draw count across a fight full of DoTs at exactly the count of a fight with none.
     /// </para>
     /// </remarks>
     private void Tick(BattleActor actor, StatusInstance instance, int tick)
@@ -544,7 +607,24 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     private void ApplyStun(
         BattleActor receiver, ActorStatuses statuses, EffectDuration? duration, string sourceEffectId)
     {
-        var requested = Seconds(duration) ?? _catalogue.StunMaxSecondsPerApplication;
+        // 🔴 A STUN WITH NO D IS REFUSED, not defaulted. The first version substituted `05` §5's
+        // 1.5 s cap, which invents a number in the direction of the longest stun the game allows —
+        // steering S6, and a balance decision made in an engine helper.
+        if (Seconds(duration) is not { } authored)
+        {
+            throw new EffectContextException(
+                sourceEffectId,
+                "it applies STUN with no duration",
+                "05 §5 states STUN as 'cannot act for D s' and D is the applying effect's own " +
+                "18 §6 duration. Substituting the 1.5 s per-application cap would silently grant " +
+                "the longest legal stun to every effect that forgot to author one.");
+        }
+
+        // 🔒 `18` §2.3's STATUS_DURATION_PCT — "scale duration of statuses APPLIED TO this actor" —
+        // with no carve-out for the one status that is nothing but a duration. Scaled BEFORE the cap
+        // so that `05` §5's 1.5 s ceiling still binds on the scaled value rather than being applied
+        // to a number the debuff then inflates past it.
+        var requested = Seconds(ScaledDuration(receiver, duration)) ?? authored;
         var until = statuses.Stun.Apply(_services.Tick, requested);
 
         if (until is null)
@@ -608,19 +688,15 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     /// <summary>
     /// `18` §2.3's <c>STATUS_DURATION_PCT</c>, applied to the incoming application's <c>D</c>.
     /// </summary>
-    private EffectDuration? ScaledDuration(
-        BattleActor receiver, EffectDuration? duration, string sourceEffectId)
+    private EffectDuration? ScaledDuration(BattleActor receiver, EffectDuration? duration)
     {
         if (duration?.Seconds is not { } seconds)
         {
             return duration;
         }
 
-        var scale = _byActor.TryGetValue(receiver.Id, out var statuses)
-            ? statuses.IncomingDurationScale(_services.Tick)
-            : 1.0;
-
-        _ = sourceEffectId;
+        // For() has already run for every caller, so the actor always has a store by now.
+        var scale = For(receiver).IncomingDurationScale(_services.Tick);
 
         return scale == 1.0
             ? duration
@@ -674,12 +750,19 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     /// that fact rather than an assumption. A different implementation reaching here is a second
     /// roster, which is exactly what the single-view rule forbids, so it fails by name.
     /// </remarks>
-    private static BattleActor Actor(IEffectActorView view, string sourceEffectId) =>
-        view as BattleActor ?? throw new EffectContextException(
+    private static BattleActor Actor(IEffectActorView view, string sourceEffectId)
+    {
+        // 🔒 The guard lives HERE and not on each of the seven seam members, which is what review
+        // found: five of them had none, so a null target produced an NRE on view.GetType() below
+        // rather than naming the parameter. One funnel, one guard.
+        ArgumentNullException.ThrowIfNull(view);
+
+        return view as BattleActor ?? throw new EffectContextException(
             sourceEffectId,
             $"its target is a {view.GetType().Name}, not a BattleActor",
             "05 §5's statuses live on the fight's own actors. BattleActor is the single " +
             "IEffectActorView a battle produces — its own remarks are that two views of one battle " +
             "are two chances to disagree about who is alive — so a second implementation reaching " +
             "the status engine is a second roster, not a substitutable view.");
+    }
 }

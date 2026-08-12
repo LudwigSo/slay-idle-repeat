@@ -357,7 +357,10 @@ public sealed class SubjectSetFloorTests
         // to decide whether StacksOn should read it. RENAME rather than delete if M2-09 picks another.
         new("WardPool", SubjectKind.CoreType, "M2-09",
             "SlayIdleRepeat.Core.Rules.Combat.Status.StatusTimeline.StacksOn, which answers 0 for " +
-            "WARD because 05 §4.1's pool is M2-09's and this timeline keeps no second copy of it"),
+            "WARD because 05 §4.1's pool is M2-09's and this timeline keeps no second copy of it. " +
+            "⚠️ NOT WardPoolEvent, which is M2-06's duration terminator and already exists — the " +
+            "lookup is by exact simple name, so the two do not collide, but a reader skimming for " +
+            "'WardPool' will find WardPoolEvent first and must not read this entry as discharged"),
 
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
@@ -570,7 +573,7 @@ public sealed class SubjectSetFloorTests
         // (steering S12), and that file's own pin keeps the restatement honest.
         new(StatusCatalogueRuleTests.StatusNamespace, SubjectKind.CoreNamespace, "M2-10",
             "StatusCatalogueRuleTests.No_status_id_is_named_in_code_outside_the_catalogue, " +
-            "The_only_status_the_engine_special_cases_is_the_one_05_section_5_rules_on, " +
+            "Each_exempted_type_names_only_the_one_status_its_document_rules_on, " +
             "The_rules_subject_set_is_the_one_they_were_written_against"),
 
         // 🔒 The catalogue, tracked by NAME as well as by namespace — the precedent is EnemyCatalogue

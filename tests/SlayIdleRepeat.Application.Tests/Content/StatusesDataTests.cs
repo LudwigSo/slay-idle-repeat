@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
@@ -91,23 +92,38 @@ public sealed class StatusesDataTests
     [Fact]
     public void The_catalogues_ids_are_exactly_the_effect_schemas_status_vocabulary()
     {
+        // 🔴 BOTH DIRECTIONS, over the PARSED enum — the first version scanned the schema's raw text
+        // for each of this test's own hard-coded ids, which review showed caught nothing in the
+        // other direction: a thirteenth id added to $defs/statusId passed, and an id appearing only
+        // in a description would have satisfied the substring scan.
+        //
         // Read from the raw document set rather than the snapshot: a ContentSnapshot holds the DATA
         // documents a build ships, and schemas govern them from outside it.
-        var text = RepoData.Documents["schema/effect.schema.json"];
+        using var schema = JsonDocument.Parse(RepoData.Documents["schema/effect.schema.json"]);
 
-        // The enum sits under $defs/statusId, whose members are the only place in that file where
-        // all twelve appear together.
-        foreach (var id in StatusOrder)
-        {
-            text.ShouldContain('"' + id + '"', Case.Sensitive);
-        }
+        var enclosed = schema.RootElement
+            .GetProperty("$defs")
+            .GetProperty("statusId")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(e => e.GetString()!)
+            .ToArray();
 
-        // And the shipped catalogue is the same set — asserted in the direction that catches an id
-        // added to the schema and not here, which the loop above cannot see.
         var catalogue = Data().GetDocument(Document).Root;
         catalogue.TryGetMember("statuses", out var rows).ShouldBeTrue();
 
-        rows!.Items.Count.ShouldBe(12, "05 §5 fixes twelve and the effect schema encloses twelve");
+        var shipped = rows!.Items.Select(r =>
+        {
+            r.TryGetMember("id", out var id);
+            return id!.AsText();
+        }).ToArray();
+
+        // Set equality both ways, between the two files themselves — neither side is this test's
+        // constant, so an id added to either alone is a failure.
+        enclosed.OrderBy(s => s, StringComparer.Ordinal)
+            .ShouldBe(shipped.OrderBy(s => s, StringComparer.Ordinal));
+
+        shipped.Length.ShouldBe(12, "05 §5 fixes twelve");
     }
 
     /// <summary>

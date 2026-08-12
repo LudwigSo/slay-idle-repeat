@@ -204,30 +204,24 @@ public sealed class StatusCatalogueTests
     }
 
     /// <summary>
-    /// 🔒 `05` §6.1a's on-hit potency units and `05` §5's status units are one vocabulary, and every
-    /// member of the first maps onto the second.
+    /// 🔒 `05` §6.1a states exactly five potency units — the floor under the per-row mapping below.
     /// </summary>
     /// <remarks>
-    /// `05` §6.1a says its rows' stacking and units come from <em>"the status catalogue"</em>, which
-    /// is this one — so the two enums are two statements of one fact and something has to make them
-    /// agree. The <c>_PER_STACK</c> suffix on two of §6.1a's members is not a third unit: it says the
-    /// potency is per stack, which is what <c>ADDITIVE</c> stacking already means here.
+    /// 🔴 <b>This replaced a theory that could not fail.</b> That theory paired each `05` §6.1a unit
+    /// with a `05` §5 unit and then asserted only <c>Enum.IsDefined</c> on both — and because every
+    /// <c>InlineData</c> was a <c>nameof</c>, both parses and both checks were true at compile time.
+    /// The pairing, which was the entire claim in its name, was never checked: review proved it by
+    /// mapping <c>TargetAspdPct</c> onto <c>FlatHp</c> and watching all five cases pass. There is no
+    /// production function that maps one enum to the other, so there was nothing real to call.
+    /// <para>
+    /// What survives is the half that does bite: a sixth `05` §6.1a unit fails here, which is what
+    /// forces somebody to extend the per-row mapping below rather than leave the new unit uncovered.
+    /// </para>
     /// </remarks>
-    [Theory]
-    [InlineData(nameof(PotencyBasis.ApplierAtkPctPerSecond), nameof(StatusPotencyBasis.ApplierAtkPctPerSecond))]
-    [InlineData(nameof(PotencyBasis.TargetMaxHpPctPerSecond), nameof(StatusPotencyBasis.TargetMaxHpPctPerSecond))]
-    [InlineData(nameof(PotencyBasis.TargetAspdPct), nameof(StatusPotencyBasis.TargetStatPct))]
-    [InlineData(nameof(PotencyBasis.TargetDefPctPerStack), nameof(StatusPotencyBasis.TargetStatPct))]
-    [InlineData(nameof(PotencyBasis.TargetHealingReceivedPctPerStack), nameof(StatusPotencyBasis.TargetStatPct))]
-    public void Every_05_section_6_1a_potency_unit_is_a_05_section_5_status_unit(
-        string onHit, string status)
+    [Fact]
+    public void The_05_section_6_1a_potency_units_are_the_five_that_section_states()
     {
-        // The floor: 05 §6.1a states five units and this theory must cover all of them, or a sixth
-        // could be added with nothing here noticing.
         Enum.GetValues<PotencyBasis>().Length.ShouldBe(5);
-
-        Enum.IsDefined(Enum.Parse<PotencyBasis>(onHit)).ShouldBeTrue();
-        Enum.IsDefined(Enum.Parse<StatusPotencyBasis>(status)).ShouldBeTrue();
     }
 
     /// <summary>

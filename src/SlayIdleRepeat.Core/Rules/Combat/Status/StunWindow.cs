@@ -112,14 +112,20 @@ internal sealed class StunWindow
             return null;
         }
 
-        // 🔒 A reapplication that lands while the actor is still stunned EXTENDS to the later of the
-        // two ends rather than replacing. 05 §5 caps one APPLICATION, not the total, and shortening
-        // a live stun because a weaker one landed on top of it is a rule no section states. The cap
-        // still binds, because each application is capped before it is compared.
-        var until = tick + ticks - 1;
-        _stunnedUntilTick = _stunnedUntilTick == NotStunned
-            ? until
-            : Math.Max(_stunnedUntilTick, until);
+        // 🔴 A PLAIN ASSIGNMENT, and the Math.Max it replaced was DEAD CODE whose comment claimed the
+        // opposite of the shipped behaviour — found by review.
+        //
+        // That comment said "a reapplication that lands while the actor is still stunned EXTENDS to
+        // the later of the two ends". It can never happen. The line below this one sets
+        // _immuneUntilTick = _stunnedUntilTick + _immunityTicks, which is strictly greater than
+        // _stunnedUntilTick, so every application arriving while a stun is live is refused by the
+        // immunity guard above and never reaches here — and Clear() sets NotStunned, so the cleanse
+        // route takes the first arm too. Making the extension reachable would need the immunity
+        // window not to cover the stun's own duration, which `05` §5 does not authorise.
+        //
+        // A comment stating a rule the code cannot execute is worse than no comment: the next reader
+        // budgets for a behaviour that is not there.
+        _stunnedUntilTick = tick + ticks - 1;
 
         // 🔒 "a 3 s immunity window AFTER" — anchored on the tick the stun ends, so the window is
         // three whole seconds of being actionable rather than three seconds that the stun itself

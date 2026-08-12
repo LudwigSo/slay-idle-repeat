@@ -233,6 +233,50 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
+    /// 🔒 A stat debuff that expires and is applied again debuffs again — the aggregation reaches it
+    /// the second time too.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The path the fast-out in <c>StatModifiers</c> could break, and the one neither of the two
+    /// tests above covers.</b> That early-out reads a per-actor count of live stat-modifying statuses
+    /// rather than walking the set, because <c>RefreshStats</c> asks for every actor on every one of
+    /// 1800 ticks. A count that failed to decrement on expiry would keep aggregating a dead
+    /// <c>FREEZE</c>; one that failed to increment on a re-application, or that went negative and
+    /// stuck, would silently stop aggregating a live one — and the apply case and the expiry case
+    /// each pass on their own either way. This is apply → expire → apply, asserted at all three
+    /// points.
+    /// </remarks>
+    [Fact]
+    public void A_stat_debuff_reapplied_after_it_expired_debuffs_again()
+    {
+        var bench = Fight(
+            new[]
+            {
+                A(7, "E_FREEZE", "FREEZE", 0.0, 10.0, 1.0),
+                A(60, "E_FREEZE", "FREEZE", 0.0, 10.0, 1.0),
+            },
+            targetAspd: 2.0,
+            ticks: 75);
+
+        var enemy = bench.Simulation.Actors.Single(a => a.Id == "ENEMY_0");
+
+        // Applied at 7, expired at 27, applied again at 60 and still live at tick 74.
+        enemy.Stats[StatId.ASPD].ShouldBe(1.0);
+
+        var events = bench.Result.Log
+            .Where(e => e.Type is CombatEventType.StatusApplied or CombatEventType.StatusExpired)
+            .Select(e => (e.Tick, e.Type))
+            .ToArray();
+
+        events.ShouldBe(new[]
+        {
+            (7, CombatEventType.StatusApplied),
+            (27, CombatEventType.StatusExpired),
+            (60, CombatEventType.StatusApplied),
+        });
+    }
+
+    /// <summary>
     /// 🔒 `05` §5 — <c>SUNDER</c> <em>"stacks to 5"</em>, and the aggregate is the sum of the stacks.
     /// </summary>
     /// <remarks>
@@ -313,7 +357,12 @@ public sealed class StatusTimelineTests
         var bench = Fight(new[] { A(7, "E_BURN", "BURN", 0.5, 10.0) }, ticks: 60);
 
         bench.Pipeline.Dots.Count.ShouldBe(2, "boundaries at ticks 27 and 47");
-        bench.Pipeline.HpDecreaseNotifications.ShouldBe(2);
+
+        // 🔴 Counted on the PHASE CONTROLLER, not on the pipeline double — review found a
+        // pipeline-side counter blind to the exact defect this test exists for. A timeline calling
+        // _services.AfterHpDecrease in addition to routing through `05` §4 step 9 leaves Dots.Count
+        // and any pipeline counter at 2, and doubles only this.
+        bench.Phases.HpDecreaseCalls.ShouldBe(2);
     }
 
     /// <summary>
@@ -337,16 +386,26 @@ public sealed class StatusTimelineTests
     /// 🔒 `05` §5's <c>STUN</c>, through the tick loop: slot 4a's <em>"and not stunned"</em>.
     /// </summary>
     /// <remarks>
-    /// The assertion is on the swings the enemy actually took, which is what the gate is for. A
-    /// 1.0-ASPD enemy stunned from tick 0 for the capped 1.5 s misses its tick-0 and tick-20 swings
-    /// and resumes at tick 30.
+    /// 🔴 <b>The first version asserted only <c>CanAct</c> at the fight's last tick, which is a
+    /// statement that the stun ENDED — review showed that an engine which never consults the gate,
+    /// and one which never applies the status at all, both passed it.</b> The claim is about slot 4,
+    /// so the assertion is now on slot 4's output. A 1.0-ASPD enemy stunned at tick 0 for the capped
+    /// 1.5 s loses its tick-0 and tick-20 swings and resumes at tick 30; deleting
+    /// <c>&amp;&amp; _seams.Timeline.CanAct(attacker)</c> from <c>BattleSimulation</c> reddens this.
     /// </remarks>
     [Fact]
     public void A_stunned_actor_does_not_swing_while_the_stun_lasts()
     {
         var bench = Fight(new[] { A(0, "E_STUN", "STUN", 0.0, 10.0, 4.0) }, ticks: 60);
-        var enemy = bench.Simulation.Actors.Single(a => a.Id == "ENEMY_0");
 
+        var swings = bench.Pipeline.Swings
+            .Where(s => s.Attacker == "ENEMY_0")
+            .Select(s => s.Tick)
+            .ToArray();
+
+        swings.ShouldBe(new[] { 30, 50 }, "the capped stun holds ticks 0..29");
+
+        var enemy = bench.Simulation.Actors.Single(a => a.Id == "ENEMY_0");
         bench.Timeline.CanAct(enemy).ShouldBeTrue("the capped 1.5 s stun ended at tick 29");
     }
 
@@ -354,7 +413,7 @@ public sealed class StatusTimelineTests
 
     private sealed record Bench(
         SimulationResult Result, BattleSimulation Simulation, StatusTimeline Timeline,
-        RecordingStatusPipeline Pipeline);
+        RecordingStatusPipeline Pipeline, RecordingStatusPipeline.CountingPhases Phases);
 
     /// <summary>One scripted application: what lands, on whom, when, and for how long.</summary>
     private sealed record Applied(
@@ -385,6 +444,7 @@ public sealed class StatusTimelineTests
     {
         StatusTimeline? timeline = null;
         RecordingStatusPipeline? pipeline = null;
+        RecordingStatusPipeline.CountingPhases? phases = null;
         BattleSimulation? simulation = null;
 
         var plan = BattleTestBench.Plan(
@@ -397,12 +457,14 @@ public sealed class StatusTimelineTests
             services =>
             {
                 pipeline = new RecordingStatusPipeline(services);
+                phases = new RecordingStatusPipeline.CountingPhases();
                 timeline = new StatusTimeline(services, pipeline, StatusFixtures.Catalogue());
 
                 return BattleSeams.Strict with
                 {
                     Attack = pipeline,
                     Statuses = timeline,
+                    Phases = phases,
                     Timeline = new ScriptedApplications(
                         timeline, applications, targetSelf, () => simulation!),
                 };
@@ -418,7 +480,7 @@ public sealed class StatusTimelineTests
 
         var result = simulation.Run();
 
-        return new Bench(result, simulation, timeline!, pipeline!);
+        return new Bench(result, simulation, timeline!, pipeline!, phases!);
     }
 
     /// <summary>

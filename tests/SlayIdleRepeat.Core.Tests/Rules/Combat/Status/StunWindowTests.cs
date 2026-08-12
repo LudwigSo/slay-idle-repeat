@@ -101,10 +101,16 @@ public sealed class StunWindowTests
 
         window.Apply(tick: 0, requestedSeconds: 1.5).ShouldBe(29);
 
-        // Application-anchored would be 0 + 30 (stun) + 60 (window) read as 0 + 60 = tick 60.
-        window.Apply(tick: 60, requestedSeconds: 1.5).ShouldBeNull(
-            "the window runs from tick 29, so it is still closed at 60");
+        // 🔴 TICK 61 IS THE ONLY PROBE THAT SEPARATES THE TWO READINGS, and the first version of this
+        // test did not have it — review found it. Application-anchored gives
+        // _immuneUntilTick = 0 + 60 = 60, and the refusal is `tick <= _immuneUntilTick`, so tick 60
+        // is refused under BOTH readings and proves nothing. Tick 61 is the first tick the
+        // application-anchored window has opened and the end-anchored one has not.
+        window.Apply(tick: 60, requestedSeconds: 1.5).ShouldBeNull();
+        window.Apply(tick: 61, requestedSeconds: 1.5).ShouldBeNull(
+            "application-anchored the window would have opened at tick 61; it runs from tick 29");
 
+        window.Apply(tick: 89, requestedSeconds: 1.5).ShouldBeNull();
         window.Apply(tick: 90, requestedSeconds: 1.5).ShouldBe(119);
     }
 

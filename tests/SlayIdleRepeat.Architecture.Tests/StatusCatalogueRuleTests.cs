@@ -18,13 +18,16 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// silently stops being read.
 /// </para>
 /// <para>
-/// 🔒 <b>Two names are allowed to spell a status id, and the list is the rule.</b>
+/// 🔒 <b>Three names are allowed to spell a status id, and each is narrowed to ONE id by
+/// <see cref="Each_exempted_type_names_only_the_one_status_its_document_rules_on"/>.</b>
 /// <c>StatusLogId</c> is `05` §7's <c>dataId</c> map, which has to name all twelve because the
 /// ordinals are inside <c>LogHash</c> and cannot be derived from a file that may be reordered.
 /// <c>StatusTimeline</c> names exactly one — <c>STUN</c> — because `05` §5 gives that status a rule
 /// no other status has (<em>"Max 1.5 s per application, with a 3 s immunity window after"</em>,
-/// followed by <em>"stun immunity is mandatory"</em>), so its special case is the document's rather
-/// than the implementer's. Anything else naming one is the erosion this rule exists to catch.
+/// followed by <em>"stun immunity is mandatory"</em>). <c>EnemyCatalogue</c> names exactly one —
+/// <c>SUNDER</c> — because `05` §6.1a fixes <c>WARDEN</c>'s on-hit token as that word. Each special
+/// case is a document's rather than an implementer's; anything else naming one is the erosion this
+/// rule exists to catch.
 /// </para>
 /// <para>
 /// The scan is over <c>ldstr</c> operands rather than over the source text, so a comment or an XML
@@ -84,7 +87,7 @@ public sealed class StatusCatalogueRuleTests
     };
 
     /// <summary>
-    /// 🔒 `05` §5 — no production code outside the catalogue names one of the twelve statuses.
+    /// 🔒 `05` §5 — no type in <b>Core</b> outside the catalogue names one of the twelve statuses.
     /// </summary>
     [Fact]
     public void No_status_id_is_named_in_code_outside_the_catalogue()
@@ -121,43 +124,74 @@ public sealed class StatusCatalogueRuleTests
 
         ArchRule.Empty(
             offenders,
-            "05 §5: the twelve statuses are data. No production code outside the catalogue names one.");
+            "05 §5: the twelve statuses are data. No type in Core outside the catalogue names one.");
     }
 
     /// <summary>
-    /// 🔒 `05` §5 — <c>STUN</c> is the <b>only</b> status the engine special-cases, and it is
-    /// special-cased in exactly one place.
+    /// 🔒 `05` §5 and `05` §6.1a — each exempted type names <b>the one</b> status its document rules
+    /// on, and no other.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The second probe, and the rule above cannot make this claim.</b> That rule allows
-    /// <c>StatusTimeline</c> to name a status; on its own it would let <c>StatusTimeline</c> grow a
-    /// twelve-arm switch with nothing going red — the exact shape `18`'s headnote forbids, hidden
-    /// inside the one type that is allowed to name anything at all. This narrows the exemption to the
-    /// one id `05` §5 gives its own rule to, so a second special case has to argue for itself here.
+    /// 🔴 <b>The second probe, and the rule above cannot make this claim.</b> That rule allows three
+    /// types to name a status; on its own it would let any of them grow a twelve-arm switch with
+    /// nothing going red — the exact shape `18`'s headnote forbids, hidden inside the types that are
+    /// allowed to name anything at all. Review found the first version narrowed only
+    /// <c>StatusTimeline</c> while <c>EnemyCatalogue</c>'s exemption was argued for one id
+    /// (<c>SUNDER</c>) and granted for twelve. Each exemption is now narrowed to the id its own
+    /// document fixes: `05` §5 gives <c>STUN</c> a rule of its own (the 1.5 s cap and the mandatory
+    /// immunity window), and `05` §6.1a fixes <c>WARDEN</c>'s on-hit token as <c>SUNDER</c>.
     /// </remarks>
     [Fact]
-    public void The_only_status_the_engine_special_cases_is_the_one_05_section_5_rules_on()
+    public void Each_exempted_type_names_only_the_one_status_its_document_rules_on()
     {
-        var timeline = Domain.CoreTypes.SingleOrDefault(
-            t => Owner(t).Equals(StatusNamespace + ".StatusTimeline", StringComparison.Ordinal));
+        // The two exemptions the documents argue for, each with the single id it argues for.
+        var narrowed = new List<(string Owner, string Permitted)>
+        {
+            (StatusNamespace + ".StatusTimeline", "STUN"),
+            (Domain.CombatRulesNamespace + ".Enemies.EnemyCatalogue", "SUNDER"),
+        };
 
-        Assert.NotNull(timeline);
+        var offenders = new List<string>();
 
-        var named = Il.AllMethods(timeline!)
-            .SelectMany(Il.Instructions)
-            .Where(i => i.OpCode == OpCodes.Ldstr && i.Operand is string s &&
-                        StatusIds.Contains(s, StringComparer.Ordinal))
-            .Select(i => (string)i.Operand!)
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(s => s, StringComparer.Ordinal)
-            .ToArray();
+        foreach (var (owner, permitted) in narrowed)
+        {
+            var type = Domain.CoreTypes.SingleOrDefault(
+                t => Owner(t).Equals(owner, StringComparison.Ordinal));
 
-        Assert.True(
-            named.Length <= 1 && (named.Length == 0 || named[0].Equals("STUN", StringComparison.Ordinal)),
-            "05 §5 gives exactly one status a rule of its own — STUN's 'max 1.5 s per application, " +
-            "with a 3 s immunity window after', which the section then calls mandatory. Every other " +
-            "status is a row in the catalogue. StatusTimeline names: " +
-            (named.Length == 0 ? "(none)" : string.Join(", ", named)) + ".");
+            if (type is null)
+            {
+                offenders.Add(
+                    $"'{owner}' is exempted from the status-id scan and does not exist — an " +
+                    "exemption for a type that is gone can never expire (steering S4).");
+                continue;
+            }
+
+            var named = Il.AllMethods(type)
+                .SelectMany(Il.Instructions)
+                .Where(i => i.OpCode == OpCodes.Ldstr && i.Operand is string s &&
+                            StatusIds.Contains(s, StringComparer.Ordinal))
+                .Select(i => (string)i.Operand!)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(s => s, StringComparer.Ordinal)
+                .ToArray();
+
+            if (named.Length <= 1 &&
+                (named.Length == 0 || named[0].Equals(permitted, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            offenders.Add(
+                $"{owner} is exempted for ONE id — '{permitted}' — and names: " +
+                string.Join(", ", named) + ". 05 §5 gives STUN a rule of its own (the 1.5 s cap and " +
+                "the mandatory immunity window) and 05 §6.1a fixes WARDEN's on-hit token as SUNDER. " +
+                "Every other status is a row in the catalogue.");
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "05 §5 / 05 §6.1a: each type exempted from the status-id scan names only the one status " +
+            "its own document rules on.");
     }
 
     /// <summary>

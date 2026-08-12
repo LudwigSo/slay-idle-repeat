@@ -217,6 +217,9 @@ internal sealed record StatusCatalogue(
     /// <summary>The snapshot-relative path of the document.</summary>
     internal const string Document = "content/statuses.json";
 
+    /// <summary>🔒 `05` §5 fixes exactly twelve statuses. Asserted at load — see <see cref="Read"/>.</summary>
+    internal const int ExpectedStatusCount = 12;
+
     /// <summary>📐 `05` §5 — <c>BLEED</c>'s missing-HP scaling term.</summary>
     internal const string BleedMissingHpScalingPointer = Document + "#/bleedMissingHpScaling";
 
@@ -246,6 +249,15 @@ internal sealed record StatusCatalogue(
             ["TARGET_STAT_PCT"] = StatusPotencyBasis.TargetStatPct,
             ["FLAT_HP"] = StatusPotencyBasis.FlatHp,
             ["NONE"] = StatusPotencyBasis.None,
+        };
+
+    private static readonly IReadOnlyDictionary<string, StatId> Stats =
+        new Dictionary<string, StatId>(StringComparer.Ordinal)
+        {
+            ["ATK"] = StatId.ATK,
+            ["DEF"] = StatId.DEF,
+            ["ASPD"] = StatId.ASPD,
+            ["HEAL_PCT"] = StatId.HEAL_PCT,
         };
 
     private static readonly IReadOnlyDictionary<string, StackingMode> Modes =
@@ -337,9 +349,36 @@ internal sealed record StatusCatalogue(
         }
 
         var statuses = new List<StatusDefinition>(list.Items.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
         for (var index = 0; index < list.Items.Count; index++)
         {
-            statuses.Add(Row(list.Items[index]));
+            var row = Row(list.Items[index]);
+
+            // 🔒 Duplicate ids are refused BY NAME. ToDictionary's own failure is a bare
+            // ArgumentException naming neither the document nor the id, and the schema's uniqueItems
+            // compares whole objects — so two rows sharing an id with different bodies pass it.
+            if (!seen.Add(row.Id))
+            {
+                throw new FormatException(
+                    $"{Document} declares '{row.Id}' twice. 05 §3.1 is 'one instance per statusId " +
+                    "per target', which needs the id to identify one row; the schema's uniqueItems " +
+                    "compares whole rows and cannot see two that differ elsewhere.");
+            }
+
+            statuses.Add(row);
+        }
+
+        // 🔒 The twelve-row bound is asserted HERE and not only in the schema. Review found the type
+        // claiming 'its schema requires exactly twelve rows' while nothing at run time checked it —
+        // and a snapshot built without schema validation (every in-code fixture) would load a
+        // partial catalogue whose first symptom is Of() blaming its caller for the file's defect.
+        if (statuses.Count != ExpectedStatusCount)
+        {
+            throw new FormatException(
+                $"{Document} carries {statuses.Count.ToString(CultureInfo.InvariantCulture)} statuses. " +
+                "05 §5 fixes exactly twelve, and its schema declares minItems and maxItems 12; a " +
+                "catalogue that is short fails later, mid-battle, as an unknown-status error.");
         }
 
         return new StatusCatalogue(
@@ -358,7 +397,12 @@ internal sealed record StatusCatalogue(
             Lookup(Kinds, Text(row, "type"), "05 §5's Type column", id),
             Lookup(Bases, Text(row, "potencyBasis"), "05 §5's potency units", id),
             row.TryGetMember("stat", out var stat) && stat!.Kind == ContentValueKind.Text
-                ? Enum.Parse<StatId>(stat.AsText())
+
+                // Through the same Lookup as type and potencyBasis, not Enum.Parse: review found
+                // that Enum.Parse threw a bare BCL ArgumentException naming no document and no row,
+                // and silently accepted any of the fourteen StatIds where the schema's $defs/statId
+                // admits four.
+                ? Lookup(Stats, stat.AsText(), "05 §5's four debuffable stats", id)
                 : null,
             row.TryGetMember("fixedPotency", out var fixedPotency) &&
             fixedPotency!.Kind == ContentValueKind.Number

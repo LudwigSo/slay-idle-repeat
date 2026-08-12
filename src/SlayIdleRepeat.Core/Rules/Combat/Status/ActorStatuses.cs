@@ -59,6 +59,13 @@ internal sealed class ActorStatuses
             ordered.Add(instance);
         }
 
+        // One instance is already in order; the sort below is a delegate call per comparison and
+        // this is the overwhelmingly common case on a 1800-tick loop.
+        if (ordered.Count == 1)
+        {
+            return ordered;
+        }
+
         ordered.Sort(static (left, right) =>
         {
             var byEffect = EffectOrder.IdComparer.Compare(left.SourceEffectId, right.SourceEffectId);
@@ -80,16 +87,83 @@ internal sealed class ActorStatuses
         _instances.TryGetValue(statusId, out var found) ? found : null;
 
     /// <summary>Records a first application.</summary>
-    internal void Add(StatusInstance instance) => _instances[instance.Definition.Id] = instance;
+    internal void Add(StatusInstance instance)
+    {
+        // Through Remove rather than by assignment, so StatModifierCount cannot double-count a
+        // status re-added over a live one — Apply's reapplication path does not come through here,
+        // but ApplyStun's does.
+        Remove(instance.Definition.Id);
+
+        _instances[instance.Definition.Id] = instance;
+
+        if (instance.Definition.Basis == StatusPotencyBasis.TargetStatPct)
+        {
+            StatModifierCount++;
+        }
+
+        if (instance.Definition.Ticks)
+        {
+            TickingCount++;
+        }
+    }
 
     /// <summary>Drops an instance.</summary>
-    internal void Remove(string statusId) => _instances.Remove(statusId);
+    internal void Remove(string statusId)
+    {
+        if (!_instances.Remove(statusId, out var removed))
+        {
+            return;
+        }
+
+        if (removed.Definition.Basis == StatusPotencyBasis.TargetStatPct)
+        {
+            StatModifierCount--;
+        }
+
+        if (removed.Definition.Ticks)
+        {
+            TickingCount--;
+        }
+    }
 
     /// <summary>
     /// `05` §3.1's <em>"current stack count"</em> for one status — <c>0</c> when it is not carried.
     /// </summary>
     internal int Stacks(string statusId) =>
         _instances.TryGetValue(statusId, out var found) ? found.Stacks.Count : 0;
+
+    /// <summary>
+    /// How many live instances feed `18` §8's aggregation — the six
+    /// <see cref="StatusPotencyBasis.TargetStatPct"/> rows of `05` §5.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>A counter, and it is a performance rule rather than a convenience.</b>
+    /// <c>BattleSimulation.RefreshStats</c> asks <c>IStatusTimeline.StatModifiers</c> for every
+    /// state-dependent actor on every one of 1800 ticks, and `05` gives a whole fight a &lt; 5 ms
+    /// budget. Answering that question by sorting <see cref="Ordered"/> would allocate a list and run
+    /// a comparison sort per actor per tick for a fight in which the commonest answer is <em>none</em>
+    /// — a <c>BURN</c> and a <c>REGEN</c> feed no stat at all. This makes the empty case a single
+    /// integer read and leaves the sorted walk to the ticks that actually have something to
+    /// aggregate.
+    /// <para>
+    /// It is maintained in <see cref="Add"/> and <see cref="Remove"/>, which are the only two members
+    /// that change the set, so it cannot drift from <see cref="_instances"/> without one of them
+    /// being bypassed.
+    /// </para>
+    /// </remarks>
+    internal int StatModifierCount { get; private set; }
+
+    /// <summary>
+    /// How many live instances `05` §3.1's cadence drives — the <c>DoT</c> and <c>HoT</c> rows.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <see cref="StatModifierCount"/>'s twin, and it exists for the same measured reason. Slot 1
+    /// and slot 2 each call <see cref="Ordered"/> for every actor on every one of 1800 ticks; review
+    /// found that an actor carrying any status at all — a lone <c>FREEZE</c>, which never ticks —
+    /// paid two list allocations and two comparison sorts per tick to be told nothing was due. This
+    /// makes slot 1's early-out an integer read.
+    /// </remarks>
+    internal int TickingCount { get; private set; }
 
     /// <summary>`18` §2.3's <c>IMMUNE_STATUS</c>, for one status, until a battle time.</summary>
     /// <remarks>
@@ -179,11 +253,18 @@ internal sealed class ActorStatuses
 /// <c>BURN</c> would be indistinguishable from an event that names nothing.
 /// </para>
 /// <para>
-/// 🔒 <b>The order is `05` §5's table order and is therefore inside <c>LogHash</c>.</b> It is read
-/// from the ids the catalogue loaded rather than from a second list in code, so the data file and the
-/// log agree by construction; <c>StatusLogIdTests</c> pins the twelve positions, because reordering
-/// the rows of <c>content/statuses.json</c> would silently renumber every status event in every
-/// committed reference log.
+/// 🔴 <b>A HARD-CODED TABLE, and it has to be — the earlier version of this remark claimed the
+/// opposite and review caught it.</b> It said the ordinals were "read from the ids the catalogue
+/// loaded … so the data file and the log agree by construction". They are not: the dictionary below
+/// is exactly the second list in code that sentence denied, and a maintainer trusting it would
+/// reorder <c>content/statuses.json</c> believing the log followed.
+/// <para>
+/// The ordinals are inside <c>LogHash</c>, so they are a <b>wire format</b> and cannot be derived
+/// from a file that may legitimately be reordered — deriving them is precisely what would silently
+/// renumber every status event in every committed reference log. A thirteenth status is APPENDED
+/// here, never inserted.
+/// <c>StatusCatalogueTests.Every_status_has_a_distinct_one_based_05_section_7_dataId</c> pins the
+/// twelve positions and that the set matches the catalogue exactly.
 /// </para>
 /// </remarks>
 internal static class StatusLogId
