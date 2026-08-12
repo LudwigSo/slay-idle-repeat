@@ -1,0 +1,42 @@
+{
+  "$schema": "../schema/combat_caps.schema.json",
+  "_doc": "05 §1-2 — the combat simulator's constants: the six stat caps of 05 §1, the hero base stat curve of 05 §2, the ward pool cap of 05 §4.1, the two mitigation dials of 05 §4, and the PvP duration override of 11 §4.3. 05 §1.1 and 11 §4.3 name this file as `res://data/combat_caps.json` / `data/combat_caps.json`; the repository path is game-data/content/combat_caps.json. It sits under content/ and NOT under tuning/ deliberately: 21 §3.1 catalogues exactly sixteen tuning files and a seventeenth is a bug, and these are balance and simulator constants rather than economy dials. TunableMarkerAudit.NonEconomyDataFiles records the same ruling in code. Every key here carries its 05/11 section; a number with no section is a number nobody will defend.",
+  "_status": "transcribed",
+  "caps": {
+    "_doc": "05 §1 — the six capped stats, verbatim from the stat table's Notes column. Every one is a 0..1 ratio and the cap is an UPPER bound; 05 states no lower bound for any of them and none is invented here. 18 §8 step 9 applies these after all aggregation, honouring STAT_CAP_OVERRIDE. The keys are 18 §2.1 StatId names, which is the vocabulary an effect writes: 05 §1's LS is LIFESTEAL and its DR% is DR_PCT.",
+    "CRIT": 0.75,
+    "LIFESTEAL": 0.4,
+    "DODGE": 0.5,
+    "BLOCK": 0.6,
+    "PEN": 0.7,
+    "DR_PCT": 0.6
+  },
+  "heroBaseStats": {
+    "_doc": "05 §2 — Base(stat) for the hero, as base + perLevel * L where L is the Legend Level (1..200). The three curves 05 §2 writes as formulae (MaxHP = 250 + 45 * L, ATK = 30 + 6 * L, DEF = 15 + 3 * L) carry a perLevel; the eleven constants it writes as a single number carry perLevel 0, which is a transcription of `ASPD = 1.00` rather than a filled hole. 🔒 All fourteen combat stats are required: 05 §2 — 'every actor — hero and enemy alike — carries a complete 14-stat block with these defaults. An unstated stat is a bug, not a zero.' HEAL_PCT base is 1.0, not 0 — it is a multiplier on ALL healing received, so a 0 here would silently disable every heal in the game.",
+    "legendLevelMin": 1,
+    "legendLevelMax": 200,
+    "stats": {
+      "MAX_HP": { "base": 250, "perLevel": 45 },
+      "ATK": { "base": 30, "perLevel": 6 },
+      "DEF": { "base": 15, "perLevel": 3 },
+      "ASPD": { "base": 1.0, "perLevel": 0 },
+      "CRIT": { "base": 0.05, "perLevel": 0 },
+      "CDMG": { "base": 0.5, "perLevel": 0 },
+      "LIFESTEAL": { "base": 0.0, "perLevel": 0 },
+      "DODGE": { "base": 0.02, "perLevel": 0 },
+      "BLOCK": { "base": 0.0, "perLevel": 0 },
+      "PEN": { "base": 0.0, "perLevel": 0 },
+      "DMG_PCT": { "base": 0.0, "perLevel": 0 },
+      "DR_PCT": { "base": 0.0, "perLevel": 0 },
+      "HEAL_PCT": { "base": 1.0, "perLevel": 0 },
+      "THORNS": { "base": 0.0, "perLevel": 0 }
+    }
+  },
+  "wardCapPct": 1.0,
+  "pvpMaxFightSeconds": 60,
+  "mitigation": {
+    "_doc": "05 §4 — mitigation = effDef / (effDef + flatConstant + perLevelConstant * attacker.Level). 05 §4: 'the 120 and 20 constants are the two most important balance dials in the game. Expose them in data.' ⚠️ These two numbers are authored TWICE: 29 §2.3's MitigationVsReference uses the same dials and they already live in tuning/power_model.json#/mitigation. A DeclaredRules Mirrors rule fails the build if the two copies disagree — the combat simulator and the power model grading it cannot be allowed to mitigate differently.",
+    "flatConstant": 120,
+    "perLevelConstant": 20
+  }
+}

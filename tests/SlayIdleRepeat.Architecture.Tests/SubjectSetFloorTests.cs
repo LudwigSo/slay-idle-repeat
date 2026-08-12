@@ -141,9 +141,15 @@ public sealed class SubjectSetFloorTests
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
 
-        // Moved out of Pending by M2-15, which landed Core/Rules/Combat/ — the combat log format,
-        // `05` §7. Two rules stated over Domain.RulesNamespace stopped quantifying over nothing on
-        // that commit.
+        // Moved out of Pending by M2-15, which landed the first types under Core/Rules/ —
+        // Core/Rules/Combat/, the `05` §7 combat log format. M2-07 landed Core/Rules/Stats/ in the
+        // same wave and independently wrote this same entry; one survives, attributed to whichever
+        // commit made the namespace non-empty first. Two rules stated over Domain.RulesNamespace
+        // stopped quantifying over nothing on that commit.
+        // ⚠️ M2-07's version of this entry carried an M1-10 marker: the energy math under
+        // Core/Rules/Economy/ makes the same Pending→Live move on milestone/M1, which is NOT on this
+        // branch. Whichever milestone merges first wins; the loser's entry is a duplicate to delete,
+        // not a second subject. Recorded so the M1+M2 merge does not read it as a conflict of substance.
         new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M2-15",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_" +
             "unreachable_from_the_rules_and_the_power_computation"),
@@ -162,6 +168,12 @@ public sealed class SubjectSetFloorTests
         // Empty since M0-08 wrote the rule; non-empty since M2-15.
         new(Domain.CombatRulesNamespace, SubjectKind.CoreNamespace, "M2-15",
             "IsolationTests.Guild_state_is_unreachable_from_the_combat_path"),
+
+        // The 05 §1-2 stat block and the 18 §8 aggregation. Tracked separately from RulesNamespace
+        // because Domain.cs declares it separately: it is the more specific constant, and a rename of
+        // Core/Rules/Stats/ that left Core/Rules/ non-empty would leave the entry above satisfied.
+        new(Domain.StatsRulesNamespace, SubjectKind.CoreNamespace, "M2-07",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal (the 05 §1-2 stat block and the 18 §8 aggregation)"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

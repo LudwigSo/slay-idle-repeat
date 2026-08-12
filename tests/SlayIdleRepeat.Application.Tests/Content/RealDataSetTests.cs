@@ -8,7 +8,7 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// The validator against the real <c>game-data</c>: 16 tuning files, 19 schemas, two
+/// The validator against the real <c>game-data</c>: 16 tuning files, 21 schemas, two
 /// locales and 96 deliberate <c>null</c>s.
 /// </summary>
 /// <remarks>

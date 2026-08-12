@@ -95,6 +95,20 @@ sits at the end. It is authored per milestone (M2/M3/M11), and every directory h
 > are kept in separate directories, and their schemas are named `event.schema.json` (live-ops, the
 > path `26` §2 names) and — when authored — a distinct board-event schema.
 
+Plus one file that sits **directly** under `content/`, because it is a single document rather than a
+type with many instances:
+
+| File | Owner doc |
+|---|---|
+| `combat_caps.json` | `05` §1–2 — the six stat caps, the hero base stat curve, `wardCapPct` (`05` §4.1), the two mitigation dials (`05` §4) and `pvpMaxFightSeconds` (`11` §4.3) |
+
+🔒 **`combat_caps.json` is deliberately not a seventeenth `tuning/` file.** `05` §1.1 and `11` §4.3
+name it `res://data/combat_caps.json`, and `21` §3.1's catalogue — the authority on what `tuning/`
+holds — does not list it. It is balance and simulator configuration, not an economic dial the
+simulator sweeps, and `TunableMarkerAudit.NonEconomyDataFiles` records exactly that in code. It pairs
+by **stem** (`content/combat_caps.json` → `schema/combat_caps.schema.json`), not by directory, so it
+needs no row in `ContentLayout.ContentTypeSchemas`.
+
 ### `content/` vs `tuning/` — where does a number go?
 
 The test is: **would the economy simulator want to sweep it?**
