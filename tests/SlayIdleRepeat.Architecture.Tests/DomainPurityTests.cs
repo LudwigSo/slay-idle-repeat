@@ -410,14 +410,18 @@ public sealed class DomainPurityTests
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
+        // 🔒 The floor (steering S3), asserted as a SET DIFFERENCE rather than one Assert.Contains
+        // per name inside a foreach: an assertion in a loop reports only the FIRST producer that
+        // went missing, and the interesting failure is the refactor that took several with it.
+        // ArchRule.Empty is the file's own idiom for "this set must be empty, and here is why".
         Assert.NotEmpty(producers);
-
-        foreach (var producer in CurrencyProducerFloor)
-        {
-            Assert.Contains(
-                producer,
-                producers);
-        }
+        ArchRule.Empty(
+            CurrencyProducerFloor
+                .Except(producers, StringComparer.Ordinal)
+                .Select(missing =>
+                    $"{missing} no longer returns {Domain.CurrencyChangedEvent}, so it has dropped out of " +
+                    "the set this rule quantifies over"),
+            DiscardFloorRule);
 
         var offenders = Il.MethodsWithBodies(ProductionAssemblies.CoreModule)
             .Where(DiscardsACurrencyEvent)
@@ -744,6 +748,10 @@ public sealed class DomainPurityTests
     private const string DiscardRule =
         "A CurrencyChanged is never produced and dropped at its call site — 21 §8.3's " +
         "income_attribution.csv is a query over the events that reach CommandResult (30 §7, 30 §9).";
+
+    private const string DiscardFloorRule =
+        "The discard rule's subject set still contains every 30 §7 currency producer it was written " +
+        "over — a rule that could only find zero producers would report success forever (S3).";
 
     private static bool IsPortShaped(string typeFullName)
     {

@@ -50,6 +50,11 @@ public sealed class GameCalendarTests
     [Fact]
     public void The_game_day_boundary_is_the_latest_0500_UTC_at_or_before_the_instant()
     {
+        // 🔒 The published constant against `30` §2.3's literal, not against itself. Every other
+        // assertion here is written in terms of WednesdayBoundary, so without this line the suite
+        // would still be green with DayStart moved to 04:00 and the fixtures moved with it.
+        GameCalendar.DayStart.ShouldBe(TimeSpan.FromHours(5), "30 §2.3 writes 05:00 UTC into the reset rule.");
+
         GameCalendar.GameDayStartAt(WednesdayBoundary).ShouldBe(
             WednesdayBoundary, "05:00:00.000 exactly is the boundary itself, not the previous day's.");
 
@@ -115,11 +120,17 @@ public sealed class GameCalendarTests
 
         instant.DayOfWeek.ShouldBe(expected, "the fixture's own weekday is checked against the calendar.");
 
+        // 🔒 The published constant against A2's literal weekday. Asserting the answer's DayOfWeek
+        // against GameCalendar.WeekStart instead would be the arithmetic checked against the very
+        // constant it is computed from — true of Sunday, Thursday and every other value the field
+        // could hold (steering S1).
+        GameCalendar.WeekStart.ShouldBe(DayOfWeek.Monday, "A2, derived from 27 §4.");
+
         var weekStart = GameCalendar.GameWeekStartAt(instant);
 
         weekStart.ShouldBe(MondayBoundary);
-        weekStart.DayOfWeek.ShouldBe(GameCalendar.WeekStart);
-        weekStart.TimeOfDay.ShouldBe(GameCalendar.DayStart);
+        weekStart.DayOfWeek.ShouldBe(DayOfWeek.Monday);
+        weekStart.TimeOfDay.ShouldBe(TimeSpan.FromHours(5));
         weekStart.Offset.ShouldBe(TimeSpan.Zero);
         GameCalendar.IsGameWeekBoundary(weekStart).ShouldBeTrue();
     }
@@ -141,6 +152,33 @@ public sealed class GameCalendarTests
         earlyMonday.DayOfWeek.ShouldBe(DayOfWeek.Monday, "one tick before 05:00 is still the same Monday.");
 
         GameCalendar.GameWeekStartAt(earlyMonday).ShouldBe(MondayBoundary.AddDays(-7));
+    }
+
+    /// <summary>
+    /// 🔒 <b>A2</b> — a game-week boundary is a Monday <b>and</b> 05:00:00.000 UTC. Both halves,
+    /// asserted separately, because either one alone is a predicate that answers <c>true</c> for
+    /// instants <c>Player.ResetWeeklyCounters</c> refuses.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>The two Monday cases are what give this predicate teeth</b> (steering <b>S1</b>).
+    /// Without them the only <c>false</c> case in the whole file is a Wednesday, so
+    /// <c>IsGameWeekBoundary(i) =&gt; i.DayOfWeek == DayOfWeek.Monday</c> — which calls every instant
+    /// of every Monday a week boundary, including 00:00 and 23:59 — would satisfy every assertion in
+    /// this suite. That predicate handed to the aggregate is a `30` §2.1 <b>P3</b> violation, since
+    /// <c>Player</c> refuses any weekly period that is not 05:00 UTC exactly.
+    /// </remarks>
+    [Fact]
+    public void A_game_week_boundary_is_a_Monday_at_0500_UTC_exactly()
+    {
+        GameCalendar.IsGameWeekBoundary(MondayBoundary).ShouldBeTrue();
+
+        GameCalendar.IsGameWeekBoundary(MondayBoundary.AddTicks(-1)).ShouldBeFalse(
+            "a Monday at 04:59:59.9999999 is still inside the PREVIOUS game week.");
+        GameCalendar.IsGameWeekBoundary(MondayBoundary.AddTicks(1)).ShouldBeFalse(
+            "one tick past 05:00 is inside the week, not the instant it begins at.");
+        GameCalendar.IsGameWeekBoundary(MondayBoundary.AddHours(12)).ShouldBeFalse(
+            "Monday noon is a Monday and is not a boundary — the time of day is half the claim.");
+
         GameCalendar.IsGameWeekBoundary(WednesdayBoundary).ShouldBeFalse(
             "a Wednesday at 05:00 is a legal game DAY boundary and an illegal game WEEK boundary (A2).");
     }
@@ -188,22 +226,37 @@ public sealed class GameCalendarTests
     /// proleptic Gregorian calendar — asserted below rather than taken on trust, since the whole
     /// floor rests on it not underflowing a second time.
     /// </para>
+    /// <para>
+    /// 🔒 <b>The floor is pinned to A7's literal instant, not to <c>GameCalendar.FirstGameDay</c>.</b>
+    /// Every assertion here used to be expressed in terms of the constant itself, which made the
+    /// whole test true of <em>any</em> Monday 05:00 UTC the field happened to hold — a recorded
+    /// assumption stating a specific instant, asserted by a test that could not tell that instant
+    /// from another (steering <b>S1</b>). The literal below is the claim; the constant is the
+    /// subject.
+    /// </para>
     /// </remarks>
     [Fact]
     public void An_instant_before_the_first_game_day_answers_the_floor()
     {
+        var firstGameDay = new DateTimeOffset(1, 1, 1, 5, 0, 0, TimeSpan.Zero);
+
         default(DateTimeOffset).Offset.ShouldBe(TimeSpan.Zero, "which is why GameContext accepts it.");
         DateTimeOffset.MinValue.DayOfWeek.ShouldBe(
             DayOfWeek.Monday, "0001-01-01 is a Monday, so the weekly step-back cannot underflow the floor.");
 
-        GameCalendar.GameDayStartAt(default).ShouldBe(GameCalendar.FirstGameDay);
-        GameCalendar.GameWeekStartAt(default).ShouldBe(GameCalendar.FirstGameDay);
+        GameCalendar.FirstGameDay.ShouldBe(
+            firstGameDay, "A7 records 0001-01-01T05:00:00Z as the floor, not merely 'some Monday at 05:00'.");
 
-        GameCalendar.GameDayStartAt(GameCalendar.FirstGameDay).ShouldBe(GameCalendar.FirstGameDay);
-        GameCalendar.GameWeekStartAt(GameCalendar.FirstGameDay).ShouldBe(GameCalendar.FirstGameDay);
+        GameCalendar.GameDayStartAt(default).ShouldBe(firstGameDay);
+        GameCalendar.GameWeekStartAt(default).ShouldBe(firstGameDay);
 
-        GameCalendar.FirstGameDay.TimeOfDay.ShouldBe(GameCalendar.DayStart);
-        GameCalendar.FirstGameDay.DayOfWeek.ShouldBe(GameCalendar.WeekStart);
+        GameCalendar.GameDayStartAt(firstGameDay).ShouldBe(firstGameDay);
+        GameCalendar.GameWeekStartAt(firstGameDay).ShouldBe(firstGameDay);
+
+        firstGameDay.TimeOfDay.ShouldBe(TimeSpan.FromHours(5), "30 §2.3's game day starts at 05:00 UTC.");
+        firstGameDay.DayOfWeek.ShouldBe(DayOfWeek.Monday, "A2's game week starts on a Monday.");
+        GameCalendar.IsGameDayBoundary(firstGameDay).ShouldBeTrue();
+        GameCalendar.IsGameWeekBoundary(firstGameDay).ShouldBeTrue();
     }
 
     // ------------------------------------------------------------------ the aggregate agrees
@@ -227,6 +280,17 @@ public sealed class GameCalendarTests
     /// no-op, so the aggregate is built <em>at</em> the computed boundaries — nothing here can pass
     /// by moving a period backwards.
     /// </para>
+    /// <para>
+    /// 🔒 <b>The rehydration is read through <c>Value</c> inside <c>Should.NotThrow</c>, and that is
+    /// not a style choice.</b> <c>Result&lt;T&gt;.Error</c> <em>throws</em> on a <b>success</b>
+    /// (<em>"This Result succeeded, so it has no error to read"</em>), Shouldly 4.3.0 has no
+    /// <c>Func&lt;string&gt;</c> overload of <c>ShouldBeTrue</c> — checked against the shipped
+    /// assembly, not assumed — and a custom message is therefore built <b>eagerly</b>. An
+    /// interpolated <c>rehydrated.Error</c> would throw on exactly the path this test exists to
+    /// assert, so the test could never be green whatever the calendar answered.
+    /// <c>Result&lt;T&gt;.Value</c>'s own refusal message quotes the validation error, which is the
+    /// diagnostic that was wanted.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData(2026, 8, 12, 9, 41, 8)]    // an ordinary Wednesday morning
@@ -244,22 +308,22 @@ public sealed class GameCalendarTests
         var day = GameCalendar.GameDayStartAt(nowUtc);
         var week = GameCalendar.GameWeekStartAt(nowUtc);
 
-        var rehydrated = Core.Model.Player.Rehydrate(
-            PlayerSnapshots.With(
-                energyAnchorUtc: day,
-                lastAppliedAtUtc: day,
-                dailyPeriodStartUtc: day,
-                weeklyPeriodStartUtc: week),
-            ProgressionDocuments.Shipped);
-
-        rehydrated.IsSuccess.ShouldBeTrue(
-            $"the Player aggregate refuses the boundaries computed for {instant}: {rehydrated.Error}");
+        var player = Should.NotThrow(
+            () => Core.Model.Player.Rehydrate(
+                      PlayerSnapshots.With(
+                          energyAnchorUtc: day,
+                          lastAppliedAtUtc: day,
+                          dailyPeriodStartUtc: day,
+                          weeklyPeriodStartUtc: week),
+                      ProgressionDocuments.Shipped)
+                  .Value,
+            $"the Player aggregate refuses the boundaries the calendar computed for {instant}.");
 
         Should.NotThrow(
-            () => rehydrated.Value.ResetDailyCounters(day),
+            () => player.ResetDailyCounters(day),
             "the aggregate must accept the very day boundary the calendar computed.");
         Should.NotThrow(
-            () => rehydrated.Value.ResetWeeklyCounters(week),
+            () => player.ResetWeeklyCounters(week),
             "…and the very week boundary, which it refuses on any weekday but Monday (A2).");
 
         week.ShouldBeLessThanOrEqualTo(day, "a game week begins on or before the game day inside it.");
