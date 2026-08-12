@@ -137,9 +137,59 @@ public sealed class AccessibilityBoundaryTests
             }
         }
 
+        // The `SlayIdleRepeat.Core` ROOT has no row in the table above, and until M1-07 it held no
+        // types at all — so the moment `GameRules` (M1-06) and `GameContext` (M1-07) landed there,
+        // the root became a region the layering rule matched in neither direction. One of those
+        // directions is legitimate: the root sits at the TOP of the layering and reaches down into
+        // Handlers, Rules, Model and Content by design. The reverse is not — a bottom layer that
+        // names `GameContext` inverts the whole chain with this rule green.
+        //
+        // ⚠️ Matched EXACTLY, never by prefix. A `StartsWith("SlayIdleRepeat.Core.")` row would
+        // match every type in the assembly and make the rule above trivially true — the same trap
+        // Domain.IsPermittedCoreNamespace documents for the permitted-namespace list.
+        var mustNotReachTheRoot = new[]
+        {
+            Domain.PrimitivesNamespace,
+            Domain.ContentNamespace,
+            Domain.RngNamespace,
+        };
+
+        foreach (var layer in mustNotReachTheRoot)
+        {
+            foreach (var type in Domain.CoreTypesUnder(layer))
+            {
+                offenders.AddRange(
+                    Il.ReferencedTypeNames(type)
+                        .Where(IsCoreRootType)
+                        .Select(referenced =>
+                            $"{type.FullName} (in {layer}) references {referenced}, which is in the " +
+                            $"{Domain.CoreNamespace} root. The root holds GameRules and GameContext, the top of " +
+                            "the layering, so a bottom layer reaching it inverts Handlers -> Rules -> Model -> " +
+                            "Content -> Primitives (30 §11.4)."));
+            }
+        }
+
         ArchRule.Empty(
             offenders,
-            "Core's internal layering holds: Handlers -> Rules -> Model -> Content -> Primitives (30 §11.4).");
+            "Core's internal layering holds: Handlers -> Rules -> Model -> Content -> Primitives, and " +
+            "Primitives, Content and Rng never reach up into the SlayIdleRepeat.Core root (30 §11.4).");
+    }
+
+    /// <summary>
+    /// True for a type declared directly in the <c>SlayIdleRepeat.Core</c> root — <c>GameContext</c>,
+    /// not <c>Content.ContentSnapshot</c>. Nested types are attributed to their outermost declaring
+    /// type, which is how Cecil spells them (<c>Namespace.Outer/Nested</c>).
+    /// </summary>
+    private static bool IsCoreRootType(string typeFullName)
+    {
+        if (!typeFullName.StartsWith(Domain.CoreNamespace + ".", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var outerName = typeFullName[(Domain.CoreNamespace.Length + 1)..].Split('/')[0];
+
+        return !outerName.Contains('.', StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -256,18 +256,23 @@ public sealed class FeatureFlagsTests
     }
 
     /// <summary>
-    /// 🔒 …and a null <em>inside</em> a kill list. A remote-config document with a null array entry
-    /// is a realistic source, and both <c>HashSet</c> and <c>FrozenSet</c> accept one silently —
-    /// after which the set holds a <c>null</c> that no lookup can ever match and the guard above
-    /// never sees. Refusing at construction is the loud failure S6 asks for.
+    /// 🔒 …and a null or blank identifier <em>inside</em> a kill list. A remote-config document with
+    /// an empty array entry is a realistic source, and both <c>HashSet</c> and <c>FrozenSet</c>
+    /// accept one silently — after which the set holds an identifier no lookup can ever match, so
+    /// the switch reads as thrown while killing nothing. Blank is the strongest promise available
+    /// while the naming scheme is unauthored: it is scheme-independent. Refusing at construction is
+    /// the loud failure S6 asks for.
     /// </summary>
-    [Fact]
-    public void FeatureFlags_refuses_a_null_inside_a_kill_list()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void FeatureFlags_refuses_a_blank_identifier_inside_a_kill_list(string? blank)
     {
-        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [ElitePlacement, null!], []))
+        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [ElitePlacement, blank!], []))
             .ParamName.ShouldBe("disabledAdPlacements");
 
-        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [], [null!]))
+        Should.Throw<ArgumentException>(() => new FeatureFlags(true, true, [], [blank!]))
             .ParamName.ShouldBe("disabledChapters");
     }
 

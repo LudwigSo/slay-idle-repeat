@@ -14,11 +14,21 @@ namespace SlayIdleRepeat.Core;
 /// "each …" and are therefore sets.
 /// </para>
 /// <para>
-/// 🔒 <b>The record is closed on purpose, and there is deliberately no string-keyed bag.</b> A bag
+/// 🔒 <b>The type is closed on purpose, and there is deliberately no string-keyed bag.</b> A bag
 /// would let any later task introduce an ungoverned flag with no decision behind it — precisely what
 /// an enumerated kill-switch list exists to prevent. <b>M5-10</b> ("Remote config endpoint + feature
 /// flags resolved into <c>GameContext.Flags</c>") is the task that extends this, and a fifth switch
 /// arriving without it fails <c>FeatureFlagsTests</c>.
+/// </para>
+/// <para>
+/// ⚠️ <b>Two documented tensions, both owned by M5-10, neither resolved here.</b> (1) `23` §4.2
+/// declares <c>IRemoteConfigPort</c> with an explicitly open, string-keyed surface —
+/// <c>T Get&lt;T&gt;(string key, T fallback)</c> and <c>bool IsFeatureEnabled(FeatureFlag flag)</c>,
+/// naming a singular <c>FeatureFlag</c> type this closed value has no place for. The port may stay
+/// open; what crosses into the domain is this closed value, and M5-10 owns the mapping. (2) `14`
+/// §14 says "each chapter" while `14`'s earlier flag list says "content versions". Chapters are
+/// implemented, because §14 is the sentence that names kill switches; the two lists have never been
+/// reconciled and M5-10 should reconcile them.
 /// </para>
 /// <para>
 /// ⚠️ <b>Open gap, owned by M5-10: there is no authored flag-key naming scheme.</b> `12` §4
@@ -36,9 +46,11 @@ namespace SlayIdleRepeat.Core;
 /// exists to be the exception.
 /// </para>
 /// <para>
-/// This type declares no equality: nothing in the domain compares two resolutions, and a value
-/// equality over two frozen sets would compare references and read as though it did more than it
-/// does.
+/// ⚠️ `30` §3's prose calls the flags "a plain record"; this is a sealed <c>class</c>, and the
+/// difference is deliberate. A <c>record</c>'s synthesized equality would compare the two set
+/// members by <em>reference</em> — advertising value semantics while delivering them for two of four
+/// members — and nothing in the domain compares two resolutions. `30` §3's normative code block
+/// declares only <c>GameContext</c> as a record; this type is the "plain value" that sentence means.
 /// </para>
 /// </remarks>
 public sealed class FeatureFlags
@@ -92,25 +104,35 @@ public sealed class FeatureFlags
     /// Copies a kill list into an ordinal, immutable set.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 A copy, and a <see cref="FrozenSet{T}"/> rather than a <c>HashSet</c> behind an
     /// <c>IReadOnlySet&lt;string&gt;</c>: a caller that kept its list would otherwise be able to
     /// change a kill switch out from under a rule that had already read it, and an
     /// <c>IReadOnlySet&lt;string&gt;</c> that <em>is</em> a <c>HashSet&lt;string&gt;</c> can be cast
     /// back and written through. <c>ContentSnapshot.DocumentPaths</c> documents the same trap.
+    /// </para>
+    /// <para>
+    /// The <c>ToArray</c> is load-bearing: <c>IEnumerable&lt;string&gt;</c> may be lazy or
+    /// non-repeatable, and this makes the source enumerate exactly once, before validation.
+    /// </para>
     /// </remarks>
-    private static IReadOnlySet<string> Freeze(IEnumerable<string> identifiers, string parameterName)
+    private static FrozenSet<string> Freeze(IEnumerable<string> identifiers, string parameterName)
     {
         ArgumentNullException.ThrowIfNull(identifiers, parameterName);
 
         var materialised = identifiers.ToArray();
 
-        if (materialised.Any(identifier => identifier is null))
+        foreach (var identifier in materialised)
         {
-            throw new ArgumentException(
-                "A kill switch names a null identifier. Remote config that produced a null array " +
-                "entry has said nothing, and a null in the set can never match a lookup — so the " +
-                "switch would read as thrown while killing nothing (14 §14).",
-                parameterName);
+            if (string.IsNullOrWhiteSpace(identifier))
+            {
+                throw new ArgumentException(
+                    "A kill switch names a null or blank identifier. Remote config that produced " +
+                    "an empty array entry has said nothing, and no placement or chapter is named by " +
+                    "the empty string — so the switch would read as thrown while killing nothing " +
+                    "(14 §14).",
+                    parameterName);
+            }
         }
 
         return materialised.ToFrozenSet(StringComparer.Ordinal);
