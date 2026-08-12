@@ -55,7 +55,7 @@ public sealed class EnergyAccrualPropertyTests
         var random = new Random(Seed);
         var quoted = new List<string>();
         var failures = 0;
-        var splitsThatAccruedSomething = 0;
+        var discriminating = 0;
 
         for (var i = 0; i < Cases; i++)
         {
@@ -64,7 +64,7 @@ public sealed class EnergyAccrualPropertyTests
             var reserveCapacity = EnergyMath.ReserveCapacity(Shipped, legendLevel);
             var start = new EnergyBanks(random.Next(0, max + 1), random.Next(0, reserveCapacity + 1));
 
-            var total = TimeSpan.FromTicks(random.NextInt64(0, TimeSpan.FromDays(40).Ticks));
+            var total = SampleSpan(random, start, max, reserveCapacity, saturating: i % 5 == 0);
             var cuts = Cuts(random, total);
 
             var whole = EnergyMath.Accrue(Shipped, legendLevel, start, total);
@@ -78,9 +78,9 @@ public sealed class EnergyAccrualPropertyTests
                 anchor += step.AnchorAdvance;
             }
 
-            if (whole.Banks.Energy > start.Energy || whole.Banks.Reserve > start.Reserve)
+            if (IsDiscriminating(start, whole.Banks, max, reserveCapacity))
             {
-                splitsThatAccruedSomething++;
+                discriminating++;
             }
 
             if (banks == whole.Banks && anchor == whole.AnchorAdvance)
@@ -95,13 +95,17 @@ public sealed class EnergyAccrualPropertyTests
             }
         }
 
-        // 🔒 S3 — without this the case passes just as happily over 2,000 intervals that all
-        // rounded to zero units, which is a property nobody needs.
-        splitsThatAccruedSomething.ShouldBeGreaterThan(
+        // 🔒 S3 — the floor, and it is not "did anything accrue". A span long enough to fill both
+        // banks saturates whatever the split does, and a saturated case cannot tell a correct
+        // accrual from one that discards its remainder once per call — it passes either way. Drawn
+        // uniformly over 40 days, 99% of cases are exactly that, and this property caught the naive
+        // implementation in 21 of 2,000. The spans are sampled against each case's own headroom
+        // instead; this is what stops that drifting back.
+        discriminating.ShouldBeGreaterThan(
             Cases / 2,
-            $"only {splitsThatAccruedSomething} of {Cases} randomised intervals accrued any Energy at " +
-            "all, so this property is mostly comparing nothing against nothing. The interval range or " +
-            "the starting states have drifted.");
+            $"only {discriminating} of {Cases} randomised cases accrued something WITHOUT filling " +
+            "both banks. The rest are saturated, and a saturated case proves nothing about the " +
+            "remainder. The span sampling has drifted.");
 
         failures.ShouldBe(
             0,
@@ -209,6 +213,35 @@ public sealed class EnergyAccrualPropertyTests
             "the anchor advance is wholeUnits × the regeneration interval: never past now, never a " +
             "fraction of an interval, and never short by a whole one (A1).");
     }
+
+    /// <summary>
+    /// A span to accrue over. Four cases in five land in the band where the two banks still have
+    /// headroom — the only band in which a discarded remainder is visible at all — and the fifth
+    /// runs anywhere up to forty days, so the saturating regime and the Reserve cap are covered too.
+    /// </summary>
+    private static TimeSpan SampleSpan(
+        Random random, EnergyBanks start, int max, int reserveCapacity, bool saturating)
+    {
+        if (saturating)
+        {
+            return TimeSpan.FromTicks(random.NextInt64(0, TimeSpan.FromDays(40).Ticks));
+        }
+
+        // One unit past the headroom, so the boundary at which the banks fill is itself sampled.
+        var headroom = max - start.Energy + reserveCapacity - start.Reserve + 1;
+
+        return TimeSpan.FromTicks(random.NextInt64(0, headroom * Shipped.RegenInterval.Ticks));
+    }
+
+    /// <summary>
+    /// True when the case can tell a correct accrual from one that discards its remainder: it
+    /// accrued something, and it did <em>not</em> end with both banks full — a full pair absorbs
+    /// any difference in what was accrued and reports the same answer either way.
+    /// </summary>
+    private static bool IsDiscriminating(
+        EnergyBanks start, EnergyBanks after, int max, int reserveCapacity) =>
+        (after.Energy > start.Energy || after.Reserve > start.Reserve) &&
+        !(after.Energy >= max && after.Reserve >= reserveCapacity);
 
     private static TimeSpan[] Cuts(Random random, TimeSpan total)
     {
