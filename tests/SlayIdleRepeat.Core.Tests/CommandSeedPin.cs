@@ -18,13 +18,14 @@ namespace SlayIdleRepeat.Core.Tests;
 /// the server host, never by the domain.
 /// </para>
 /// <para>
-/// ⚠️ <b>The subject set is empty today.</b> M1-02 authors the commands; M1-07 authors only
-/// <see cref="GameContext"/>. So the rule over the real vocabulary
-/// (<c>Every_seed_bearing_command_name_names_a_real_command_type</c>) holds vacuously, exactly the
-/// way <c>Model/Snapshots/SnapshotFieldOrderPin</c> does, with no <c>Skip</c> and nothing to
-/// remember to switch on. <see cref="Violations"/> itself is <b>not</b> vacuous: it is driven
-/// directly by the tests over the nine names below, so the classifier's teeth are proven before
-/// there is anything to apply them to.
+/// 🔒 <b>The subject set woke up in M1-02.</b> It was empty from M1-07 — which authored only
+/// <see cref="GameContext"/> — until the commit that landed `14` §2.3's forty-nine commands, and
+/// the rules over the real vocabulary held vacuously until then, with no <c>Skip</c> and nothing to
+/// remember to switch on. They are live now: <c>Every_seed_bearing_command_name_names_a_real_
+/// command_type</c> resolves all nine against the dispatch table, and
+/// <c>CommandSeedPinTests</c> drives <see cref="Violations"/> over every one of the forty-nine wire
+/// names the registry carries — the nineteen run rows in particular, which must all be handed
+/// <c>null</c> and none of which this file's own list has ever seen.
 /// </para>
 /// </remarks>
 internal static class CommandSeedPin
@@ -62,11 +63,11 @@ internal static class CommandSeedPin
             "START_DUEL",
         };
 
-    /// <summary>The namespace `30` §11.4 reserves for the command vocabulary. Empty until M1-02.</summary>
+    /// <summary>The namespace `30` §11.4 reserves for the command vocabulary.</summary>
     internal const string CommandsNamespace = "SlayIdleRepeat.Core.Commands";
 
     /// <summary>
-    /// Every <b>concrete</b> non-nested command type. Empty until M1-02 lands the vocabulary.
+    /// Every <b>concrete</b> non-nested command type. Forty-nine of them since M1-02.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -80,17 +81,17 @@ internal static class CommandSeedPin
     /// (<c>!t.IsAbstract</c>).
     /// </para>
     /// <para>
-    /// 🔒 <b>The independent backstop, named exactly.</b> <c>SubjectSetFloorTests</c> in the
-    /// architecture suite tracks <c>SlayIdleRepeat.Core.Commands</c> as LIVE from M1-06, which
-    /// watches that the <em>namespace</em> exists — it went live the moment the abstract base landed
-    /// and therefore says nothing about whether a command type has arrived. What announces the
-    /// arrival independently of this file is
-    /// <c>Commands.GameCommandTests.The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives</c>,
-    /// which quantifies over concrete <c>GameCommand</c> subtypes <em>wherever</em> they are
-    /// declared, and <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c>, which reads
-    /// the assembly with Mono.Cecil and sees internal types. The two subject sets overlap without
-    /// being the same — a command declared outside this namespace wakes those and not this one —
-    /// which is the point of having both.
+    /// 🔒 <b>The independent backstops, named exactly</b> — because this selector is a namespace
+    /// filter and a namespace filter goes quiet on a move rather than going red.
+    /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c> reads the assembly with
+    /// Mono.Cecil and quantifies over concrete <c>GameCommand</c> subtypes <em>wherever</em> they
+    /// are declared, so a command moved out of this namespace still has to have a dispatch row; and
+    /// <c>Commands.CommandVocabularyTests</c> pins the registry's wire names as a set against a
+    /// hand-transcribed list, so a command that stopped being registered fails there. The three
+    /// subject sets overlap without being the same, which is the point of having all three.
+    /// ⚠️ <c>SubjectSetFloorTests</c>'s <c>SlayIdleRepeat.Core.Commands</c> row is <b>not</b> one of
+    /// them: it went LIVE in M1-06 when the abstract base landed, so it watches only that the
+    /// namespace exists.
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<Type> CommandTypes { get; } = ConcreteTypesUnder(CommandsNamespace);

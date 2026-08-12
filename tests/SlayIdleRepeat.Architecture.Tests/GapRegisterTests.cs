@@ -265,6 +265,31 @@ public sealed class GapRegisterTests
             "un-defer the SchemaVersion bump that entry exists to price.");
 
         runStateMachine.Namespace.ShouldBe(Domain.PrimitivesNamespace);
+
+        // 🔒 M1-02. The floor under `14` §2.3's transcription, and it is the one in this file where
+        // the number is itself contested: the table's own header says "Meta commands (29)" and this
+        // repository used to say 48 commands. The M1 kickoff ruled both to be miscounts of a correct
+        // table, so 49 is a LITERAL here — taken from counting the document's rows, never from the
+        // transcription's own Count, which cannot notice itself being trimmed.
+        //
+        // ⚠️ A count alone would be satisfied by 49 WRONG names, which is why it is not the only
+        // guard: every name in that transcription must resolve to a real type under Core/Commands/
+        // or Undeclared fires, and the wire names those types register under are pinned as a SET, in
+        // both directions, by SlayIdleRepeat.Core.Tests.CommandVocabularyTests.
+        var commandRegistry = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("14 §2.3", StringComparison.Ordinal));
+
+        commandRegistry.Subjects.Count.ShouldBe(
+            49,
+            "14 §2.3's registry is 19 run commands plus 30 meta commands, and it is EXHAUSTIVE — 'a " +
+            "command not listed here does not exist'. A transcription that shrank would stop asking " +
+            "about the rows it dropped, and deleting a command type would then be silent.");
+
+        commandRegistry.Namespace.ShouldBe(Domain.CommandsNamespace);
+
+        commandRegistry.Subjects.Distinct(StringComparer.Ordinal).Count().ShouldBe(
+            49,
+            "a duplicated name would keep the count at 49 while one row went untranscribed.");
     }
 
     /// <summary>

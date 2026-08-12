@@ -372,22 +372,34 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 Steering <b>S3</b> — the floor under this whole file: the production table is <b>empty</b>
-    /// today, so every rule above is driven from a table built here rather than from that one.
+    /// 🔒 Steering <b>S3</b> — the floor under this whole file, restated for the table that now
+    /// exists: the production registry carries `14` §2.3's <b>49</b> rows.
     /// </summary>
     /// <remarks>
-    /// <b>When this fails, M1-02 has landed the vocabulary.</b> Confirm every rule in this file
-    /// still holds against the real rows, add the coverage the 49 commands need, and delete this
-    /// tripwire — do not weaken it. It is the assertion that says out loud why <c>Execute</c> takes
-    /// its table as a parameter.
+    /// <para>
+    /// This replaces M1-06's tripwire, which asserted the table was <em>empty</em> and was deleted on
+    /// the commit that made it false. The floor it was standing in for has not gone away: the rules
+    /// above are still driven from tables built in the test, because the shapes they need — a handler
+    /// that hand-writes an RNG counter, a duplicate registration, an undefined <c>CommandKind</c> —
+    /// must never be committed to <c>Core</c>. What has changed is that <c>Apply</c> over the real
+    /// table is no longer a one-assertion affair;
+    /// <c>Commands.CommandVocabularyTests.Every_command_in_the_vocabulary_is_applied_and_refused_rather_than_thrown</c>
+    /// drives all forty-nine through it.
+    /// </para>
+    /// <para>
+    /// The number is a literal rather than the registry's own <c>Count</c> compared to itself, and
+    /// the <b>set</b> behind it — which a count cannot see — is pinned against a hand-transcribed
+    /// list in both directions by <c>CommandVocabularyTests</c>.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_production_dispatch_table_is_still_empty_and_says_so_when_it_is_not()
+    public void The_production_dispatch_table_carries_the_whole_registry()
     {
-        SlayIdleRepeat.Core.GameRules.CommandTypesByWireName.ShouldBeEmpty(
-            "when this fails M1-02 has landed the 49 commands of 14 §2.3. Every rule in this file is " +
-            "driven from a table built in the test precisely because this one was empty; re-read them " +
-            "against the real rows, then delete this tripwire. Never weaken it — an empty subject set " +
-            "reported as success is the failure this assertion exists to prevent.");
+        SlayIdleRepeat.Core.GameRules.CommandTypesByWireName.Count.ShouldBe(
+            49,
+            "14 §2.3's registry is 19 run + 30 meta, and M1-02 registered every row. An empty table " +
+            "would make Apply refuse every command in the game with ILLEGAL_STATE while this suite, " +
+            "which drives its own tables, stayed entirely green — the failure this assertion exists " +
+            "to prevent.");
     }
 }

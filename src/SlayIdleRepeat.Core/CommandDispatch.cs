@@ -86,11 +86,24 @@ internal sealed class CommandDispatch
     /// whose system does not exist cannot be legal in any state.
     /// </para>
     /// <para>
-    /// 🔒 <b>The rejection is not the whole mechanism.</b> A rejection nobody reads is
-    /// indistinguishable from a rule, so every deferred command also carries a
-    /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c> entry naming its owning milestone — the
-    /// register is what fails the build when the deferral expires. This overload records the owner
-    /// on the registration so the two cannot say different things.
+    /// 🔒 <b>The rejection is not the whole mechanism, and the owner is where the expiry lives.</b>
+    /// A rejection nobody reads is indistinguishable from a rule, so <paramref name="owner"/> is
+    /// required rather than optional: it names the task whose commit turns this row into
+    /// <see cref="Handled{TCommand}"/>, and it is greppable from the one place that also declares
+    /// the command's wire name and its kind.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>M1-06 wrote here that every deferred command would <em>also</em> carry a
+    /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c> entry. M1-02 landed the vocabulary and
+    /// did not do that, deliberately — the sentence is corrected rather than left to go stale
+    /// (steering <b>S4</b>'s known limit).</b> A register entry needs a <c>WaitsFor</c>: the simple
+    /// name of a <c>Core</c> type that must not yet exist and whose arrival makes the entry wrong.
+    /// Forty-eight of those would be forty-eight type names invented on behalf of milestones that
+    /// have not chosen them — which <c>GapRegister</c>'s own remarks call "the invention S6 forbids,
+    /// dressed as bookkeeping" — and a second, mirrored statement of an owner this row already
+    /// declares, which is what putting the wire name on the row was done to avoid. What M1-02 did
+    /// transcribe into <c>GapRegister.Surfaces</c> is the thing the register can decide: `14` §2.3's
+    /// <b>inventory</b>, so a command that stops being declared fails the build.
     /// </para>
     /// </remarks>
     internal CommandDispatch Deferred<TCommand>(string wireName, CommandKind kind, string owner)

@@ -77,31 +77,36 @@ public sealed class GameCommandTests
     }
 
     /// <summary>
-    /// 🔒 The subject set of <c>Every_command_type_is_handled_by_Apply</c> is <b>empty</b>: M1-06
-    /// lands the base and M1-02 lands the 49 concrete commands.
+    /// 🔒 `14` §2.3 — the subject set of <c>Every_command_type_is_handled_by_Apply</c> is the
+    /// <b>49</b> concrete commands, and every one of them derives from this base.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// That order is forced rather than chosen. The architecture rule fails the build for any
-    /// <em>concrete</em> subtype no dispatch row names, so with zero subtypes it quantifies over
-    /// nothing and stays green — which is exactly what lets the base and the table land first and
-    /// the 49 land against a table that already exists.
+    /// This replaces the M1-06 tripwire that asserted the set was <em>empty</em> — deleted on the
+    /// commit that made it false, which is what a tripwire is for. What remains worth pinning is the
+    /// thing the architecture rule cannot say from IL alone: the hierarchy is <b>closed at the
+    /// base</b>. A fiftieth concrete subtype is either in `14` §2.3 and registered, or it is a
+    /// command the wire has no name for.
     /// </para>
     /// <para>
-    /// <b>When this fails, M1-02 has landed the vocabulary.</b> Confirm the architecture rule and
-    /// <c>CommandSeedPinTests</c> are green over the real rows, then delete this tripwire — never
-    /// weaken it (steering S3/S4).
+    /// 🔒 The count is asserted over <em>the assembly</em>, not over the namespace or the dispatch
+    /// table, and that is deliberate: it is the one subject set that would still see a command
+    /// declared in the wrong place. <c>CommandVocabularyTests</c> pins the registry, and
+    /// <c>CommandSeedPin.CommandTypes</c> pins the namespace; between the three, a command cannot be
+    /// added anywhere in <c>Core</c> without exactly one of them going red.
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_command_vocabulary_is_still_absent_and_says_so_when_it_arrives()
+    public void The_command_hierarchy_is_the_forty_nine_of_the_registry()
     {
         typeof(GameCommand).Assembly
             .GetTypes()
-            .Where(t => !t.IsAbstract && typeof(GameCommand).IsAssignableFrom(t))
-            .ShouldBeEmpty(
-                "when this fails M1-02 has landed 14 §2.3's 49 commands. Confirm " +
-                "DomainPurityTests.Every_command_type_is_handled_by_Apply and CommandSeedPinTests " +
-                "are green against the real dispatch rows, then delete this tripwire.");
+            .Count(t => !t.IsAbstract && typeof(GameCommand).IsAssignableFrom(t))
+            .ShouldBe(
+                49,
+                "14 §2.3's registry is 19 run commands + 30 meta commands and it is EXHAUSTIVE — 'a " +
+                "command not listed here does not exist'. A fiftieth concrete GameCommand in this " +
+                "assembly is a command with no row on the wire; adding one is a decision recorded in " +
+                "16 and it lands in 14 §2.3 first. If this is 0 the vocabulary is gone.");
     }
 }
