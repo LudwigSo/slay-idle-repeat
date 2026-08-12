@@ -103,6 +103,48 @@ public sealed class EffectOpValidationTests
                               "S2 — the selector rule fired, not one of the other six the op could break");
     }
 
+    /// <summary>
+    /// 🔒 The two op-specific keys the in-code validator and the schema had disagreed about.
+    /// </summary>
+    /// <remarks>
+    /// The schema admits <c>valueMode</c> on nine ops and <c>statusId</c> on four; the code path
+    /// policed neither, so <c>{"op":"EXTRA_ATTACK","valueMode":"FLAT"}</c> was well-formed in code
+    /// and rejected by the schema — the two enforcement paths disagreeing about one effect.
+    /// </remarks>
+    [Theory]
+    [InlineData(EffectOp.EXTRA_ATTACK, "valueMode")]
+    [InlineData(EffectOp.SUMMON, "valueMode")]
+    [InlineData(EffectOp.DAMAGE, "statusId")]
+    [InlineData(EffectOp.CLEAR_SUMMONS, "statusId")]
+    public void valueMode_and_statusId_are_refused_on_the_ops_that_do_not_take_them(
+        EffectOp op, string key)
+    {
+        var control = Minimal(op);
+        EffectOpValidation.Problems(control).ShouldBeEmpty($"the control: a bare {op} is well-formed");
+
+        var borrowed = key == "valueMode"
+            ? control with { ValueMode = ValueMode.FLAT }
+            : control with { StatusId = "BURN" };
+
+        EffectOpValidation.Problems(borrowed)
+                          .ShouldContain(p => p.Contains($"carries '{key}'", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 🔒 A <c>valueMode</c> the op's own `18` §2.2 row rules out is a problem at validation, not a
+    /// surprise at fire time.
+    /// </summary>
+    [Theory]
+    [InlineData(EffectOp.HEAL_LEECH, ValueMode.ATK_MULT)]
+    [InlineData(EffectOp.DAMAGE, ValueMode.FLAT)]
+    [InlineData(EffectOp.REVIVE, ValueMode.FLAT)]
+    [InlineData(EffectOp.REFLECT, ValueMode.SELF_MAXHP_PCT)]
+    public void A_value_mode_the_op_does_not_admit_is_a_problem(EffectOp op, ValueMode mode)
+    {
+        EffectOpValidation.Problems(Minimal(op) with { ValueMode = mode })
+                          .ShouldContain(p => p.Contains($"carries valueMode {mode}", StringComparison.Ordinal));
+    }
+
     /// <summary>The five keys `18` §10 added are each required where their op needs them.</summary>
     [Fact]
     public void The_18_10_keys_are_required_on_the_ops_that_carry_them()

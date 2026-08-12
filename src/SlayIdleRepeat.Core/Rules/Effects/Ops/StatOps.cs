@@ -72,7 +72,11 @@ internal static class StatOps
                 "a live effect.");
         }
 
-        return new StatConversion(from, to, OpRounding.Round(fraction, effect.Id, "conversion fraction"));
+        // 🔒 The fraction is NOT rounded here. `05` §1.1 rounds at accumulation points — results —
+        //    and an authored value is not one; `18` §8's other five steps pass EffectiveValue through
+        //    unrounded and round after the accumulation. Rounding twice moves the answer: an authored
+        //    0.123456 of a post-step-5 DEF of 1000 is 123.456, but 1000 x Round(0.123456) is 123.5.
+        return new StatConversion(from, to, fraction);
     }
 
     /// <summary>
@@ -112,15 +116,40 @@ internal static class StatOps
             "that could stand for the others.");
 
         var stat = SingleStat(effect, effect.Stat, "stat", "the capped");
-        var rounded = OpRounding.Round(value, effect.Id, "cap override value");
 
-        var toStat = kind == StatCapKind.REDIRECT_EXCESS
-            ? effect.ToStat ?? throw new EffectContextException(
+        // 🔒 Rounded for STAT_MAX and HEAL_CEILING, which are TERMINAL — the ceiling itself lands in
+        //    the cap table and 05 §1.1 requires a cap to be rounded (StatCaps.From refuses one that
+        //    is not). NOT for REDIRECT_EXCESS, whose value is a ratio that RedirectedAmount then
+        //    multiplies: pre-rounding a multiplicand is the double round W3 names.
+        var rounded = kind == StatCapKind.REDIRECT_EXCESS
+            ? value
+            : OpRounding.Round(value, effect.Id, "cap override value");
+
+        StatId? toStat = null;
+
+        if (kind == StatCapKind.REDIRECT_EXCESS)
+        {
+            toStat = effect.ToStat ?? throw new EffectContextException(
                 effect.Id,
                 "a REDIRECT_EXCESS override names no toStat",
                 "09 §4's Perfect Strike sends crit chance above the 75% cap INTO crit damage; a " +
-                "redirect with no destination would discard the overshoot and read as a cap raise.")
-            : (StatId?)null;
+                "redirect with no destination would discard the overshoot and read as a cap raise.");
+        }
+        else if (effect.ToStat is not null)
+        {
+            // 🔒 Refused, not ignored. Only REDIRECT_EXCESS has a destination; a toStat on a
+            //    STAT_MAX or a HEAL_CEILING is a key that silently means nothing, which is the one
+            //    thing effect.schema.json's closed key partition exists to prevent. ⚠️ The schema
+            //    cannot state this — JsonSchemaValidator implements no `not` and no if/then/else, so
+            //    a conditional-required rule is not expressible there. Recorded as a known limit of
+            //    the schema and closed here.
+            throw new EffectContextException(
+                effect.Id,
+                $"a {kind} override names a toStat",
+                "18 §2.1's destination belongs to REDIRECT_EXCESS alone — a raise and a heal ceiling " +
+                "send nothing anywhere. Ignoring it would be a field that means nothing while " +
+                "reading as though it did.");
+        }
 
         if (kind == StatCapKind.REDIRECT_EXCESS && toStat == stat)
         {

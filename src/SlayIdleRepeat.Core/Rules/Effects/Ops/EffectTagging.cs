@@ -43,8 +43,28 @@ internal static class EffectTagging
     }
 
     /// <summary>Whether the effect carries `18` §7.5's reserved <c>drawback</c> label.</summary>
-    internal static bool IsDrawback(EffectDefinition effect) =>
-        AuthorTags(effect).Any(tag => tag.IsDrawback);
+    /// <remarks>
+    /// ⚠️ An indexed loop rather than <c>AuthorTags(effect).Any(…)</c>: this runs once per
+    /// <c>DAMAGE_MAXHP_PCT</c> resolution, which is per actor per tick at `05` §3's 20 Hz inside a
+    /// &lt; 5 ms budget. The iterator plus the LINQ enumerator are two allocations for a scan of a
+    /// list that is almost always one element long. <c>foreach</c> over the
+    /// <see cref="IReadOnlyList{T}"/> interface would still box an enumerator.
+    /// </remarks>
+    internal static bool IsDrawback(EffectDefinition effect)
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+
+        var tags = effect.Tags;
+        for (var i = 0; i < tags.Count; i++)
+        {
+            if (string.Equals(tags[i], AuthorTag.Drawback.Value, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// 🔒 `05` §4.1 bypass class <b>(b)</b> — whether this effect's damage is a self-inflicted cost
@@ -60,10 +80,12 @@ internal static class EffectTagging
     /// cursed perk armour penetration nobody wrote.
     /// </para>
     /// <para>
-    /// ⚠️ <c>target: null</c> reads as <b>not</b> a self-inflicted cost. `18` states no default
-    /// target (M2-01 records it as errata and M2-02 rules on it), and steering S6 forbids picking
-    /// one here — so the conservative arm is taken: the ward absorbs, which loses a drawback rather
-    /// than inventing a bypass. Recorded so the ruling is a decision and not an accident.
+    /// ⚠️ <c>target: null</c> reads as <b>not</b> a self-inflicted cost, though today the answer is
+    /// discarded: the only caller resolves the effect's target two lines later and
+    /// <see cref="OpTargets.Resolve"/> refuses an absent one. The arm is stated anyway because `18`
+    /// authors no default target (M2-01 records it as errata, M2-02 rules on it) — whichever way
+    /// that ruling lands, the conservative reading here loses a drawback rather than inventing a
+    /// ward bypass, and that is a decision rather than an accident.
     /// </para>
     /// </remarks>
     internal static bool IsSelfInflictedCost(EffectDefinition effect)

@@ -10,8 +10,21 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 /// (<c>REMOVE_STATUS</c>, <c>CLEAR_SUMMONS</c>) and for every queued §2.5 op.
 /// </param>
 /// <param name="Disposition">Whether the simulator resolved it or handed it to the run controller.</param>
+/// <param name="Basis">
+/// 🔴 <c>DAMAGE</c> only — `05` §4 step 8's <em>on-damage basis</em>: the post-mitigation,
+/// post-floor hit <b>before</b> ward absorption, summed over the op's targets. <c>0</c> for every
+/// other op.
+/// </param>
+/// <remarks>
+/// 🔴 <b><see cref="Amount"/> is NOT the number to feed <c>EffectOpContext.DamageDealt</c>.</b> For
+/// <c>DAMAGE</c> it is the HP actually lost (step 9, post-absorption), and `05` §4.1 is explicit
+/// that lifesteal and thorns read the <em>pre</em>-absorption figure — <em>"a lifesteal attacker
+/// still heals off a fully-warded hit"</em>. M2-04 wires the on-hit family and must pass
+/// <see cref="Basis"/> there; passing <see cref="Amount"/> would make every leech heal nothing off
+/// a shielded target, silently. The two fields exist so the wiring cannot be a guess.
+/// </remarks>
 internal readonly record struct EffectOpOutcome(
-    EffectOp Op, double Amount, OpDisposition Disposition);
+    EffectOp Op, double Amount, OpDisposition Disposition, double Basis = 0.0);
 
 /// <summary>What the simulator did with an op.</summary>
 internal enum OpDisposition
@@ -90,7 +103,7 @@ internal static class EffectOpResolver
             EffectOp.STAT_CAP_OVERRIDE => Aggregated(effect),
 
             // ── §2.2 damage and healing (7) · routed by 05 §4.2.
-            EffectOp.DAMAGE => Resolved(effect, DamageAndHealingOps.Damage(effect, context)),
+            EffectOp.DAMAGE => Damaged(effect, DamageAndHealingOps.Damage(effect, context)),
             EffectOp.DAMAGE_TRUE => Resolved(effect, DamageAndHealingOps.DamageTrue(effect, context)),
             EffectOp.DAMAGE_MAXHP_PCT => Resolved(effect, DamageAndHealingOps.DamageMaxHpPct(effect, context)),
             EffectOp.HEAL => Resolved(effect, DamageAndHealingOps.Heal(effect, context)),
@@ -145,6 +158,9 @@ internal static class EffectOpResolver
 
     private static EffectOpOutcome Resolved(EffectDefinition effect, double amount) =>
         new(effect.Op, amount, OpDisposition.RESOLVED);
+
+    private static EffectOpOutcome Damaged(EffectDefinition effect, DamageAndHealingOps.DamageTotals totals) =>
+        new(effect.Op, totals.HpLost, OpDisposition.RESOLVED, totals.Basis);
 
     private static EffectOpOutcome Aggregated(EffectDefinition effect) =>
         new(effect.Op, 0.0, OpDisposition.AGGREGATED);

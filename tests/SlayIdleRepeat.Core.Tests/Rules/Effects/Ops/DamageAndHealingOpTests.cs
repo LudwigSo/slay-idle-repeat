@@ -78,8 +78,15 @@ public sealed class DamageAndHealingOpTests
 
         var cleave = OpFixtures.Effect("PK_CLEAVE_T1", EffectOp.DAMAGE, 0.40, EffectTarget.ALL_ENEMIES);
 
-        DamageAndHealingOps.Damage(cleave, bench.Context(EffectTestBattle.Context(hero, hero, first, second)))
-                           .ShouldBe(180.0, "two hits at 90 HP lost each — the basis of 120 is step 8's, not this");
+        var totals = DamageAndHealingOps.Damage(
+            cleave, bench.Context(EffectTestBattle.Context(hero, hero, first, second)));
+
+        totals.HpLost.ShouldBe(180.0, "two hits at 90 HP lost each — step 9, after ward absorption");
+
+        // 🔒 05 §4 step 8's on-damage basis, published SEPARATELY. 05 §4.1: "a lifesteal attacker
+        //    still heals off a fully-warded hit", so a HEAL_LEECH fed HpLost would heal nothing off
+        //    a shielded target. The two fields exist so M2-04's wiring cannot be a guess.
+        totals.Basis.ShouldBe(240.0, "two hits at a pre-absorption basis of 120 each");
     }
 
     /// <summary>
@@ -417,7 +424,7 @@ public sealed class DamageAndHealingOpTests
         var cleave = OpFixtures.Effect("PK_CLEAVE_T1", EffectOp.DAMAGE, 0.40, EffectTarget.ALL_ENEMIES);
 
         DamageAndHealingOps.Damage(cleave, bench.Context(EffectTestBattle.Context(hero, hero, dead)))
-                           .ShouldBe(0.0);
+                           .ShouldBe(new DamageAndHealingOps.DamageTotals(0.0, 0.0));
 
         bench.Calls.ShouldBeEmpty();
     }

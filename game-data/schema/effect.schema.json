@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/effect.schema.json",
   "title": "an EffectDefinition (18 §1)",
-  "description": "18 §1 — one authored effect. Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outcome, shrine buff, curse and boss mechanic is one or more of these, and there is no per-perk, per-talent or per-boss code. VOCABULARY schema, not a content schema: it governs no data file of its own, because an effect is always embedded in the thing that owns it. The content-type schemas M2 and M3 author (perks, talents, pets, bosses) restate this shape; this file is what they restate. The root is deliberately a oneOf over fifteen closed key-shapes rather than one permissive object, so that an op-specific key on the wrong op is a validation failure and not a field that silently means nothing. Adding a 44th op means adding a branch here, an EffectOp member and a row in 18 — all three, in the same commit (18 §10).",
+  "description": "18 §1 — one authored effect. Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outcome, shrine buff, curse and boss mechanic is one or more of these, and there is no per-perk, per-talent or per-boss code. VOCABULARY schema, not a content schema: it governs no data file of its own, because an effect is always embedded in the thing that owns it. The content-type schemas M2 and M3 author (perks, talents, pets, bosses) restate this shape; this file is what they restate. The root is deliberately a oneOf over sixteen closed key-shapes rather than one permissive object, so that an op-specific key on the wrong op is a validation failure and not a field that silently means nothing. Adding a 44th op means adding a branch here, an EffectOp member and a row in 18 — all three, in the same commit (18 §10).",
   "oneOf": [
     {
       "title": "18 §2.1 — STAT_ADD_FLAT / STAT_ADD_PCT / STAT_MULT",
@@ -272,20 +272,38 @@
       }
     },
     {
-      "title": "18 §2.4 — ATTACK_MULT_NEXT / FORCE_CRIT_NEXT",
-      "description": "18 §2.4 — 'multiply the damage of the next N attacks' and 'the next N attacks always crit'. Both need an N, and the eight-part shape carries one 'value' which 05 §4 already spends on the multiplier (PK_OPENER's ×3 first attack). M2-03 adds 'charges' under 18 §10: without it neither op could say how many attacks it covers. FORCE_CRIT_NEXT has no multiplier at all and carries charges alone.",
+      "title": "18 §2.4 — ATTACK_MULT_NEXT",
+      "description": "18 §2.4 — 'multiply the damage of the next N attacks' by value. It needs an N as well as a multiplier, and the eight-part shape carries one 'value' which 05 §4 already spends on the multiplier (PK_OPENER's ×3 first attack). M2-03 adds 'charges' under 18 §10: without it the op could not say how many attacks it covers.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "op", "charges"],
       "properties": {
         "id": { "$ref": "#/$defs/effectId" },
-        "op": { "enum": ["ATTACK_MULT_NEXT", "FORCE_CRIT_NEXT"] },
+        "op": { "const": "ATTACK_MULT_NEXT" },
         "charges": { "$ref": "#/$defs/charges" },
         "trigger": { "$ref": "#/$defs/trigger" },
         "condition": { "$ref": "#/$defs/condition" },
         "target": { "$ref": "#/$defs/target" },
         "value": { "$ref": "#/$defs/value" },
         "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — FORCE_CRIT_NEXT",
+      "description": "18 §2.4 — 'the next N attacks always crit'. 🔒 Split from ATTACK_MULT_NEXT because it carries NO value at all: how hard a forced crit hits is the actor's own CDMG (05 §4 step 4), and CombatFlowOps refuses an effect that authors one rather than ignoring it — {\"charges\": 2, \"value\": 3} reads as 'three attacks' to whoever wrote it. Omitting value and valueScale from this branch is what makes additionalProperties: false reject that at validation instead of mid-battle.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "charges"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "FORCE_CRIT_NEXT" },
+        "charges": { "$ref": "#/$defs/charges" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
         "duration": { "$ref": "#/$defs/duration" },
         "stacking": { "$ref": "#/$defs/stacking" },
         "tags": { "$ref": "#/$defs/tags" }
@@ -498,7 +516,7 @@
     },
 
     "tags": {
-      "description": "18 §1 / §7.5 — free-form author tags (\"offense\", \"drawback\"). Also what REMOVE_STATUS means by a tag group. Not a closed set: no document catalogues them, and enumerating a guess would be worse than a shape.",
+      "description": "18 §1 / §7.5 — free-form author tags (\"offense\", \"drawback\") on the EFFECT. 🔒 'drawback' is RESERVED: it is the marker 05 §4.1's ward bypass list (b) keys on, defined by 18 §7.5's CP_BLOOD_PRICE. ⚠️ NOT what REMOVE_STATUS means by a tag group — that is $defs/statusTag, a label on a STATUS, and the two are separate C# types so they cannot be confused. Not a closed set: no document catalogues them, and enumerating a guess would be worse than a shape.",
       "type": "array",
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }

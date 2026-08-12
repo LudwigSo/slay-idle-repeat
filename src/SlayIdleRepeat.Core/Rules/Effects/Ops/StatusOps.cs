@@ -84,9 +84,9 @@ internal static class StatusOps
             {
                 context.Seams.Statuses.Remove(target, statusId, effect.Id);
             }
-            else
+            else if (tag is { } group)
             {
-                context.Seams.Statuses.RemoveByTag(target, tag!.Value, effect.Id);
+                context.Seams.Statuses.RemoveByTag(target, group, effect.Id);
             }
         }
 

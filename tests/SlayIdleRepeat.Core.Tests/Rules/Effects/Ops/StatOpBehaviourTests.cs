@@ -92,6 +92,61 @@ public sealed class StatOpBehaviourTests
         result.Final[StatId.ATK].ShouldBe(100.0, "0.50 x the post-step-5 DEF of 200");
     }
 
+    /// <summary>
+    /// 🔒 `05` §1.1 rounds <b>results</b>, not authored values: the conversion's fraction reaches the
+    /// multiplication unrounded, and only the product is rounded.
+    /// </summary>
+    /// <remarks>
+    /// The other five `18` §8 steps pass <c>EffectiveValue</c> through unrounded and round after the
+    /// accumulation; step 6 rounding its fraction first would have made this pipeline the odd one
+    /// out. <c>0.123456 × 1000</c> is <c>123.456</c>; pre-rounding the fraction to <c>0.1235</c>
+    /// gives <c>123.5</c>.
+    /// </remarks>
+    [Fact]
+    public void A_conversion_fraction_reaches_the_multiplication_unrounded()
+    {
+        var result = StatAggregation.Aggregate(
+            StatFixtures.Block((StatId.ATK, 0.0), (StatId.DEF, 1000.0)),
+            [Convert("PK_PRECISE", StatId.DEF, StatId.ATK, 0.123456)],
+            StatCaps.None,
+            StatAggregationSeams.Strict);
+
+        result.Final[StatId.ATK].ShouldBe(
+            123.456, "pre-rounding the fraction to 0.1235 would have given 123.5");
+    }
+
+    /// <summary>
+    /// 🔒 <c>toStat</c> belongs to <see cref="StatCapKind.REDIRECT_EXCESS"/> alone — a raise and a
+    /// heal ceiling send nothing anywhere, so a destination on one is a key that means nothing.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Enforced here rather than in <c>effect.schema.json</c>: <c>JsonSchemaValidator</c>
+    /// implements neither <c>not</c> nor <c>if</c>/<c>then</c>/<c>else</c>, so a conditional-required
+    /// rule is not expressible there. Recorded as a known limit of the schema.
+    /// </remarks>
+    [Theory]
+    [InlineData(StatCapKind.STAT_MAX)]
+    [InlineData(StatCapKind.HEAL_CEILING)]
+    public void A_toStat_on_a_cap_override_that_is_not_a_redirect_is_refused(StatCapKind kind)
+    {
+        var control = StatFixtures.Effect("TAL_X", EffectOp.STAT_CAP_OVERRIDE, StatId.CRIT, 0.90) with
+        {
+            CapKind = kind,
+        };
+
+        StatAggregation.Aggregate(
+            StatFixtures.Block((StatId.CRIT, 0.60)), [control], StatFixtures.Caps(),
+            StatAggregationSeams.Strict);
+
+        var borrowed = control with { ToStat = StatId.CDMG };
+
+        Should.Throw<EffectContextException>(
+                  () => StatAggregation.Aggregate(
+                      StatFixtures.Block((StatId.CRIT, 0.60)), [borrowed], StatFixtures.Caps(),
+                      StatAggregationSeams.Strict))
+              .Message.ShouldContain("names a toStat", Case.Sensitive);
+    }
+
     /// <summary>A conversion onto its own source moves nothing and is refused.</summary>
     [Fact]
     public void A_conversion_whose_source_and_destination_are_the_same_stat_is_refused()

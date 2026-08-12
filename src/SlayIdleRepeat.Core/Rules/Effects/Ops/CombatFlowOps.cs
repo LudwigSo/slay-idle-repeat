@@ -225,14 +225,17 @@ internal static class CombatFlowOps
         var multiplier = OpRounding.Round(
             context.Seams.Values.ScaledValue(effect), effect.Id, "damage-taken multiplier");
 
-        if (multiplier < 0.0)
+        if (multiplier <= 0.0)
         {
             throw new EffectContextException(
                 effect.Id,
                 $"DAMAGE_TAKEN_MULT is {multiplier.ToString("R", CultureInfo.InvariantCulture)}",
-                "05 §4 step 6 multiplies the incoming hit by it, so a negative multiplier turns " +
-                "every hit into a heal — a mechanic no document authorises. 18 §7.10's PK_STALWART " +
-                "is 0.80 and 17 §6's Rimehold's Core is 1.6.");
+                "05 §4 step 6 multiplies the incoming hit by it: a negative multiplier turns every " +
+                "hit into a heal and ZERO is permanent invulnerability for the duration. No document " +
+                "authorises either — 18 §7.10's PK_STALWART is 0.80 and 17 §6's Rimehold's Core is " +
+                "1.6. ⚠️ Zero is refused rather than admitted because it is reachable by accident: " +
+                "a valueScale whose step count comes out 0 yields it (18 §1.1), and the alternative " +
+                "is a build that cannot be damaged with nothing going red.");
         }
 
         foreach (var target in OpTargets.Resolve(effect, context))

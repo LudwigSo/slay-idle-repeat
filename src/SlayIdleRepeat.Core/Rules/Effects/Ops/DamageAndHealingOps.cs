@@ -42,6 +42,15 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 /// </remarks>
 internal static class DamageAndHealingOps
 {
+    /// <summary>What one <c>DAMAGE</c> op's resolved attacks came to, in `05` §4's two currencies.</summary>
+    /// <param name="HpLost">Step 9 — what came off HP after ward absorption.</param>
+    /// <param name="Basis">
+    /// 🔒 Step 8 — the post-mitigation, post-floor hit <b>before</b> absorption. The number
+    /// lifesteal and thorns read, and therefore the number a <c>DAMAGE_DEALT_PCT</c> value mode
+    /// needs. The two are equal only on an unwarded target.
+    /// </param>
+    internal readonly record struct DamageTotals(double HpLost, double Basis);
+
     /// <summary>
     /// 🔒 `05` §4.2 — <c>DAMAGE</c> through the full attack pipeline, once per resolved target.
     /// </summary>
@@ -53,7 +62,7 @@ internal static class DamageAndHealingOps
     /// context — would square the attacker's attack power. <c>PK_CLEAVE</c> at <c>value: 0.40</c> is
     /// a ×0.4 attack, not 0.4 × ATK of flat damage.
     /// </remarks>
-    internal static double Damage(EffectDefinition effect, EffectOpContext context)
+    internal static DamageTotals Damage(EffectDefinition effect, EffectOpContext context)
     {
         var attacker = OpTargets.Holder(context);
 
@@ -63,13 +72,20 @@ internal static class DamageAndHealingOps
         var multiplier = OpRounding.Round(
             context.Seams.Values.ScaledValue(effect), effect.Id, "AttackMultiplier");
 
-        var dealt = 0.0;
+        var lost = 0.0;
+        var basis = 0.0;
+
         foreach (var target in OpTargets.Resolve(effect, context))
         {
-            dealt += context.Seams.Attack.ResolveAttack(attacker, target, multiplier, effect.Id).HpLost;
+            var resolution = context.Seams.Attack.ResolveAttack(attacker, target, multiplier, effect.Id);
+
+            lost += resolution.HpLost;
+            basis += resolution.Basis;
         }
 
-        return OpRounding.Round(dealt, effect.Id, "damage dealt");
+        return new DamageTotals(
+            OpRounding.Round(lost, effect.Id, "damage dealt"),
+            OpRounding.Round(basis, effect.Id, "on-damage basis"));
     }
 
     /// <summary>🔒 `05` §4.2 — <c>DAMAGE_TRUE</c>, straight onto HP.</summary>

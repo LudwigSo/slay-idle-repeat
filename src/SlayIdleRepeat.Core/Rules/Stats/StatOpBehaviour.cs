@@ -55,6 +55,11 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
         ArgumentNullException.ThrowIfNull(postAdditive);
         ArgumentNullException.ThrowIfNull(values);
 
+        if (conversions.Count == 0)
+        {
+            return [];
+        }
+
         var deltas = new List<StatDelta>(conversions.Count * 2);
 
         foreach (var effect in conversions)
@@ -133,6 +138,11 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
         ArgumentNullException.ThrowIfNull(effective);
         ArgumentNullException.ThrowIfNull(values);
 
+        if (overrides.Count == 0)
+        {
+            return [];
+        }
+
         var deltas = new List<StatDelta>();
 
         foreach (var effect in overrides)
@@ -206,6 +216,13 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
         return lowest;
     }
 
+    /// <remarks>
+    /// ⚠️ <b>Fatal here, while steps 4/5/7/8 merely SKIP a non-combat stat</b> (and report it through
+    /// <c>AggregatedStats.SkippedNonCombatStatEffects</c>). The asymmetry is deliberate and follows
+    /// M2-07's own precedent: <see cref="StatCaps.From"/> already refuses a cap on a non-combat stat,
+    /// because <em>"a cap on one would bind nothing and read as though it did"</em>. A conversion is
+    /// worse still — half of it would vanish, silently changing the build's power.
+    /// </remarks>
     private static void RequireCombat(EffectDefinition effect, StatId stat, string role)
     {
         if (!StatIds.IsCombat(stat))

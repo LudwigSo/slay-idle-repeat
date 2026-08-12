@@ -653,6 +653,34 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty($"18 §3 does not give {parameter} to {kind}");
     }
 
+    /// <summary>
+    /// 🔒 <c>FORCE_CRIT_NEXT</c> carries no magnitude at all, and the <b>schema</b> is what says so.
+    /// </summary>
+    /// <remarks>
+    /// `18` §2.4 gives the op a count and nothing else: how hard a forced crit hits is the actor's
+    /// own CDMG (`05` §4 step 4), and <c>CombatFlowOps</c> refuses <c>{"charges": 2, "value": 3}</c>
+    /// because it reads as "three attacks" to whoever wrote it. Until M2-03's code review the merged
+    /// <c>ATTACK_MULT_NEXT</c>/<c>FORCE_CRIT_NEXT</c> branch admitted exactly that shape while its
+    /// own description denied it — so authored content would have passed CI and thrown mid-battle.
+    /// </remarks>
+    [Theory]
+    [InlineData("\"value\": 3")]
+    [InlineData("\"valueScale\": {\"fn\":\"GOLD_HELD\",\"per\":100}")]
+    public void FORCE_CRIT_NEXT_admits_no_magnitude_at_all(string extraKey)
+    {
+        Validate("""
+        { "id": "PK_SURE_STRIKE", "op": "FORCE_CRIT_NEXT", "charges": 2 }
+        """).ShouldBeEmpty("the control: charges alone is valid");
+
+        Validate($$"""
+        { "id": "PK_SURE_STRIKE", "op": "FORCE_CRIT_NEXT", "charges": 2, {{extraKey}} }
+        """).ShouldNotBeEmpty($"{extraKey} is the only edit, and 18 §2.4 gives the op no magnitude");
+
+        Validate("""
+        { "id": "PK_OPENER_T1", "op": "ATTACK_MULT_NEXT", "charges": 1, "value": 3 }
+        """).ShouldBeEmpty("its sibling DOES take a multiplier — which is why they are two branches");
+    }
+
     [Fact]
     public void An_effect_with_no_id_is_rejected()
     {
@@ -894,10 +922,11 @@ public sealed class EffectSchemaTests
     private static IEnumerable<string> BranchOps()
     {
         Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
-        // 13 at M2-01; 15 since M2-03's 18 §10 extension split ATTACK_MULT_NEXT/FORCE_CRIT_NEXT out
-        // for `charges` and SURVIVE_LETHAL out for `valueMode`. The count is asserted, not merely
-        // implied by the partition below, so that a branch appearing or vanishing is a decision.
-        branches!.Items.Count.ShouldBe(15, "18 §2's 43 ops partition into fifteen key shapes");
+        // 13 at M2-01; 16 since M2-03's 18 §10 extension split ATTACK_MULT_NEXT out for `charges`,
+        // FORCE_CRIT_NEXT out again because it carries NO value, and SURVIVE_LETHAL out for
+        // `valueMode`. The count is asserted, not merely implied by the partition below, so that a
+        // branch appearing or vanishing is a decision.
+        branches!.Items.Count.ShouldBe(16, "18 §2's 43 ops partition into sixteen key shapes");
 
         foreach (var branch in branches.Items)
         {

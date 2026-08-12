@@ -305,21 +305,29 @@ public sealed class CombatFlowOpTests
     }
 
     /// <summary>
-    /// 🔒 A negative multiplier would turn every hit into a heal at `05` §4 step 6 — a mechanic no
-    /// document authorises.
+    /// 🔒 At `05` §4 step 6 a negative multiplier turns every hit into a heal and <b>zero is
+    /// permanent invulnerability</b> — no document authorises either.
     /// </summary>
-    [Fact]
-    public void DAMAGE_TAKEN_MULT_refuses_a_negative_multiplier()
+    /// <remarks>
+    /// Zero is refused rather than admitted because it is reachable by accident: a
+    /// <c>valueScale</c> whose step count comes out 0 yields it (`18` §1.1), and
+    /// <c>AuthoredScaledValue</c>'s own refusal message names exactly this outcome — <em>"a
+    /// <c>DAMAGE_TAKEN_MULT</c> delete all incoming damage, both silently"</em>.
+    /// </remarks>
+    [Theory]
+    [InlineData(-0.5)]
+    [InlineData(0.0)]
+    public void DAMAGE_TAKEN_MULT_refuses_a_multiplier_that_is_not_positive(double multiplier)
     {
         var hero = EffectTestBattle.Hero();
         var bench = new OpTestBench();
 
-        var broken = OpFixtures.Effect("PK_X", EffectOp.DAMAGE_TAKEN_MULT, -0.5, EffectTarget.SELF);
+        var broken = OpFixtures.Effect("PK_X", EffectOp.DAMAGE_TAKEN_MULT, multiplier, EffectTarget.SELF);
 
         Should.Throw<EffectContextException>(
                   () => CombatFlowOps.DamageTakenMultiplier(
                       broken, bench.Context(EffectTestBattle.Context(hero, hero))))
-              .Message.ShouldContain("turns every hit into a heal", Case.Sensitive);
+              .Message.ShouldContain("permanent invulnerability", Case.Sensitive);
 
         bench.Calls.ShouldBeEmpty();
     }

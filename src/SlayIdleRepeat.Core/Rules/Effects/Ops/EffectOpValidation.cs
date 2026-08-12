@@ -75,6 +75,15 @@ internal static class EffectOpValidation
                 {
                     RequireToStat(effect, problems, "a REDIRECT_EXCESS override sends the overshoot to toStat");
                 }
+                else if (effect.ToStat is not null)
+                {
+                    // 🔒 Only a redirect has a destination. ⚠️ effect.schema.json cannot state this —
+                    //    JsonSchemaValidator implements no `not` and no if/then/else, so a
+                    //    conditional-required rule is not expressible there. Recorded as a known
+                    //    limit of the schema and closed here.
+                    problems.Add($"a {effect.CapKind} override carries toStat, which belongs to " +
+                                 "REDIRECT_EXCESS alone — a raise and a heal ceiling send nothing anywhere");
+                }
 
                 break;
 
@@ -216,11 +225,78 @@ internal static class EffectOpValidation
         Exclusive(effect, problems, effect.NewFace is not null, "newFace", EffectOp.MODIFY_DIE_FACE);
         Exclusive(effect, problems, effect.Scope is not null, "scope", EffectOp.MODIFY_DIE_FACE);
 
+        // 🔒 The last two op-specific keys. The schema admits `valueMode` on nine ops and `statusId`
+        //    on four; without these, {"op":"EXTRA_ATTACK","valueMode":"FLAT"} and
+        //    {"op":"DAMAGE","statusId":"BURN"} were well-formed in code and rejected by the schema —
+        //    the two enforcement paths disagreeing about the same effect.
+        //    ⚠️ These two are stated as PREDICATES rather than as the `params` array the other ten
+        //    use, and it is not a style choice: an array literal of four or more constants makes
+        //    Roslyn emit a `<PrivateImplementationDetails>/__StaticArrayInitTypeSize=N` blob in the
+        //    GLOBAL namespace, which
+        //    AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace reports as
+        //    an undocumented `30` §11.4 namespace (the nested blob type carries no
+        //    CompilerGeneratedAttribute, so the rule's filter misses it). Recorded as errata against
+        //    that rule; the ten short lists below are under the threshold and are unaffected.
+        ExclusiveTo(
+            effect, problems, effect.ValueMode is not null, "valueMode",
+            "STAT_SET, the six 18 §2.2 ops, SHIELD and SURVIVE_LETHAL",
+            RulesFor(effect.Op) is not null || effect.Op == EffectOp.STAT_SET);
+
+        ExclusiveTo(
+            effect, problems, effect.StatusId is not null, "statusId",
+            "18 §2.3's four status-naming ops",
+            effect.Op is EffectOp.APPLY_STATUS or EffectOp.REMOVE_STATUS
+                      or EffectOp.EXTEND_STATUS or EffectOp.IMMUNE_STATUS);
+
+        // 🔒 And which of 18 §2.2's eight the op actually admits — a rule the schema cannot state at
+        //    all, because the sets differ per op inside one branch. Without it
+        //    {"op":"HEAL_LEECH","valueMode":"ATK_MULT"} is "well-formed" and throws at fire time.
+        RequireAdmittedMode(effect, problems);
+
         return problems;
     }
 
     /// <summary>True when the effect's keys are the ones its op takes.</summary>
     internal static bool IsWellFormed(EffectDefinition effect) => Problems(effect).Count == 0;
+
+    /// <summary>
+    /// The op's own `18` §2.2 admitted-mode set, from the one table
+    /// (<see cref="OpValueRules"/>) the resolver uses.
+    /// </summary>
+    /// <remarks>
+    /// Read from the same table rather than restated, so a mode admitted at fire time and refused
+    /// here — or the reverse — cannot happen.
+    /// </remarks>
+    private static void RequireAdmittedMode(EffectDefinition effect, List<string> problems)
+    {
+        if (effect.ValueMode is not { } mode)
+        {
+            return;
+        }
+
+        var rules = RulesFor(effect.Op);
+        if (rules is not null && !rules.Admits.Contains(mode))
+        {
+            problems.Add(
+                $"{effect.Op} carries valueMode {mode}, and 18 §2.2 gives it " +
+                $"[{string.Join(", ", rules.Admits)}] — {rules.Reason}");
+        }
+    }
+
+    /// <summary>The `18` §2.2 rules for the ops that have them; <c>null</c> for the rest.</summary>
+    private static OpValueRules? RulesFor(EffectOp op) => op switch
+    {
+        EffectOp.DAMAGE => OpValueRules.Damage,
+        EffectOp.DAMAGE_TRUE => OpValueRules.DamageTrue,
+        EffectOp.DAMAGE_MAXHP_PCT => OpValueRules.DamageMaxHpPct,
+        EffectOp.HEAL => OpValueRules.Heal,
+        EffectOp.HEAL_LEECH => OpValueRules.HealLeech,
+        EffectOp.SHIELD => OpValueRules.Shield,
+        EffectOp.REFLECT => OpValueRules.Reflect,
+        EffectOp.SURVIVE_LETHAL => OpValueRules.SurviveLethal,
+        EffectOp.REVIVE => OpValueRules.Revive,
+        _ => null,
+    };
 
     private static void RequireValue(EffectDefinition effect, List<string> problems)
     {
@@ -280,12 +356,17 @@ internal static class EffectOpValidation
     }
 
     private static void Exclusive(
-        EffectDefinition effect, List<string> problems, bool present, string key, params EffectOp[] owners)
+        EffectDefinition effect, List<string> problems, bool present, string key, params EffectOp[] owners) =>
+        ExclusiveTo(effect, problems, present, key, string.Join(", ", owners), owners.Contains(effect.Op));
+
+    /// <summary>The same rule with the ownership stated as a predicate rather than as a list.</summary>
+    private static void ExclusiveTo(
+        EffectDefinition effect, List<string> problems, bool present, string key, string owners, bool owned)
     {
-        if (present && !owners.Contains(effect.Op))
+        if (present && !owned)
         {
             problems.Add(
-                $"{effect.Op} carries '{key}', which belongs to [{string.Join(", ", owners)}]. " +
+                $"{effect.Op} carries '{key}', which belongs to [{owners}]. " +
                 "game-data/schema/effect.schema.json partitions the 43 ops into closed key shapes so " +
                 "that a borrowed key is a failure rather than a field that silently means nothing.");
         }
