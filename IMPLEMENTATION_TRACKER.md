@@ -17,7 +17,7 @@ This is the single tracking document for turning the design set in [`game-design
 |---|---|---|---|
 | M0 | Foundations, CI & week-1 spikes | pre-1, 2 (partial), spikes O14/O23 | ✅ **done — merged to `main` 2026-08-11** (95 commits). All 4 exit criteria met; CI is authored-not-observed — see X-07 |
 | M1 | Core domain skeleton & `InMemoryGame` | 1 | 🔄 kicked off 2026-08-11 · 13 tasks on `milestone/M1` |
-| M2 | Effect DSL & combat simulation | 1 | ⬜ |
+| M2 | Effect DSL & combat simulation | 1 | 🔄 kicked off 2026-08-12 · 17 dispatchable tasks on `milestone/M2` (+ M2-16b ⛔ deferred to M3) · **runs in parallel with M1** (based on `milestone/M1` @ `c7359cf`; merges only after M1 is merged and verified) |
 | M3 | Board, dice & the run loop | 1 | ⬜ |
 | M4 | Meta systems in Core (LuckService, gear, talents, beasts, economy, FTUE) | 1, 8 (Core half) | ⬜ |
 | M5 | Application layer, server backbone & inbox | 2, 3, 4 | ⬜ |
@@ -173,30 +173,44 @@ These live across the whole project; they start in M0 and grow with every milest
 **Goal:** the one interpreter every game effect compiles into, and the deterministic auto-battle core — "the most important document for the implementer" (05).
 **Exit:** all 43 ops / 23 triggers / 23 conditions unit-tested; a full fight simulates in < 5 ms; all 8 bosses run from DSL data with zero bespoke code; DSL parity test (10 000 random builds) green.
 
-**Kickoff decisions**
-1. Confirm the four combat rulings recorded in `17`: `targetPriority` field (Sporequeen), the Rimehold damage-amp state flag, the Dicelord phase-2 outcome table, enrage expressed as `STAT_MULT ×1.08`/s (05 form is authoritative).
-2. **O13 (17 §8):** verify/decide how Sporequeen's phase-3 drain interacts with the 70 s enrage soft-timer.
-3. `CP_GLASS_HEART` stays at ×2 until the harness shows > 12 pp clear-rate swing (pre-agree the downgrade to ×1.6 as the automatic response).
+**Kickoff decisions** — ✅ resolved 2026-08-12 (record: `.claude/.milestone-runs/M2/kickoff.md`)
+
+1. **The four `17` combat rulings are confirmed exactly as written.** (a) `targetPriority`: an int on enemy definitions, default `0`; the hero targets the **highest**, ties by **lowest current HP**; sporelings `−1`, `+1` forces focus (`05` §3.2, op `SET_TARGET_PRIORITY`). (b) Rimehold's Core is a **state flag, not a second actor** — `DAMAGE_TAKEN_MULT` ×1.6 at `05` §4 step 6, no targeting change. (c) Dicelord phase 2 becomes **`1–4: boss buff · 5–6: both buff`** — the hero-favourable outcome is removed. (d) **Enrage is `05` §3.1's form, authoritative over `17` §1's prose**: one built-in `SYS_ENRAGE` on every boss, `PERIODIC {interval 1.0, startDelay 70.0}` → `STAT_MULT ATK ×1.08`, multiplicative, uncapped, `BATTLE` scope, **tick slot 3**, bosses only.
+2. **Sporequeen's Rot drain × the 70 s enrage: keep `SYS_ENRAGE` universal and unmodified; the drain is the effective timer.** `17` §11 requires the enrage "implemented once, applied to all bosses", and a per-boss opt-out used by one of eight is exactly the bespoke boss code `18` exists to prevent. At par power the fight ends in 35–60 s, so neither timer is reached — the interaction is only reachable by a build that is already failing. The verification `17` §8 asks for becomes a **harness assertion in M2-16a** (Sporequeen's median duration stays in the 35–60 s band), not an engine change. 🔴 The "**O13**" label on this item was a **mis-reference** — O13 in `16` Part B is *curse chapter gating*, an M3 item — corrected here.
+3. **`CP_GLASS_HEART` stays ×2, with the ×1.6 downgrade pre-agreed as the automatic response** to a >12 pp clear-rate swing (`05` §9 guardrail 2) — no second conversation needed, it is a data edit. ⚠️ The trigger **cannot fire in M2**: measuring a per-perk swing needs the 98-perk catalogue (M3-07). Recorded for **M2-16b**.
+4. **M2-16 is split.** **M2-16a** (in M2) ships the harness, CLI, nightly CI job (X-08) and **five** live guardrails (1, 3, 4, 5, 6) driven by `calibration_builds.json`'s archetype **statlines** — `par_power.json` and `calibration_builds.json` are already fully populated. **M2-16b** ⛔ defers guardrail 2 to **M3-07**. ⚠️ The archetypes' `frozenPerks`/`pets` reference ids that do not exist until M3-07/M4-07; M2-16a reads only `stats` and must not stub the rest.
+5. **M2-17 is reinterpreted as a committed-baseline determinism test** — 10 000 seeded random build permutations through `EffectResolver`, hashed with `CanonicalStateWriter`, checked against a committed reference table. There is one resolver in one assembly and no client build until M7, so there is no second implementation to compare against; real two-runtime parity stays with **M5-12**. ⚠️ The baseline is necessarily **self-generated** — S5 does not apply and must not be implied. It proves *stability*, not correctness; correctness comes from M2-02..M2-06's unit tests.
+
+**Assumptions recorded after the interactive window** (full reasoning in the kickoff record)
+
+- **`data/…` in the docs is `game-data/…`, and combat data lives under `content/`, not `tuning/`.** `game-data/content/combat_caps.json`, `content/enemies/`, `content/bosses/`, each with a schema in `game-data/schema/` citing its doc section. Honours M0's committed baseline ruling (`closedBy: M2-07`); `tuning/` stays at exactly 16 files. ⚠️ The baseline's reason mis-attributes that ruling to `16` A7, which never mentions combat caps — conclusion stands, citation is wrong, M2-07 corrects it.
+- **`LogHash` reuses `CanonicalStateWriter`** (M0-07), the repo's single FNV-1a serialiser (`14` §16.6). M2-15 extends its allowlist if `CombatEvent` needs an encoding; it never forks it.
+- **No M2 type is named `*Snapshot` and no `SnapshotFieldOrder.json` entry is touched.** `05` §1's `heroSnapshot`/`enemySnapshot` are combat *inputs*, not persisted state; naming them `*Snapshot` would drag a battle input into the persistence contract.
+- **The run layer is declared, not wired.** The 12 run/board ops, 6 run-side triggers, the `RUN` target and the `RUN`/`STAGE`/`PERMANENT` scopes belong to a run controller (**M3**) over a `Run` aggregate (**M1-05**) — `18` §2.5 already says so. M2 declares and validates all of them, implements every combat-side trigger against the tick loop, and unit-tests the run-side ones at the resolver against a **read-only run-state view interface** with an in-Core test double. The exit criterion is met literally; M3 inherits wiring, not design.
+- **`18` §2.5's combat-context exception is emit-only in M2.** Scramble appends `RunEffectQueued` to the log and nothing more; draining it is M3's, discarding it in a duel is M2-14's. No sixth field on `SimulationResult` — `05` §7 fixes its five.
+- **The `< 5 ms` budget is a `Core.Tests` assertion** over the median of N worst-case (1800-tick) fights, at a documented multiple of 5 ms to survive CI jitter, with the raw median printed. No benchmark project.
+- 🔴 **Cross-milestone: M1-06's new architecture rule must allow the battle simulator's `DeterministicRng` construction site.** M1 kickoff §5 makes the constructor unreachable outside `Core/Rng/` and `RunRngScope`, but battle draws are a different regime with **no persisted position** (a revived battle restarts at draw 0) and `SeedDerivation.BattleSeed`'s own committed doc comment prescribes `new DeterministicRng(battleSeed, RngStreams.Combat)`. Handed to the M1 conductor before M1-06 is dispatched.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | M2-01 | `EffectDefinition` record + JSON schema (op·trigger·condition·target·value·valueScale·duration·stacking + extension fields) | 18 §1 | ⬜ |
 | M2-02 | `EffectResolver` implementing the exact 10-step resolution order (collect → … → caps → 4-dp round) | 18 §8 | ⬜ |
 | M2-03 | All 43 ops in 5 families, each with unit tests | 18 §2 | ⬜ |
-| M2-04 | All 23 triggers wired into combat + run loops, incl. `everyNth` counter semantics | 18 §4 | ⬜ |
+| M2-04 | All 23 triggers, incl. `everyNth` counter semantics. **Combat-side triggers are wired into the tick loop; the six run-side ones (`ON_TILE_RESOLVED`, `ON_ROLL`, `ON_PERK_TAKEN`, `ON_STAGE_GATE`, `ON_RUN_START`/`ON_RUN_END`) are declared, validated and unit-tested at the resolver** against the read-only run-state view — the run controller that wires them is M3 (kickoff assumption) | 18 §4 | ⬜ |
 | M2-05 | All 23 condition functions + comparators/combinators; 11 targets with context-degradation rules | 18 §5–6 | ⬜ |
 | M2-06 | Duration scopes (6) + early terminators + 5 stacking modes; `valueScale`/`valueMode` evaluators | 18 §3, §7 | ⬜ |
-| M2-07 | 14-stat actor block, aggregation order, caps from `data/combat_caps.json`, hero base stat curve | 05 §1–2 | ⬜ |
+| M2-07 | 14-stat actor block, aggregation order, caps from **`game-data/content/combat_caps.json`** (+ its schema; **not** a 17th `tuning/` file — kickoff A1), hero base stat curve. Closes 1 📐-baseline entry | 05 §1–2 | ⬜ |
 | M2-08 | Fixed-tick engine: 20 ticks/s, pre-tick sequence, strict 8-step tick loop, initiative, targeting (`targetPriority` + lowest-HP tie-break), timeout rule | 05 §3 | ⬜ |
 | M2-09 | `ResolveAttack` 10-step pipeline; ward pool (cap, absorption order, bypass list); `Heal()` + overheal; `ReflectDamage`; `AttackMultiplier` transient | 05 §4 | ⬜ |
 | M2-10 | 12 status effects + the DoT/HoT cadence engine (anchoring, stacking, mitigation exemptions) | 05 §5 | ⬜ |
-| M2-11 | Enemy stat derivation + `EnemyLevel(c,t)`; 8 archetypes with coefficient rows; WARDEN/CASTER on-hit tables; elite system (×2.2, 8 modifiers, no-repeat rule); `data/enemies.json` with 16 elite identities | 05 §6 | ⬜ |
+| M2-11 | Enemy stat derivation + `EnemyLevel(c,t)`; 8 archetypes with coefficient rows; WARDEN/CASTER on-hit tables; elite system (×2.2, 8 modifiers, no-repeat rule); **`game-data/content/enemies/`** + schema, with 16 elite identities. Closes 5 📐-baseline entries | 05 §6 | ⬜ |
 | M2-12 | Boss engine: 3 phases at 100/66/33 %, `SYS_ENRAGE`, telegraph events, first-clear phase-1 extension, summon entry rule, damage-amp state flag, phase-change log events | 17 §1 | ⬜ |
-| M2-13 | All 8 boss scripts + `BOSS_FTUE` authored as DSL data in `data/bosses.json` (coefficient rows + mechanics) | 17 §2–9 | ⬜ |
+| M2-13 | All 8 boss scripts + `BOSS_FTUE` authored as DSL data in **`game-data/content/bosses/`** + schema (coefficient rows from `17` §1.2 + mechanics). Closes 1 📐-baseline entry | 17 §2–9 | ⬜ |
 | M2-14 | PvP duel mode in the same code path: `IS_PVP` semantics, attacker-first initiative, no `ON_KILL`, 60 s cap, tie rules | 05 §3.3, 11 §6 | ⬜ |
 | M2-15 | Combat log format (`CombatEvent`, `SimulationResult`) + `LogHash`; compute-then-animate contract; `RunEffectQueued` combat→run bridge | 05 §7, 18 §2.5 | ⬜ |
-| M2-16 | Balance harness v1: 10 000 fights per (chapter, tier, archetype); the 6 guardrail tests | 05 §9 | ⬜ |
-| M2-17 | Client/server DSL parity test over 10 000 random build permutations | 18 §11 | ⬜ |
+| M2-16a | Balance harness v1: 10 000 fights per (chapter, tier, archetype) over `calibration_builds.json`'s 5 archetype **statlines**; CLI + the nightly CI job (X-08); **guardrails 1, 3, 4, 5, 6** live. Plus the kickoff §2 assertion: Sporequeen's median duration stays in the 35–60 s band | 05 §9 | ⬜ |
+| M2-16b | **Guardrail 2** — no single perk raises clear rate by more than 12 pp in isolation — and the `CP_GLASS_HEART` ×2→×1.6 trigger it gates | 05 §9, 18 §9.1 | ⛔ **deferred by kickoff decision 4 — owner M3-07.** Not blocked by a defect: measuring a per-perk swing needs the 98-perk catalogue, which M3-07 authors |
+| M2-17 | **DSL determinism baseline** over 10 000 seeded random build permutations: resolve → hash with `CanonicalStateWriter` → check against a committed reference table. (Restated at kickoff — one resolver, one assembly, no client build until M7. Real two-runtime parity is **M5-12**; the baseline is self-generated and proves stability, not correctness) | 18 §11 | ⬜ |
 
 ---
 
@@ -210,7 +224,8 @@ These live across the whole project; they start in M0 and grow with every milest
 2. **O21** — `PK_SINGULARITY` needs a mid-run perk-removal choice flow: specify or cut.
 3. **O22** — `PK_CARTOGRAPHER` teleport vs traversal rules: movement ruling.
 4. Dice Forge offer pool (faces/tiers, interaction with upgraded faces) — no table exists.
-5. **O13 (decision log)** — curse chapter gating (suggested split in `19` E).
+5. **O13 (decision log)** — curse chapter gating (suggested split in `19` E). *(This is the real O13; M2's kickoff block mis-cited the same number for an unrelated `17` §8 item — corrected there.)*
+6. **Inherited from M2 (kickoff decision 4): M2-16b.** Once M3-07 lands the 98-perk catalogue, run guardrail 2 — no single perk raises clear rate by more than 12 pp in isolation (`05` §9) — on the M2-16a harness. The `CP_GLASS_HEART` ×2→×1.6 downgrade is **pre-agreed** as the automatic response if it breaches; no further decision needed.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
