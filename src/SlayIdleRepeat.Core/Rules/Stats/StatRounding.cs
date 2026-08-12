@@ -107,7 +107,15 @@ internal static class StatRounding
     /// that carried it — a better message than this method could write.
     /// </para>
     /// </remarks>
-    internal static double Round(double value) => Math.Round(value, Decimals) + 0.0;
+    /// <para>
+    /// 🔒 <b>Delegates to <see cref="DeterminismRounding.Round"/>, which is the one statement of the
+    /// rule.</b> M2-08 and M2-02 ran in parallel and independently consolidated `05` §1.1's rounding:
+    /// M2-08 introduced this non-throwing overload for the combat loop, M2-02 introduced
+    /// <c>Primitives.DeterminismRounding</c> for the whole of Core. Both were right about the
+    /// problem; two primitives for one rule is the problem restated. This method keeps its name and
+    /// its doc — the combat loop reads better calling a stat-pipeline verb — and owns no arithmetic.
+    /// </para>
+    internal static double Round(double value) => DeterminismRounding.Round(value);
 
     /// <summary>
     /// True when a value is already in the form <see cref="Round"/> produces: rounded to

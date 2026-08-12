@@ -398,7 +398,7 @@ internal sealed class BattleSimulation
                             "aggregation produced a stat the caps should have floored.");
                     }
 
-                    attacker.AttackCooldown = Math.Round(1.0 / aspd, StatRounding.Decimals);
+                    attacker.AttackCooldown = StatRounding.Round(1.0 / aspd);
                 }
             }
 
@@ -406,8 +406,8 @@ internal sealed class BattleSimulation
             // from 0.5 leave +6.94e-17 rather than 0, and a 2.0-ASPD actor then waits an eleventh
             // tick — 164 swings a fight instead of 180. (From 1.0 the residue is negative and the
             // defect is invisible, which is why the 2.0 case is the one that pins this.)
-            attacker.AttackCooldown = Math.Round(
-                attacker.AttackCooldown - BattleClock.TickSeconds, StatRounding.Decimals);
+            attacker.AttackCooldown = StatRounding.Round(
+                attacker.AttackCooldown - BattleClock.TickSeconds);
         }
     }
 
@@ -832,7 +832,7 @@ internal sealed class BattleSimulation
         // actors; a summon "never attacks on its spawn tick". Read after RefreshStats so it is the
         // summon's own aggregated ASPD.
         var aspd = actor.Stats[StatId.ASPD];
-        actor.AttackCooldown = aspd > 0.0 ? Math.Round(1.0 / aspd, StatRounding.Decimals) : BattleClock.TickSeconds;
+        actor.AttackCooldown = aspd > 0.0 ? StatRounding.Round(1.0 / aspd) : BattleClock.TickSeconds;
 
         return actor;
     }
@@ -914,7 +914,7 @@ internal sealed class BattleSimulation
             maximum += actor.Stats[StatId.MAX_HP];
         }
 
-        return maximum <= 0.0 ? 0.0 : Math.Round(current / maximum, StatRounding.Decimals);
+        return maximum <= 0.0 ? 0.0 : StatRounding.Round(current / maximum);
     }
 
     // ══════════════════════════════════════════════════════════════════ stats and context
