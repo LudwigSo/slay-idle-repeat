@@ -89,6 +89,7 @@
     <ProjectReference Include="..\..\tools\BalanceHarness\SlayIdleRepeat.BalanceHarness.csproj" />
     <ProjectReference Include="..\..\tools\ContentValidator\SlayIdleRepeat.ContentValidator.csproj" />
     <ProjectReference Include="..\..\tools\AssetManifest\SlayIdleRepeat.AssetManifest.csproj" />
+    <ProjectReference Include="..\..\tools\AssetProvenance\SlayIdleRepeat.AssetProvenance.csproj" />
   </ItemGroup>
 
 </Project>

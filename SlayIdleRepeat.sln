@@ -89,6 +89,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetManifes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetManifest.Tests", "tests\SlayIdleRepeat.AssetManifest.Tests\SlayIdleRepeat.AssetManifest.Tests.csproj", "{AB8D021F-767A-49D6-BDCF-CA6BA05577E2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetProvenance", "tools\AssetProvenance\SlayIdleRepeat.AssetProvenance.csproj", "{D4A2FA8A-6BCB-4E6F-B152-D7CF1E1F28AD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetProvenance.Tests", "tests\SlayIdleRepeat.AssetProvenance.Tests\SlayIdleRepeat.AssetProvenance.Tests.csproj", "{A0E5ED12-8862-44F7-AD8F-E9EA597780FE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -238,6 +242,14 @@ Global
 		{AB8D021F-767A-49D6-BDCF-CA6BA05577E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AB8D021F-767A-49D6-BDCF-CA6BA05577E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AB8D021F-767A-49D6-BDCF-CA6BA05577E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4A2FA8A-6BCB-4E6F-B152-D7CF1E1F28AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4A2FA8A-6BCB-4E6F-B152-D7CF1E1F28AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4A2FA8A-6BCB-4E6F-B152-D7CF1E1F28AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4A2FA8A-6BCB-4E6F-B152-D7CF1E1F28AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0E5ED12-8862-44F7-AD8F-E9EA597780FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0E5ED12-8862-44F7-AD8F-E9EA597780FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0E5ED12-8862-44F7-AD8F-E9EA597780FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0E5ED12-8862-44F7-AD8F-E9EA597780FE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{673B7BF0-F824-4555-BAFA-1875DBE42927} = {3DC05598-070C-4A81-B839-1DE39A7CAA92}
@@ -280,5 +292,7 @@ Global
 		{93D2B182-5FE6-433F-AA6E-EDABC00468A2} = {AA433BF3-56C0-4FED-8C6F-A2894989E102}
 		{9CA92121-0668-4358-9751-E4F0C534838F} = {AA433BF3-56C0-4FED-8C6F-A2894989E102}
 		{AB8D021F-767A-49D6-BDCF-CA6BA05577E2} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
+		{D4A2FA8A-6BCB-4E6F-B152-D7CF1E1F28AD} = {AA433BF3-56C0-4FED-8C6F-A2894989E102}
+		{A0E5ED12-8862-44F7-AD8F-E9EA597780FE} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
 	EndGlobalSection
 EndGlobal

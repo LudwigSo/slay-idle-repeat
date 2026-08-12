@@ -196,6 +196,49 @@ jobs:
         run: ./build/ci/Invoke-ContentValidation.ps1
 
   # ===========================================================================
+  # asset-provenance — 15 §G 🔒 / 20 §2.1 🔒 / 20 §6
+  #
+  # "keep provenance records ... for every asset. Legal prerequisite, not a
+  #  formality." Both docs say it, in the same words.
+  #
+  # Bidirectional: no delivered asset without a provenance record, and no
+  # provenance record for an unknown asset id. A record for an asset a ruling
+  # CUT is its own failure — the O8 ruling cut all 32 of 15 §E19's sheets.
+  #
+  # ⚠️ Zero assets are delivered today, so the forward direction quantifies over
+  # an empty set. It is not a vacuous green: the job asserts M8-09's register
+  # floor and its canary ids, runs the reverse direction and the record-field
+  # rules over the store, and reports "AWAITING FIRST DELIVERY — 0 of 1048 ...
+  # 0 pairings verified" rather than a bare pass. The moment one asset lands
+  # under assets/, DeliveryDeclaration goes stale and this job goes RED until
+  # somebody has looked at it. See the header of Invoke-ProvenanceGate.ps1.
+  #
+  # Its own job, beside content-validation, for the reason 23 §6 gives about the
+  # architecture suite: a licence gate that can be masked by an unrelated flake
+  # is not a gate.
+  # ===========================================================================
+  asset-provenance:
+    name: asset provenance (15 §G, 20 §2.1)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Every delivered asset has a provenance record
+        shell: pwsh
+        run: ./build/ci/Invoke-ProvenanceGate.ps1
+
+  # ===========================================================================
   # vendor-package-uniqueness — 14 §1.1 🔒 / A9
   #
   # "a CI check that fails if a vendor PackageReference appears in more than one
