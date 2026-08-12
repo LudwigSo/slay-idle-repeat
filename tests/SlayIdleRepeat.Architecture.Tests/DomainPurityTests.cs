@@ -199,6 +199,13 @@ public sealed class DomainPurityTests
     /// <b>held</b> in (see <see cref="CurrencyFields"/> for why an event does not count). It was
     /// written in M0-08 against a subject set that did not exist yet and passed vacuously until
     /// that commit.
+    /// <para>
+    /// 🔒 <b>M1-05 added the second subject, <c>Run._wallet</c>, and it is recognised by NAME
+    /// ALONE.</b> A run's Gold is a bare <c>long</c>, so the type half of
+    /// <see cref="CurrencyFields"/>'s predicate cannot see it; the aggregate is named <c>_wallet</c>
+    /// rather than <c>_gold</c> precisely so the name half does. Both floors below are therefore
+    /// load-bearing, and the second one more so than the first.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_currency_mutation_emits_CurrencyChanged()
@@ -214,6 +221,18 @@ public sealed class DomainPurityTests
         Assert.Contains(
             currencyFields,
             name => name.Contains("Player::_wallet", StringComparison.Ordinal));
+
+        // 🔒 M1-05's floor row, and it is load-bearing in a way Player's is not. CurrencyFields()
+        // recognises Run's Gold ONLY by its field NAME: it is a bare `long`, so the type half of the
+        // predicate (CurrencyId-typed, or a type name containing "Wallet") cannot see it at all.
+        // Renaming `Run::_wallet` to the more obvious `_gold` would therefore drop the game's only
+        // RUN-scoped currency out of this rule's subject set silently — the rule would still be
+        // non-empty, still be pointed at Player, and still report success while nothing watched a
+        // run's purse. That is steering S3's failure mode arriving through a rename, and this line is
+        // what turns it into a build failure.
+        Assert.Contains(
+            currencyFields,
+            name => name.Contains("Run::_wallet", StringComparison.Ordinal));
 
         var offenders = new List<string>();
 
@@ -324,7 +343,7 @@ public sealed class DomainPurityTests
     [Fact]
     public void The_construction_exemption_covers_a_records_init_accessor_and_nothing_else()
     {
-        var snapshotLike = Il.AllTypes(OwnModule.Value)
+        var snapshotLike = Il.AllTypes(OwnModule)
             .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures.SnapshotLike), StringComparison.Ordinal));
 
         var init = snapshotLike.Methods.Single(m => m.Name.Equals("set_Wallet", StringComparison.Ordinal));
@@ -361,7 +380,7 @@ public sealed class DomainPurityTests
         // method) &&` from IsRehydrationOrConstruction leaves every test in the repository green:
         // set_Loose is refused by the init-only half and MutatesWithoutEmitting is not a setter at
         // all, so nothing would notice that a HAND-WRITTEN init body had just been exempted.
-        var handWritten = Il.AllTypes(OwnModule.Value)
+        var handWritten = Il.AllTypes(OwnModule)
             .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures.HandWrittenInit), StringComparison.Ordinal))
             .Methods.Single(m => m.Name.Equals("set_WalletBalance", StringComparison.Ordinal));
 
@@ -661,8 +680,12 @@ public sealed class DomainPurityTests
     /// against real IL rather than a hand-built <c>MethodDefinition</c> that could be wrong in the
     /// same direction as the predicate.
     /// </summary>
-    private static readonly Lazy<ModuleDefinition> OwnModule = new(() =>
-        ModuleDefinition.ReadModule(typeof(DomainPurityTests).Assembly.Location));
+    /// <remarks>
+    /// Delegates to <see cref="SuiteAssembly"/> rather than reading the file a second time:
+    /// <c>AccessibilityBoundaryTests</c> drives its exposed-collection fixture the same way, and
+    /// two spellings of "read my own metadata" are two places to fix (steering S4).
+    /// </remarks>
+    private static ModuleDefinition OwnModule => SuiteAssembly.Module;
 
     /// <summary>One fixture method, by name, out of this assembly's own metadata.</summary>
     private static MethodDefinition Fixture(string name) =>
@@ -673,7 +696,7 @@ public sealed class DomainPurityTests
         FixtureHost().NestedTypes.Single(t => t.Name.Equals(name, StringComparison.Ordinal));
 
     private static TypeDefinition FixtureHost() =>
-        Il.AllTypes(OwnModule.Value)
+        Il.AllTypes(OwnModule)
           .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures), StringComparison.Ordinal));
 
     /// <summary>
