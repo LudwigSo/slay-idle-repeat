@@ -60,6 +60,11 @@ internal static class EliteModifierDraw
     /// </param>
     /// <param name="modifiers">`05` §6.2's rows, as authored in <c>content/enemies/enemies.json</c>.</param>
     /// <param name="history">The run's memory of the previous Elite's modifier.</param>
+    /// <param name="noRepeat">
+    /// 🔒 <c>elites.noRepeatWithPreviousEliteInRun</c>, as authored. The rule's own switch, handed in
+    /// rather than assumed: the schema presents it as one, and a data key that looks like a switch
+    /// and is not is worse than no key — the next balance edit silently no-ops.
+    /// </param>
     /// <returns>The modifier drawn. The caller records it through <paramref name="history"/>.</returns>
     /// <exception cref="ArgumentException">
     /// <paramref name="modifiers"/> is empty, or holds only the previous modifier so no draw can
@@ -69,7 +74,10 @@ internal static class EliteModifierDraw
     /// The redraw collided <see cref="MaxAttempts"/> times — see that constant's remarks.
     /// </exception>
     internal static EliteModifier Draw(
-        DeterministicRng rng, IReadOnlyList<EliteModifierRow> modifiers, IEliteModifierHistory history)
+        DeterministicRng rng,
+        IReadOnlyList<EliteModifierRow> modifiers,
+        IEliteModifierHistory history,
+        bool noRepeat)
     {
         ArgumentNullException.ThrowIfNull(rng);
         ArgumentNullException.ThrowIfNull(modifiers);
@@ -83,7 +91,7 @@ internal static class EliteModifierDraw
                 nameof(modifiers));
         }
 
-        var previous = history.PreviousEliteModifier;
+        var previous = noRepeat ? history.PreviousEliteModifier : null;
 
         if (previous is { } excluded && modifiers.All(m => m.Id == excluded))
         {

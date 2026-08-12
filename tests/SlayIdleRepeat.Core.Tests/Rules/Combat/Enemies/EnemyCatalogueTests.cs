@@ -106,8 +106,8 @@ public sealed class EnemyCatalogueTests
         freeze.RefreshOnReapply.ShouldBeNull("05 §6.1a states 'refresh on reapply' for the WARDEN set only");
 
         var thrown = Should.Throw<InvalidOperationException>(() => freeze.RequireMaxStacks());
-        thrown.Message.ShouldContain("FREEZE");
-        thrown.Message.ShouldContain("16 R6");
+        thrown.Message.ShouldContain("FREEZE", Case.Sensitive);
+        thrown.Message.ShouldContain("16 R6", Case.Sensitive);
 
         // And the rows that DO state one are unaffected — otherwise this could pass by being broken.
         catalogue.OnHitFor(EnemyArchetype.CASTER, chapter: 2)!.RequireMaxStacks().ShouldBe(3);
@@ -126,8 +126,8 @@ public sealed class EnemyCatalogueTests
         cursed.Parameter("killWithinSeconds").ShouldBe(20.0);
 
         var thrown = Should.Throw<InvalidOperationException>(() => cursed.RequireCurseId());
-        thrown.Message.ShouldContain("CURSED");
-        thrown.Message.ShouldContain("content/curses/ is empty");
+        thrown.Message.ShouldContain("CURSED", Case.Sensitive);
+        thrown.Message.ShouldContain("content/curses/ is empty", Case.Sensitive);
     }
 
     /// <summary>
@@ -165,8 +165,8 @@ public sealed class EnemyCatalogueTests
         var swift = EnemyCatalogue.Read(EnemyFixtures.Snapshot()).Modifier(EliteModifier.SWIFT);
 
         var thrown = Should.Throw<KeyNotFoundException>(() => swift.Parameter("defMult"));
-        thrown.Message.ShouldContain("SWIFT");
-        thrown.Message.ShouldContain("aspdMult");
+        thrown.Message.ShouldContain("SWIFT", Case.Sensitive);
+        thrown.Message.ShouldContain("aspdMult", Case.Sensitive);
     }
 
     /// <summary>🔒 `05` §6.2 — the sixteen identities and their base archetypes.</summary>
@@ -209,5 +209,49 @@ public sealed class EnemyCatalogueTests
 
         EnemyCatalogue.FixedStats.Count.ShouldBe(StatIds.Combat.Count - 8,
             "05 §6 derives eight stats and fixes the rest; the two counts are one statement");
+    }
+
+    /// <summary>
+    /// 🔒 S3 — the floor under <see cref="EnemyArchetype"/> itself, and it is <b>ordered</b>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ An unordered assertion would not do the job. <c>EnemyCatalogue.ReadPools</c> and
+    /// <c>EnemyFixtures</c> both walk <c>Enum.GetValues&lt;EnemyArchetype&gt;()</c> and zip it
+    /// positionally against `05` §6.4's weight columns, which are authored in the document's column
+    /// order. Reorder the enum and every chapter's weights are silently permuted, with the shipped
+    /// data unchanged and nothing red — the enum's declaration order is load-bearing data, not a
+    /// style choice.
+    /// </remarks>
+    [Fact]
+    public void The_eight_archetypes_are_declared_in_05_section_6_1s_table_order()
+    {
+        Enum.GetNames<EnemyArchetype>().ShouldBe(new[]
+        {
+            "GRUNT", "SWARM", "BRUTE", "SKIRMISHER", "WARDEN", "CASTER", "LEECH", "REAVER",
+        });
+
+        // And the pool the catalogue built from that order really does carry 05 §6.4's Chapter 1
+        // row — which is what makes the ordering claim above observable rather than decorative.
+        var chapterOne = EnemyCatalogue.Read(EnemyFixtures.Snapshot()).Pool(1);
+
+        chapterOne.WeightOf(EnemyArchetype.GRUNT).ShouldBe(40.0);
+        chapterOne.WeightOf(EnemyArchetype.REAVER).ShouldBe(0.0, "05 §6.4 — Chapter 1 has no REAVER");
+        chapterOne.TotalWeight.ShouldBe(100.0);
+    }
+
+    /// <summary>
+    /// 🔒 Three authored numbers that describe the code rather than tune it. Each is rejected when it
+    /// stops agreeing, so none of them is a dial nothing turns.
+    /// </summary>
+    [Fact]
+    public void A_key_that_describes_the_code_is_rejected_when_it_stops_agreeing_with_it()
+    {
+        var wrongRounding = Should.Throw<ContentTypeMismatchException>(
+            () => EnemyCatalogue.Read(EnemyFixtures.Snapshot(roundingDecimals: 2)));
+        wrongRounding.Reference.ShouldBe(EnemyCatalogue.RoundingDecimalsPointer);
+
+        var wrongCount = Should.Throw<ContentTypeMismatchException>(
+            () => EnemyCatalogue.Read(EnemyFixtures.Snapshot(modifiersPerElite: 2)));
+        wrongCount.Reference.ShouldBe(EnemyCatalogue.ModifiersPerElitePointer);
     }
 }

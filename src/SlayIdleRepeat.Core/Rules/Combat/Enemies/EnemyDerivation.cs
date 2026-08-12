@@ -1,4 +1,3 @@
-using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
 
@@ -111,8 +110,15 @@ internal static class EnemyDerivation
             [StatId.LIFESTEAL] = Round(StatId.LIFESTEAL, archetype.Lifesteal),
         };
 
-        foreach (var stat in StatIds.Combat.Where(s => !values.ContainsKey(s)))
+        // A plain loop with a `continue`, not `Where(…)`: this runs per enemy per battle, and the
+        // predicate would allocate an iterator plus a closure capturing `values` on every call.
+        foreach (var stat in StatIds.Combat)
         {
+            if (values.ContainsKey(stat))
+            {
+                continue;
+            }
+
             if (!constants.FixedStats.TryGetValue(stat, out var fixedValue))
             {
                 throw new ArgumentException(
@@ -158,7 +164,21 @@ internal static class EnemyDerivation
                 "multiplier would make an elite weaker than the grunt standing next to it.");
         }
 
-        return StatRounding.Round(power * powerMultiplier, StatId.MAX_HP, Step);
+        // 🔒 Rounded to 05 §1.1's places like every other term of §6, but NOT through
+        // StatRounding.Round: that method names a StatId in its failure message, and the value here
+        // is an 02 §4.3 Power, not a stat. An overflow reported as "produced ∞ for MAX_HP" sends the
+        // reader to a formula that was never evaluated.
+        var elite = Math.Round(power * powerMultiplier, StatRounding.Decimals) + 0.0;
+
+        if (!double.IsFinite(elite))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(power), power,
+                "05 §6.2's elite multiplier overflowed 02 §4.3's EnemyPower(i). This is a Power, not a " +
+                "stat: the overflow is in the chapter/tier/stage product the caller handed in.");
+        }
+
+        return elite;
     }
 
     private static void RequireFinitePower(double power, string parameterName)

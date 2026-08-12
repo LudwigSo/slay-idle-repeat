@@ -107,7 +107,13 @@ internal static class EnemyFixtures
     /// <param name="unauthorised">
     /// A pointer suffix (below the document root) to replace with <c>null</c>, for a negative case.
     /// </param>
-    internal static ContentSnapshot Snapshot(string? unauthorised = null)
+    /// <param name="roundingDecimals">
+    /// Overrides <c>derivation.roundingDecimals</c>, for the case where a key that describes the
+    /// code stops agreeing with it.
+    /// </param>
+    /// <param name="modifiersPerElite">Overrides <c>elites.modifiersPerElite</c>, for the same case.</param>
+    internal static ContentSnapshot Snapshot(
+        string? unauthorised = null, int roundingDecimals = 4, int modifiersPerElite = 1)
     {
         var root = ContentValue.Object(
         [
@@ -117,7 +123,7 @@ internal static class EnemyFixtures
                 new("atkPerPower", ContentValue.Number(0.045m)),
                 new("defPerPower", ContentValue.Number(0.030m)),
                 new("baseAspd", ContentValue.Number(1.00m)),
-                new("roundingDecimals", ContentValue.Number(4m)),
+                new("roundingDecimals", ContentValue.Number(roundingDecimals)),
                 new("fixedStats", ContentValue.Object(
                 [
                     new("BLOCK", ContentValue.Number(0.0m)),
@@ -183,7 +189,7 @@ internal static class EnemyFixtures
             new("elites", ContentValue.Object(
             [
                 new("powerMultiplier", ContentValue.Number(2.2m)),
-                new("modifiersPerElite", ContentValue.Number(1m)),
+                new("modifiersPerElite", ContentValue.Number(modifiersPerElite)),
                 new("noRepeatWithPreviousEliteInRun", ContentValue.Boolean(true)),
                 new("modifiers", ContentValue.Array(Modifiers.Select(m => ContentValue.Object(
                     m.Id == EliteModifier.CURSED

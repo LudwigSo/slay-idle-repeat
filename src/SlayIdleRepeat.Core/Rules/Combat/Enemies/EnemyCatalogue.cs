@@ -1,6 +1,7 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 
@@ -127,11 +128,25 @@ internal sealed record EnemyCatalogue(
             content.ReadInt32(RoundingDecimalsPointer),
             fixedStats);
 
+        // 🔒 Three authored values that would otherwise be dials nothing turns. A key that LOOKS
+        // retunable and is not is worse than no key: the next balance edit silently no-ops. Each is
+        // checked against the code that would have to change with it, so a divergence is loud.
+        RequireAgreement(
+            RoundingDecimalsPointer, derivation.RoundingDecimals, StatRounding.Decimals,
+            "05 §1.1's rounding is the locked determinism rule and StatRounding is its one " +
+            "implementation. This file records the rule it was written under; it cannot retune it.");
+
+        RequireAgreement(
+            ModifiersPerElitePointer, content.ReadInt32(ModifiersPerElitePointer), 1,
+            "05 §6.2 gives an Elite exactly one modifier and EliteModifierDraw.Draw returns one. A " +
+            "second would need a draw that excludes the first, which 05 §6.2 does not state — so " +
+            "authoring 2 here has to fail rather than be quietly ignored.");
+
         return new EnemyCatalogue(
             derivation,
             ReadLevels(content),
             ReadArchetypes(content),
-            ReadOnHit(content, Document + "#/onHit/wardenSunder", flavourNamed: false),
+            ReadOnHit(content, Document + "#/onHit/wardenSunder", casterRow: false),
             ReadCasterRows(content),
             content.ReadDouble(ElitePowerMultiplierPointer),
             content.ReadInt32(ModifiersPerElitePointer),
@@ -267,7 +282,7 @@ internal sealed record EnemyCatalogue(
         for (var i = 0; i < rows.Items.Count; i++)
         {
             var pointer = $"{Document}#/onHit/casterBiomeStatus/{i.ToString(CultureInfo.InvariantCulture)}";
-            byChapter[content.ReadInt32(pointer + "/chapter")] = ReadOnHit(content, pointer, flavourNamed: true);
+            byChapter[content.ReadInt32(pointer + "/chapter")] = ReadOnHit(content, pointer, casterRow: true);
         }
 
         return byChapter;
@@ -280,7 +295,14 @@ internal sealed record EnemyCatalogue(
     /// <c>null</c> and stays <c>null</c>. Coercing it here would be the exact bug the null convention
     /// exists to prevent; <see cref="OnHitStatus.RequireMaxStacks"/> is where it surfaces.
     /// </remarks>
-    private static OnHitStatus ReadOnHit(ContentSnapshot content, string pointer, bool flavourNamed)
+    /// <param name="casterRow">
+    /// True for one of `05` §6.1a's eight per-chapter <c>CASTER</c> rows. It decides <b>two</b>
+    /// things, and they are two halves of the same fact: a <c>CASTER</c> row carries a
+    /// <c>flavourName</c> (the biome skin's name) and carries <b>no</b> <c>refreshOnReapply</c>,
+    /// because §6.1a states that only for the <c>WARDEN</c> set. The <c>WARDEN</c> row is the mirror
+    /// image: no flavour name, an authored refresh flag.
+    /// </param>
+    private static OnHitStatus ReadOnHit(ContentSnapshot content, string pointer, bool casterRow)
     {
         var maxStacksPointer = pointer + "/maxStacks";
 
@@ -294,8 +316,8 @@ internal sealed record EnemyCatalogue(
             // 🔒 05 §6.1a states "refresh on reapply" for the WARDEN set ONLY. The CASTER rows carry
             // no such key, so the value is null there rather than false: authoring a false would
             // decide, on 05's behalf, that reapplying a biome status extends it instead.
-            flavourNamed ? null : content.ReadBoolean(pointer + "/refreshOnReapply"),
-            flavourNamed ? content.ReadText(pointer + "/flavourName") : null);
+            casterRow ? null : content.ReadBoolean(pointer + "/refreshOnReapply"),
+            casterRow ? content.ReadText(pointer + "/flavourName") : null);
     }
 
     private static IReadOnlyList<EliteModifierRow> ReadModifiers(ContentSnapshot content)
@@ -308,9 +330,13 @@ internal sealed record EnemyCatalogue(
             var pointer = $"{Document}#/elites/modifiers/{i.ToString(CultureInfo.InvariantCulture)}";
             var row = rows.Items[i];
 
+            // Read through the snapshot rather than off the raw node: this file's contract is that
+            // every value goes through a reader that throws on an absent pointer, and the `_` filter
+            // is the same one DeclaredRules and ContentInvariants apply to a documentation member.
+            var authored = content.Read(pointer + "/parameters");
             var parameters = new Dictionary<string, double>(StringComparer.Ordinal);
-            row.TryGetMember("parameters", out var authored);
-            foreach (var name in authored!.MemberNames)
+
+            foreach (var name in authored.MemberNames.Where(n => !n.StartsWith('_')))
             {
                 parameters[name] = content.ReadDouble($"{pointer}/parameters/{name}");
             }
@@ -374,6 +400,24 @@ internal sealed record EnemyCatalogue(
         }
 
         return pools;
+    }
+
+    /// <summary>
+    /// 🔒 An authored number that has to agree with the code it describes, or the key is a dial
+    /// nothing turns.
+    /// </summary>
+    /// <exception cref="ContentTypeMismatchException">The two have diverged.</exception>
+    private static void RequireAgreement(string pointer, int authored, int required, string why)
+    {
+        if (authored == required)
+        {
+            return;
+        }
+
+        throw new ContentTypeMismatchException(
+            pointer, ContentValueKind.Number,
+            $"{authored.ToString(CultureInfo.InvariantCulture)}, but the code it describes is fixed at " +
+            $"{required.ToString(CultureInfo.InvariantCulture)}. {why}");
     }
 
     // ------------------------------------------------------------------ vocabulary parsing

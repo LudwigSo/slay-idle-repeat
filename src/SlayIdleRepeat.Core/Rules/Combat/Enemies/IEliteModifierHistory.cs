@@ -37,6 +37,24 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 /// subject, and no pity mechanism is invented here.</item>
 /// </list>
 /// <para>
+/// ⚠️ 🔒 <b>WHERE the implementation may live, and it is not where you would first put it.</b>
+/// `24` §11 and `30` §11.4 place <c>LuckService</c> in <c>Core/Rules/Luck/</c>. This seam is in
+/// <c>Core/Rules/Combat/Enemies/</c>, so a <c>LuckService : IEliteModifierHistory</c> would create a
+/// <c>Rules.Luck → Rules.Combat</c> edge — and that is the <em>wrong way round</em>: a battle grants
+/// loot <em>through</em> <c>LuckService</c>, so <c>Rules.Combat → Rules.Luck</c> is the edge the
+/// later milestones will want, and having both is the namespace cycle R17 exists to prevent. R17's
+/// table (<c>IntraRulesLayeringRuleTests.ForbiddenEdges</c>) declares three edges today and
+/// <c>Rules.Luck</c> is in none of them, so nothing would go red.
+/// </para>
+/// <para>
+/// So: <b>implement this on the run-controller side</b> (M3), as a projection over the run's state,
+/// exactly as <c>RunStateReading</c> is for the read-only view — <em>not</em> on <c>LuckService</c>
+/// itself. <c>LuckService</c>'s part is the <c>24</c> §4.10 B2 protection over the value; it reads
+/// and writes through this interface rather than being it. ⚠️ Whichever milestone adds a
+/// <c>Rules.Luck</c> namespace should add its edges to R17's table in the same commit — recorded as
+/// errata for the milestone conductor, because M2-11 must not edit another agent's rule file.
+/// </para>
+/// <para>
 /// ⚠️ The <c>Run</c> aggregate cannot implement this directly and must not try: `30` §11.4 states
 /// that <em>"<c>Model</c> never references <c>Rules</c>"</em> and
 /// <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c> enforces it. M3 honours it with a

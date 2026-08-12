@@ -90,8 +90,8 @@ public sealed class ChapterEnemyPoolTests
             () => ChapterEnemyPool.From(1, withoutReaver, new List<string> { "EL_A", "EL_B" }));
 
         thrown.ParamName.ShouldBe("weights");
-        thrown.Message.ShouldContain("REAVER");
-        thrown.Message.ShouldContain("design statements, not incidental");
+        thrown.Message.ShouldContain("REAVER", Case.Sensitive);
+        thrown.Message.ShouldContain("design statements, not incidental", Case.Sensitive);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class ChapterEnemyPoolTests
             () => ChapterEnemyPool.From(1, doubled, new List<string> { "EL_A", "EL_B" }));
 
         thrown.ParamName.ShouldBe("weights");
-        thrown.Message.ShouldContain("GRUNT");
+        thrown.Message.ShouldContain("GRUNT", Case.Sensitive);
     }
 
     /// <summary>
@@ -124,7 +124,7 @@ public sealed class ChapterEnemyPoolTests
             () => ChapterEnemyPool.From(1, negative, new List<string> { "EL_A", "EL_B" }));
 
         thrown.ParamName.ShouldBe("weights");
-        thrown.Message.ShouldContain("negative or not finite");
+        thrown.Message.ShouldContain("negative or not finite", Case.Sensitive);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class ChapterEnemyPoolTests
             () => ChapterEnemyPool.From(1, zeroed, new List<string> { "EL_A", "EL_B" }));
 
         thrown.ParamName.ShouldBe("weights");
-        thrown.Message.ShouldContain("draw nothing at all");
+        thrown.Message.ShouldContain("draw nothing at all", Case.Sensitive);
     }
 
     [Theory]
@@ -148,6 +148,29 @@ public sealed class ChapterEnemyPoolTests
             Enum.GetValues<EnemyArchetype>().Select(a => new ArchetypeWeight(a, 10.0)).ToList(),
             new List<string> { "EL_A", "EL_B" }))
             .ParamName.ShouldBe("chapter");
+
+    /// <summary>
+    /// 🔒 `05` §6.2 — elites come <b>only</b> from the chapter's <c>elitePool</c>, so an empty one is
+    /// a chapter that can present no elite and a repeat is one elite drawn twice as often as the
+    /// other. The schema stops both for the shipped file; a <c>Core</c> caller has no schema.
+    /// </summary>
+    [Fact]
+    public void An_empty_or_repeating_elite_pool_fails_rather_than_producing_a_chapter_with_no_elite()
+    {
+        var weights = Enum.GetValues<EnemyArchetype>()
+            .Select(a => new ArchetypeWeight(a, 12.5))
+            .ToList();
+
+        var empty = Should.Throw<ArgumentException>(
+            () => ChapterEnemyPool.From(1, weights, new List<string>()));
+        empty.ParamName.ShouldBe("elitePool");
+        empty.Message.ShouldContain("could present none", Case.Sensitive);
+
+        var repeated = Should.Throw<ArgumentException>(() => ChapterEnemyPool.From(
+            1, weights, new List<string> { "EL_THORN_SENTINEL", "EL_THORN_SENTINEL" }));
+        repeated.ParamName.ShouldBe("elitePool");
+        repeated.Message.ShouldContain("EL_THORN_SENTINEL", Case.Sensitive);
+    }
 
     /// <summary>`05` §6.4 — the row totals 100, and the shipped row is asserted, not a synthetic one.</summary>
     [Fact]

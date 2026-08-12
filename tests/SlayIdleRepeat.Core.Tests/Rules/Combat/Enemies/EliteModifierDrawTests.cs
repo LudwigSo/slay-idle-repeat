@@ -22,7 +22,7 @@ public sealed class EliteModifierDrawTests
         var drawn = new HashSet<EliteModifier>();
         for (var i = 0; i < 500; i++)
         {
-            drawn.Add(EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history));
+            drawn.Add(EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history, noRepeat: true));
         }
 
         drawn.Count.ShouldBe(8, "05 §6.2's list is flat, so an unconstrained draw reaches every row");
@@ -41,7 +41,7 @@ public sealed class EliteModifierDrawTests
                 var history = EliteModifierHistory.Restore(previous);
                 var rng = new DeterministicRng(BattleSeed + seed, RngStreams.Combat);
 
-                EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history)
+                EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history, noRepeat: true)
                     .ShouldNotBe(previous, $"05 §6.2 forbids drawing {previous} twice running");
             }
         }
@@ -60,7 +60,7 @@ public sealed class EliteModifierDrawTests
         var rng = new DeterministicRng(collided, RngStreams.Combat);
         var history = EliteModifierHistory.Restore(EliteModifier.ENRAGED);
 
-        var drawn = EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history);
+        var drawn = EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history, noRepeat: true);
 
         drawn.ShouldNotBe(EliteModifier.ENRAGED);
         rng.Position.ShouldBeGreaterThan(1UL,
@@ -76,7 +76,7 @@ public sealed class EliteModifierDrawTests
         var rng = new DeterministicRng(seed, RngStreams.Combat);
         var history = EliteModifierHistory.Restore(EliteModifier.SWIFT);
 
-        EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history).ShouldBe(EliteModifier.ENRAGED);
+        EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history, noRepeat: true).ShouldBe(EliteModifier.ENRAGED);
         rng.Position.ShouldBe(1UL);
     }
 
@@ -88,7 +88,8 @@ public sealed class EliteModifierDrawTests
         {
             var rng = new DeterministicRng(BattleSeed, RngStreams.Combat);
             return EliteModifierDraw.Draw(
-                rng, EnemyFixtures.Modifiers, EliteModifierHistory.Restore(EliteModifier.CURSED));
+                rng, EnemyFixtures.Modifiers, EliteModifierHistory.Restore(EliteModifier.CURSED),
+                noRepeat: true);
         }
 
         Draw().ShouldBe(Draw());
@@ -109,7 +110,7 @@ public sealed class EliteModifierDrawTests
         var counts = new Dictionary<EliteModifier, int>();
         for (var i = 0; i < 8000; i++)
         {
-            var drawn = EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history);
+            var drawn = EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, history, noRepeat: true);
             counts[drawn] = counts.GetValueOrDefault(drawn) + 1;
         }
 
@@ -126,10 +127,11 @@ public sealed class EliteModifierDrawTests
         var thrown = Should.Throw<ArgumentException>(() => EliteModifierDraw.Draw(
             new DeterministicRng(BattleSeed, RngStreams.Combat),
             new List<EliteModifierRow>(),
-            new EliteModifierHistory()));
+            new EliteModifierHistory(),
+            noRepeat: true));
 
         thrown.ParamName.ShouldBe("modifiers");
-        thrown.Message.ShouldContain("this pool is empty");
+        thrown.Message.ShouldContain("this pool is empty", Case.Sensitive);
     }
 
     /// <summary>
@@ -144,10 +146,43 @@ public sealed class EliteModifierDrawTests
         var thrown = Should.Throw<ArgumentException>(() => EliteModifierDraw.Draw(
             new DeterministicRng(BattleSeed, RngStreams.Combat),
             onlyEnraged,
-            EliteModifierHistory.Restore(EliteModifier.ENRAGED)));
+            EliteModifierHistory.Restore(EliteModifier.ENRAGED),
+            noRepeat: true));
 
         thrown.ParamName.ShouldBe("modifiers");
-        thrown.Message.ShouldContain("can never terminate");
+        thrown.Message.ShouldContain("can never terminate", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 <c>elites.noRepeatWithPreviousEliteInRun</c> really is the rule's switch: with it off the
+    /// draw is unconstrained, and the previous modifier can come up again.
+    /// </summary>
+    /// <remarks>
+    /// This is what stops the flag being a data key nothing reads. The seed is one whose first draw
+    /// is <c>ENRAGED</c>, so with the rule on this exact call would redraw — which is asserted
+    /// alongside, so the case cannot pass by the seed simply not colliding.
+    /// </remarks>
+    [Fact]
+    public void With_the_no_repeat_switch_off_the_previous_modifier_can_be_drawn_again()
+    {
+        var seed = FindSeedWhoseFirstDrawIs(EliteModifier.ENRAGED);
+
+        var unconstrained = EliteModifierDraw.Draw(
+            new DeterministicRng(seed, RngStreams.Combat),
+            EnemyFixtures.Modifiers,
+            EliteModifierHistory.Restore(EliteModifier.ENRAGED),
+            noRepeat: false);
+
+        unconstrained.ShouldBe(EliteModifier.ENRAGED, "with the switch off nothing excludes it");
+
+        var constrained = EliteModifierDraw.Draw(
+            new DeterministicRng(seed, RngStreams.Combat),
+            EnemyFixtures.Modifiers,
+            EliteModifierHistory.Restore(EliteModifier.ENRAGED),
+            noRepeat: true);
+
+        constrained.ShouldNotBe(EliteModifier.ENRAGED,
+            "and with it on, 05 §6.2 redraws — so the two branches really are different");
     }
 
     /// <summary>
@@ -168,7 +203,7 @@ public sealed class EliteModifierDrawTests
         {
             var rng = new DeterministicRng(seed, RngStreams.Combat);
 
-            if (EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, new EliteModifierHistory()) == modifier)
+            if (EliteModifierDraw.Draw(rng, EnemyFixtures.Modifiers, new EliteModifierHistory(), noRepeat: true) == modifier)
             {
                 return seed;
             }

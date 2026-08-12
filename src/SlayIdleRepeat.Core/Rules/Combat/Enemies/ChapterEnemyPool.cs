@@ -50,12 +50,16 @@ internal sealed class ChapterEnemyPool
         ElitePool = elitePool;
 
         var table = new List<(EnemyArchetype item, double weight)>(weights.Count);
+        var total = 0.0;
+
         foreach (var weight in weights)
         {
             table.Add((weight.Archetype, weight.Weight));
+            total += weight.Weight;
         }
 
         _table = table;
+        TotalWeight = total;
     }
 
     /// <summary>The chapter this pool belongs to.</summary>
@@ -67,8 +71,8 @@ internal sealed class ChapterEnemyPool
     /// <summary>The chapter's two elite identities. Elites are drawn from here and nowhere else.</summary>
     internal IReadOnlyList<string> ElitePool { get; }
 
-    /// <summary>The sum of the row's weights.</summary>
-    internal double TotalWeight => Weights.Sum(w => w.Weight);
+    /// <summary>The sum of the row's weights. `05` §6.4 states every row totals 100.</summary>
+    internal double TotalWeight { get; }
 
     /// <summary>Builds a pool, over the whole archetype set.</summary>
     /// <param name="chapter">The chapter, <c>1..8</c>.</param>
@@ -135,6 +139,31 @@ internal sealed class ChapterEnemyPool
                 $"every weight in chapter {chapter.ToString(CultureInfo.InvariantCulture)}'s pool is " +
                 "zero, so a TILE_ENEMY battle there can draw nothing at all.",
                 nameof(weights));
+        }
+
+        // 🔒 The elite pool gets the same treatment as the weight table, and it has to: 05 §6.2 says
+        // elites come ONLY from here, so an empty pool is a chapter that can present no elite and a
+        // repeated id is a chapter with one elite wearing two hats. The schema stops both for the
+        // shipped file; a Core caller building a pool from anything else has no schema at all.
+        if (elitePool.Count == 0)
+        {
+            throw new ArgumentException(
+                $"chapter {chapter.ToString(CultureInfo.InvariantCulture)}'s elitePool is empty, and " +
+                "05 §6.2 has elites come only from an elitePool — so the chapter could present none.",
+                nameof(elitePool));
+        }
+
+        var repeated = elitePool.GroupBy(e => e, StringComparer.Ordinal)
+                                .Where(g => g.Count() > 1)
+                                .Select(g => g.Key)
+                                .ToArray();
+        if (repeated.Length > 0)
+        {
+            throw new ArgumentException(
+                $"chapter {chapter.ToString(CultureInfo.InvariantCulture)}'s elitePool repeats " +
+                $"{string.Join(", ", repeated)}. 05 §6.2 gives each chapter exactly its two biome " +
+                "elites; a repeat is one elite drawn twice as often as the other.",
+                nameof(elitePool));
         }
 
         return new ChapterEnemyPool(chapter, weights.ToArray(), elitePool.ToArray());

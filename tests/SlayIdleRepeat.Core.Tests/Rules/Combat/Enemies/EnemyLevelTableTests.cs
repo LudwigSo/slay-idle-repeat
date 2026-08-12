@@ -1,3 +1,4 @@
+using System.Reflection;
 using Shouldly;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 using Xunit;
@@ -47,12 +48,16 @@ public sealed class EnemyLevelTableTests
     [Fact]
     public void The_level_depends_on_the_chapter_and_the_tier_and_on_nothing_else()
     {
-        var levels = EnemyFixtures.Levels();
+        typeof(EnemyLevelTable)
+            .GetMethod("Of", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetParameters()
+            .Select(p => p.ParameterType)
+            .ShouldBe(new[] { typeof(int), typeof(int) },
+                "05 §6.0: all enemies, Elites, Guardians and bosses in a (chapter, tier) share this " +
+                "level. Two ints in, one int out — an archetype or an elite flag that could change " +
+                "the answer would have to be a parameter, and adding one is what this pins.");
 
-        // The whole surface: two ints in, one int out. If an archetype or an elite flag could change
-        // the answer there would have to be a parameter for it, and there is not.
-        levels.Of(3, 1).ShouldBe(levels.Of(3, 1));
-        levels.Of(3, 1).ShouldBe(30, "05 §6.0 — Ch3 base 20 plus Heroic +10");
+        EnemyFixtures.Levels().Of(3, 1).ShouldBe(30, "05 §6.0 — Ch3 base 20 plus Heroic +10");
     }
 
     [Fact]
@@ -64,7 +69,7 @@ public sealed class EnemyLevelTableTests
             () => EnemyLevelTable.From(incomplete, new List<int> { 0, 10, 20 }));
 
         thrown.ParamName.ShouldBe("baseByChapter");
-        thrown.Message.ShouldContain("3, 4, 5, 6, 7, 8");
+        thrown.Message.ShouldContain("3, 4, 5, 6, 7, 8", Case.Sensitive);
     }
 
     [Fact]
@@ -76,7 +81,7 @@ public sealed class EnemyLevelTableTests
             () => EnemyLevelTable.From(extra, new List<int> { 0, 10, 20 }));
 
         thrown.ParamName.ShouldBe("baseByChapter");
-        thrown.Message.ShouldContain("9");
+        thrown.Message.ShouldContain("A ninth chapter is a design decision", Case.Sensitive);
     }
 
     [Fact]
@@ -87,7 +92,7 @@ public sealed class EnemyLevelTableTests
             new List<int> { 0, 10 }));
 
         thrown.ParamName.ShouldBe("tierBonus");
-        thrown.Message.ShouldContain("NORMAL, HEROIC, MYTHIC");
+        thrown.Message.ShouldContain("NORMAL, HEROIC, MYTHIC", Case.Sensitive);
     }
 
     [Theory]

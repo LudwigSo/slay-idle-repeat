@@ -15,12 +15,17 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 /// </para>
 /// <para>
 /// 🔒 <b><see cref="TargetPriority"/> is declared here and read nowhere in this milestone.</b>
-/// `05` §3.2 and `17` §11 ask for the field; the M2 kickoff confirmed it as an int defaulting to
-/// <see cref="DefaultTargetPriority"/>, with the hero targeting the <b>highest</b> priority and
-/// breaking ties on the <b>lowest current HP</b>. <see cref="Deprioritised"/> is what a summon the
-/// player should ignore carries (Sporequeen's sporelings) and <see cref="Forced"/> forces focus.
-/// The <em>selection algorithm</em> belongs to the tick engine (M2-08) and is deliberately not
-/// implemented beside the data — two implementations of one targeting rule is one too many.
+/// `05` §3.2 and `17` §11 ask for the field; the M2 kickoff confirmed it as an int, with the hero
+/// targeting the <b>highest</b> priority and breaking ties on the <b>lowest current HP</b>. The
+/// three authored values — the default, the one a summon the player should ignore carries
+/// (Sporequeen's sporelings), and the one that forces focus — are <b>data</b>, on
+/// <see cref="EnemyCatalogue.DefaultTargetPriority"/>,
+/// <see cref="EnemyCatalogue.DeprioritisedTargetPriority"/> and
+/// <see cref="EnemyCatalogue.ForcedTargetPriority"/>. They are deliberately <em>not</em> restated as
+/// constants here: a second copy is a second source of truth, and it is the copy the tick engine
+/// would bind to. The <em>selection algorithm</em> belongs to the tick engine (M2-08) and is
+/// likewise not implemented beside the data — two implementations of one targeting rule is one too
+/// many.
 /// </para>
 /// <para>
 /// ⚠️ <b><see cref="Level"/> is not one of the fourteen stats.</b> `05` §1's actor block holds
@@ -53,15 +58,6 @@ internal sealed record EnemyDefinition(
     EliteModifier? Modifier,
     int TargetPriority)
 {
-    /// <summary>`05` §3.2 — the priority an enemy that states none carries.</summary>
-    internal const int DefaultTargetPriority = 0;
-
-    /// <summary>`05` §3.2 — the value that deprioritises a summon the player should ignore.</summary>
-    internal const int Deprioritised = -1;
-
-    /// <summary>`05` §3.2 — the value that forces the hero to focus.</summary>
-    internal const int Forced = 1;
-
     /// <summary>Whether `05` §6.2's elite treatment was applied.</summary>
     internal bool IsElite => Modifier is not null;
 

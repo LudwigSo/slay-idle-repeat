@@ -497,4 +497,29 @@ public sealed class EnemiesDataTests
             i => i.Location == $"{Document}#/chapterPools" && i.Message.Contains("EL_THORN_SENTINEL"),
             "and the elite that is now in two chapters' pools is named too");
     }
+
+    /// <summary>
+    /// 🔒 `05` §6.0 — a chapter that fields enemies and has no <c>BaseEnemyLevel</c> would derive
+    /// level-0 enemies, which `05` §4's mitigation denominator reads as an attacker that never grows.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The obvious edits are blocked by the schema — <c>baseByChapter</c> is <c>minItems</c>/
+    /// <c>maxItems</c> 8 and <c>chapter</c> is 1..8 — so the edit below re-points chapter 8's row at
+    /// chapter 7 instead. Still eight rows, still valid chapters, still unique; chapter 8 then has a
+    /// pool and no level, which is exactly the state the rule exists to catch.
+    /// </remarks>
+    [Fact]
+    public void A_chapter_that_fields_enemies_with_no_base_level_fails_the_build()
+    {
+        var edited = RepoData.SourceWithEdit(
+            Document,
+            "{ \"chapter\": 8, \"level\": 80 }",
+            "{ \"chapter\": 7, \"level\": 80 }");
+
+        var issues = ContentLoader.Load(edited).Issues;
+
+        issues.ShouldContain(
+            i => i.Location == $"{Document}#/enemyLevel/baseByChapter" && i.Message.Contains("chapter 8"),
+            "the declared rule names the chapter that would field level-0 enemies");
+    }
 }

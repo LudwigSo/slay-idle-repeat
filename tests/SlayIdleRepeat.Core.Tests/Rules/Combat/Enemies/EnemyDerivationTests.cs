@@ -74,9 +74,12 @@ public sealed class EnemyDerivationTests
     /// <em>"an unstated stat is a bug, not a zero."</em>
     /// </summary>
     /// <remarks>
-    /// S2 — the assertion pins the message fragment naming <c>HEAL_PCT</c>, not merely the exception
-    /// type: <see cref="ActorStats.From"/> throws <see cref="ArgumentException"/> for four other
-    /// reasons and one of them would otherwise satisfy this test.
+    /// 🔒 S2 — <b>the <c>ParamName</c> is what pins which rule fired, and the fragments alone would
+    /// not.</b> <see cref="ActorStats.From"/>'s own missing-stat message carries both
+    /// <c>HEAL_PCT</c> and "an unstated stat is a bug, not a zero" too, so deleting
+    /// <see cref="EnemyDerivation"/>'s guard entirely would leave this test green on
+    /// <c>ActorStats</c>'s throw. <c>ActorStats.From</c> throws <c>nameof(values)</c>; this rule
+    /// throws <c>nameof(constants)</c>, and the document path appears in this message only.
     /// </remarks>
     [Fact]
     public void A_fixed_stat_missing_from_the_data_fails_rather_than_defaulting_to_zero()
@@ -86,8 +89,10 @@ public sealed class EnemyDerivationTests
             EnemyFixtures.Row(EnemyArchetype.GRUNT),
             EnemyFixtures.ConstantsWithout(StatId.HEAL_PCT)));
 
-        thrown.Message.ShouldContain("HEAL_PCT");
-        thrown.Message.ShouldContain("an unstated stat is a bug, not a zero");
+        thrown.ParamName.ShouldBe("constants", "ActorStats.From's own guard throws nameof(values)");
+        thrown.Message.ShouldContain("content/enemies/enemies.json", Case.Sensitive);
+        thrown.Message.ShouldContain("HEAL_PCT", Case.Sensitive);
+        thrown.Message.ShouldContain("an unstated stat is a bug, not a zero", Case.Sensitive);
     }
 
     /// <summary>
@@ -104,6 +109,13 @@ public sealed class EnemyDerivationTests
     {
         var stats = EnemyDerivation.Derive(
             1234.5678, EnemyFixtures.Row(EnemyArchetype.SKIRMISHER), EnemyFixtures.Constants());
+
+        // ⚠️ The loop below cannot fail on its own, and that is recorded rather than pretended
+        // otherwise: ActorStats.From already refuses an unrounded value, so a derivation that
+        // stopped rounding would throw out of Derive rather than reach here. It is kept as the
+        // statement of the claim, FLOORED so it cannot also quantify over nothing — which is the
+        // failure mode it would otherwise have. The assertions that can actually fail are below it.
+        stats.Values.Count().ShouldBe(14, "05 §1's actor block is fourteen stats wide");
 
         foreach (var (stat, value) in stats.Values)
         {
@@ -129,9 +141,15 @@ public sealed class EnemyDerivationTests
         var normal = EnemyDerivation.Derive(1000.0, brute, EnemyFixtures.Constants());
         var elite = EnemyDerivation.Derive(elitePower, brute, EnemyFixtures.Constants());
 
-        elite[StatId.MAX_HP].ShouldBe(Math.Round(normal[StatId.MAX_HP] * 2.2, 4));
-        elite[StatId.ATK].ShouldBe(Math.Round(normal[StatId.ATK] * 2.2, 4));
-        elite[StatId.DEF].ShouldBe(Math.Round(normal[StatId.DEF] * 2.2, 4));
+        // ⚠️ Literals, not `normal[stat] * 2.2`. The production order is round-the-power-then-derive
+        // and the derived-then-multiplied order agrees only because BRUTE's coefficients happen to
+        // be exact; asserting the second order would drift from the first for an archetype whose
+        // product has a fifth decimal place, with no bug present.
+        elite[StatId.MAX_HP].ShouldBe(2640.0, "2200 * 0.60 * 2.00");
+        elite[StatId.ATK].ShouldBe(133.65, "2200 * 0.045 * 1.35");
+        elite[StatId.DEF].ShouldBe(79.2, "2200 * 0.030 * 1.20");
+
+        elite[StatId.MAX_HP].ShouldBeGreaterThan(normal[StatId.MAX_HP]);
 
         elite[StatId.ASPD].ShouldBe(normal[StatId.ASPD], "05 §6 derives ASPD from the archetype, not from Power");
         elite[StatId.CRIT].ShouldBe(normal[StatId.CRIT], "05 §6.2 multiplies POWER, not the secondaries");
@@ -164,7 +182,7 @@ public sealed class EnemyDerivationTests
             power, EnemyFixtures.Row(EnemyArchetype.GRUNT), EnemyFixtures.Constants()));
 
         thrown.ParamName.ShouldBe("power");
-        thrown.Message.ShouldContain("EnemyPower");
+        thrown.Message.ShouldContain("EnemyPower", Case.Sensitive);
     }
 
     [Theory]

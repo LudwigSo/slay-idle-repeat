@@ -240,7 +240,20 @@ internal static class DeclaredRules
         // ── R33 · `05` §6.0 — EnemyLevel(c, t) needs a base level for every chapter that has a
         // pool, or the chapter derives level-0 enemies and 05 §4's mitigation denominator reads an
         // attacker that never grows.
+        // ⚠️ Stated honestly: on the SHIPPED shape this is belt-and-braces rather than coverage.
+        // enemies.schema.json pins both arrays to 8 rows with `chapter` 1..8 and required, and
+        // ContentInvariants treats `chapter` as an identity member, so the two sets are already
+        // forced to be exactly {1..8}. It bites the day either array's bounds are relaxed — which is
+        // exactly what an eighth-chapter-plus content pack would do — and it costs one pass.
         EveryChapterWithAPoolHasABaseEnemyLevel,
+
+        // ── R34 · `05` §6.4 / `03` §4 — the pool weights are authored TWICE, and the second copy
+        // does not exist yet. enemies.json#/chapterPools is M2-11's producer-side transcription;
+        // each chapter's own `enemyPool` field (chapter.schema.json) is what the board actually
+        // draws from, and M3-14 authors the eight chapter files. Nothing would compare them.
+        // Vacuous today — content/chapters/ is empty — and armed the day the first chapter file
+        // lands, which is the only moment the two can start to disagree.
+        ChapterFilesAgreeWithTheProducerSideEnemyPool,
     ];
 
     // ------------------------------------------------------------------- rules with a body
@@ -979,6 +992,51 @@ internal static class DeclaredRules
                 $"05 §6.0: chapter {chapter.ToString(CultureInfo.InvariantCulture)} fields enemies but " +
                 "has no BaseEnemyLevel, so every enemy in it would be level 0 — which 05 §4's " +
                 "mitigation denominator reads as an attacker that never grows."));
+        }
+    }
+
+    /// <summary>
+    /// `05` §6.4 / `03` §4 — a chapter file's <c>enemyPool</c> is the same weight table
+    /// <c>enemies.json</c> transcribes for that chapter.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on the chapter file's own <c>id</c> rather than on its path, because the file names are
+    /// M3-14's to choose. A chapter file whose <c>id</c> matches no <c>chapterPools</c> row is left
+    /// alone here — the id space and range rules already own that.
+    /// </remarks>
+    private static void ChapterFilesAgreeWithTheProducerSideEnemyPool(
+        IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
+    {
+        var pools = Find(documents, EnemiesDocument + "#/chapterPools");
+        if (pools is null || pools.Kind != ContentValueKind.Array)
+        {
+            return;
+        }
+
+        var byChapter = new Dictionary<int, string>();
+        for (var i = 0; i < pools.Items.Count; i++)
+        {
+            if (pools.Items[i].TryGetMember("chapter", out var chapter) &&
+                chapter!.Kind == ContentValueKind.Number)
+            {
+                byChapter[chapter.AsInt32()] =
+                    $"{EnemiesDocument}#/chapterPools/{i.ToString(CultureInfo.InvariantCulture)}/weights";
+            }
+        }
+
+        foreach (var (path, root) in documents
+                     .Where(d => d.Key.StartsWith(ContentLayout.ContentDirectory + "chapters/", StringComparison.Ordinal))
+                     .OrderBy(d => d.Key, StringComparer.Ordinal))
+        {
+            if (!root.TryGetMember("id", out var id) || id!.Kind != ContentValueKind.Number ||
+                !byChapter.TryGetValue(id.AsInt32(), out var producer))
+            {
+                continue;
+            }
+
+            Mirrors(
+                "05 §6.4 (one enemy-pool weight table, authored on the chapter and transcribed in enemies.json)",
+                $"{path}#/enemyPool", producer)(documents, issues);
         }
     }
 

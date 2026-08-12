@@ -85,7 +85,7 @@
         "defPerPower": { "description": "05 §6.0 — DEF = power * 0.030 * archetype.defCoef.", "$ref": "#/$defs/coefficient" },
         "baseAspd": { "description": "05 §6.0 — ASPD = 1.00 * archetype.aspdCoef.", "$ref": "#/$defs/coefficient" },
         "roundingDecimals": {
-          "description": "05 §6.0 — 'every term rounded to 4 dp'. Authored rather than assumed so the file states the rule it was written under; StatRounding is the one implementation of it.",
+          "description": "05 §6.0 — 'every term rounded to 4 dp'. Authored so the file states the rule it was written under. ⚠️ It is NOT a dial: 05 §1.1's rounding is the locked determinism rule and StatRounding is its one implementation, so EnemyCatalogue.Read rejects any value but that one rather than reading a number nothing honours.",
           "type": "integer",
           "minimum": 0,
           "maximum": 15
@@ -246,16 +246,16 @@
           "multipleOf": 0.0001
         },
         "modifiersPerElite": {
-          "description": "05 §6.2 — 'plus ONE Elite Modifier'. Authored as a number rather than assumed, because the draw code reads it and 'one' is the kind of constant that becomes two in a live-ops event.",
+          "description": "05 §6.2 — 'plus ONE Elite Modifier'. Authored as a number rather than assumed so the file states the rule it was written under. ⚠️ It is NOT a dial: EliteModifierDraw draws exactly one, and a second would need a draw that excludes the first, which 05 §6.2 does not state — so EnemyCatalogue.Read rejects any value but 1 rather than reading a number nothing honours.",
           "type": "integer",
           "minimum": 1
         },
         "noRepeatWithPreviousEliteInRun": {
-          "description": "🔒 05 §6.2 — 'No Elite may draw the same modifier as the immediately preceding Elite in the same run — redraw on collision.' The rule is run-scoped state, which 24 §4.10's B2 protection owns and M4-01's LuckService implements; M2-11 declares the seam (IEliteModifierHistory) and does not wire it.",
+          "description": "🔒 05 §6.2 — 'No Elite may draw the same modifier as the immediately preceding Elite in the same run — redraw on collision.' The rule is run-scoped state, which 24 §4.10's B2 protection owns and M4-01's LuckService implements; M2-11 declares the seam (IEliteModifierHistory) and does not wire it. This key is the rule's own switch and EliteModifierDraw.Draw is handed it: authoring false really does turn the redraw off, rather than being a flag nothing reads.",
           "type": "boolean"
         },
         "modifiers": {
-          "description": "05 §6.2 — the eight Elite Modifiers, shown on the pre-battle banner so the player can read the threat before it starts. 🔒 Exactly eight rows: the list is closed. ⚠️ The parameters are authored as named numbers rather than as embedded effect JSON. That is deliberate and it is a limitation of the pipeline, not a preference: this validator resolves same-document pointers only, so this schema cannot $ref the effect vocabulary, and a schema that restated it would trip the rule forbidding a second copy of the op set — so embedded effect JSON here would ship completely unvalidated, which is the one thing the content build exists to prevent. The mapping from these parameters to 18 §1 effects is one table in EliteModifiers, not a branch per modifier.",
+          "description": "05 §6.2 — the eight Elite Modifiers, shown on the pre-battle banner so the player can read the threat before it starts. 🔒 Exactly eight rows: the list is closed. ⚠️ The parameters are authored as named numbers rather than as embedded effect JSON. That is deliberate and it is a limitation of the pipeline, not a preference: this validator resolves same-document pointers only, so this schema cannot $ref the effect vocabulary, and a schema that restated it would trip the rule forbidding a second copy of the op set — so embedded effect JSON here would ship completely unvalidated, which is the one thing the content build exists to prevent. ⚠️ THE CONSEQUENCE, STATED RATHER THAN GLOSSED: each row has its own parameter key vocabulary, so a consumer must know which keys belong to which modifier — and the path of least resistance is a branch per modifier, which 18's headnote forbids. M2-11 authors the numbers and deliberately writes no consumer; whoever writes the first one owes ONE table mapping every row to its 18 §1 effects, not eight branches spread across the tick engine. That obligation is parked as a self-expiring entry in SubjectSetFloorTests so it cannot be forgotten, and the conductor has it as errata.",
           "type": "array",
           "minItems": 8,
           "maxItems": 8,
