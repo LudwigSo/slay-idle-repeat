@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Asset provenance (M8-01a): the record format, the store, the validator, the bidirectional
+    delivery gate, and the CLI that build/ci/Invoke-ProvenanceGate.ps1 runs.
+
+    Why it exists: `15` §G and `20` §2.1 both require a provenance record for EVERY generated
+    asset and both call it "a legal prerequisite, not a formality". A prerequisite nothing checks
+    is a note in a document.
+
+    🔒 It project-references tools/AssetManifest and NOTHING ELSE. The asset-id vocabulary is
+    M8-09's register and there is exactly one reader of it in this repository — re-parsing
+    game-data/assets/*.json here would be the duplicate mechanism steering rule S12 exists to
+    prevent. No package reference either: System.Text.Json is in-box on net8.0, so this adds no
+    row to Directory.Packages.props and no row to build/ci/non-vendor-packages.json.
+
+    🔒 RULING A8 (M8, 2026-08-12): the record STORE lives at assets/provenance/, outside
+    game-data/. LocalFileContentSource enumerates every *.json under game-data/ into the
+    ContentSnapshot, so a store there would move ContentHashing.Compute's content version — which
+    `14` §6 makes load-bearing for replay and CONTENT_VERSION_MISMATCH — once per generated asset.
+    ProvenanceLayoutTests holds that separation mechanically; it is not left to memory.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>SlayIdleRepeat.AssetProvenance</RootNamespace>
+    <AssemblyName>SlayIdleRepeat.AssetProvenance</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AssetManifest\SlayIdleRepeat.AssetManifest.csproj" />
+  </ItemGroup>
+
+</Project>
