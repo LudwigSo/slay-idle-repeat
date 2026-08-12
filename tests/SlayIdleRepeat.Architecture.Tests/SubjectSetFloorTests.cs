@@ -135,6 +135,14 @@ public sealed class SubjectSetFloorTests
     private const int CoreTypeFloor = 26;            // Il.AllTypes over SlayIdleRepeat.Core
     private const int PortFloor = 1;                 // IContentSourcePort (M0-09)
 
+    // StringOrderingRuleTests (M2-01) is stated over the ordering call sites in Core and
+    // Application — LINQ OrderBy/ThenBy/Max/Min, List.Sort, Array.Sort, and the sorted-collection
+    // constructors. Move them all out of those two assemblies and the rule reports success over
+    // nothing, with 18 §8's device-independent effect-id order unguarded. There were 33 on the
+    // commit the rule landed; the floor is set well below that so ordinary refactoring is not a
+    // test edit.
+    private const int OrderingCallSiteFloor = 10;
+
     /// <summary>
     /// `23` §6 — the subject sets these rules quantify over are the ones they were written
     /// against. Pins a floor under every set whose emptiness would be reported as success:
@@ -161,6 +169,11 @@ public sealed class SubjectSetFloorTests
 
         Floor(offenders, "types in SlayIdleRepeat.Core", Domain.CoreTypes.Count, CoreTypeFloor,
             "Every rule in DomainPurityTests and AccessibilityBoundaryTests quantifies over Core's types.");
+
+        Floor(offenders, "ordering call sites in Core and Application", StringOrderingRuleTests.OrderingCallSites, OrderingCallSiteFloor,
+            "StringOrderingRuleTests.No_production_code_orders_strings_with_the_default_comparer is stated over them. " +
+            "An empty set means nothing is stopping a bare OrderBy(x => x.Id) from putting the ambient collation back " +
+            "into 18 §8's effect-id order.");
 
         Floor(offenders, "ports under " + Domain.PortsNamespace, Domain.Ports.Count, PortFloor,
             "DependencyRuleTests.Every_port_has_at_least_two_implementations and No_port_signature_exposes_a_vendor_type " +

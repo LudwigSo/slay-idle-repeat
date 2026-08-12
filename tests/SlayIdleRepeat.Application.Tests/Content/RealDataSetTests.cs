@@ -48,7 +48,7 @@ public sealed partial class RealDataSetTests
     }
 
     [Fact]
-    public void The_only_schemas_governing_nothing_are_the_two_whose_content_has_an_owner_and_a_milestone()
+    public void The_only_schemas_governing_nothing_are_the_ones_whose_content_has_an_owner_and_a_milestone()
     {
         ContentLoader.SchemasAwaitingContent.ShouldBe(
         [
@@ -57,6 +57,11 @@ public sealed partial class RealDataSetTests
 
             // 26 §2 — one live-ops event package. content/liveops_events/*.json is authored by M11.
             "schema/event.schema.json",
+
+            // 18 §1 — the EffectDefinition vocabulary (M2-01). Not a content type: an effect is
+            // always embedded in the thing that owns it, so no data file pairs with this one.
+            // ContentLoader.SchemasAwaitingContent carries the full reasoning and the caveat.
+            "schema/effect.schema.json",
         ]);
     }
 

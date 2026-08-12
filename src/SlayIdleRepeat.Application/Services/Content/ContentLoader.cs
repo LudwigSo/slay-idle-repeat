@@ -65,6 +65,24 @@ public static class ContentLoader
         // 26 §2 requires this schema to ship in the client before any event exists, so that
         // running an event never needs an app update — which is why it is authored first.
         "schema/event.schema.json",
+
+        // 18 §1 — the EffectDefinition shape (M2-01). This one is a VOCABULARY schema, and it
+        // differs in kind from the two above: an effect is never a file, it is always embedded in
+        // the perk, talent, pet, mount, curse or boss script that owns it, so no data file will
+        // ever pair with it under the stem rule. The content-type schemas M2 and M3 author restate
+        // this shape — they cannot $ref it, because this validator resolves same-document pointers
+        // only, by the deliberate decision recorded in JsonSchemaValidator.Resolve.
+        //
+        // ⚠️ THE CONSEQUENCE, STATED SO NOBODY HAS TO REDISCOVER IT: the mechanical self-expiry
+        // that makes the two entries above safe — the exemption fails the build the day its schema
+        // governs a file — is armed here but is not expected to fire, because game-data/effect.json
+        // is not a file anyone will author. This entry is therefore one of the exemptions
+        // build/ci/test-suites.json's $knownGapInThisMechanism describes: stale in its REASON is
+        // not decidable, only stale in its shape. Re-read it at each milestone kickoff. It stops
+        // being true the moment either (a) some content-type schema embeds this shape, at which
+        // point the duplication is the thing to fix, or (b) cross-file $ref is implemented and the
+        // content schemas point here instead.
+        "schema/effect.schema.json",
     ];
 
     /// <summary>Loads the canonical content with no overrides.</summary>
