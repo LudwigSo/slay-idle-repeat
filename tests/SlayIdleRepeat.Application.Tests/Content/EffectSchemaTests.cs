@@ -37,7 +37,7 @@ public sealed class EffectSchemaTests
     /// <summary>
     /// 🔒 M0-09's rule: an unimplemented keyword is a build failure, never a silent pass. The sweep
     /// is eager and covers branches no instance reaches, which is the whole point for a schema with
-    /// thirteen op branches and fourteen trigger branches.
+    /// thirteen op branches and fifteen trigger branches.
     /// </summary>
     [Fact]
     public void The_schema_uses_only_keywords_the_validator_implements()
@@ -618,25 +618,93 @@ public sealed class EffectSchemaTests
 
     /// <summary>A trigger parameter on a kind that does not take it.</summary>
     /// <remarks>
-    /// Each row carries its own control: the same kind with the parameter removed. The parameter is
-    /// the only edit between the two, so what fired is the partition of `18` §3's 23 kinds into
-    /// thirteen parameter shapes and not, say, a typo in the kind.
+    /// <para>
+    /// Each row carries its own control: the same kind <b>with</b> everything it needs and
+    /// <b>without</b> the borrowed parameter. The parameter is the only edit between the two, so what
+    /// fired is the partition of `18` §3's 23 kinds into fourteen parameter shapes and not, say, a
+    /// typo in the kind.
+    /// </para>
+    /// <para>
+    /// 🔒 The <c>ON_KILL</c> / <c>chance</c> row is M2-04's, and it is the negative half of ruling
+    /// R11: <c>ON_ATTACK</c> gained <c>chance</c> and <c>ON_KILL</c> deliberately did not. Without
+    /// this row the two kinds could be quietly re-merged into one branch and every other assertion
+    /// in this file would still pass.
+    /// </para>
+    /// <para>
+    /// ⚠️ The control carries the kind's <b>constitutive</b> parameters (`18` §3.1) because three
+    /// kinds are no longer valid bare — <c>PERIODIC</c> without an <c>interval</c>,
+    /// <c>ON_LOW_HP</c> without a <c>threshold</c> and <c>ON_PHASE_ENTER</c> without a <c>phase</c>
+    /// state no rule and are refused by the schema rather than defaulted at read time.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData("ALWAYS", "\"chance\":0.5")]
-    [InlineData("ON_HIT", "\"cooldown\":3.0")]
-    [InlineData("ON_KILL", "\"interval\":1.0")]
-    [InlineData("PERIODIC", "\"everyNth\":3")]
-    [InlineData("ON_DEATH", "\"once\":true")]
-    public void A_trigger_parameter_on_a_kind_that_does_not_take_it_is_rejected(string kind, string parameter)
+    [InlineData("ALWAYS", "", "\"chance\":0.5")]
+    [InlineData("ON_HIT", "", "\"cooldown\":3.0")]
+    [InlineData("ON_KILL", "", "\"interval\":1.0")]
+    [InlineData("ON_KILL", "", "\"chance\":0.5")]
+    [InlineData("PERIODIC", "\"interval\":8.0", "\"everyNth\":3")]
+    [InlineData("ON_DEATH", "", "\"once\":true")]
+    [InlineData("ON_LOW_HP", "\"threshold\":0.3", "\"cooldown\":3.0")]
+    [InlineData("ON_PHASE_ENTER", "\"phase\":2", "\"everyNth\":3")]
+    public void A_trigger_parameter_on_a_kind_that_does_not_take_it_is_rejected(
+        string kind, string constitutive, string parameter)
     {
-        Validate($$"""
-        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"} }
-        """).ShouldBeEmpty($"the control: {kind} with no parameters is valid");
+        var needed = constitutive.Length > 0 ? "," + constitutive : string.Empty;
 
         Validate($$"""
-        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}",{{parameter}}} }
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"{{needed}}} }
+        """).ShouldBeEmpty($"the control: {kind} with only what 18 §3 requires is valid");
+
+        Validate($$"""
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"{{needed}},{{parameter}}} }
         """).ShouldNotBeEmpty($"18 §3 does not give {parameter} to {kind}");
+    }
+
+    /// <summary>
+    /// 🔒 `18` §3.1 — the three <b>constitutive</b> parameters are required by the schema, so a
+    /// trigger that states no rule fails the content build rather than a battle.
+    /// </summary>
+    /// <remarks>
+    /// The complement of the theory above, and it is the pair that makes either meaningful: that one
+    /// proves a surplus key is refused, this proves a missing one is. `PERIODIC` with no `interval`
+    /// has no period, `ON_LOW_HP` with no `threshold` names no crossing, and `ON_PHASE_ENTER` with no
+    /// `phase` cannot say which entry it means — steering S6, the hole is not filled at read time.
+    /// </remarks>
+    [Theory]
+    [InlineData("PERIODIC", "\"interval\":8.0")]
+    [InlineData("ON_LOW_HP", "\"threshold\":0.3")]
+    [InlineData("ON_PHASE_ENTER", "\"phase\":2")]
+    public void A_constitutive_trigger_parameter_is_required(string kind, string constitutive)
+    {
+        Validate($$"""
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}",{{constitutive}}} }
+        """).ShouldBeEmpty($"the control: {kind} with its constitutive parameter is valid");
+
+        Validate($$"""
+        { "id": "PK_X", "op": "EXTRA_ATTACK", "value": 1, "trigger": {"kind":"{{kind}}"} }
+        """).ShouldNotBeEmpty($"18 §3.1 — {kind} states no rule without {constitutive}");
+    }
+
+    /// <summary>
+    /// 🔒 R11's positive half — <c>ON_ATTACK</c> takes <c>chance</c>, alone and alongside
+    /// <c>everyNth</c>.
+    /// </summary>
+    /// <remarks>
+    /// `18` §3 gave <c>ON_ATTACK</c> only <c>everyNth</c> while `06` authors per-attack random
+    /// perks, and <c>ON_HIT</c> and <c>ON_CRIT</c> already carry <c>chance</c> — so M2-04 extended it
+    /// by `18` §10's procedure: code, schema, document and this test, in one commit. Paired with the
+    /// <c>ON_KILL</c> / <c>chance</c> row above, which is the extension's boundary.
+    /// </remarks>
+    [Theory]
+    [InlineData("{\"kind\":\"ON_ATTACK\",\"chance\":0.25}")]
+    [InlineData("{\"kind\":\"ON_ATTACK\",\"everyNth\":5,\"chance\":0.25}")]
+    [InlineData("{\"kind\":\"ON_ATTACK\",\"everyNth\":5}")]
+    public void ON_ATTACK_takes_a_chance_as_well_as_an_everyNth(string trigger)
+    {
+        Validate($$"""
+        { "id": "PK_WILD_SWING", "op": "EXTRA_ATTACK", "value": 1, "trigger": {{trigger}},
+          "target": "CURRENT_TARGET" }
+        """).ShouldBeEmpty();
     }
 
     [Fact]
@@ -773,7 +841,7 @@ public sealed class EffectSchemaTests
     /// protects <c>SchemasAwaitingContent</c> cannot fire for it. What can go wrong instead is
     /// concrete and near: <see cref="JsonSchemaValidator"/> resolves same-document pointers only, so
     /// the perk, pet, mount, curse and boss schemas M2-07 and M3 author cannot <c>$ref</c> this
-    /// file — the tempting alternative is to paste the 43-op enum, the thirteen-way trigger
+    /// file — the tempting alternative is to paste the 43-op enum, the fourteen-way trigger
     /// partition and the recursive condition tree into each of them, at which point five copies
     /// drift and `18` §10's "add the op to the JSON schema" becomes ambiguous about which.
     /// </para>
@@ -895,8 +963,10 @@ public sealed class EffectSchemaTests
         trigger!.TryGetMember("oneOf", out var branches).ShouldBeTrue();
 
         branches!.Items.Count.ShouldBe(
-            14,
-            "thirteen parameter shapes plus the null branch 18 §9.1 and §7.7 need");
+            15,
+            "fourteen parameter shapes plus the null branch 18 §9.1 and §7.7 need. It was thirteen " +
+            "shapes until M2-04's R11 gave ON_ATTACK a chance and ON_KILL none, which split the " +
+            "branch the two kinds used to share");
 
         foreach (var branch in branches.Items)
         {
