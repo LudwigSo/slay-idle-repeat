@@ -71,6 +71,37 @@ public sealed class TargetResolverTests
         hit.Select(a => a.Id).ShouldBe(["GRUNT_A", "GRUNT_B"]);
     }
 
+    /// <summary>
+    /// 🔒 And the ruling covers <b>every</b> enemy token, not just <c>ALL_ENEMIES</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Without this, an implementation that special-cased <c>ALL_ENEMIES</c> as holder-relative and
+    /// computed the other four as <c>Side == BattleSide.ENEMY</c> would pass the whole suite — and
+    /// Sporequeen's sporelings, Bog Air and every boss <c>LOWEST_HP_ENEMY</c> would target their own
+    /// side. The single-actor tokens are asserted rather than the sets so the expected answer is one
+    /// id in every row: the hero is the enemy side's only living non-pet actor here.
+    /// </remarks>
+    [Theory]
+    [InlineData(EffectTarget.ALL_ENEMIES)]
+    [InlineData(EffectTarget.OTHER_ENEMIES)]
+    [InlineData(EffectTarget.LOWEST_HP_ENEMY)]
+    [InlineData(EffectTarget.HIGHEST_HP_ENEMY)]
+    [InlineData(EffectTarget.RANDOM_ENEMY)]
+    public void Every_enemy_token_on_an_enemy_holder_selects_the_hero_side(EffectTarget token)
+    {
+        var hero = EffectTestBattle.Hero();
+        var heroPet = EffectTestBattle.Pet("PET_STORMFANG", 1);
+        var elite = EffectTestBattle.Enemy("ELITE_VOLATILE", 2) with { IsElite = true };
+        var grunt = EffectTestBattle.Enemy("GRUNT_A", 3);
+
+        var fromTheElite = EffectTestBattle.Context(elite, hero, heroPet, elite, grunt) with
+        {
+            Rng = EffectTestBattle.CombatRng(1),
+        };
+
+        TargetResolver.Resolve(token, fromTheElite).Select(a => a.Id).ShouldBe(["HERO"]);
+    }
+
     // ------------------------------------------------------------------ the set tokens
 
     /// <summary>
@@ -250,6 +281,12 @@ public sealed class TargetResolverTests
     /// It genuinely draws. A resolver that returned the first candidate would satisfy the protocol
     /// test above only by accident of one seed, and would fail this one outright.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Kept although the three seeds above happen to reach all three candidates today (they draw
+    /// indices 2, 0 and 1). That is a property of those three literals, not of the rule: change one
+    /// seed for an unrelated reason and the coverage silently collapses to a single candidate, with
+    /// nothing going red. This is what stops that.
+    /// </remarks>
     [Fact]
     public void RANDOM_ENEMY_reaches_every_candidate_across_seeds()
     {
@@ -436,5 +473,79 @@ public sealed class TargetResolverTests
 
         TargetResolver.Resolve(EffectTarget.ALL_PETS, EffectTestBattle.Context(hero, hero, grunt))
             .ShouldBeEmpty();
+    }
+
+    // ------------------------------------------------------------------ selection vs. naming
+
+    /// <summary>
+    /// 🔒 The living-only filter of `05` §3.1 step 6 governs <b>selection</b>, not <b>naming</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `05` §3.1: <em>"An actor whose HP reaches 0 stops acting and being <b>targetable</b> at that
+    /// moment"</em> — a rule about who may be picked out of a set. <c>SELF</c>, <c>CURRENT_TARGET</c>,
+    /// <c>ATTACKER</c> and <c>OWNER</c> pick nothing: each names one actor the caller already has.
+    /// Filtering them would break the cases that matter most — an <c>ON_DEATH</c> effect targeting
+    /// <c>SELF</c> (`18` §7.10's Volatile), and thorns or an <c>ON_HIT_TAKEN</c> reaction against an
+    /// attacker that died in the same tick.
+    /// </para>
+    /// <para>
+    /// So the rule is: the five set tokens filter by liveness; the four naming tokens do not.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_naming_tokens_still_resolve_a_subject_that_has_died()
+    {
+        var hero = EffectTestBattle.Hero();
+        var deadElite = EffectTestBattle.Enemy("ELITE_HITTER", 1, currentHp: 0) with
+        {
+            IsAlive = false,
+            IsElite = true,
+        };
+        var deadQueen = EffectTestBattle.Enemy("BOSS_SPOREQUEEN", 2, currentHp: 0) with
+        {
+            IsAlive = false,
+            IsBoss = true,
+        };
+        var sporeling = EffectTestBattle.Enemy("SUMMON_SPORELING", 3) with
+        {
+            IsSummon = true,
+            OwnerId = "BOSS_SPOREQUEEN",
+        };
+
+        var reacting = EffectTestBattle.Context(sporeling, hero, deadElite, deadQueen, sporeling) with
+        {
+            CurrentTarget = deadElite,
+            Attacker = deadElite,
+        };
+
+        TargetResolver.Resolve(EffectTarget.CURRENT_TARGET, reacting)
+            .Select(a => a.Id).ShouldBe(["ELITE_HITTER"]);
+        TargetResolver.Resolve(EffectTarget.ATTACKER, reacting)
+            .Select(a => a.Id).ShouldBe(["ELITE_HITTER"]);
+        TargetResolver.Resolve(EffectTarget.OWNER, reacting)
+            .Select(a => a.Id).ShouldBe(["BOSS_SPOREQUEEN"]);
+    }
+
+    /// <summary>
+    /// <c>ALL_PETS</c> is a set token, so it filters by liveness with the rest of them.
+    /// </summary>
+    /// <remarks>
+    /// `05` §3.2 makes pets unkillable, so this is unreachable through the game — which is exactly
+    /// why it is pinned rather than left to whichever branch happens to be written. A set token that
+    /// filtered inconsistently would be a rule with two spellings.
+    /// </remarks>
+    [Fact]
+    public void ALL_PETS_filters_by_liveness_like_every_other_set_token()
+    {
+        var hero = EffectTestBattle.Hero();
+        var living = EffectTestBattle.Pet("PET_STORMFANG", 1);
+        var gone = EffectTestBattle.Pet("PET_GONE", 2) with { IsAlive = false };
+        var grunt = EffectTestBattle.Enemy("GRUNT_A", 3);
+
+        TargetResolver.Resolve(
+                EffectTarget.ALL_PETS,
+                EffectTestBattle.Context(hero, hero, living, gone, grunt))
+            .Select(a => a.Id).ShouldBe(["PET_STORMFANG"]);
     }
 }

@@ -65,7 +65,10 @@ public sealed class ConditionContextRuleTests
             () => ConditionEvaluator.Read(function, ConditionArguments.None, duel));
 
         thrown.Token.ShouldBe(function.ToString());
-        thrown.Message.ShouldMatchWildcard("*run*");
+
+        // 🔒 The document reference, not the implementer's prose: 18 §9.3 is the clause that says a
+        // clause with no duel meaning is skipped, and it is what a reader chasing this failure needs.
+        thrown.Message.ShouldContain("18 §9.3", Case.Sensitive);
     }
 
     /// <summary>
@@ -110,6 +113,12 @@ public sealed class ConditionContextRuleTests
     /// example, so the encoding is <see cref="ConditionTerm"/>'s two-element one — and half of it is
     /// not a range.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Each of the three malformed-term rules below pins <b>which</b> one fired, not merely that
+    /// something threw (steering S2). Every subject-absence rule in this file throws the same type,
+    /// and so do the other two malformed-term rules — an evaluator that threw for any term whose
+    /// <c>Value</c> is null would pass all three while getting the flag case entirely wrong.
+    /// </remarks>
     [Theory]
     [InlineData(0.1, null)]
     [InlineData(null, 0.9)]
@@ -118,7 +127,7 @@ public sealed class ConditionContextRuleTests
     {
         var hero = EffectTestBattle.Hero();
 
-        Should.Throw<EffectContextException>(
+        var thrown = Should.Throw<EffectContextException>(
             () => ConditionEvaluator.IsSatisfied(
                 EffectCondition.Of(new ConditionTerm
                 {
@@ -128,6 +137,9 @@ public sealed class ConditionContextRuleTests
                     RangeHigh = high,
                 }),
                 EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1))));
+
+        thrown.Token.ShouldBe(nameof(ConditionComparator.BETWEEN));
+        thrown.Message.ShouldContain("bound", Case.Sensitive);
     }
 
     /// <summary>A comparator other than <c>between</c> with nothing to compare against is malformed.</summary>
@@ -136,7 +148,7 @@ public sealed class ConditionContextRuleTests
     {
         var hero = EffectTestBattle.Hero();
 
-        Should.Throw<EffectContextException>(
+        var thrown = Should.Throw<EffectContextException>(
             () => ConditionEvaluator.IsSatisfied(
                 EffectCondition.Of(new ConditionTerm
                 {
@@ -144,6 +156,9 @@ public sealed class ConditionContextRuleTests
                     Comparator = ConditionComparator.GTE,
                 }),
                 EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1))));
+
+        thrown.Token.ShouldBe(nameof(ConditionComparator.GTE));
+        thrown.Message.ShouldContain("nothing to compare against", Case.Sensitive);
     }
 
     /// <summary>
@@ -160,7 +175,7 @@ public sealed class ConditionContextRuleTests
     {
         var hero = EffectTestBattle.Hero();
 
-        Should.Throw<EffectContextException>(
+        var thrown = Should.Throw<EffectContextException>(
             () => ConditionEvaluator.IsSatisfied(
                 EffectCondition.Of(new ConditionTerm
                 {
@@ -169,6 +184,9 @@ public sealed class ConditionContextRuleTests
                     Flag = true,
                 }),
                 EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1))));
+
+        thrown.Token.ShouldBe(comparator.ToString());
+        thrown.Message.ShouldContain("orders a boolean", Case.Sensitive);
     }
 
     // ------------------------------------------------------------------ the floor (steering S3)
@@ -220,10 +238,11 @@ public sealed class ConditionContextRuleTests
             {
                 var reading = ConditionEvaluator.Read(function, arguments, fullyPopulated);
 
-                if (double.IsNaN(reading) || double.IsInfinity(reading))
-                {
-                    unhandled.Add($"{function} read {reading}, which ValueScale.StepsFor rejects");
-                }
+                // 🔒 And the reading is usable as a `18` §1.1 valueScale source — "fn: any condition
+                // function from §4". Asserted here rather than in a test of its own: StepsFor rejects
+                // exactly NaN, infinity and an out-of-int step count, so a separate test would be one
+                // that cannot fail while this loop passes.
+                new ValueScale { Fn = function, Per = 0.01, Cap = null }.StepsFor(reading);
             }
             catch (Exception e)
             {
@@ -232,52 +251,5 @@ public sealed class ConditionContextRuleTests
         }
 
         unhandled.ShouldBeEmpty();
-    }
-
-    /// <summary>
-    /// 🔒 And every function's reading survives the trip through <c>valueScale</c> — `18` §1.1:
-    /// <em>"<c>fn</c>: any condition function from §4"</em>. A reading that <c>StepsFor</c> rejects is
-    /// a function that cannot be used for half of what the DSL offers it for.
-    /// </summary>
-    [Fact]
-    public void Every_functions_reading_is_a_usable_valueScale_source()
-    {
-        var hero = EffectTestBattle.Hero(currentHp: 40, maxHp: 100) with
-        {
-            Statuses = new Dictionary<string, int>(StringComparer.Ordinal) { ["SUNDER"] = 2 },
-        };
-        var elite = EffectTestBattle.Enemy("ELITE_A", 1) with { IsElite = true };
-
-        var fullyPopulated = new EffectEvaluationContext
-        {
-            Holder = hero,
-            CurrentTarget = elite,
-            Attacker = elite,
-            Actors = new IEffectActorView[] { hero, elite },
-            BattleTimeSeconds = 12.0,
-            EnrageAtSeconds = EffectTestBattle.EnrageSeconds,
-            FightHorizonSeconds = EffectTestBattle.PveTimeoutSeconds,
-            Run = new RunStateReading { GoldHeld = 1_450, PetCount = 2 },
-        };
-
-        var arguments = new ConditionArguments("SUNDER", "OFFENSE", "Star");
-        var offenders = new List<string>();
-
-        foreach (var function in Enum.GetValues<ConditionFunction>())
-        {
-            var scale = new ValueScale { Fn = function, Per = 0.01, Cap = null };
-            var reading = ConditionEvaluator.Read(function, arguments, fullyPopulated);
-
-            try
-            {
-                scale.StepsFor(reading);
-            }
-            catch (ArgumentOutOfRangeException e)
-            {
-                offenders.Add($"{function} read {reading}, which ValueScale rejected: {e.Message}");
-            }
-        }
-
-        offenders.ShouldBeEmpty();
     }
 }

@@ -39,8 +39,11 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// </remarks>
 public sealed class ConditionPurityRuleTests
 {
-    /// <summary>The namespace this rule governs — `18` §4's evaluation, and nothing else.</summary>
+    /// <summary>The namespace the purity rules govern — `18` §4's evaluation, and nothing else.</summary>
     internal const string ConditionsNamespace = "SlayIdleRepeat.Core.Rules.Effects.Conditions";
+
+    /// <summary>`18` §5's target resolution, which draws by design and is governed more narrowly.</summary>
+    internal const string TargetingNamespace = "SlayIdleRepeat.Core.Rules.Effects.Targeting";
 
     /// <summary>
     /// Types a condition must not name. Each is a legitimate part of the game and an illegitimate
@@ -164,14 +167,55 @@ public sealed class ConditionPurityRuleTests
     }
 
     /// <summary>
-    /// How many types the two rules above examined. Read by <c>SubjectSetFloorTests</c>, which owns
+    /// 🔒 `18` §5 — the target resolver holds no writable static state either.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Narrower than the two rules above, and deliberately so. <c>RANDOM_ENEMY</c> genuinely draws
+    /// (`18` §5, `14` §8.1), so the no-draw rule cannot extend here; and the resolver writes to the
+    /// <see cref="Mono.Cecil.Cil.Instruction"/>-level locals a candidate list needs, so the
+    /// no-instance-write rule would be noise.
+    /// </para>
+    /// <para>
+    /// What remains is the defect that would actually bite: a <b>memoised candidate list</b>. A
+    /// static cache of "the living enemies" is the most natural optimisation to reach for in a
+    /// resolver called several times per tick, and it is wrong on the very next death — silently,
+    /// and identically on client and server, so `14` §8.2's determinism job would not catch it
+    /// either.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_18_5_target_resolver_holds_no_writable_static_state()
+    {
+        var offenders =
+            from type in Targets()
+            from field in type.Fields
+            where field.IsStatic && !field.IsInitOnly && !field.IsLiteral
+            where !Domain.IsCompilerGenerated(field) && !Domain.IsCompilerGenerated(field.DeclaringType)
+            select $"{Il.Describe(field)} is a writable static field — a memoised candidate list is " +
+                   "wrong on the next death, and wrong identically on client and server (18 §5).";
+
+        ArchRule.Empty(
+            offenders,
+            "Nothing under " + TargetingNamespace + " caches: 18 §5's tokens are resolved against the " +
+            "roster they are handed, every time.");
+    }
+
+    /// <summary>
+    /// How many types the condition rules examined. Read by <c>SubjectSetFloorTests</c>, which owns
     /// the floor under them (steering S3 — a namespace filter can be emptied by a rename, and both
     /// rules would then report success forever).
     /// </summary>
     internal static int SubjectCount => Subjects().Count;
 
+    /// <summary>How many types the targeting rule examined. Floored by <c>SubjectSetFloorTests</c> too.</summary>
+    internal static int TargetSubjectCount => Targets().Count;
+
     private static IReadOnlyList<TypeDefinition> Subjects() =>
         Il.TypesUnder(ProductionAssemblies.CoreModule, ConditionsNamespace).ToArray();
+
+    private static IReadOnlyList<TypeDefinition> Targets() =>
+        Il.TypesUnder(ProductionAssemblies.CoreModule, TargetingNamespace).ToArray();
 
     /// <summary>The field an instruction writes, or <c>null</c> when it writes none.</summary>
     private static FieldReference? Written(Instruction instruction) =>

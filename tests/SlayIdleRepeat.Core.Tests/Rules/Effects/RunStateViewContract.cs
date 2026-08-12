@@ -224,15 +224,19 @@ public abstract class RunStateViewContract
             petCount: 3,
             gold: 1_450));
 
-        for (var pass = 0; pass < 3; pass++)
-        {
-            view.PerkCount(null).ShouldBe(4);
-            view.PerkCount("OFFENSE").ShouldBe(4);
-            view.DistinctPerkCategories.ShouldBe(1);
-            view.DieFaceCount("Star").ShouldBe(2);
-            view.PetCount.ShouldBe(3);
-            view.GoldHeld.ShouldBe(1_450);
-        }
+        view.PerkCount(null).ShouldBe(4);
+        view.PerkCount("OFFENSE").ShouldBe(4);
+        view.DistinctPerkCategories.ShouldBe(1);
+        view.DieFaceCount("Star").ShouldBe(2);
+        view.PetCount.ShouldBe(3);
+        view.GoldHeld.ShouldBe(1_450);
+
+        view.PerkCount(null).ShouldBe(4);
+        view.PerkCount("OFFENSE").ShouldBe(4);
+        view.DistinctPerkCategories.ShouldBe(1);
+        view.DieFaceCount("Star").ShouldBe(2);
+        view.PetCount.ShouldBe(3);
+        view.GoldHeld.ShouldBe(1_450);
     }
 
     /// <summary>

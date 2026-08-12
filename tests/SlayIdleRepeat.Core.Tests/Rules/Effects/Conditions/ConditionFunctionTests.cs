@@ -67,14 +67,23 @@ public sealed class ConditionFunctionTests
     /// A zero <c>MaxHp</c> has no HP fraction, and `18` §4 authors no answer for one. Steering S6:
     /// fail loudly rather than return the 0 or the 1 that a division guard would invent.
     /// </summary>
-    [Fact]
-    public void An_HP_fraction_over_a_zero_MaxHp_fails_loudly()
+    /// <remarks>
+    /// All three HP-fraction functions divide by the same denominator, so all three are asserted —
+    /// a guard on one of them is not a rule.
+    /// </remarks>
+    [Theory]
+    [InlineData(ConditionFunction.SELF_HP_PCT)]
+    [InlineData(ConditionFunction.SELF_MISSING_HP_PCT)]
+    [InlineData(ConditionFunction.TARGET_HP_PCT)]
+    public void An_HP_fraction_over_a_zero_MaxHp_fails_loudly(ConditionFunction function)
     {
         var hero = EffectTestBattle.Hero(currentHp: 0, maxHp: 0);
-        var battle = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1));
+        var target = EffectTestBattle.Enemy("GRUNT_A", 1, currentHp: 0, maxHp: 0);
 
-        Should.Throw<EffectContextException>(() => Read(ConditionFunction.SELF_HP_PCT, battle))
-            .Token.ShouldBe(nameof(ConditionFunction.SELF_HP_PCT));
+        var battle = EffectTestBattle.Context(hero, hero, target) with { CurrentTarget = target };
+
+        Should.Throw<EffectContextException>(() => Read(function, battle))
+            .Token.ShouldBe(function.ToString());
     }
 
     // ------------------------------------------------------------------ the roster
@@ -142,6 +151,40 @@ public sealed class ConditionFunctionTests
         };
 
         Read(ConditionFunction.BATTLE_TIME, battle).ShouldBe(12.35);
+    }
+
+    /// <summary>
+    /// 🔒 The two clock readings are rounded to four places as well — they are the ones a 20 Hz tick
+    /// accumulates, and therefore the ones most likely to arrive with a float tail.
+    /// </summary>
+    /// <remarks>
+    /// `05` §3's <c>TICK = 0.05 s</c> is not representable in binary floating point, so 1 800 of them
+    /// summed is not 90. Rounding only the HP pair would leave the clock as the one accumulation
+    /// point in `18` §4 that could put a <c>valueScale</c> step boundary in a different place on two
+    /// devices (`14` §8.2).
+    /// </remarks>
+    [Fact]
+    public void The_clock_readings_are_rounded_to_four_decimal_places()
+    {
+        var hero = EffectTestBattle.Hero();
+
+        // 0.05 summed 247 times. The exact double is 12.350000000000005, not 12.35.
+        var accumulated = 0.0;
+        for (var tick = 0; tick < 247; tick++)
+        {
+            accumulated += 0.05;
+        }
+
+        accumulated.ShouldNotBe(12.35, "the premise: 0.05 is not representable, so the sum drifts");
+
+        var battle = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1)) with
+        {
+            BattleTimeSeconds = accumulated,
+            FightHorizonSeconds = EffectTestBattle.PveTimeoutSeconds,
+        };
+
+        Read(ConditionFunction.BATTLE_TIME, battle).ShouldBe(12.35);
+        Read(ConditionFunction.BATTLE_TIME_REMAINING_EST, battle).ShouldBe(77.65);
     }
 
     /// <summary>
@@ -356,8 +399,8 @@ public sealed class ConditionFunctionTests
         });
 
         var hero = EffectTestBattle.Hero();
-        var wounded = EffectTestBattle.Enemy("GRUNT_A", 1, currentHp: 29, maxHp: 100);
-        var healthy = EffectTestBattle.Enemy("GRUNT_A", 1, currentHp: 31, maxHp: 100);
+        var wounded = EffectTestBattle.Enemy("GRUNT_WOUNDED", 1, currentHp: 29, maxHp: 100);
+        var healthy = EffectTestBattle.Enemy("GRUNT_HEALTHY", 2, currentHp: 31, maxHp: 100);
 
         ConditionEvaluator.IsSatisfied(
             executioner,
@@ -430,8 +473,11 @@ public sealed class ConditionFunctionTests
             Cap = 45,
         };
 
-        // 55/100 missing is a clean 0.45. The interesting case is the one below it: a hero at
-        // 45.000000000000004 HP out of 100 is 0.549999... missing unrounded.
+        // 🔒 A hero at 55/100 is the case the rounding rule exists for: `1 - 0.55` is
+        // 0.44999999999999996 in binary floating point, which floors to 44 steps unrounded and to
+        // the cap's 45 once rounded. One step of ATK, decided by whether the rounding happened.
+        (1.0 - (55.0 / 100.0)).ShouldNotBe(0.45, "the premise: the raw subtraction is 0.44999999999999996");
+
         var hero = EffectTestBattle.Hero(currentHp: 55, maxHp: 100);
         var battle = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1));
 
@@ -440,9 +486,19 @@ public sealed class ConditionFunctionTests
         berserk.StepsFor(reading).ShouldBe(45);
         berserk.EffectiveValue(0.01, reading).ShouldBe(0.45);
 
-        // At full HP the reading is 0 steps, and 18 §8 step 10's rounding must not produce -0.0.
-        var full = EffectTestBattle.Context(EffectTestBattle.Hero(), EffectTestBattle.Hero(), EffectTestBattle.Enemy("GRUNT_A", 1));
-        berserk.StepsFor(Read(ConditionFunction.SELF_MISSING_HP_PCT, full)).ShouldBe(0);
+        // At full HP the reading is 0 steps — and 18 §8 step 10's rounding must give +0.0, never
+        // -0.0, because CanonicalStateWriter THROWS on a negative zero rather than encoding one.
+        // 18 §7.10's Bog Air is an authored negative value, so this is the live case, not a curio.
+        var full = EffectTestBattle.Context(
+            EffectTestBattle.Hero(),
+            EffectTestBattle.Hero(),
+            EffectTestBattle.Enemy("GRUNT_A", 1));
+
+        var atFullHp = Read(ConditionFunction.SELF_MISSING_HP_PCT, full);
+        berserk.StepsFor(atFullHp).ShouldBe(0);
+
+        double.IsNegative(berserk.EffectiveValue(-0.35, atFullHp)).ShouldBeFalse(
+            "zero steps of a negative authored value must be +0.0");
     }
 
     /// <summary>

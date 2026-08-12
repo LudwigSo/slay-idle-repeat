@@ -2,7 +2,6 @@ using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Targeting;
-using SlayIdleRepeat.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Targeting;
@@ -47,7 +46,12 @@ public sealed class TargetContextRuleTests
 
         thrown.Token.ShouldBe(nameof(EffectTarget.ATTACKER));
         thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
-        thrown.Message.ShouldMatchWildcard("*ATTACKER*attacker*");
+
+        // 🔒 A document reference, not the implementer's prose. WildcardMessageAssertions compiles
+        // with RegexOptions.IgnoreCase, so a pattern like "*ATTACKER*attacker*" does not distinguish
+        // the token from the sentence around it — and pinning the sentence would fail a correct
+        // implementation that worded it differently.
+        thrown.Message.ShouldContain("18 §5", Case.Sensitive);
     }
 
     /// <summary><c>CURRENT_TARGET</c> with no target is a question with no answer.</summary>
@@ -82,25 +86,31 @@ public sealed class TargetContextRuleTests
             () => TargetResolver.Resolve(EffectTarget.RANDOM_ENEMY, noRng));
 
         thrown.Token.ShouldBe(nameof(EffectTarget.RANDOM_ENEMY));
-        thrown.Message.ShouldMatchWildcard("*RANDOM_ENEMY*battleSeed*");
+        thrown.Message.ShouldContain("14 §8.1", Case.Sensitive);
     }
 
     /// <summary>
-    /// <c>ALL_PETS</c> on a PvE enemy side is meaningless — that side holds no hero and therefore
-    /// can hold no pets. Distinguished from a hero with zero pets equipped, which is an empty set.
+    /// 🔒 <c>ALL_PETS</c> on a PvE enemy side is the <b>empty set</b>, not a failure — the side is
+    /// present, it simply holds no pet.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This was a failure in the first draft of this suite, and the reasoning that changed it
+    /// is worth keeping.</b> The argument for throwing was that a PvE enemy side holds no hero and
+    /// therefore <em>cannot</em> hold a pet, so the token is meaningless there. But "a side with no
+    /// hero can hold no pets" appears in no document: `18` §5 names <c>ALL_PETS</c> once, in its token
+    /// list, with no semantics at all. Inventing that inference to justify a throw is exactly the hole
+    /// steering S6 forbids filling — and it would crash a battle over any boss effect authored with
+    /// <c>target: "ALL_PETS"</c>. The subject of the token is the holder's side, which is always
+    /// present; only the set is empty.
+    /// </remarks>
     [Fact]
-    public void ALL_PETS_on_a_side_that_can_hold_no_pet_fails_loudly()
+    public void ALL_PETS_on_a_side_that_holds_no_pet_is_the_empty_set()
     {
         var hero = EffectTestBattle.Hero();
         var boss = EffectTestBattle.Enemy("BOSS_THORNMAW", 1) with { IsBoss = true };
 
-        var thrown = Should.Throw<EffectContextException>(
-            () => TargetResolver.Resolve(
-                EffectTarget.ALL_PETS,
-                EffectTestBattle.Context(boss, hero, boss)));
-
-        thrown.Token.ShouldBe(nameof(EffectTarget.ALL_PETS));
+        TargetResolver.Resolve(EffectTarget.ALL_PETS, EffectTestBattle.Context(boss, hero, boss))
+            .ShouldBeEmpty();
     }
 
     /// <summary>
@@ -127,7 +137,7 @@ public sealed class TargetContextRuleTests
                 EffectTestBattle.Context(hero, hero, grunt)));
 
         thrown.Token.ShouldBe(nameof(EffectTarget.RUN));
-        thrown.Message.ShouldMatchWildcard("*RUN*run controller*");
+        thrown.Message.ShouldContain("18 §2.5", Case.Sensitive);
     }
 
     // ------------------------------------------------------------------ the floor (steering S3)

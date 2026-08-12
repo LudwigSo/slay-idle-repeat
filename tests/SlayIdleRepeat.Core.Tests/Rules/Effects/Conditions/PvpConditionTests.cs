@@ -127,6 +127,76 @@ public sealed class PvpConditionTests
     }
 
     /// <summary>
+    /// <c>OTHER_ENEMIES</c> in a duel is empty: `05` §3.3 leaves exactly one opposing actor, and it
+    /// is the attack's primary target, so <c>PK_CLEAVE</c>'s splash has nobody left to reach.
+    /// </summary>
+    /// <remarks>
+    /// The crossing of `18` §5's degradation with `05` §3.3's one-opposing-hero rule. Neither
+    /// document writes it out, and it falls out of both being implemented rather than needing a duel
+    /// branch — which is the claim worth pinning.
+    /// </remarks>
+    [Fact]
+    public void OTHER_ENEMIES_in_a_duel_is_empty()
+    {
+        var duel = EffectTestBattle.Duel();
+        duel.CurrentTarget.ShouldNotBeNull("a duel is always an attack context against the opposing hero");
+
+        TargetResolver.Resolve(EffectTarget.OTHER_ENEMIES, duel).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// <c>RANDOM_ENEMY</c> in a duel draws from one candidate and still consumes its draw — the
+    /// stream must not desynchronise between a duel and a run.
+    /// </summary>
+    [Fact]
+    public void RANDOM_ENEMY_in_a_duel_is_the_opposing_hero_and_still_spends_a_draw()
+    {
+        var rng = EffectTestBattle.CombatRng(11);
+
+        TargetResolver.Resolve(EffectTarget.RANDOM_ENEMY, EffectTestBattle.Duel() with { Rng = rng })
+            .Select(a => a.Id).ShouldBe(["HERO_DEFENDER"]);
+
+        rng.Position.ShouldBe(
+            1UL,
+            "a one-candidate draw is still a draw — skipping it would make the same effect consume a " +
+            "different number of draw indices in a duel than in a run");
+    }
+
+    /// <summary>
+    /// 🔒 The three <c>ATTACKER_IS_*</c> functions are <b>not</b> switched off in a duel.
+    /// </summary>
+    /// <remarks>
+    /// `05` §3.3 names <c>TARGET_IS_ELITE</c>, <c>TARGET_IS_BOSS</c> and <c>ENEMY_COUNT</c> and stops
+    /// there. The attacker trio is already <c>false</c> against an opposing hero for the honest
+    /// reason — a hero is neither elite, boss nor summon — so no duel rule is needed, and inventing
+    /// one would be a rule the document does not author (steering S6). Pinned so that a later
+    /// "while we are here" edit cannot add one silently.
+    /// </remarks>
+    [Fact]
+    public void The_ATTACKER_IS_trio_still_reads_the_attacker_in_a_duel()
+    {
+        var duel = EffectTestBattle.Duel();
+        var opposing = (EffectTestActor)duel.CurrentTarget!;
+
+        var struckByTheOpposingHero = duel with { Attacker = opposing };
+
+        ConditionEvaluator.Read(ConditionFunction.ATTACKER_IS_ELITE, ConditionArguments.None, struckByTheOpposingHero)
+            .ShouldBe(0);
+        ConditionEvaluator.Read(ConditionFunction.ATTACKER_IS_BOSS, ConditionArguments.None, struckByTheOpposingHero)
+            .ShouldBe(0);
+        ConditionEvaluator.Read(ConditionFunction.ATTACKER_IS_SUMMON, ConditionArguments.None, struckByTheOpposingHero)
+            .ShouldBe(0);
+
+        // 🔒 And they still READ the attacker rather than being hard-wired off: a duel context whose
+        // attacker genuinely carries a flag reports it. TARGET_IS_* above does not behave this way,
+        // and the difference is the point — 05 §3.3 rules those two and not these three.
+        var struckByAFlaggedActor = duel with { Attacker = opposing with { IsSummon = true } };
+
+        ConditionEvaluator.Read(ConditionFunction.ATTACKER_IS_SUMMON, ConditionArguments.None, struckByAFlaggedActor)
+            .ShouldBe(1);
+    }
+
+    /// <summary>
     /// 🔒 `18` §9.3 — <em>"gear affixes like <c>+X% Gold Gain</c> still need to be neutralised in
     /// duels — they are simply <b>skipped</b> rather than converted."</em>
     /// </summary>

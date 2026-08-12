@@ -248,7 +248,9 @@ public sealed class ConditionComparatorAndCombinatorTests
             Value = 100,
         });
 
-        var goldAffix = EffectCondition.All(notInADuel, EffectCondition.Any(holdingGold));
+        // Three levels: All( Not( … ), Any( All( … ) ) ). Two would not distinguish an evaluator
+        // that recursed from one that handled a single layer of nesting and stopped.
+        var goldAffix = EffectCondition.All(notInADuel, EffectCondition.Any(EffectCondition.All(holdingGold)));
 
         var hero = EffectTestBattle.Hero();
         var inARun = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1)) with
@@ -298,6 +300,35 @@ public sealed class ConditionComparatorAndCombinatorTests
         duel.Run.ShouldBeNull("05 §3.3: a duel has no run");
 
         ConditionEvaluator.IsSatisfied(goldAffix, duel).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// 🔒 And <c>any</c> short-circuits too — the same skip idiom is equally reachable through it,
+    /// and a rule that held for one combinator and not the other would be half a rule.
+    /// </summary>
+    [Fact]
+    public void ANY_short_circuits_so_a_satisfied_first_operand_never_reaches_the_rest()
+    {
+        var inADuelOrHoldingGold = EffectCondition.Any(
+            EffectCondition.Of(new ConditionTerm
+            {
+                Fn = ConditionFunction.IS_PVP,
+                Comparator = ConditionComparator.EQ,
+                Flag = true,
+            }),
+            EffectCondition.Of(new ConditionTerm
+            {
+                Fn = ConditionFunction.GOLD_HELD,
+                Comparator = ConditionComparator.GTE,
+                Value = 100,
+            }));
+
+        var duel = EffectTestBattle.Duel();
+        duel.Run.ShouldBeNull();
+
+        // The first operand holds, so the second — which would throw against a run-less duel — is
+        // never read. An evaluator that read every operand before combining them fails here.
+        ConditionEvaluator.IsSatisfied(inADuelOrHoldingGold, duel).ShouldBeTrue();
     }
 
     /// <summary>An absent condition is an ungated effect — `18` §1's <c>"condition": null</c>.</summary>

@@ -200,6 +200,12 @@ public sealed class SubjectSetFloorTests
             "evaluator has moved out of that namespace and nothing is stopping the next edit from " +
             "memoising a reading or drawing inside a condition.");
 
+        Floor(offenders, "types under " + ConditionPurityRuleTests.TargetingNamespace,
+            ConditionPurityRuleTests.TargetSubjectCount, ConditionEvaluationTypeFloor,
+            "ConditionPurityRuleTests.The_18_5_target_resolver_holds_no_writable_static_state is stated " +
+            "over them. An empty set means the 18 §5 resolver has moved and nothing is stopping the " +
+            "next edit from caching a candidate list that is wrong on the next death.");
+
         Floor(offenders, "ports under " + Domain.PortsNamespace, Domain.Ports.Count, PortFloor,
             "DependencyRuleTests.Every_port_has_at_least_two_implementations and No_port_signature_exposes_a_vendor_type " +
             "are both stated over this set. It has been non-empty since M0-09 landed IContentSourcePort; if it is empty " +
