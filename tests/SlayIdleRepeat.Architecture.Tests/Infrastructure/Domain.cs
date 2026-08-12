@@ -58,6 +58,7 @@ internal static class Domain
     internal const string ApplyMethod = "Apply";
     internal const string GameCommandType = "GameCommand";
     internal const string InMemoryGameType = "InMemoryGame";
+    internal const string DomainEventType = "DomainEvent";
     internal const string CurrencyChangedEvent = "CurrencyChanged";
     internal const string CurrencyIdType = "CurrencyId";
     internal const string EntitlementsType = "Entitlements";
@@ -117,6 +118,22 @@ internal static class Domain
     internal static bool IsCompilerGenerated(ICustomAttributeProvider member) =>
         member.CustomAttributes.Any(a =>
             a.AttributeType.FullName == "System.Runtime.CompilerServices.CompilerGeneratedAttribute");
+
+    /// <summary>
+    /// True for the <c>30</c> §7 event hierarchy: a type under <c>Core/Events/</c> that either is
+    /// <see cref="DomainEventType"/> or derives from it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Both halves are load-bearing, and neither is sufficient alone.</b> Matching only the
+    /// namespace would exempt a payload record someone dropped into <c>Core/Events/</c>. Matching
+    /// only the base type would exempt a <c>Core/Model/</c> aggregate that derived from
+    /// <c>DomainEvent</c> — nothing in this suite forbids that, and it would let a real wallet buy
+    /// its way out of <c>DomainPurityTests.CurrencyFields()</c> by inheriting from an event.
+    /// </remarks>
+    internal static bool IsDomainEvent(TypeDefinition type) =>
+        Il.IsUnder(Il.NamespaceOf(type), EventsNamespace) &&
+        (type.Name.Equals(DomainEventType, StringComparison.Ordinal) ||
+         DerivesFrom(type, DomainEventType));
 
     /// <summary>True when a type derives — at any depth — from a type with the given simple name.</summary>
     internal static bool DerivesFrom(TypeDefinition type, string baseSimpleName)

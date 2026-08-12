@@ -1,3 +1,4 @@
+using System.Reflection;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -57,16 +58,12 @@ public sealed class SubjectSetFloorTests
             "IsolationTests.GuildView_is_a_read_only_projection"),
         new("InMemoryGame", SubjectKind.CoreType, "M1-11",
             "DomainPurityTests.The_whole_game_is_playable_from_Core_alone"),
-        new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
-            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged"),
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
         new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
-            "AccessibilityBoundaryTests.Core_internal_layering_holds"),
-        new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.HandlersNamespace, SubjectKind.CoreNamespace, "M1-09",
             "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, DomainPurityTests.Every_command_type_is_handled_by_Apply"),
@@ -96,6 +93,61 @@ public sealed class SubjectSetFloorTests
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
 
+        // Moved out of Pending by M1-03, and tracked HERE for the same reason CurrencyId is: the
+        // rule keyed on this name is STILL VACUOUS. Every_currency_mutation_emits_CurrencyChanged
+        // is an IL scan over the fields CurrencyFields() recognises, and that set stays empty until
+        // M1-04 declares the first CurrencyId-typed instance field on the Player aggregate. So this
+        // commit gives the rule a real type to look for and does not wake it — and a rename of the
+        // event in the interval would leave it looking for a name nothing has, permanently green,
+        // with no other test in the repository noticing.
+        //
+        // ⚠️ "Stays empty" is only true because CurrencyFields() now skips the Core/Events/
+        // hierarchy. CurrencyChanged.Id is CurrencyId-typed, so its backing field matched the
+        // by-type half and took the rule's own `count == 0` sentinel away. Not "and the rule was
+        // still toothless because constructors are exempt": measured with the skip removed, the
+        // writers are the two constructors AND set_Id, the compiler-generated init accessor, which
+        // IsRehydrationOrConstruction does not exempt. It passed on the old EmitsCurrencyChanged,
+        // which counted touching the type as emitting it; that predicate is now narrowed to
+        // production, so this exclusion is the only thing keeping the set empty. See the exclusion's
+        // remark in DomainPurityTests, and the DomainEvent entry below that keeps its name tracked.
+        new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (still vacuous until M1-04 " +
+            "declares the first currency field; this pins the event name the IL scan looks for)"),
+
+        // Tracked because two rules key on this exact simple name: Domain.IsDomainEvent (the
+        // CurrencyFields() exclusion) and Contracts_never_redeclares_a_domain_type's derivation
+        // check. Rename the base and both stop matching silently — CurrencyChanged's CurrencyId-
+        // typed backing field re-enters the subject set and takes the vacuity sentinel above with
+        // it, and Contracts could redeclare the event hierarchy with that rule still green.
+        new(Domain.DomainEventType, SubjectKind.CoreType, "M1-03",
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (the event exclusion that " +
+            "keeps its subject set genuinely empty until M1-04), " +
+            "AccessibilityBoundaryTests.Contracts_never_redeclares_a_domain_type"),
+
+        // Moved out of Pending by M1-03 rather than deleted: Every_rule_subject_is_present_or_
+        // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these two
+        // lists, so dropping the row goes red.
+        //
+        // ⚠️ DOC CONTRADICTION, CARRIED FORWARD (steering S16). Events appears in no row of
+        // Core_internal_layering_holds' FORBIDDEN-PAIR table, and it must not be given one on a
+        // guess. 30 §11.4's chain is "Handlers -> Rules -> Model -> Content -> Primitives" and
+        // omits Commands and Events entirely, while 30 §7 writes
+        // GearGranted(int, GearInstance, SourceClass, bool) — and GearInstance is a Model
+        // aggregate. A row forbidding Events -> Model would therefore contradict 30 §7 and block
+        // M4-03 outright.
+        //   OWNER: M1-06's task brief takes the first cut, because it lands Commands/ and Handlers/
+        //   and turns one ungoverned region into two. The binding ruling is due at the M4 KICKOFF,
+        //   before M4-03 authors GearGranted — that is the commit where Events -> Model stops being
+        //   hypothetical. Whoever rules amends 30 §11.4 rather than only the table.
+        // What IS settled and enforced meanwhile: Events is in that rule's mustNotReachTheRoot
+        // list (an event naming GameRules or GameContext is a cycle under every reading), and
+        // DomainEventTests.Core_Events_holds_the_event_hierarchy_and_nothing_else governs what the
+        // namespace DECLARES. Neither says anything about Events -> Model, which is the open half.
+        new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
+            "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace, " +
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (the mustNotReachTheRoot half only — " +
+            "Events has no row in the forbidden-pair table; see the note above)"),
+
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RngNamespace, SubjectKind.CoreNamespace, "M0-06",
@@ -117,7 +169,8 @@ public sealed class SubjectSetFloorTests
         // name Domain.CurrencyIdType, and nothing else in this suite would notice that constant
         // going stale. The rule itself is still VACUOUS today — it needs a non-static instance
         // field typed CurrencyId, and M1-04 brings the first — and that vacuity is tracked by the
-        // CurrencyChanged (M1-03) entry in Pending. This entry tracks the other half: the name.
+        // CurrencyChanged (M1-03) entry in Live above, which is where M1-03 moved it. This entry
+        // tracks the other half: the name.
         new("CurrencyId", SubjectKind.CoreType, "M1-01",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (vacuous until M1-04 " +
             "declares the first currency field; this pins the name it will be recognised by)"),
@@ -134,6 +187,7 @@ public sealed class SubjectSetFloorTests
     private const int AdapterFloor = 21;
     private const int CoreTypeFloor = 26;            // Il.AllTypes over SlayIdleRepeat.Core
     private const int PortFloor = 1;                 // IContentSourcePort (M0-09)
+    private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     /// <summary>
     /// `23` §6 — the subject sets these rules quantify over are the ones they were written
@@ -256,10 +310,55 @@ public sealed class SubjectSetFloorTests
                   .Select(ns => $"Core namespace '{ns}' is enumerated by 30 §11.4 but appears in neither Pending nor Live. " +
                                 "Every namespace a layering row names must be tracked, or its row governs nothing."));
 
+        // 🔒 And the same for the TYPE names, which the comment above has claimed since M0-08
+        // while only the namespaces were actually checked. Measured on the M1-03 branch: deleting
+        // the CurrencyChanged row from Live outright — rather than moving it — passed. That is the
+        // shape steering S1 is about, a comment promising more than the assertion delivers, sitting
+        // inside the very mechanism whose job is to stop a subject going untracked.
+        //
+        // The inventory is read off Domain's own const fields rather than transcribed, so a new
+        // constant is covered the moment it is written. IClockPort is the one exclusion and it is
+        // inline rather than in a list, so a second one cannot be added quietly: it is the name
+        // that must NEVER appear in Core (30 §3), so "pending until some milestone creates it" is
+        // the wrong frame for it — AmbientApiTests is what watches that name.
+        var typeConstants = TypeNameConstants();
+
+        Floor(offenders, "Domain type-name constants", typeConstants.Length, TypeConstantFloor,
+            "The untracked-subject check below is stated over this set. Read off Domain's const fields by " +
+            "the 'Type'/'Event' suffix, so a renamed constant drops out of the inventory silently and its " +
+            "subject stops having to be tracked at all.");
+
+        offenders.AddRange(
+            typeConstants
+                .Where(c => !c.Value.Equals(Domain.ClockPortType, StringComparison.Ordinal))
+                .Where(c => !declared.Contains(c.Value))
+                .Select(c => $"Domain.{c.Constant} looks up the Core type '{c.Value}', which appears in neither " +
+                             "Pending nor Live. Every name a rule keys on must be tracked: absent and undeclared, " +
+                             "the rule keyed on it is passing over an empty set and nothing here would say so."));
+
         ArchRule.Empty(
             offenders,
             "Every rule subject is present, or declared pending with the milestone that creates it (23 §6, 30 §11.4).");
     }
+
+    /// <summary>
+    /// Every simple type name <c>Domain</c> looks a subject up by, read off its own <c>const</c>
+    /// fields by the <c>Type</c>/<c>Event</c> suffix its authors have used since M0-08.
+    /// </summary>
+    /// <remarks>
+    /// Reflection rather than a transcription, so a constant added in a later milestone is covered
+    /// on the commit that adds it rather than on the commit someone remembers to. <c>ApplyMethod</c>
+    /// is correctly outside the set — it names a method, not a subject a type lookup can find.
+    /// </remarks>
+    private static (string Constant, string Value)[] TypeNameConstants() =>
+        typeof(Domain)
+            .GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .Where(f => f is { IsLiteral: true, IsInitOnly: false } && f.FieldType == typeof(string))
+            .Where(f => f.Name.EndsWith("Type", StringComparison.Ordinal) ||
+                        f.Name.EndsWith("Event", StringComparison.Ordinal))
+            .Select(f => (Constant: f.Name, Value: (string)f.GetRawConstantValue()!))
+            .OrderBy(c => c.Constant, StringComparer.Ordinal)
+            .ToArray();
 
     private static void Floor(List<string> offenders, string what, int actual, int floor, string consequence)
     {

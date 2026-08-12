@@ -1,6 +1,8 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
+using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Primitives;
 using Xunit;
 
 namespace SlayIdleRepeat.Architecture.Tests;
@@ -190,7 +192,8 @@ public sealed class DomainPurityTests
     /// `30` §9 / §7 — every currency mutation emits `CurrencyChanged`. IL scan: a write
     /// to a currency-carrying field may only happen inside a method that also emits the
     /// event. Construction and rehydration are exempt — they rebuild state rather than
-    /// move currency (`30` §11.3). Vacuous until M1 adds the first currency field.
+    /// move currency (`30` §11.3). Vacuous until M1-04 adds the first field a currency is
+    /// <b>held</b> in — see <see cref="CurrencyFields"/> for why an event does not count.
     /// </summary>
     [Fact]
     public void Every_currency_mutation_emits_CurrencyChanged()
@@ -225,6 +228,75 @@ public sealed class DomainPurityTests
         }
 
         ArchRule.Empty(offenders, CurrencyRule);
+    }
+
+    /// <summary>
+    /// 🔒 `30` §7 / `30` §9 — the teeth of the event exclusion the rule above rests on. It must
+    /// recognise the event hierarchy and refuse everything else, or the currency subject set is
+    /// being emptied by something other than what the remark claims (steering S3).
+    /// </summary>
+    /// <remarks>
+    /// The exclusion is the only reason <c>CurrencyFields()</c> is empty today. An
+    /// <c>IsDomainEvent</c> that answered <c>true</c> for everything would empty the set
+    /// permanently — including on the day M1-04 lands the first wallet — and
+    /// <c>Every_currency_mutation_emits_CurrencyChanged</c> would short-circuit forever with its
+    /// `count == 0` sentinel looking exactly as it does now.
+    /// </remarks>
+    [Fact]
+    public void The_event_exclusion_recognises_the_hierarchy_and_nothing_else()
+    {
+        Assert.True(
+            Domain.IsDomainEvent(Require(Domain.DomainEventType)),
+            "DomainEvent is the base of the 30 §7 hierarchy. If this is false the exclusion matches nothing " +
+            "and CurrencyChanged's CurrencyId-typed backing field is back in the subject set.");
+
+        Assert.True(
+            Domain.IsDomainEvent(Require(Domain.CurrencyChangedEvent)),
+            "CurrencyChanged is a DomainEvent under Core/Events/ — the one type this exclusion exists for.");
+
+        Assert.False(
+            Domain.IsDomainEvent(Require(Domain.CurrencyIdType)),
+            "CurrencyId is a Primitives enum, not an event. An exclusion that swallowed it would swallow " +
+            "every currency-carrying type M1-04 declares.");
+
+        Assert.False(
+            Domain.IsDomainEvent(Require(Domain.EntitlementsType)),
+            "Entitlements sits in the Core root and derives from nothing. This pins that the predicate is " +
+            "namespace-scoped and base-typed rather than answering true for whatever it is handed.");
+
+        Assert.False(
+            Domain.IsDomainEvent(TypeFixture(nameof(CurrencyEmissionFixtures.DerivesButIsMisplaced))),
+            "a type that derives from DomainEvent but does NOT live under Core/Events/ must not be excluded. " +
+            "Drop the namespace half and a Core/Model/ aggregate could exempt its own wallet from " +
+            "Every_currency_mutation_emits_CurrencyChanged by inheriting from an event — nothing else in this " +
+            "suite forbids that inheritance.");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §7 / `30` §9 — the teeth of the emission half. Driven against real IL compiled
+    /// from <see cref="CurrencyEmissionFixtures"/> and read back with Cecil, because the shape
+    /// that matters — a method that *reads* an event while mutating a balance — does not exist in
+    /// `Core` and must never have to.
+    /// </summary>
+    /// <remarks>
+    /// The negative case is the whole point. Until this branch narrowed it,
+    /// <see cref="EmitsCurrencyChanged"/> answered <c>true</c> for
+    /// <see cref="CurrencyEmissionFixtures.OnlyReads"/> — <c>Il.OperandTypes</c> yields the
+    /// *declaring* type of every member reference, so touching an event counted as emitting one.
+    /// </remarks>
+    [Fact]
+    public void The_emission_check_recognises_a_constructed_event_and_refuses_one_that_is_only_read()
+    {
+        Assert.True(
+            EmitsCurrencyChanged(Fixture(nameof(CurrencyEmissionFixtures.Emits))),
+            "a method that constructs a CurrencyChanged emits one. If this is false the rule flags every " +
+            "legitimate grant M1-04 onwards and gets weakened back out again.");
+
+        Assert.False(
+            EmitsCurrencyChanged(Fixture(nameof(CurrencyEmissionFixtures.OnlyReads))),
+            "reading Delta off an event the method was handed is not emitting one. If this is true, a handler " +
+            "that debits a balance and inspects any other event satisfies 30 §7 without producing a row for " +
+            "21 §8.3's income_attribution.csv.");
     }
 
     /// <summary>
@@ -298,10 +370,43 @@ public sealed class DomainPurityTests
     /// halves are name-based on purpose — the rule must recognise its subject the day
     /// M1 writes it, without M1 having to opt in.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The `30` §7 event hierarchy is excluded, and that exclusion is load-bearing.</b>
+    /// A `DomainEvent` is the *emission* of a currency movement, never the place one is
+    /// held. Without this skip, M1-03's `CurrencyChanged(int, CurrencyId Id, long, string)`
+    /// alone made this set non-empty — which does not wake the rule up, it just takes away
+    /// the `count == 0` sentinel that is the only visible signal the rule is still asleep.
+    /// That is steering S3's failure mode arriving through the front door: the set stays
+    /// meaningfully empty until M1-04 puts a currency on the `Player` aggregate, and it
+    /// must keep *saying* so.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Not "because constructors are exempt".</b> Measured, not assumed: with the skip
+    /// removed, the three methods writing `CurrencyChanged::&lt;Id&gt;k__BackingField` are
+    /// its two constructors *and* `set_Id`, the compiler-generated `init` accessor —
+    /// `IsRehydrationOrConstruction` does not exempt that one. It passed only because
+    /// `EmitsCurrencyChanged` used to count *touching* the type as emitting it. That
+    /// predicate has since been narrowed to production (see
+    /// <see cref="EmitsCurrencyChanged"/>), which is what makes this exclusion the thing
+    /// actually keeping the set empty rather than a second opinion about it.
+    /// </para>
+    /// <para>
+    /// The predicate is <see cref="Domain.IsDomainEvent"/> — namespace-scoped *and* base-typed,
+    /// so a `Core/Model/` aggregate cannot exempt its own wallet by deriving from `DomainEvent`.
+    /// Its teeth are shown in
+    /// <see cref="The_event_exclusion_recognises_the_hierarchy_and_nothing_else"/>.
+    /// </para>
+    /// </remarks>
     private static IEnumerable<string> CurrencyFields()
     {
         foreach (var type in Domain.CoreTypes)
         {
+            if (Domain.IsDomainEvent(type))
+            {
+                continue;
+            }
+
             foreach (var field in type.Fields)
             {
                 if (field.IsLiteral || field.IsStatic)
@@ -330,9 +435,115 @@ public sealed class DomainPurityTests
         method.Name.Equals("Rehydrate", StringComparison.Ordinal) ||
         method.Name.Equals("FromSnapshot", StringComparison.Ordinal);
 
+    /// <summary>
+    /// 🔒 Whether a method <b>produces</b> a `CurrencyChanged`: it constructs one, or it calls
+    /// something that returns one. Not merely mentions one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ This used to be "any operand type named `CurrencyChanged`", which
+    /// <c>Il.OperandTypes</c> yields for the <i>declaring</i> type of every field and method
+    /// reference — so reading <c>evt.Delta</c> off an event the method was handed counted as
+    /// emitting one. Verified against this very branch: `CurrencyChanged.set_Id` writes a
+    /// currency-typed field, is not a constructor, and was exempted by that reading alone.
+    /// </para>
+    /// <para>
+    /// The consequence once M1-04 lands the first wallet is the whole rule: a handler that
+    /// debits a balance and happens to inspect some *other* event on the way would satisfy
+    /// `30` §7's "every currency movement emits `CurrencyChanged`" without emitting anything.
+    /// That is the Critical this rule exists to catch, passing green.
+    /// </para>
+    /// <para>
+    /// A <c>call</c> is counted alongside <c>newobj</c> so a factory or a <c>with</c> expression
+    /// still reads as production, and <c>Il.Flatten</c> unwraps a returned collection of events.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The residual limit, stated so nobody assumes otherwise.</b> A `Core` method that
+    /// *returns* an event without building one — a lookup, a passthrough — still reads as
+    /// production. Narrowing further was not done because it could not be demonstrated to bite
+    /// against any shape that compiles today (steering S1), and a clause nobody can show working
+    /// is the defect this whole file is about. Indexing a `List&lt;CurrencyChanged&gt;` is already
+    /// excluded: Cecil hands back the open element method, so the return type reads as the
+    /// generic parameter rather than the event.
+    /// </para>
+    /// </remarks>
     private static bool EmitsCurrencyChanged(MethodDefinition method) =>
-        Il.Instructions(method)
-          .SelectMany(Il.OperandTypes)
-          .SelectMany(Il.Flatten)
-          .Any(r => r.Name.Equals(Domain.CurrencyChangedEvent, StringComparison.Ordinal));
+        Il.Instructions(method).Any(Produces);
+
+    /// <summary>True when a single instruction constructs a `CurrencyChanged` or returns one.</summary>
+    private static bool Produces(Instruction instruction)
+    {
+        if (instruction.Operand is not MethodReference reference)
+        {
+            return false;
+        }
+
+        if (instruction.OpCode == OpCodes.Newobj)
+        {
+            return NamesTheEvent(reference.DeclaringType);
+        }
+
+        return (instruction.OpCode == OpCodes.Call ||
+                instruction.OpCode == OpCodes.Callvirt) &&
+               NamesTheEvent(reference.ReturnType);
+    }
+
+    /// <summary>True when a type reference is, or wraps, the `CurrencyChanged` event.</summary>
+    private static bool NamesTheEvent(TypeReference? reference) =>
+        Il.Flatten(reference).Any(r => r.Name.Equals(Domain.CurrencyChangedEvent, StringComparison.Ordinal));
+
+    /// <summary>
+    /// The `Core` type with this simple name, or a failure that says which rule went silent —
+    /// never a silent <c>null</c> that would make a teeth-check pass over nothing.
+    /// </summary>
+    private static TypeDefinition Require(string simpleName) =>
+        Domain.FindInCore(simpleName)
+        ?? throw new InvalidOperationException(
+            $"SlayIdleRepeat.Core declares no type named '{simpleName}', so the predicate below is being " +
+            "driven against nothing. SubjectSetFloorTests tracks this name for exactly that reason.");
+
+    /// <summary>
+    /// This assembly, read back through Cecil so <see cref="EmitsCurrencyChanged"/> can be driven
+    /// against real IL rather than a hand-built <c>MethodDefinition</c> that could be wrong in the
+    /// same direction as the predicate.
+    /// </summary>
+    private static readonly Lazy<ModuleDefinition> OwnModule = new(() =>
+        ModuleDefinition.ReadModule(typeof(DomainPurityTests).Assembly.Location));
+
+    /// <summary>One fixture method, by name, out of this assembly's own metadata.</summary>
+    private static MethodDefinition Fixture(string name) =>
+        FixtureHost().Methods.Single(m => m.Name.Equals(name, StringComparison.Ordinal));
+
+    /// <summary>One fixture type, by name, out of this assembly's own metadata.</summary>
+    private static TypeDefinition TypeFixture(string name) =>
+        FixtureHost().NestedTypes.Single(t => t.Name.Equals(name, StringComparison.Ordinal));
+
+    private static TypeDefinition FixtureHost() =>
+        Il.AllTypes(OwnModule.Value)
+          .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures), StringComparison.Ordinal));
+
+    /// <summary>
+    /// The two IL shapes <see cref="EmitsCurrencyChanged"/> has to tell apart. They live here
+    /// rather than in `Core` because the one that matters is a violation, and a violation is
+    /// never committed to the domain to prove a rule works.
+    /// </summary>
+    private static class CurrencyEmissionFixtures
+    {
+        /// <summary>Produces an event — a <c>newobj</c> on `CurrencyChanged`.</summary>
+        internal static object Emits() =>
+            new CurrencyChanged(0, CurrencyId.CROWNS, 1, "architecture_rule_teeth_check");
+
+        /// <summary>
+        /// Only reads one. The IL names `CurrencyChanged` as the declaring type of the property
+        /// getter, which is precisely the mention the old predicate accepted as an emission.
+        /// </summary>
+        internal static long OnlyReads(CurrencyChanged handed) => handed.Delta;
+
+        /// <summary>
+        /// Derives from `DomainEvent` while living outside `Core/Events/` — the shape the
+        /// namespace half of <see cref="Domain.IsDomainEvent"/> exists to refuse. Nested and
+        /// non-public, so it is outside every real subject set in the repository.
+        /// </summary>
+        internal sealed record DerivesButIsMisplaced(int Sequence) : DomainEvent(Sequence);
+    }
 }

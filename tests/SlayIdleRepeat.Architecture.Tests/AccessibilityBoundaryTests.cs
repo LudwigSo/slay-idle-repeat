@@ -103,7 +103,8 @@ public sealed class AccessibilityBoundaryTests
     /// <summary>
     /// `30` §11.4 — the internal layering holds: Handlers ▶ Rules ▶ Model ▶ Content ▶
     /// Primitives. `Rules` never references `Handlers`; `Model` never references `Rules`.
-    /// `Rng` is pure arithmetic (`14` §8.1) and sits below `Model` with `Content`.
+    /// `Rng` is pure arithmetic (`14` §8.1) and sits below `Model` with `Content`. `Primitives`,
+    /// `Content`, `Rng` and `Events` never reach up into the `SlayIdleRepeat.Core` root.
     /// </summary>
     [Fact]
     public void Core_internal_layering_holds()
@@ -147,11 +148,21 @@ public sealed class AccessibilityBoundaryTests
         // ⚠️ Matched EXACTLY, never by prefix. A `StartsWith("SlayIdleRepeat.Core.")` row would
         // match every type in the assembly and make the rule above trivially true — the same trap
         // Domain.IsPermittedCoreNamespace documents for the permitted-namespace list.
+        // ⚠️ `Events` is here and in NO row of the table above, and that asymmetry is deliberate.
+        // 30 §11.4's chain omits Commands and Events entirely, while 30 §7 writes
+        // GearGranted(int, GearInstance, SourceClass, bool) — GearInstance being a Model aggregate.
+        // So a row forbidding Events -> Model would contradict 30 §7 and block M4-03, and it is not
+        // written on a guess; the ruling is owned by M1-06's brief and due at the M4 kickoff (see
+        // SubjectSetFloorTests' Events row). What is NOT in doubt in either reading is the
+        // direction below: Apply produces events, so an event naming GameRules or GameContext is a
+        // cycle, and this row can fire today — GameContext, Entitlements and FeatureFlags are all
+        // in the root already.
         var mustNotReachTheRoot = new[]
         {
             Domain.PrimitivesNamespace,
             Domain.ContentNamespace,
             Domain.RngNamespace,
+            Domain.EventsNamespace,
         };
 
         foreach (var layer in mustNotReachTheRoot)
@@ -164,15 +175,17 @@ public sealed class AccessibilityBoundaryTests
                         .Select(referenced =>
                             $"{type.FullName} (in {layer}) references {referenced}, which is in the " +
                             $"{Domain.CoreNamespace} root. The root holds GameRules and GameContext, the top of " +
-                            "the layering, so a bottom layer reaching it inverts Handlers -> Rules -> Model -> " +
-                            "Content -> Primitives (30 §11.4)."));
+                            "the layering, so a layer beneath it reaching up inverts Handlers -> Rules -> Model " +
+                            "-> Content -> Primitives (30 §11.4). For Events specifically: Apply PRODUCES the " +
+                            "event list, so an event naming GameRules or GameContext is a cycle, and a timestamp " +
+                            "reached through GameContext.NowUtc is the clock 30 §3 keeps out of the domain."));
             }
         }
 
         ArchRule.Empty(
             offenders,
             "Core's internal layering holds: Handlers -> Rules -> Model -> Content -> Primitives, and " +
-            "Primitives, Content and Rng never reach up into the SlayIdleRepeat.Core root (30 §11.4).");
+            "Primitives, Content, Rng and Events never reach up into the SlayIdleRepeat.Core root (30 §11.4).");
     }
 
     /// <summary>
@@ -277,7 +290,7 @@ public sealed class AccessibilityBoundaryTests
             .Where(t => !Domain.IsCompilerGenerated(t))
             .Where(t => coreNames.Contains(t.Name) ||
                         Domain.DerivesFrom(t, Domain.GameCommandType) ||
-                        Domain.DerivesFrom(t, "DomainEvent"))
+                        Domain.DerivesFrom(t, Domain.DomainEventType))
             .Select(t => $"{t.FullName} re-declares a Core domain type");
 
         ArchRule.Empty(
