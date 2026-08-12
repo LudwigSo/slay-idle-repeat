@@ -135,11 +135,8 @@
       "sourceSection": "20 §3",
       "use": "Home / Camp",
       "descriptor": "calm, cosy, evening campfire; acoustic guitar, soft marimba, light strings, gentle hand percussion",
-      "groupDescriptor": null,
       "lengthSeconds": 120.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch1_greenwood",
@@ -148,11 +145,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 1 board",
       "descriptor": "bright, adventurous, sunlit; plucked strings, flute, tambourine",
-      "groupDescriptor": null,
       "lengthSeconds": 110.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch2_mire",
@@ -161,11 +155,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 2 board",
       "descriptor": "murky, curious, slightly off-kilter; low woodwinds, muted marimba, sparse percussion",
-      "groupDescriptor": null,
       "lengthSeconds": 110.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch3_crypt",
@@ -174,11 +165,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 3 board",
       "descriptor": "hushed, echoing, gently eerie; choir pad, pizzicato strings, soft bells",
-      "groupDescriptor": null,
       "lengthSeconds": 110.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch4_ember",
@@ -187,11 +175,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 4 board",
       "descriptor": "urgent, hot, driving; low brass, taiko-style percussion, tense strings",
-      "groupDescriptor": null,
       "lengthSeconds": 110.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch5_frost",
@@ -200,11 +185,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 5 board",
       "descriptor": "crystalline, spacious, cold but pretty; glockenspiel, high strings, airy pad",
-      "groupDescriptor": null,
       "lengthSeconds": 110.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch6_clockwork",
@@ -213,11 +195,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 6 board",
       "descriptor": "mechanical, rhythmic, precise; pizzicato, woodblock, ticking percussion, brass stabs",
-      "groupDescriptor": null,
       "lengthSeconds": 110.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch7_bloom",
@@ -226,11 +205,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 7 board",
       "descriptor": "woozy, organic, slightly psychedelic; detuned marimba, breathy pad, soft choir",
-      "groupDescriptor": null,
       "lengthSeconds": 110.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_ch8_astral",
@@ -239,11 +215,8 @@
       "sourceSection": "20 §3",
       "use": "Chapter 8 board",
       "descriptor": "grand, weightless, awed; full strings, choir, celesta, distant brass",
-      "groupDescriptor": null,
       "lengthSeconds": 130.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_boss",
@@ -252,9 +225,7 @@
       "sourceSection": "20 §3",
       "use": "All bosses",
       "descriptor": "driving, heroic, high stakes; full orchestra, choir, heavy percussion",
-      "groupDescriptor": null,
       "lengthSeconds": 100.0,
-      "durationSeconds": null,
       "format": "OGG Vorbis, q6, 44.1 kHz stereo",
       "note": "with a 4-bar intro stinger"
     },
@@ -265,11 +236,8 @@
       "sourceSection": "20 §3",
       "use": "The Dicelord only",
       "descriptor": "epic, cosmic, triumphant-then-ominous; full orchestra, big choir, timpani",
-      "groupDescriptor": null,
       "lengthSeconds": 130.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "mus_arena",
@@ -278,1327 +246,854 @@
       "sourceSection": "20 §3",
       "use": "Arena / PvP",
       "descriptor": "competitive, tight, confident; snare-forward percussion, brass, driving strings",
-      "groupDescriptor": null,
       "lengthSeconds": 100.0,
-      "durationSeconds": null,
-      "format": "OGG Vorbis, q6, 44.1 kHz stereo",
-      "note": null
+      "format": "OGG Vorbis, q6, 44.1 kHz stereo"
     },
     {
       "id": "sfx_die_pickup",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "wooden die lifted",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_die_tumble",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "die tumbling on wood, 0.8 s",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 0.8,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_die_land",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "die landing with a solid clack",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_die_land_star",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "clack with a bright magical chime",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_die_land_surge",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "clack with an electric zap",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_die_land_fortune",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "clack with coins jingling",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_die_land_void",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "clack with a hollow reversed whoosh",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_die_land_chain",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "clack with metal links rattling",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_reroll",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "quick magical swirl and re-tumble",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_nudge",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "soft click with a rising pitch",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_face_upgrade",
       "kind": "sfx",
       "family": "dice",
       "sourceSection": "20 §4.1",
-      "use": null,
       "descriptor": "ascending chime with a metallic forge ring",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hop",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "light footstep hop on stone",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hop_mount",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "heavier hoof-step",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_stage_gate",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "rising fanfare, 1.2 s",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 1.2,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_tile_reveal",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "soft paper flip",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_fork_choose",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "decisive wooden thunk",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_portal_enter",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "swirling whoosh",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_shrine",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "warm ascending chime",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_curse",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "low dissonant sting with a whisper",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_campfire",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "crackling fire, 1 s",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 1.0,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_treasure_open",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "chest lid creak then sparkle burst",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_shop_enter",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "small shopkeeper bell",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_cache_open",
       "kind": "sfx",
       "family": "board_movement",
       "sourceSection": "20 §4.2",
-      "use": null,
       "descriptor": "wooden crate pop with a creature chirp",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_battle_start",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "short drum-and-brass sting",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hit_light",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hit_medium",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hit_heavy",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "escalating blunt impacts",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hit_slash",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hit_pierce",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_hit_magic",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "whoosh with a crystalline pop",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_crit",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "sharp impact with a metallic ring and a brief pitch rise",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": true,
-      "note": null
+      "ducksMusic": true
     },
     {
       "id": "sfx_block",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "shield clang",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_dodge",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "quick cloth whoosh",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_miss",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "soft air swipe",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_heal",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "warm rising shimmer",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_shield_form",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "glassy bubble forming",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_shield_break",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "glass shattering, small",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_burn_loop",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "soft crackling flame loop",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_poison_tick",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "wet bubbling blip",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_bleed_tick",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "short wet cut",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_freeze",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "ice crystallising crackle",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_stun",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "dizzy cartoon chime with birds",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_rage",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "low growling swell",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_thorns",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "sharp spiny click",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_enemy_death_small",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "comic squeak-poof",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_enemy_death_large",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "heavy collapse with a dust thud",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_boss_phase",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "dramatic descending sting with a low brass hit",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": true,
-      "note": null
+      "ducksMusic": true
     },
     {
       "id": "sfx_boss_telegraph",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "rising warning tone, 1.2 s",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 1.2,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_victory",
       "kind": "sfx",
       "family": "combat",
       "sourceSection": "20 §4.3",
-      "use": null,
       "descriptor": "triumphant 1.5 s fanfare",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 1.5,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_pet_ability_generic",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
       "descriptor": "small magical pop",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_pet_zap",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_pet_heal",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_pet_roar",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
       "descriptor": "tiny cute roar",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_pet_summon",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
       "descriptor": "sparkle materialise",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_pet_levelup",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
       "descriptor": "cheerful two-note chirp",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_mount_summon",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
       "descriptor": "hoofbeats approaching, 0.8 s",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 0.8,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_mount_dash",
       "kind": "sfx",
       "family": "pets_mounts",
       "sourceSection": "20 §4.4",
-      "use": null,
       "descriptor": "fast whoosh with hoofbeats",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_levelup",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "big warm ascending fanfare with a choir hit, 1.2 s",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 1.2,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": true,
-      "note": null
+      "ducksMusic": true
     },
     {
       "id": "sfx_talent_spend",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "solid magical click with a stone grind",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_talent_keystone",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "deep resonant unlock with a choir swell",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_equip",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "cloth and leather shift",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_unequip",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "reverse of above",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_merge_charge",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "rising energy build, 0.9 s",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
       "durationSeconds": 0.9,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_merge_success",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "bright crystalline burst with a metallic ring",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": true,
-      "note": null
+      "ducksMusic": true
     },
     {
       "id": "sfx_enhance_success",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "hammer strike on an anvil with a magical ping",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_enhance_fail",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "dull hammer thud with a descending tone",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_salvage",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "item crumbling into dust",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_gear_drop_common",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "small metallic clink",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_gear_drop_rare",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "clink with a soft chime",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_gear_drop_legendary",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "clink with a bright rising arpeggio and a whoosh",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_currency_gold",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "coin jingle",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_currency_crown",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "warmer coin chime",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_currency_shard",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "crystal ting",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_egg_hatch",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "shell crack then a happy chirp",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_energy_full",
       "kind": "sfx",
       "family": "meta_progression",
       "sourceSection": "20 §4.5",
-      "use": null,
       "descriptor": "soft electric charge complete",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_tap",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "soft wooden click",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_tap_primary",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "fuller, more confident click",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_back",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "lower reverse click",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_open_panel",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "paper slide",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_close_panel",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "reverse paper slide",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_tab",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "light tick",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_error",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "soft dull buzz, never harsh",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_confirm",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "two-note affirmative",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_toggle_on",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_ui_toggle_off",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
-      "descriptor": null,
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_perk_card_in",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "card whoosh",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_perk_select",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "satisfying stamp with a magical ring",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_perk_upgrade",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "stamp with an ascending flourish",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_quest_complete",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "bright three-note chime",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_chest_reward",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "sparkle cascade",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_wheel_spin_loop",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "ratcheting click loop",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_wheel_stop",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "final ratchet with a chime",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_notification",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "gentle two-note ping",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     },
     {
       "id": "sfx_reconnect",
       "kind": "sfx",
       "family": "ui",
       "sourceSection": "20 §4.6",
-      "use": null,
       "descriptor": "soft descending-then-rising pair, non-alarming",
-      "groupDescriptor": null,
-      "lengthSeconds": null,
-      "durationSeconds": null,
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false,
-      "note": null
+      "ducksMusic": false
     }
   ]
 }

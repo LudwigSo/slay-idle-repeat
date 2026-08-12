@@ -146,9 +146,10 @@ public static class AssetManifestReader
             Pivot = NullableText(a, "pivot", id),
             Atlas = NullableText(a, "atlas", id),
             Biome = NullableText(a, "biome", id),
-            PaletteColours = Read(a, "palette").ValueKind == JsonValueKind.Null
-                ? null
-                : ReadPalette(Read(a, "palette"), id),
+            PaletteColours = a.TryGetProperty("palette", out var palette) &&
+                             palette.ValueKind != JsonValueKind.Null
+                ? ReadPalette(palette, id)
+                : null,
             Subject = NullableText(a, "subject", id),
             Extra = extra,
         };
@@ -160,13 +161,10 @@ public static class AssetManifestReader
         "pivot", "atlas", "biome", "palette", "subject",
     };
 
-    private static PixelSize? ReadSize(JsonElement a, string owner)
-    {
-        var size = Read(a, "deliverySize", owner);
-        return size.ValueKind == JsonValueKind.Null
-            ? null
-            : new PixelSize(Int(size, "width", owner), Int(size, "height", owner));
-    }
+    private static PixelSize? ReadSize(JsonElement a, string owner) =>
+        a.TryGetProperty("deliverySize", out var size) && size.ValueKind != JsonValueKind.Null
+            ? new PixelSize(Int(size, "width", owner), Int(size, "height", owner))
+            : null;
 
     private static Palette ReadPalette(JsonElement p, string owner) => new(
         Text(p, "base", owner), Text(p, "shadow", owner), Text(p, "accent", owner),
@@ -237,16 +235,33 @@ public static class AssetManifestReader
         Read(parent, name, owner).GetString()
         ?? throw new AssetManifestFormatException(owner, $"member '{name}' is null, but it is required.");
 
+    /// <summary>
+    /// An optional member: 🔒 <b>absent means the design docs authorise no value here</b>, and the
+    /// caller receives <c>null</c>.
+    /// </summary>
+    /// <remarks>
+    /// The manifest omits such members rather than writing JSON <c>null</c>, because these files
+    /// enter the <c>ContentSnapshot</c> and M0-09's
+    /// <c>RealDataNegativeCaseTests.The_shipped_data_set_still_carries_exactly_its_96_unauthorised_holes</c>
+    /// pins the population of nulls across the whole snapshot at 96 — every one of them a tuning
+    /// number somebody might fill with a plausible zero. Three thousand categorical absences from a
+    /// register would swamp that guard. A literal <c>null</c> is still accepted here so the
+    /// distinction never becomes a parsing trap.
+    /// </remarks>
     private static string? NullableText(JsonElement parent, string name, string owner)
     {
-        var value = Read(parent, name, owner);
-        return value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+        _ = owner;
+        return parent.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
+            ? value.GetString()
+            : null;
     }
 
     private static double? NullableNumber(JsonElement parent, string name, string owner)
     {
-        var value = Read(parent, name, owner);
-        return value.ValueKind == JsonValueKind.Null ? null : value.GetDouble();
+        _ = owner;
+        return parent.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
+            ? value.GetDouble()
+            : null;
     }
 
     private static int Int(JsonElement parent, string name, string owner) =>

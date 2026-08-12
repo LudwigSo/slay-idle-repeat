@@ -13,10 +13,10 @@
       "pattern": "^(mus|sfx)_[a-z0-9_]+$"
     },
     "familyId": { "enum": ["music", "dice", "board_movement", "combat", "pets_mounts", "meta_progression", "ui"] },
-    "nullableText": { "type": ["string", "null"], "minLength": 1 },
-    "nullableSeconds": {
-      "description": "🔒 null where doc 20 states no figure for this asset — never a value inferred from §1's band (game-data/README.md, 16 R6).",
-      "type": ["number", "null"],
+    "presentText": { "type": "string", "minLength": 1 },
+    "presentSeconds": {
+      "description": "🔒 ABSENT where doc 20 states no figure for this asset — never a value inferred from §1's band (game-data/README.md, 16 R6).",
+      "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 600
     },
@@ -140,7 +140,8 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "kind", "family", "sourceSection", "use", "descriptor", "groupDescriptor", "lengthSeconds", "durationSeconds", "format", "note"],
+        "$comment": "🔒 ABSENT, not null, where doc 20 authorises no value. These files enter the ContentSnapshot, and M0-09's RealDataNegativeCaseTests pins the population of JSON nulls across the whole snapshot at 96 tuning holes; a categorical absence here is a different thing and must not be counted as one. The typed reader surfaces an absent member as null, and AbsentValueTests pins each absence population.",
+        "required": ["id", "kind", "family", "sourceSection", "format"],
         "properties": {
           "id": { "$ref": "#/$defs/audioId" },
           "kind": { "enum": ["mus", "sfx"] },
@@ -148,30 +149,30 @@
           "sourceSection": { "type": "string", "minLength": 1 },
           "use": {
             "description": "20 §3's Use column. null for SFX, which §4 does not give one.",
-            "$ref": "#/$defs/nullableText"
+            "$ref": "#/$defs/presentText"
           },
           "descriptor": {
             "description": "The prompt descriptor doc 20 attaches to this id. 🔒 null where the doc attaches none — see DSC_SHARED_DESCRIPTORS.",
-            "$ref": "#/$defs/nullableText"
+            "$ref": "#/$defs/presentText"
           },
           "groupDescriptor": {
             "description": "Reserved for a descriptor a human rules as covering a run of ids. Null throughout today: no such ruling exists, and inventing one is not transcription.",
-            "$ref": "#/$defs/nullableText"
+            "$ref": "#/$defs/presentText"
           },
           "lengthSeconds": {
             "description": "20 §3's per-track loop length. Music only.",
-            "$ref": "#/$defs/nullableSeconds"
+            "$ref": "#/$defs/presentSeconds"
           },
           "durationSeconds": {
             "description": "A duration doc 20 states inline in the descriptor (e.g. 'rising fanfare, 1.2 s'). Null for the 86 SFX that state none.",
-            "$ref": "#/$defs/nullableSeconds"
+            "$ref": "#/$defs/presentSeconds"
           },
           "format": { "type": "string", "minLength": 1 },
           "ducksMusic": {
             "description": "20 §5's Ducking row. Present on SFX only.",
             "type": "boolean"
           },
-          "note": { "$ref": "#/$defs/nullableText" }
+          "note": { "$ref": "#/$defs/presentText" }
         }
       }
     }

@@ -34,8 +34,8 @@
       }
     },
     "pixelSize": {
-      "description": "A delivery size in pixels, from 15 §C (or §E21's own table). 🔒 null where no doc states one — never a borrowed or plausible default (game-data/README.md, 16 R6).",
-      "type": ["object", "null"],
+      "description": "A delivery size in pixels, from 15 §C (or §E21's own table). 🔒 ABSENT where no doc states one — never a borrowed or plausible default (game-data/README.md, 16 R6).",
+      "type": "object",
       "additionalProperties": false,
       "required": ["width", "height"],
       "properties": {
@@ -43,7 +43,7 @@
         "height": { "type": "integer", "minimum": 1, "maximum": 2048 }
       }
     },
-    "nullableText": { "type": ["string", "null"], "minLength": 1 },
+    "presentText": { "type": "string", "minLength": 1 },
     "discrepancy": {
       "type": "object",
       "additionalProperties": false,
@@ -158,7 +158,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "category", "claimedCount", "transcribedCount", "countsAgree", "cutCount", "derivedCount", "pivotClass", "cut", "sourceSection", "notes"],
+        "required": ["id", "category", "claimedCount", "transcribedCount", "countsAgree", "cutCount", "derivedCount", "sourceSection", "notes"],
         "properties": {
           "id": { "$ref": "#/$defs/sectionId" },
           "category": { "type": "string", "minLength": 1 },
@@ -169,9 +169,9 @@
           "derivedCount": { "type": "integer", "minimum": 0 },
           "pivotClass": {
             "description": "15 §C names exactly two pivot classes. Every other section is null — §C states no pivot for panels, backgrounds, board pieces, die faces, VFX sheets or store art.",
-            "enum": ["character", "icon", null]
+            "enum": ["character", "icon"]
           },
-          "cut": { "$ref": "#/$defs/nullableText" },
+          "cut": { "$ref": "#/$defs/presentText" },
           "sourceSection": { "type": "string", "minLength": 1 },
           "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
         }
@@ -194,7 +194,8 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "section", "sourceSection", "derived", "idSource", "cut", "deliverySize", "pivot", "atlas", "biome", "palette", "subject"],
+        "$comment": "🔒 ABSENT, not null, where the design docs authorise no value. These files enter the ContentSnapshot, and M0-09's RealDataNegativeCaseTests pins the population of JSON nulls across the whole snapshot at 96 tuning holes; a categorical absence here is a different thing and must not be counted as one. The typed reader surfaces an absent member as null, and AbsentValueTests pins each absence population.",
+        "required": ["id", "section", "sourceSection", "derived", "idSource"],
         "properties": {
           "id": { "$ref": "#/$defs/assetId" },
           "section": { "$ref": "#/$defs/sectionId" },
@@ -209,23 +210,23 @@
           },
           "cut": {
             "description": "Non-null where a ruling removed the asset. The row is retained so a post-cut total stays derivable from the data.",
-            "$ref": "#/$defs/nullableText"
+            "$ref": "#/$defs/presentText"
           },
           "deliverySize": { "$ref": "#/$defs/pixelSize" },
           "pivot": {
             "description": "15 §C: characters bottom-center, icons center. null where §C states none.",
-            "enum": ["bottom-center", "center", null]
+            "enum": ["bottom-center", "center"]
           },
           "atlas": {
             "description": "15 §D2. null where §D2 assigns none — backgrounds explicitly, misc UI icons and store art by omission, tile icons pending DSC_TILE_ATLAS.",
-            "type": ["string", "null"],
+            "type": "string",
             "pattern": "^atlas_[a-z_0-9]+$"
           },
-          "biome": { "oneOf": [{ "$ref": "#/$defs/biomeKey" }, { "type": "null" }] },
-          "palette": { "oneOf": [{ "$ref": "#/$defs/palette" }, { "type": "null" }] },
+          "biome": { "$ref": "#/$defs/biomeKey" },
+          "palette": { "$ref": "#/$defs/palette" },
           "subject": {
             "description": "The subject descriptor the doc gives for prompting. 🔒 null where no doc authorises one — never the asset's own name echoed back.",
-            "$ref": "#/$defs/nullableText"
+            "$ref": "#/$defs/presentText"
           },
           "displayName": { "type": "string", "minLength": 1 },
           "sourceContentId": { "type": "string", "minLength": 1 },
