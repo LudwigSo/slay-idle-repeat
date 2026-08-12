@@ -344,7 +344,7 @@ public sealed class TriggerWiringTests
                     Phases = phases,
                 };
             },
-            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true)));
 
         phases.ShouldNotBeNull();
 

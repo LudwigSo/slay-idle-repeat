@@ -17,15 +17,11 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// 🔒 `05` §3.3 — <c>ON_KILL</c> triggers <em>"never fire in duels. The only death in a duel ends
 /// the fight."</em> True in PvE.
 /// </param>
-/// <param name="IsPvp">
-/// `18` §4's <c>IS_PVP</c>, and the switch behind `05` §3.3's three condition rules
-/// (<c>TARGET_IS_ELITE</c>/<c>TARGET_IS_BOSS</c> always false, <c>ENEMY_COUNT</c> always 1). It
-/// travels to <c>EffectEvaluationContext.IsPvp</c> unchanged.
-/// </param>
 /// <param name="ExactTieWinner">
 /// 🔒 `11` §4.3 — <em>"On timeout, the side with the higher remaining HP fraction wins. On an exact
 /// tie, the <b>lower-rated player wins</b> (a small underdog bias that prevents stagnation at the
-/// top)."</em> The side named here takes an exact tie.
+/// top)."</em> The side named here takes an exact tie — <b>and naming one is what makes the fight a
+/// duel</b> (see <see cref="IsPvp"/>).
 /// <para>
 /// ⚠️ <b>A side rather than two ratings, deliberately.</b> Rating is `11` §5's, and nothing in `05`
 /// gives the simulator a reason to know one: the only question a fight can answer is <em>which side
@@ -34,10 +30,10 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// keep in step with the client's.
 /// </para>
 /// <para>
-/// <c>null</c> everywhere else, and that is the PvE reading rather than an absent one: `05` §3
-/// authors <b>no</b> tie rule, and <c>BattleSimulation.Outcome</c> records the errata that an exact
-/// tie is therefore a loss for the hero, because `05` §9 defines <c>ParPower</c> by <em>clear
-/// rate</em> and a 90 s standoff cleared nothing.
+/// <c>null</c> is `05` §3's PvE reading rather than an absent one: it authors <b>no</b> tie rule.
+/// <c>BattleSimulation.Outcome</c>'s remarks carry the errata that follows and the `05` §9 argument
+/// behind it; they are not restated here, because one ruling stated twice is one ruling that can
+/// drift.
 /// </para>
 /// </param>
 /// <remarks>
@@ -64,12 +60,37 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// <c>&gt;</c> and had no way to be told who the underdog was — so it is added here rather than
 /// discovered later by a player who tied a duel and lost it.
 /// </para>
+/// <para>
+/// 🔴 <b><see cref="IsPvp"/> is DERIVED, and that is the whole reason it is not stored.</b> A duel is
+/// exactly a fight with an underdog named: `11` §4.3 requires every duel to have one, and `05` §3
+/// gives PvE none — so a stored <c>bool IsPvp</c> beside <see cref="ExactTieWinner"/> would be two
+/// spellings of one bit, agreeing on the day they are written and diverging on the day one caller
+/// sets one of them. <c>new CombatRules(1200, false, IsPvp: true)</c> was constructible and ran a duel
+/// with `11` §4.3's tie rule silently <b>off</b>; there is now no such value. This is the same ruling
+/// the paragraph above makes against <c>bool AttackerFirst</c>, applied to this type's own field —
+/// and <c>PvpDuelRuleTests</c> is stated over it.
+/// </para>
 /// </remarks>
 internal sealed record CombatRules(
-    int MaxTicks, bool OnKillTriggersFire, bool IsPvp, BattleSide? ExactTieWinner = null)
+    int MaxTicks, bool OnKillTriggersFire, BattleSide? ExactTieWinner = null)
 {
     /// <summary>🔒 `05` §3 — an ordinary fight: 1800 ticks, <c>ON_KILL</c> live, not a duel.</summary>
-    internal static CombatRules PvE { get; } = new(CombatLog.MaxTicks, OnKillTriggersFire: true, IsPvp: false);
+    internal static CombatRules PvE { get; } = new(CombatLog.MaxTicks, OnKillTriggersFire: true);
+
+    /// <summary>
+    /// 🔒 `18` §4's <c>IS_PVP</c> — the switch behind `05` §3.3's condition rules
+    /// (<c>TARGET_IS_ELITE</c>/<c>TARGET_IS_BOSS</c> always false, <c>ENEMY_COUNT</c> always 1), the
+    /// `18` §9.3 skip, `18` §2.5's discarded run queue and the acting order. It travels to
+    /// <c>EffectEvaluationContext.IsPvp</c> and <c>TriggerOccurrence.IsPvp</c> unchanged.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Computed from <see cref="ExactTieWinner"/> rather than stored.</b> See the type remarks:
+    /// the two are one fact, `11` §4.3 makes the underdog mandatory in a duel and `05` §3 forbids it
+    /// outside one, so storing both would be the defect this repository has extracted
+    /// <c>BattleRoster</c> and <c>DeterminismRounding</c> to prevent — one fact, two statements,
+    /// nothing comparing them.
+    /// </remarks>
+    internal bool IsPvp => ExactTieWinner is not null;
 
     /// <summary>
     /// 🔒 `05` §3.3 and `11` §4.3 — a Ghost Duel's bounds, derived from the one authored number.
@@ -123,49 +144,24 @@ internal sealed record CombatRules(
         new(
             BattleClock.TicksFor(pvpMaxFightSeconds),
             OnKillTriggersFire: false,
-            IsPvp: true,
             ExactTieWinner: lowerRatedSide);
 
     /// <summary>The fight's horizon in seconds — <c>EffectEvaluationContext.FightHorizonSeconds</c>.</summary>
     internal double HorizonSeconds => BattleClock.SecondsAt(MaxTicks);
 
-    /// <summary>
-    /// Validates the cap against the log's addressable range, and <see cref="ExactTieWinner"/>
-    /// against <see cref="IsPvp"/>.
-    /// </summary>
+    /// <summary>Validates the cap against the log's addressable range.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The cap is below 1 or above <see cref="CombatLog.MaxTicks"/>.
     /// </exception>
-    /// <exception cref="ArgumentException">
-    /// A duel names no tie winner, or a PvE fight names one.
-    /// </exception>
     /// <remarks>
-    /// 🔒 <b>The pairing is checked because the defaulted parameter makes the wrong shape the easy
-    /// one.</b> <c>new CombatRules(1200, OnKillTriggersFire: false, IsPvp: true)</c> compiles and runs
-    /// a duel with `11` §4.3's tie rule <b>off</b> — silently reverting to `05` §3's PvE errata, where
-    /// a tie is an attacker loss. That is precisely the outcome <see cref="ExactTieWinner"/> exists to
-    /// prevent, and it would be discovered by a player who tied a duel and lost it. The inverse is
-    /// equally wrong: a tie winner on a PvE fight puts a duel rule into `05` §3's timeout.
-    /// <see cref="Duel"/> and <see cref="PvE"/> both satisfy it by construction.
+    /// ⚠️ <b>There is no duel/tie-winner pairing check here, and there is nothing to check.</b> An
+    /// earlier draft carried one — <c>IsPvp</c> was stored, so <c>IsPvp: true</c> with no underdog was
+    /// constructible and ran a duel with `11` §4.3's tie rule silently off. Deriving <see cref="IsPvp"/>
+    /// from <see cref="ExactTieWinner"/> deleted the invalid value instead of reporting it, which is
+    /// the stronger of the two, and this method shrank back to the one bound it started with.
     /// </remarks>
     internal CombatRules Validated()
     {
-        if (IsPvp != (ExactTieWinner is not null))
-        {
-            throw new ArgumentException(
-                IsPvp
-                    ? "A duel names no ExactTieWinner. `11` §4.3 is not optional: 'on an exact tie, the " +
-                      "lower-rated player wins'. Left null, the fight falls back to `05` §3's PvE " +
-                      "errata and an exact tie becomes an attacker LOSS — a legal-looking log that is " +
-                      "wrong in the only number the ladder reads. Build duel bounds with " +
-                      $"{nameof(CombatRules)}.{nameof(Duel)}."
-                    : "A PvE fight names an ExactTieWinner. `05` §3 authors no tie rule — the timeout " +
-                      "is a failure to clear, and `05` §9 defines ParPower by CLEAR RATE, so counting " +
-                      "a standoff as a clear inflates exactly the number the balance harness " +
-                      "calibrates against. `11` §4.3's underdog bias belongs to duels alone.",
-                nameof(ExactTieWinner));
-        }
-
         if (MaxTicks < 1 || MaxTicks > CombatLog.MaxTicks)
         {
             throw new ArgumentOutOfRangeException(

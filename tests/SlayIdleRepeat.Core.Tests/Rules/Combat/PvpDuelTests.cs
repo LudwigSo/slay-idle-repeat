@@ -293,7 +293,7 @@ public sealed class PvpDuelTests
                 Statuses = new CapturingStatusEngine(fired),
             },
             rules: new CombatRules(
-                MaxTicks: 5, onKillTriggersFire, isPvp,
+                MaxTicks: 5, onKillTriggersFire,
                 ExactTieWinner: isPvp ? BattleSide.ENEMY : null)));
 
         if (expectedToFire)
@@ -333,7 +333,7 @@ public sealed class PvpDuelTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_duel_cap_is_the_authored_pvpMaxFightSeconds_turned_into_ticks()
+    public void The_duel_cap_is_pvpMaxFightSeconds_turned_into_ticks_by_the_clock()
     {
         var duel = CombatRules.Duel(DuelSeconds, lowerRatedSide: BattleSide.ENEMY);
 
@@ -430,30 +430,48 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 `11` §4.3's tie rule is <b>not optional in a duel</b>, and `05` §3 does not have one — so a
-    /// <see cref="CombatRules"/> that pairs them the wrong way is refused rather than run.
+    /// 🔒 `05` §3.3 / `11` §4.3 — <em>"is this a duel"</em> is <b>one</b> fact: a fight is a duel
+    /// exactly when an underdog is named, and <c>IsPvp</c> is derived rather than stored.
     /// </summary>
     /// <remarks>
-    /// The shape being refused is the one the defaulted fourth parameter makes easiest to write:
-    /// <c>new CombatRules(1200, false, IsPvp: true)</c> compiles, and without this check it runs a
-    /// duel whose exact ties silently fall back to `05` §3's PvE errata — an attacker loss. That is
-    /// the very outcome <c>ExactTieWinner</c> was added to prevent, so leaving it reachable would make
-    /// the field decorative.
+    /// <para>
+    /// `11` §4.3 makes the underdog mandatory in a duel and `05` §3 gives PvE none, so a stored
+    /// <c>bool IsPvp</c> beside <c>ExactTieWinner</c> was two spellings of one bit — and the invalid
+    /// pairing was constructible: <c>new CombatRules(1200, false, IsPvp: true)</c> ran a duel whose
+    /// exact ties silently fell back to `05` §3's PvE errata, an attacker loss, which is the very
+    /// outcome <c>ExactTieWinner</c> exists to prevent. Deriving it deletes the value rather than
+    /// reporting it.
+    /// </para>
+    /// <para>
+    /// 🔒 Asserted over a <c>with</c> expression as well as a constructor, because a record's
+    /// non-destructive mutation is the other way an author reaches a field — and it is the way that
+    /// would have bypassed a constructor-only guard.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void A_duel_that_names_no_underdog_is_refused_and_so_is_a_PvE_fight_that_names_one()
+    public void Naming_an_underdog_is_what_makes_a_fight_a_duel()
     {
-        Should.Throw<ArgumentException>(
-                () => new CombatRules(DuelTicks, OnKillTriggersFire: false, IsPvp: true).Validated())
-            .Message.ShouldContain("lower-rated player wins");
+        CombatRules.PvE.ExactTieWinner.ShouldBeNull();
+        CombatRules.PvE.IsPvp.ShouldBeFalse();
 
-        Should.Throw<ArgumentException>(
-                () => (CombatRules.PvE with { ExactTieWinner = BattleSide.HERO }).Validated())
-            .Message.ShouldContain("authors no tie rule");
+        Underdog(BattleSide.ENEMY).IsPvp.ShouldBeTrue();
+        Underdog(BattleSide.HERO).IsPvp.ShouldBeTrue();
 
-        // The two shapes the game actually builds both satisfy it.
-        Should.NotThrow(() => CombatRules.PvE.Validated());
-        Should.NotThrow(() => Underdog(BattleSide.ENEMY).Validated());
+        // A `with` reaches the same one field, and the derived flag follows it in both directions.
+        (CombatRules.PvE with { ExactTieWinner = BattleSide.HERO }).IsPvp.ShouldBeTrue();
+        (Underdog(BattleSide.ENEMY) with { ExactTieWinner = null }).IsPvp.ShouldBeFalse();
+
+        // 🔒 And the flag is not settable on its own — there is no second storage to disagree with.
+        // NonPublic because `30` §11.2 keeps CombatRules internal; Core.Tests reaches it through the
+        // §11.3 InternalsVisibleTo grant, but reflection still needs telling.
+        var flag = typeof(CombatRules).GetProperty(
+            nameof(CombatRules.IsPvp),
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.NonPublic);
+
+        flag.ShouldNotBeNull("the rule below asserts nothing if the property cannot be found");
+        flag.CanWrite.ShouldBeFalse("a settable IsPvp would be the second statement this collapse removed");
     }
 
     /// <summary>
@@ -669,11 +687,11 @@ public sealed class PvpDuelTests
     /// exactly the kind of "inert until someone lowers an HP value" coupling worth not having.
     /// </para>
     /// <para>
-    /// ⚠️ <b><c>ExactTieWinner</c> is the one field that cannot be held constant</b>, because
-    /// <c>CombatRules.Validated</c> requires it to accompany <c>IsPvp</c> and forbids it without —
-    /// which is the invariant that stops a duel silently losing `11` §4.3's rule. It is inert for
-    /// every probe stated over this factory, and checkably so: <b>no</b> two-shape test in this file
-    /// reads <c>HeroWon</c>, and the tie winner reaches nothing else. The tie rule is probed on its
+    /// ⚠️ <b><c>ExactTieWinner</c> is not a second switch — it <em>is</em> <c>IsPvp</c>.</b>
+    /// <c>CombatRules.IsPvp</c> is derived from it, so naming a side is how this factory sets the very
+    /// flag under test; there is no third value to hold constant. It is inert for every probe stated
+    /// over this factory, and checkably so: <b>no</b> two-shape test in this file reads
+    /// <c>HeroWon</c>, which is the only thing the tie rule can reach. The tie rule is probed on its
     /// own, against fights built by <see cref="Underdog"/>.
     /// </para>
     /// <para>
@@ -683,11 +701,7 @@ public sealed class PvpDuelTests
     /// </para>
     /// </remarks>
     private static CombatRules DuelRules(int maxTicks, bool isPvp) =>
-        new(
-            maxTicks,
-            OnKillTriggersFire: false,
-            isPvp,
-            ExactTieWinner: isPvp ? BattleSide.ENEMY : null);
+        new(maxTicks, OnKillTriggersFire: false, ExactTieWinner: isPvp ? BattleSide.ENEMY : null);
 
     /// <summary>
     /// 🔴 The malformed roster — the <b>defending</b> side holds `05` §3.1 indices 0 and 1. See the

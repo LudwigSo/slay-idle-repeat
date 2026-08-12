@@ -155,7 +155,7 @@ public sealed class AttackCadenceTests
 
                 return BattleSeams.Strict with { Attack = new RecordingAttackPipeline(s, 1.0) };
             },
-            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true)));
 
         services.ShouldNotBeNull();
 
@@ -220,7 +220,7 @@ public sealed class AttackCadenceTests
 
                 return BattleSeams.Strict with { Attack = pipeline };
             },
-            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true)));
 
         pipeline.ShouldNotBeNull();
         services.ShouldNotBeNull();

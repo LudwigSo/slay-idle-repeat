@@ -64,15 +64,32 @@ public sealed class PvpDuelRuleTests
     private const string Flag = "IsPvp";
 
     /// <summary>
-    /// 🔒 The three types allowed to declare it — the fight's bound, and the two per-evaluation
-    /// values the loop copies it into.
+    /// 🔒 The three <b>members</b> allowed to declare it — the fight's bound, and the two
+    /// per-evaluation values the loop copies it into.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Member-qualified, not type-qualified, and the difference is the rule.</b> At type
+    /// granularity a genuinely wrong fourth flag is invisible whenever it lands on a type already in
+    /// the list — <c>bool IsDuelInitiative</c> on <c>CombatRules</c>, <c>bool InDuel</c> on
+    /// <c>EffectEvaluationContext</c> — which is the same shape the rule was written for, only spelled
+    /// with a duel word in it. Qualifying by member makes <em>"not a fourth"</em> true as stated.
+    /// </remarks>
     private static readonly string[] PermittedDeclarations =
     {
-        "SlayIdleRepeat.Core.Rules.Combat.CombatRules",
-        "SlayIdleRepeat.Core.Rules.Effects.EffectEvaluationContext",
-        "SlayIdleRepeat.Core.Rules.Effects.Triggers.TriggerOccurrence",
+        "SlayIdleRepeat.Core.Rules.Combat.CombatRules.IsPvp",
+        "SlayIdleRepeat.Core.Rules.Effects.EffectEvaluationContext.IsPvp",
+        "SlayIdleRepeat.Core.Rules.Effects.Triggers.TriggerOccurrence.IsPvp",
     };
+
+    /// <summary>The declaring types of <see cref="PermittedDeclarations"/>, for the reader rule.</summary>
+    /// <remarks>
+    /// Derived rather than listed a second time — two lists of the same three types is the defect this
+    /// whole file is about, and it would be an odd one to commit inside it.
+    /// </remarks>
+    private static readonly string[] PermittedReadTargets =
+        PermittedDeclarations
+            .Select(name => name[..name.LastIndexOf('.')])
+            .ToArray();
 
     /// <summary>
     /// Name fragments that mark a member as answering "is this a duel". Matched case-insensitively,
@@ -101,10 +118,14 @@ public sealed class PvpDuelRuleTests
     /// <see cref="The_kill_switch_of_14_section_14_never_reaches_the_simulator"/> is that half.
     /// </para>
     /// </remarks>
-    private static readonly string[] UnrelatedPvpFlags =
-    {
-        "SlayIdleRepeat.Core.FeatureFlags",
-    };
+    /// <remarks>
+    /// 🔒 <b>Matched at TYPE granularity, unlike <see cref="PermittedDeclarations"/>, and deliberately.</b>
+    /// `14` §14 catalogues kill switches and will legitimately grow more of them; requiring each new
+    /// one to be enumerated here would be friction on an unrelated task for no safety. What must not
+    /// grow is `05` §3.3's switch, and that is the list qualified by member. <c>FeatureFlags</c>' own
+    /// member count is separately pinned by its tests.
+    /// </remarks>
+    private static readonly string[] UnrelatedPvpFlags = { KillSwitchType };
 
     /// <summary>
     /// 🔒 `05` §3.3 / `18` §4 — every boolean member in <c>Core</c> that answers <em>"is this a Ghost
@@ -141,17 +162,22 @@ public sealed class PvpDuelRuleTests
 
         var extra = declared.Except(expected, StringComparer.Ordinal)
             .Select(t =>
-                $"{t} declares a boolean member naming a duel. `05` §3.3's divergences already key on " +
+                $"{t} is a boolean member naming a duel. `05` §3.3's divergences already key on " +
                 "CombatRules.IsPvp; a second flag agrees on the day it is written and diverges on the " +
                 "day one caller sets one of them, at which point a fight is a duel for ON_KILL and a " +
                 "PvE fight for initiative and 11 §6 rejects an honest log.");
 
+        // 🔒 The two lists fail for different reasons, so they say different things (steering S2). The
+        // kill switch disappearing is not "05 §3.3's switch has moved".
         var missing = expected.Except(declared, StringComparer.Ordinal)
-            .Select(t =>
-                $"{t} no longer declares a duel-named boolean. Either it was renamed — in which case " +
-                "this rule and the reader rule below are now quantifying over an enumeration that " +
-                "matches nothing — or 05 §3.3's switch has moved and this list has to move with it, " +
-                "in the same commit.");
+            .Select(t => UnrelatedPvpFlags.Contains(t, StringComparer.Ordinal)
+                ? $"{t} no longer declares a PvP-named boolean. It was `14` §14's kill switch and the " +
+                  "reason this rule carries an exemption at all; with it gone the exemption governs " +
+                  "nothing, and The_kill_switch_of_14_section_14_never_reaches_the_simulator is " +
+                  "scanning for a type that does not exist. Remove both together, or update both."
+                : $"{t} is gone. Either it was renamed — in which case this rule and the reader rule " +
+                  "below are now quantifying over an enumeration that matches nothing — or `05` §3.3's " +
+                  "switch has moved and this list has to move with it, in the same commit.");
 
         ArchRule.Empty(
             extra.Concat(missing),
@@ -175,7 +201,7 @@ public sealed class PvpDuelRuleTests
         var reads = DuelFlagReads().ToArray();
 
         var offenders = reads
-            .Where(r => !PermittedDeclarations.Contains(r.DeclaringType, StringComparer.Ordinal))
+            .Where(r => !PermittedReadTargets.Contains(r.DeclaringType, StringComparer.Ordinal))
             .Select(r =>
                 $"{r.Reader} reads {r.DeclaringType}.{Flag}, which is not one of `05` §3.3's three " +
                 "enumerated declarations. A fourth statement of 'is this a duel' is a divergence " +
@@ -236,7 +262,13 @@ public sealed class PvpDuelRuleTests
     public void The_kill_switch_of_14_section_14_never_reaches_the_simulator()
     {
         var module = ProductionAssemblies.Module(ProductionAssemblies.CoreName);
-        var rules = Il.TypesUnder(module, Domain.RulesNamespace).ToArray();
+
+        // Compiler-generated types filtered out for the reason IntraRulesLayeringRuleTests and
+        // Every_Core_type_lives_under_a_documented_namespace both do it: closure display classes and
+        // iterator state machines would inflate the floor below with types nobody wrote.
+        var rules = Il.TypesUnder(module, Domain.RulesNamespace)
+            .Where(t => !Domain.IsCompilerGenerated(t))
+            .ToArray();
 
         var offenders = rules
             .Where(t => Il.ReferencedTypeNames(t).Contains(KillSwitchType, StringComparer.Ordinal))
@@ -275,20 +307,45 @@ public sealed class PvpDuelRuleTests
     /// </summary>
     private const int RulesTypeFloor = 50;
 
-    /// <summary>Every type in <c>Core</c> declaring a boolean member whose name names a duel.</summary>
+    /// <summary>
+    /// Every boolean member in <c>Core</c> whose name names a duel, as
+    /// <c>Namespace.Type.Member</c> — or as <c>Namespace.Type</c> for the `14` §14 kill-switch holder,
+    /// which is matched at type granularity (<see cref="UnrelatedPvpFlags"/>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Properties and fields both, because a positional record parameter compiles to one of each — and
+    /// the backing field is <b>compiler-generated</b>, so it is excluded here and the property is what
+    /// the rule reports. Without that exclusion every record member would be counted twice, under two
+    /// spellings, and the second would never match an enumerated name.
+    /// </para>
+    /// <para>
+    /// 🔴 Compiler-generated <em>types</em> are excluded for the reason this repository has hit three
+    /// times: a lambda over a local named <c>isPvp</c> hoists it onto a <c>&lt;&gt;c__DisplayClass</c>
+    /// field of that name, which would be reported as a rogue fourth declaration in a file nobody
+    /// wrote.
+    /// </para>
+    /// </remarks>
     private static IEnumerable<string> DuelFlagDeclarations()
     {
         var module = ProductionAssemblies.Module(ProductionAssemblies.CoreName);
 
-        foreach (var type in Il.AllTypes(module))
+        foreach (var type in Il.AllTypes(module).Where(t => !Domain.IsCompilerGenerated(t)))
         {
-            var declaresOne =
-                type.Properties.Any(p => NamesADuel(p.Name) && IsBoolean(p.PropertyType)) ||
-                type.Fields.Any(f => NamesADuel(f.Name) && IsBoolean(f.FieldType));
+            var members = type.Properties
+                .Where(p => NamesADuel(p.Name) && IsBoolean(p.PropertyType))
+                .Select(p => p.Name)
+                .Concat(type.Fields
+                    .Where(f => !Domain.IsCompilerGenerated(f) &&
+                                NamesADuel(f.Name) &&
+                                IsBoolean(f.FieldType))
+                    .Select(f => f.Name));
 
-            if (declaresOne)
+            foreach (var member in members)
             {
-                yield return type.FullName;
+                yield return UnrelatedPvpFlags.Contains(type.FullName, StringComparer.Ordinal)
+                    ? type.FullName
+                    : $"{type.FullName}.{member}";
             }
         }
     }
