@@ -208,6 +208,20 @@ internal static class DeclaredRules
 
         // ── R29 · `27` §3.1 — the guild quest pool has to be drawable.
         GuildQuestPoolIsDrawable,
+
+        // ── R30 · `05` §4 / `29` §2.3 — the two mitigation dials are one pair of numbers, written
+        // twice. `05` §4 states them for the simulator ("expose them in data") and `29` §2.3 uses
+        // the same formula for MitigationVsReference, which is what grades the simulator. If the
+        // pair ever diverges, the power model predicts a mitigation the fight does not produce and
+        // `05` §9's assertion A10 — the closed form tracking EmpiricalPower within ±12% — becomes
+        // unfalsifiable rather than false. Stated as a rule rather than solved by deleting one copy:
+        // combat_caps.json is what the simulator loads, power_model.json is what `21` sweeps, and
+        // neither file may reach into the other's directory.
+        // Stated over the two BLOCKS rather than as two scalar mirrors, so that a third dial added
+        // to one side and not the other is caught as well as a value that drifts. Mirrors ignores
+        // `_`-prefixed members, so combat_caps.json's `_doc` is not compared against nothing.
+        Mirrors("05 §4 / 29 §2.3 (one pair of mitigation dials, authored twice)",
+            "content/combat_caps.json#/mitigation", "tuning/power_model.json#/mitigation"),
     ];
 
     // ------------------------------------------------------------------- rules with a body

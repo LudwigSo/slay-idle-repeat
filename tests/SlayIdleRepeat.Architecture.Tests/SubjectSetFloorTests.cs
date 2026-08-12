@@ -62,8 +62,17 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
+        // Declared by Domain.cs (CombatRulesNamespace) and keyed on by the guild-isolation rule, but
+        // holding no types yet. It was in neither list before M2-07, which is the gap M1-12's
+        // carry-forward names: Domain.cs's constants are not reconciled against these registers, so a
+        // namespace constant can sit there governing nothing with the suite green. Tracked here now
+        // that a sibling namespace under Rules/ has arrived and the asymmetry is visible.
+        // ⚠️ Guild_state_is_unreachable_from_the_combat_path is NOT vacuous today despite this: it
+        // also collects Core types whose simple name contains "Combat" or "Battle", which currently
+        // matches Rules.Stats.CombatCaps. The namespace half of its subject set is what is empty.
+        new(Domain.CombatRulesNamespace, SubjectKind.CoreNamespace, "M2-15",
+            "IsolationTests.Guild_state_is_unreachable_from_the_combat_path (namespace half)"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -95,6 +104,22 @@ public sealed class SubjectSetFloorTests
         // this commit.
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
+
+        // Moved out of Pending by M2-07, which lands the first types under Core/Rules/ —
+        // Core/Rules/Stats/ (05 §1-2, 18 §8). The M1-10 marker it carried was for the energy math,
+        // which is on milestone/M1 and not on this branch; whichever milestone merges first, the
+        // namespace exists from that commit and the two rules keyed on it are live rather than
+        // vacuous. Tracked here rather than dropped: Every_rule_subject_is_present_or_declared_
+        // pending requires every namespace 30 §11.4 enumerates to appear in one of these two lists,
+        // so a later refactor that emptied Core/Rules/ again has to say so in this file.
+        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M2-07",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
+
+        // The 05 §1-2 stat block and the 18 §8 aggregation. Tracked separately from RulesNamespace
+        // because Domain.cs declares it separately: it is the more specific constant, and a rename of
+        // Core/Rules/Stats/ that left Core/Rules/ non-empty would leave the entry above satisfied.
+        new(Domain.StatsRulesNamespace, SubjectKind.CoreNamespace, "M2-07",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal (the 05 §1-2 stat block and the 18 §8 aggregation)"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
