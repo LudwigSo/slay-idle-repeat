@@ -1,12 +1,15 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 `14` §8.1, the Battles rule — <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>,
-/// and combat draw <c>i</c> of that battle is <c>Hash64(battleSeed, "combat", i)</c>.
+/// 🔒 The two named seed derivations of the game: `02` §2's
+/// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>, where a seed is
+/// born, and `14` §8.1's <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>, where one seed
+/// spawns another. Combat draw <c>i</c> of a battle is then <c>Hash64(battleSeed, "combat", i)</c>.
 /// </summary>
 /// <remarks>
 /// This derivation is named rather than hand-rolled because it is the seam where the client
@@ -16,6 +19,200 @@ namespace SlayIdleRepeat.Core.Tests.Rng;
 /// </remarks>
 public sealed class SeedDerivationTests
 {
+    // ------------------------------------------------------------------- runSeed
+    //
+    // 🔒 `02` §2 — runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter).
+    // The home for this function already existed (this class's own remarks say so); M1-05 wrote it.
+
+    private static readonly PlayerId Player = new("PLAYER_TEST");
+
+    /// <summary>2026-08-12 09:41:07.123 UTC — deliberately carrying sub-second precision.</summary>
+    private static readonly DateTimeOffset Midmorning =
+        new(2026, 8, 12, 9, 41, 7, 123, TimeSpan.Zero);
+
+    /// <summary>
+    /// 🔒 `02` §2, argument for argument. Spelled out rather than restated through the helper, so
+    /// changing the derivation without changing the specification fails here.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <c>ToUnixTimeSeconds()</c> is written out on the right-hand side because it <b>is</b> `02`
+    /// §2's <c>floor(NowUtc as Unix seconds)</c>: the flooring belongs to the derivation, not to
+    /// every caller who might otherwise round.
+    /// </remarks>
+    [Fact]
+    public void RunSeed_is_Hash64_over_the_five_arguments_of_02_section_2()
+    {
+        SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613)
+            .ShouldBe(Hash64.Of(
+                Player.Value,
+                3,
+                DifficultyTier.HEROIC,
+                Midmorning.ToUnixTimeSeconds(),
+                613L));
+    }
+
+    /// <summary>The same five inputs always produce the same seed — the whole point of `02` §2.</summary>
+    [Fact]
+    public void RunSeed_is_reproducible_for_fixed_inputs()
+    {
+        var first = SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613);
+        var second = SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613);
+
+        second.ShouldBe(first);
+    }
+
+    /// <summary>
+    /// 🔒 …and changing <b>any one</b> of the five moves it — <c>runCounter</c> included, which is
+    /// the argument that exists precisely so two runs started in the same second on the same chapter
+    /// and tier draw different boards.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Stated as five one-field mutations against one baseline and asserted as <b>six distinct
+    /// seeds</b>, not as five pairwise inequalities: an implementation that ignored, say,
+    /// <c>chapterId</c> but happened to differ from the baseline for another reason would pass the
+    /// pairwise form. The count is the assertion.
+    /// </remarks>
+    [Fact]
+    public void RunSeed_changes_when_any_one_of_its_five_inputs_changes()
+    {
+        var seeds = new[]
+        {
+            SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613),
+            SeedDerivation.RunSeed(new PlayerId("OTHER_PLAYER"), 3, DifficultyTier.HEROIC, Midmorning, 613),
+            SeedDerivation.RunSeed(Player, 4, DifficultyTier.HEROIC, Midmorning, 613),
+            SeedDerivation.RunSeed(Player, 3, DifficultyTier.MYTHIC, Midmorning, 613),
+            SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning.AddSeconds(1), 613),
+            SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 614),
+        };
+
+        seeds.Length.ShouldBe(6, "one baseline plus one mutation per argument of 02 §2's five.");
+        seeds.ShouldBeUnique();
+    }
+
+    /// <summary>
+    /// 🔒 The instant is floored to whole seconds, because `02` §2 hashes <c>utcUnixSeconds</c>.
+    /// </summary>
+    /// <remarks>
+    /// Both halves. Two instants inside the same second are one seed — otherwise the derivation would
+    /// depend on a clock precision the wire never carries — and the next second is a different one,
+    /// which is what stops the flooring being "ignore the timestamp".
+    /// </remarks>
+    [Fact]
+    public void RunSeed_floors_the_instant_to_whole_seconds()
+    {
+        var sameSecond = new DateTimeOffset(2026, 8, 12, 9, 41, 7, 987, TimeSpan.Zero);
+        var nextSecond = new DateTimeOffset(2026, 8, 12, 9, 41, 8, 0, TimeSpan.Zero);
+
+        SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, sameSecond, 613)
+            .ShouldBe(SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613));
+
+        SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, nextSecond, 613)
+            .ShouldNotBe(SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613));
+    }
+
+    /// <summary>
+    /// 🔒 There is no zero-offset guard, and there does not need to be: an offset naming the same
+    /// instant converts to the same Unix seconds.
+    /// </summary>
+    /// <remarks>
+    /// This is the one place the aggregates' rule does <b>not</b> apply. <c>Run.Rehydrate</c> refuses
+    /// an offset <see cref="DateTimeOffset"/> because <c>CanonicalStateWriter</c> would hash two
+    /// spellings of one instant identically while record equality called them different. Here only
+    /// the converted number is hashed, so the ambiguity cannot arise — and a guard would be a branch
+    /// no legitimate input reaches, which is steering S1's defect rather than defence in depth.
+    /// </remarks>
+    [Fact]
+    public void RunSeed_is_offset_agnostic_because_it_hashes_the_converted_seconds()
+    {
+        var elsewhere = Midmorning.ToOffset(TimeSpan.FromHours(2));
+
+        elsewhere.Offset.ShouldBe(TimeSpan.FromHours(2), "the fixture must actually carry an offset");
+
+        SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, elsewhere, 613)
+            .ShouldBe(SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613));
+    }
+
+    /// <summary>
+    /// A chapter below 1 is refused — <c>chapter.schema.json</c> sets <c>"minimum": 1</c>. Seeding a
+    /// run for a chapter that cannot exist is a caller bug, not a run.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void RunSeed_refuses_a_chapter_below_one(int chapterId)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => SeedDerivation.RunSeed(Player, chapterId, DifficultyTier.NORMAL, Midmorning, 0));
+    }
+
+    /// <summary>
+    /// An undefined tier is refused, <c>default(DifficultyTier)</c> included — a zero widened into
+    /// the hash would produce a perfectly stable seed for a difficulty the game does not have.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    public void RunSeed_refuses_an_undefined_tier(int tier)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => SeedDerivation.RunSeed(Player, 1, (DifficultyTier)tier, Midmorning, 0));
+    }
+
+    /// <summary>A negative <c>runCounter</c> is refused: it counts upwards from zero and is never reset.</summary>
+    [Fact]
+    public void RunSeed_refuses_a_negative_run_counter()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => SeedDerivation.RunSeed(Player, 1, DifficultyTier.NORMAL, Midmorning, -1));
+    }
+
+    /// <summary>
+    /// ⚠️ …and a <b>zero</b> <c>runCounter</c> is accepted, deliberately.
+    /// </summary>
+    /// <remarks>
+    /// <c>Player.BeginRun()</c> returns the counter <em>after</em> the increment, so in practice the
+    /// first run is seeded with 1 — but nothing in `02` §2 says the counter's first value is 1, and
+    /// refusing 0 would be a claim the documents do not authorise (steering <b>S6</b>). This case is
+    /// what keeps that restraint from being tidied away later.
+    /// </remarks>
+    [Fact]
+    public void RunSeed_accepts_a_zero_run_counter_because_no_document_forbids_it()
+    {
+        Should.NotThrow(() => SeedDerivation.RunSeed(Player, 1, DifficultyTier.NORMAL, Midmorning, 0));
+    }
+
+    /// <summary>
+    /// A <c>default(PlayerId)</c> has a null <c>Value</c>, which has no canonical encoding — the hash
+    /// refuses it rather than hashing an empty string and producing a stable seed for no player.
+    /// </summary>
+    [Fact]
+    public void RunSeed_refuses_a_default_PlayerId_because_null_has_no_canonical_encoding()
+    {
+        Should.Throw<ArgumentNullException>(
+            () => SeedDerivation.RunSeed(default(PlayerId), 1, DifficultyTier.NORMAL, Midmorning, 0));
+    }
+
+    /// <summary>
+    /// 🔒 The run seed and the battle seed are different derivations and do not collide: a run seeded
+    /// from `02` §2 is not the battle seed of anything.
+    /// </summary>
+    /// <remarks>
+    /// The two functions in this class are the only places a seed is born or spawned, and they take
+    /// different argument shapes on purpose. This is the cheap check that they have not been made
+    /// into each other by a refactor.
+    /// </remarks>
+    [Fact]
+    public void RunSeed_and_BattleSeed_are_different_derivations()
+    {
+        var runSeed = SeedDerivation.RunSeed(Player, 1, DifficultyTier.NORMAL, Midmorning, 0);
+
+        Enumerable.Range(0, 32)
+            .Select(index => SeedDerivation.BattleSeed(runSeed, index))
+            .ShouldNotContain(runSeed);
+    }
+
+    // ----------------------------------------------------------------- battleSeed
+
     /// <summary>The derivation, pinned against the committed reference row.</summary>
     [Theory]
     [InlineData("derivation-battleseed-0", 0)]

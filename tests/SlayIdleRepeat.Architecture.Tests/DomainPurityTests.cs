@@ -199,6 +199,13 @@ public sealed class DomainPurityTests
     /// <b>held</b> in (see <see cref="CurrencyFields"/> for why an event does not count). It was
     /// written in M0-08 against a subject set that did not exist yet and passed vacuously until
     /// that commit.
+    /// <para>
+    /// 🔒 <b>M1-05 added the second subject, <c>Run._wallet</c>, and it is recognised by NAME
+    /// ALONE.</b> A run's Gold is a bare <c>long</c>, so the type half of
+    /// <see cref="CurrencyFields"/>'s predicate cannot see it; the aggregate is named <c>_wallet</c>
+    /// rather than <c>_gold</c> precisely so the name half does. Both floors below are therefore
+    /// load-bearing, and the second one more so than the first.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_currency_mutation_emits_CurrencyChanged()
@@ -214,6 +221,18 @@ public sealed class DomainPurityTests
         Assert.Contains(
             currencyFields,
             name => name.Contains("Player::_wallet", StringComparison.Ordinal));
+
+        // 🔒 M1-05's floor row, and it is load-bearing in a way Player's is not. CurrencyFields()
+        // recognises Run's Gold ONLY by its field NAME: it is a bare `long`, so the type half of the
+        // predicate (CurrencyId-typed, or a type name containing "Wallet") cannot see it at all.
+        // Renaming `Run::_wallet` to the more obvious `_gold` would therefore drop the game's only
+        // RUN-scoped currency out of this rule's subject set silently — the rule would still be
+        // non-empty, still be pointed at Player, and still report success while nothing watched a
+        // run's purse. That is steering S3's failure mode arriving through a rename, and this line is
+        // what turns it into a build failure.
+        Assert.Contains(
+            currencyFields,
+            name => name.Contains("Run::_wallet", StringComparison.Ordinal));
 
         var offenders = new List<string>();
 

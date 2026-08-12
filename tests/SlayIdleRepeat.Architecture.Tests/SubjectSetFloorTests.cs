@@ -226,6 +226,27 @@ public sealed class SubjectSetFloorTests
         new("PlayerSnapshot", SubjectKind.CoreType, "M1-04",
             "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests (SnapshotFieldOrderPinTests — " +
             "five rules that held vacuously until this record existed)"),
+
+        // 🔒 M1-05. Two more names two live rules key on. Appended after PlayerSnapshot rather than
+        // inserted, because M1-05 is alone in its wave and nothing else is in flight against this
+        // array — the tail-conflict reasoning on the Rules row above is about concurrent agents, not
+        // about ordering as such.
+        //
+        // Run is the SECOND subject of Apply_is_the_only_public_mutation's aggregate half: Player was
+        // its only one from M1-04 until this commit, so a rename of Player would have emptied that
+        // half completely. It is now floored by two names rather than one.
+        new("Run", SubjectKind.CoreType, "M1-05",
+            "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the aggregate half — Player " +
+            "was its only subject until this commit), DomainPurityTests." +
+            "Every_currency_mutation_emits_CurrencyChanged (Run::_wallet is the second currency field " +
+            "in the repository and has its own floor row in that rule)"),
+
+        // And the field-order pin's second record. Tracked HERE as well as by its own floor because
+        // the pin lives in a different suite: making RunSnapshot internal, nesting it, or moving it
+        // out of Core/Model/Snapshots/ would drop it from the pin's selector silently, and the
+        // architecture suite is where "a rule went quiet" is supposed to be noticed.
+        new("RunSnapshot", SubjectKind.CoreType, "M1-05",
+            "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests"),
     };
 
     // ---------------------------------------------------------------- floors

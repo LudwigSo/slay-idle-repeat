@@ -335,6 +335,14 @@ public sealed class SnapshotFieldOrderPinTests
         SnapshotFieldOrderPin.SnapshotRecords
             .Select(record => record.Name)
             .ShouldContain(nameof(PlayerSnapshot));
+
+        // 🔒 M1-05. Naming the second record as well is what the remark above anticipated: with two
+        // records in the set, a bare count survives one of them being renamed, made internal, nested
+        // or moved out of Core/Model/Snapshots/, and the pin would go on guarding the survivor while
+        // reporting success over the one that left.
+        SnapshotFieldOrderPin.SnapshotRecords
+            .Select(record => record.Name)
+            .ShouldContain(nameof(RunSnapshot));
     }
 
     /// <summary>

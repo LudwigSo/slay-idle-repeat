@@ -169,6 +169,59 @@ internal static class GapRegister
             "precisely because retroactivity needs them to predate the M16 feature; it cannot land " +
             "them before O29 names them. Keyed on FeatDefinition, the type that reads feats.json / " +
             "counters.json and therefore cannot exist until O29 is ruled."),
+
+        // ---------------------------------------------------------------- M1-05, 30 §4 + 02 §1.1
+        //
+        // 30 §4's Run row enumerates ten things. M1-05 authored the aggregate with FIVE of them —
+        // position, HP, run Gold, RNG stream positions, per-run ad uses — and these five without.
+        // Plus the run's PHASE, which 02 §1.1 draws and which is deferred for a sharper reason than
+        // "no element type yet": nobody has ruled which of its states are server-side.
+
+        new("Board", "M3-01", "NodeId",
+            "30 §4 lists 'Board' first among the Run aggregate's contents, and M3-01 authors the DAG " +
+            "generator plus GenerateBoard. A board is a graph of nodes, so it cannot be stored before " +
+            "node identity exists. 🔒 THIS ENTRY ALSO CARRIES A DEFERRED INVARIANT, which is why it " +
+            "matters more than a missing field: 30 §11.5 names 'a run's position is a valid node' as " +
+            "an invariant of this aggregate, and it CANNOT be implemented today. Run.Position " +
+            "therefore stores the linear index and validates only non-negativity — deliberately, " +
+            "because a range check invented here (0..40, say) would be a PARTIAL invariant wearing " +
+            "the real one's name and would be trusted as such by every rule downstream."),
+
+        new("DraftedPerks", "M3-06", "PerkDefinition",
+            "30 §4 lists 'drafted perks' on Run. 06 §5 forbids per-perk code — a perk IS DSL data — so " +
+            "the element type is M3-07's 98-perk catalogue read through M3-06's draft. Freezing a list " +
+            "element type now would put a guessed perk shape under both (S6). Keyed on " +
+            "PerkDefinition rather than on the draft handler, because the shape is what is missing."),
+
+        new("HeldConsumables", "M3-08", "ConsumableDefinition",
+            "30 §4 lists 'held consumables and the armed Escape Rope flag (03 §7.1)'. Both are M3-08's " +
+            "('consumables incl. Escape Rope arming/skip semantics + USE_CONSUMABLE legality'). The " +
+            "armed flag is deferred WITH them rather than beside them, and that is the ruling: it is " +
+            "one consumable's state, not a second field on the aggregate — storing a bool for it now " +
+            "would fix the Escape Rope's mechanics before M3-08 has chosen them."),
+
+        new("PendingFork", "M3-02", "NodeId",
+            "30 §4 lists 'pending fork choice (mid-move junction pause, 03 §1.1)'. A pending choice " +
+            "names the junction node and the branches on offer, so it cannot be stored before node " +
+            "identity exists; the pause itself is M3-02's movement engine. ⚠️ It shares its predicate " +
+            "with the Board entry DELIBERATELY: both become writable on the same day, and pointing " +
+            "this one at a different type to make the register look more granular would be buying " +
+            "silence with a predicate that does not describe the reason."),
+
+        new("Curses", "M3-11", "CurseDefinition",
+            "30 §4 lists 'curses' on Run. 19 E catalogues twelve of them and M3-11 owns the rules " +
+            "engine around them — no stacking, paired rewards, the AD_SKIP_CURSE hook and mount " +
+            "immunity. A held-curse list authored now would freeze the curse shape under all four of " +
+            "those rules before any of them is written (S6)."),
+
+        new("RunPhase", "M3-05", "TileType",
+            "02 §1-3's run state machine. Do NOT invent the state set: 02 §1.1's diagram is a CLIENT " +
+            "PRESENTATION machine (0.8 s die animation, banners) while 14 §2.3's ROLL_DICE answers " +
+            "face, movement and landing in ONE command — so which of its nine states are server-side " +
+            "aggregate state is a ruling M3-05 makes together with the tile resolvers. Keyed on " +
+            "TileType because RESOLVE_TILE branches by it. ⚠️ THE CONSEQUENCE, STATED: without a " +
+            "phase, Apply cannot produce 14 §16.2's RUN_ALREADY_ENDED or ILLEGAL_STATE, and M3-05 " +
+            "pays a SchemaVersion bump to add it. That cost is named here rather than discovered."),
     };
 
     /// <summary>
@@ -204,6 +257,28 @@ internal static class GapRegister
     /// this</b>: it is the first task that touches enough of `30` §4's row (inventory capacity) to
     /// know what those types are called.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>The third entry is a transcription of a fragment too, and the arithmetic is stated so a
+    /// reader can check it.</b> `30` §4's <c>Run</c> row enumerates <b>ten</b> things — <i>"Board,
+    /// position, HP, run Gold, drafted perks, held consumables and the armed Escape Rope flag
+    /// (`03` §7.1), pending fork choice (mid-move junction pause, `03` §1.1), curses, RNG stream
+    /// positions, per-run ad uses"</i>. M1-05 <b>built five</b>: <c>position</c> →
+    /// <c>Run.Position</c>, <c>HP</c> → <c>Run.CurrentHp</c>/<c>Run.MaxHp</c>, <c>run Gold</c> →
+    /// <c>Run.Gold</c>, <c>RNG stream positions</c> → <c>Run.RngStreamPositions</c>, and
+    /// <c>per-run ad uses</c> → <c>Run.AdUses</c>. Those five are fields of <c>Run</c> rather than
+    /// types called that, so transcribing them here would report them undeclared forever — which is
+    /// exactly why the <c>Player</c> entry above is a fragment as well. The <b>five</b> that are
+    /// genuinely absent and genuinely type-shaped are the five transcribed below, and the armed
+    /// Escape Rope flag is deferred <em>inside</em> <c>HeldConsumables</c> rather than as a sixth,
+    /// because it is one consumable's state. Five built plus five deferred is the row.
+    /// </para>
+    /// <para>
+    /// The fourth entry is the run's <b>phase</b>, and it is separate from the row above because
+    /// `30` §4 does not list it: it comes from `02` §1.1's state machine, and it lands in
+    /// <c>Primitives</c> rather than <c>Model</c> for the reason <c>FtueBeat</c>'s remarks
+    /// record — a public enum under <c>Core/Model/</c> fails
+    /// <c>Apply_is_the_only_public_mutation</c> on its <c>value__</c> field.
+    /// </para>
     /// </remarks>
     internal static readonly SpecifiedSurface[] Surfaces =
     {
@@ -223,6 +298,20 @@ internal static class GapRegister
             "ContainerShelf",
             "PityCounters",
             "FeatCounters",
+        }),
+
+        new("30 §4 (the Run-contents row, the five items M1-05 did not build)", Domain.ModelNamespace, new[]
+        {
+            "Board",
+            "DraftedPerks",
+            "HeldConsumables",
+            "PendingFork",
+            "Curses",
+        }),
+
+        new("02 §1.1 (the run state machine)", Domain.PrimitivesNamespace, new[]
+        {
+            "RunPhase",
         }),
     };
 

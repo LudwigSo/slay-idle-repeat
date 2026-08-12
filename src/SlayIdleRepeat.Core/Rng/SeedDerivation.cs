@@ -1,3 +1,5 @@
+using SlayIdleRepeat.Core.Primitives;
+
 namespace SlayIdleRepeat.Core.Rng;
 
 /// <summary>
@@ -31,6 +33,49 @@ namespace SlayIdleRepeat.Core.Rng;
 /// </remarks>
 public static class SeedDerivation
 {
+    /// <summary>
+    /// 🔒 `02` §2 — <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>,
+    /// the seed a run is born with and the root of every stream in <c>RngStreams</c>.
+    /// </summary>
+    /// <param name="playerId">The player starting the run. Its <c>Value</c> is the first hashed argument.</param>
+    /// <param name="chapterId">The chapter (`02` §1, <c>chapter.schema.json</c>'s <c>"minimum": 1</c>).</param>
+    /// <param name="tier">
+    /// `02` §2's <c>tierId</c>. Widened through <see cref="DifficultyTier"/>'s underlying
+    /// <see cref="int"/>, which is why renumbering that enum re-seeds every run in existence.
+    /// </param>
+    /// <param name="nowUtc">
+    /// 🔒 <c>GameContext.NowUtc</c>. It takes a <see cref="DateTimeOffset"/> rather than
+    /// <c>long utcUnixSeconds</c> <b>deliberately</b>, and for two reasons.
+    /// <see cref="DateTimeOffset.ToUnixTimeSeconds"/> <em>is</em> `02` §2's
+    /// <c>floor(NowUtc as Unix seconds)</c>, so the flooring rule lives in the one place instead of
+    /// at every call site that could round instead. And it means <b>no two adjacent parameters share
+    /// a type</b>, which makes the transposition this whole class exists to prevent unrepresentable:
+    /// a caller who swapped <c>chapterId</c> and <c>runCounter</c> would not compile.
+    /// <para>
+    /// ⚠️ There is deliberately <b>no zero-offset guard</b>, unlike the aggregates.
+    /// <c>ToUnixTimeSeconds</c> <em>converts</em>, so an instant expressed with any offset yields the
+    /// same seconds as the same instant expressed in UTC — the ambiguity the aggregates refuse
+    /// (a <c>DateTimeOffset</c> that hashes identically while comparing unequal) cannot arise here,
+    /// because only the converted number is hashed.
+    /// </para>
+    /// </param>
+    /// <param name="runCounter">
+    /// `02` §2's <c>runCounter</c>: <c>Player.BeginRun()</c>'s return, which is the lifetime
+    /// runs-started counter <b>after</b> the increment. It is what makes two runs started in the same
+    /// second on the same chapter and tier draw different boards. ⚠️ Zero is <b>not</b> refused:
+    /// nothing in `02` §2 says the counter's first value is 1, and refusing 0 would be a claim the
+    /// documents do not authorise (steering S6). Only a negative counter is refused, because a count
+    /// that has gone below zero is not a count.
+    /// </param>
+    /// <returns>The run's committed seed. <c>Run.RunSeed</c> holds it and never recomputes it.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="chapterId"/> is below 1, <paramref name="tier"/> is not a defined
+    /// <see cref="DifficultyTier"/>, or <paramref name="runCounter"/> is negative.
+    /// </exception>
+    public static ulong RunSeed(
+        PlayerId playerId, int chapterId, DifficultyTier tier, DateTimeOffset nowUtc, long runCounter) =>
+        throw new NotImplementedException();
+
     /// <summary>
     /// 🔒 `14` §8.1 — <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>. Combat draw
     /// <c>i</c> of that battle is then <c>Hash64(battleSeed, "combat", i)</c>, which is
