@@ -29,7 +29,15 @@ public sealed class EffectResolverTests
         };
 
     private static ListEffectSource Source(EffectSourceKind kind, params EffectDefinition[] effects) =>
-        new(kind, effects);
+        ListEffectSource.Synthetic(kind, effects);
+
+    /// <summary>
+    /// One collected entry, for the tests that assert the comparer directly. The instance id is
+    /// deliberately the SAME for every entry: it is an identity key and plays no part in the
+    /// ordering, so a test that varied it could pass on the wrong component.
+    /// </summary>
+    private static CollectedEffect Collected(EffectDefinition effect, EffectSourceKind source, int index) =>
+        new(effect, EffectInstanceId.Of("holding"), source, index);
 
     /// <summary>The step-2 gate a test with no live fight uses: everything is active.</summary>
     private sealed class AllActive : IEffectConditionGate
@@ -42,9 +50,9 @@ public sealed class EffectResolverTests
     // ══════════════════════════════════════════════════════ step 1 — collection
 
     /// <summary>
-    /// 🔒 Step 1 collects from the ten declared sources, and from <b>nothing else</b>. Nine have no
-    /// data model yet, so an M2 build reaches the aggregation through one or two of them — which is
-    /// the correct end state, not a gap.
+    /// 🔒 Step 1 collects from the ten declared sources, and from <b>nothing else</b>. None has a
+    /// real data model yet, so an M2 build reaches the aggregation through whichever slots a caller
+    /// fills with a <c>ListEffectSource</c> — which is the correct end state, not a gap.
     /// </summary>
     [Fact]
     public void Step_1_collects_from_the_declared_sources_and_leaves_the_rest_empty()
@@ -97,6 +105,103 @@ public sealed class EffectResolverTests
         thrown.Message.ShouldContain("claim 18 §8 step 1's 'GEAR' slot", Case.Sensitive);
     }
 
+    /// <summary>
+    /// 🔒 <b>The holding survives the whole pass.</b> `18` §3's <c>everyNth</c> counters live on the
+    /// effect <em>instance</em>, and <c>TriggerRegistry.Register</c> refuses a duplicate — so a
+    /// consumer of a resolution pass must be able to tell two copies of one authored effect apart
+    /// without deriving an identity of its own.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The ordering pair <c>(Source, IndexInSource)</c> is <b>not</b> that identity: it is
+    /// per-pass and renumbers when the build changes, where an <c>EffectInstanceId</c> must survive
+    /// battle boundaries for <c>PK_MIDAS</c>. Both are asserted here so the two cannot be conflated.
+    /// </remarks>
+    [Fact]
+    public void The_holding_each_effect_came_from_survives_into_the_resolved_set()
+    {
+        var resolved = EffectResolver.Resolve(
+            EffectSourceSet.Of(
+                new ListEffectSource(EffectSourceKind.GEAR, new[]
+                {
+                    new SourcedEffect(Pct("AFF_KEEN", 0.05), EffectInstanceId.Of("gear:helm:affix0")),
+                    new SourcedEffect(Pct("AFF_KEEN", 0.05), EffectInstanceId.Of("gear:boots:affix0")),
+                })),
+            AllActive.Instance);
+
+        resolved.Active.Select(c => c.Instance.Value)
+                .ShouldBe(new[] { "gear:helm:affix0", "gear:boots:affix0" });
+
+        // 🔒 One authored id, two holdings — and the ordering pair is the OTHER key.
+        resolved.Active.Select(c => c.Effect.Id).ShouldBe(new[] { "AFF_KEEN", "AFF_KEEN" });
+        resolved.Active.Select(c => c.IndexInSource).ShouldBe(new[] { 0, 1 });
+    }
+
+    /// <summary>
+    /// 🔒 A source that reports an effect with <b>no</b> holding is refused by the collector, not
+    /// only by <c>ListEffectSource</c>'s constructor — <see cref="IEffectSource"/> is the extension
+    /// point ten later implementations satisfy.
+    /// </summary>
+    [Fact]
+    public void A_source_reporting_an_effect_with_no_holding_is_refused_by_the_collector()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(
+            () => EffectResolver.Resolve(
+                EffectSourceSet.Of(new UnnamedHoldingSource()), AllActive.Instance));
+
+        // S2 — which rule fired: the holding, not the effect and not the kind.
+        thrown.Message.ShouldContain("names no holding", Case.Sensitive);
+        thrown.Message.ShouldContain("AFF_UNHELD", Case.Sensitive);
+    }
+
+    /// <summary>A source built outside <c>ListEffectSource</c>, reporting a <c>default</c> holding.</summary>
+    private sealed class UnnamedHoldingSource : IEffectSource
+    {
+        public EffectSourceKind Kind => EffectSourceKind.AFFIXES;
+
+        public IReadOnlyList<SourcedEffect> Effects { get; } = new[]
+        {
+            new SourcedEffect(
+                new EffectDefinition { Id = "AFF_UNHELD", Op = EffectOp.STAT_ADD_PCT },
+                default),
+        };
+    }
+
+    /// <summary>
+    /// 🔒 A source whose kind is outside `18` §8 step 1's ten is refused <b>at the set</b>, not left
+    /// for <c>Collect</c> to walk past.
+    /// </summary>
+    /// <remarks>
+    /// <c>Collect</c> iterates the catalogue, so an out-of-catalogue source would be stored, never
+    /// visited and contribute nothing — silently, which is the precise failure
+    /// <c>EffectSourceSet</c>'s remarks say it exists to prevent. <c>ListEffectSource</c> validates in
+    /// its own constructor, but <see cref="IEffectSource"/> is the extension point for ten
+    /// implementations by seven later milestones and none of them is obliged to.
+    /// </remarks>
+    [Fact]
+    public void A_source_whose_kind_is_outside_the_ten_is_refused_rather_than_silently_skipped()
+    {
+        var thrown = Should.Throw<ArgumentOutOfRangeException>(
+            () => EffectSourceSet.Of(new StrayKindSource()));
+
+        thrown.Message.ShouldContain("ten sources", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// An <see cref="IEffectSource"/> that does <b>not</b> go through <c>ListEffectSource</c>'s
+    /// constructor check — the shape a later milestone's own implementation could take.
+    /// </summary>
+    private sealed class StrayKindSource : IEffectSource
+    {
+        public EffectSourceKind Kind => (EffectSourceKind)99;
+
+        public IReadOnlyList<SourcedEffect> Effects { get; } = new[]
+        {
+            new SourcedEffect(
+                new EffectDefinition { Id = "AFF_LOST", Op = EffectOp.STAT_ADD_PCT },
+                EffectInstanceId.Of("stray")),
+        };
+    }
+
     // ══════════════════════════════════════════════════════ R5 — collection order is immaterial
 
     /// <summary>
@@ -115,8 +220,8 @@ public sealed class EffectResolverTests
         var backwards = EffectResolver.Resolve(
             EffectSourceSet.Of(Source(EffectSourceKind.PERKS, perks.Reverse().ToArray())), AllActive.Instance);
 
-        forwards.Active.Select(e => e.Id).ShouldBe(new[] { "PK_A", "PK_B", "PK_C" });
-        backwards.Active.Select(e => e.Id).ShouldBe(new[] { "PK_A", "PK_B", "PK_C" });
+        forwards.ActiveDefinitions.Select(e => e.Id).ShouldBe(new[] { "PK_A", "PK_B", "PK_C" });
+        backwards.ActiveDefinitions.Select(e => e.Id).ShouldBe(new[] { "PK_A", "PK_B", "PK_C" });
     }
 
     /// <summary>
@@ -131,7 +236,7 @@ public sealed class EffectResolverTests
             EffectSourceSet.Of(Source(EffectSourceKind.PERKS, Pct("PK_A", 0.1), Pct("PKA", 0.2))),
             AllActive.Instance);
 
-        resolved.Active.Select(e => e.Id).ShouldBe(
+        resolved.ActiveDefinitions.Select(e => e.Id).ShouldBe(
             new[] { "PKA", "PK_A" },
             "ordinally '_' is U+005F and 'A' is U+0041, so PKA sorts first — a culture-aware " +
             "comparer puts PK_A first and a German phone and a Linux container disagree");
@@ -229,10 +334,10 @@ public sealed class EffectResolverTests
         // Step 1's index within the source is the second tiebreak, so the twenty come back in list
         // order and the last writer is index 19.
         resolved.Collected.Select(c => c.IndexInSource).ShouldBe(Enumerable.Range(0, 20));
-        resolved.Active.Select(e => e.Value).ShouldBe(shared.Select(e => e.Value));
+        resolved.ActiveDefinitions.Select(e => e.Value).ShouldBe(shared.Select(e => e.Value));
 
         var result = StatAggregation.Aggregate(
-            StatFixtures.Block((StatId.ATK, 100), (StatId.MAX_HP, 100)), resolved.Active,
+            StatFixtures.Block((StatId.ATK, 100), (StatId.MAX_HP, 100)), resolved.ActiveDefinitions,
             StatFixtures.Caps(), StatAggregationSeams.Strict);
 
         result.Final[StatId.MAX_HP].ShouldBe(
@@ -254,10 +359,10 @@ public sealed class EffectResolverTests
 
         var pairs = new[]
         {
-            (new CollectedEffect(same, EffectSourceKind.GEAR, 0),
-             new CollectedEffect(same, EffectSourceKind.PERKS, 0)),
-            (new CollectedEffect(same, EffectSourceKind.GEAR, 0),
-             new CollectedEffect(same, EffectSourceKind.GEAR, 1)),
+            (Collected(same, EffectSourceKind.GEAR, 0),
+             Collected(same, EffectSourceKind.PERKS, 0)),
+            (Collected(same, EffectSourceKind.GEAR, 0),
+             Collected(same, EffectSourceKind.GEAR, 1)),
         };
 
         foreach (var (left, right) in pairs)
@@ -268,7 +373,7 @@ public sealed class EffectResolverTests
         }
 
         // The one pair that IS equal: an effect compared with itself.
-        var self = new CollectedEffect(same, EffectSourceKind.GEAR, 0);
+        var self = Collected(same, EffectSourceKind.GEAR, 0);
         EffectResolutionOrder.Compare(self, self).ShouldBe(0);
     }
 
@@ -318,10 +423,10 @@ public sealed class EffectResolverTests
         var againstWounded = EffectResolver.Resolve(
             build, EffectTestBattle.Context(hero, hero, wounded) with { CurrentTarget = wounded });
 
-        againstHealthy.Active.Select(e => e.Id).ShouldBe(new[] { "PK_SHARP_EDGE" });
+        againstHealthy.ActiveDefinitions.Select(e => e.Id).ShouldBe(new[] { "PK_SHARP_EDGE" });
         againstHealthy.GatedOut.ShouldBe(new[] { "PK_EXECUTIONER" });
 
-        againstWounded.Active.Select(e => e.Id).ShouldBe(new[] { "PK_EXECUTIONER", "PK_SHARP_EDGE" });
+        againstWounded.ActiveDefinitions.Select(e => e.Id).ShouldBe(new[] { "PK_EXECUTIONER", "PK_SHARP_EDGE" });
         againstWounded.GatedOut.ShouldBeEmpty();
 
         // 🔒 Step 1 collected both in BOTH cases. Filtering is step 2's, and a source that
@@ -339,7 +444,7 @@ public sealed class EffectResolverTests
             EffectSourceSet.Of(Source(EffectSourceKind.PERKS, Pct("PK_SHARP_EDGE", 0.12))),
             EffectTestBattle.Context(hero, hero));
 
-        resolved.Active.ShouldHaveSingleItem().Id.ShouldBe("PK_SHARP_EDGE");
+        resolved.ActiveDefinitions.ShouldHaveSingleItem().Id.ShouldBe("PK_SHARP_EDGE");
     }
 
     /// <summary>
@@ -413,7 +518,7 @@ public sealed class EffectResolverTests
 
         // 🔒 Collected and gated like any other effect — 18 §8 step 1 is "all active effects", and
         //    WHEN each fires is the trigger layer's (M2-04), not step 1's.
-        resolved.Active.ShouldHaveSingleItem().Id.ShouldBe("PK_CLEAVE");
+        resolved.ActiveDefinitions.ShouldHaveSingleItem().Id.ShouldBe("PK_CLEAVE");
         EffectResolver.ActiveOfKind(resolved, TriggerKind.ALWAYS).ShouldBeEmpty();
     }
 
@@ -457,20 +562,25 @@ public sealed class EffectResolverTests
                 }),
         };
 
-        var gate = new EffectConditionGate(context);
+        // 🔒 The CONTEXT overload — the one a caller reaches for — and the gate it built comes back
+        //    on the result. Nothing here constructs a second gate, which is the whole claim.
         var resolved = EffectResolver.Resolve(
-            EffectSourceSet.Of(Source(EffectSourceKind.PERKS, conditional)), gate);
+            EffectSourceSet.Of(Source(EffectSourceKind.PERKS, conditional)), context);
 
-        resolved.Active.ShouldHaveSingleItem().Id.ShouldBe("PK_ARSENAL");
+        var gate = resolved.Gate;
+
+        resolved.ActiveDefinitions.ShouldHaveSingleItem().Id.ShouldBe("PK_ARSENAL");
 
         var seams = StatAggregationSeams.Strict with { Conditions = gate };
-        var result = StatAggregation.Aggregate(StatFixtures.Block((StatId.ATK, 100)), resolved.Active, StatFixtures.Caps(), seams);
+        var result = StatAggregation.Aggregate(
+            StatFixtures.Block((StatId.ATK, 100)), resolved.ActiveDefinitions, StatFixtures.Caps(), seams);
 
         result.Final[StatId.ATK].ShouldBe(103.0);
 
         // 🔒 And the refusal it replaced is real — proof this test is not passing for free.
         Should.Throw<NotSupportedException>(() => StatAggregation.Aggregate(
-            StatFixtures.Block((StatId.ATK, 100)), resolved.Active, StatFixtures.Caps(), StatAggregationSeams.Strict));
+            StatFixtures.Block((StatId.ATK, 100)), resolved.ActiveDefinitions, StatFixtures.Caps(),
+            StatAggregationSeams.Strict));
     }
 
     /// <summary>Runs `18` §8 end to end over a 100/100 base with everything active.</summary>
@@ -479,7 +589,7 @@ public sealed class EffectResolverTests
         var resolved = EffectResolver.Resolve(sources, AllActive.Instance);
 
         return StatAggregation.Aggregate(
-            StatFixtures.Block((StatId.ATK, 100), (StatId.MAX_HP, 100)), resolved.Active, StatFixtures.Caps(),
-            StatAggregationSeams.Strict);
+            StatFixtures.Block((StatId.ATK, 100), (StatId.MAX_HP, 100)), resolved.ActiveDefinitions,
+            StatFixtures.Caps(), StatAggregationSeams.Strict);
     }
 }

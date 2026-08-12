@@ -670,7 +670,8 @@ public static class CanonicalStateWriter
         }
 
         // 🔒 The one value where record equality and stateHash would disagree. It passes the
-        // rounding guard below untouched — Math.Round(-0.0, 4) is -0.0 — so it has to be named here.
+        // rounding guard below untouched — DeterminismRounding.Round(-0.0) is +0.0, which compares EQUAL to
+        // -0.0 — so it has to be named here.
         if (double.IsNegative(value) && value == 0.0)
         {
             throw new NotSupportedException(

@@ -62,14 +62,46 @@ internal readonly record struct StatDelta(StatId Stat, double Amount);
 /// the two different signatures.
 /// </para>
 /// <para>
-/// 🔒 <b>What would actually close it</b>, so the next attempt does not rediscover this. Not a move
-/// of the interface, but a move of its <b>vocabulary</b>: `05` §1's stat block and cap table would
-/// have to sit at or below <c>Rules.Effects</c>. That is a decision about where `05` §1 lives, not
-/// about where `18` §8 lives, and `30` §11.4 currently puts it in <c>Rules/Stats/</c> by name
-/// (<em>"Stats/ — 05 §1.1, 29"</em>). The consequence M2-03 recorded therefore stands and is not a
-/// defect: <see cref="StatOpBehaviour"/>'s plumbing is here while its arithmetic is with the other 41
-/// ops in <c>Rules/Effects/Ops/StatOps.cs</c>. The <em>other</em> consequence M2-03 recorded — a
-/// second statement of `05` §1.1's 4-dp rule in <c>OpRounding</c>, forced by the same layering — <b>is
+/// 🔒 <b>Two options WOULD close it, and neither is free. Recorded so the next attempt starts from
+/// here rather than rediscovering the wall.</b>
+/// </para>
+/// <list type="number">
+///   <item>
+///   <b>A read-only view seam, which is the pattern this codebase already uses one directory over.</b>
+///   <c>Rules/Effects/Ops/EffectOpSeams.cs</c> declares <c>IResolvedStatReader</c> for precisely this
+///   problem, with precisely this note: <em>"R17 forbids <c>Rules.Effects</c> naming
+///   <c>Rules.Stats</c>, so the op reads through this seam rather than through M2-07's
+///   <c>ActorStats</c> directly."</em> The same move works here — <see cref="Convert"/> could take a
+///   stat-block <em>view</em> and the cap members could take and return cap <em>views</em>, all named
+///   in <c>Content.Effects.StatId</c> — and then the whole interface and
+///   <see cref="StatOpBehaviour"/> move to <c>Rules/Effects/Ops/</c>. M2-02 chose against it on cost:
+///   it means three new view interfaces plus their implementations, in a task that owns `18` §8 steps
+///   1-2, to relocate an interface whose only consumer is <see cref="StatAggregation"/> — which sits
+///   on the legal side of R17 already. That is a judgement about scope, not an impossibility, and a
+///   later task with reason to touch this seam should reconsider it.
+///   </item>
+///   <item>
+///   <b>Moving the vocabulary.</b> `05` §1's stat block and cap table would sit at or below
+///   <c>Rules.Effects</c>. That is a decision about where `05` §1 lives rather than where `18` §8
+///   does, and `30` §11.4 puts it in <c>Rules/Stats/</c> by name (<em>"Stats/ — 05 §1.1, 29"</em>) —
+///   a locked-section change, not a mechanical edit.
+///   </item>
+/// </list>
+/// <para>
+/// ⚠️ <b>And the wall is smaller than it first looks.</b> Of the three types cited above,
+/// <see cref="StatDelta"/> is <em>not</em> a blocker — it is <c>(StatId, double)</c>, and
+/// <see cref="StatId"/> is <c>Content</c>, below both layers — so it could move today at zero cost.
+/// <see cref="HealCeilingFraction"/> is not a blocker either: its whole signature is
+/// <see cref="EffectDefinition"/> plus <see cref="IEffectValueReader"/>, and by this interface's own
+/// remarks it is <em>"not a `18` §8 step"</em> at all. Only <see cref="Convert"/>,
+/// <see cref="OverrideCaps"/> and <see cref="RedirectCappedExcess"/> genuinely name
+/// <see cref="ActorStats"/> or <see cref="StatCaps"/>.
+/// </para>
+/// <para>
+/// So the consequence M2-03 recorded stands for now and is not a defect:
+/// <see cref="StatOpBehaviour"/>'s plumbing is here while its arithmetic is with the other 41 ops in
+/// <c>Rules/Effects/Ops/StatOps.cs</c>. The <em>other</em> consequence M2-03 recorded — a second
+/// statement of `05` §1.1's 4-dp rule in <c>OpRounding</c>, forced by the same layering — <b>is
 /// closed</b>, by <c>Primitives.DeterminismRounding</c>: <c>Primitives</c> is beneath every layer that
 /// rounds, so it is reachable from both sides of R17 where <c>Rules.Stats</c> was not.
 /// </para>

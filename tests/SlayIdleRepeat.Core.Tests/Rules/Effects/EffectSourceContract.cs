@@ -7,7 +7,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>
 /// 🔒 The shared contract suite for <see cref="IEffectSource"/> — `18` §8 step 1's source
-/// abstraction. Every implementation is run through it, including the nine that M3 and M4 have not
+/// abstraction. Every implementation is run through it, including the ten that M3 and M4 have not
 /// written yet.
 /// </summary>
 /// <remarks>
@@ -46,11 +46,26 @@ public abstract class EffectSourceContract
     /// not name it. <c>RunStateViewContract</c> is the precedent.
     /// </remarks>
     private protected abstract IEffectSource Create(
-        EffectSourceKind kind, IReadOnlyList<EffectDefinition> effects);
+        EffectSourceKind kind, IReadOnlyList<SourcedEffect> effects);
 
     /// <summary>An effect with only the two keys M2-01 makes required.</summary>
     private protected static EffectDefinition Effect(string id, double? value = null) =>
         new() { Id = id, Op = EffectOp.STAT_ADD_PCT, Stat = StatSelector.Of(StatId.ATK), Value = value ?? 0.1 };
+
+    /// <summary>
+    /// One holding: an effect plus the <see cref="EffectInstanceId"/> its source reports it under.
+    /// </summary>
+    /// <remarks>
+    /// The default id is derived from the effect id and a discriminator rather than from the effect
+    /// id alone, because <c>Two_effects_with_one_id_are_both_reported</c> needs two holdings of ONE
+    /// authored effect and <c>EffectInstanceId</c> must be unique per holding.
+    /// </remarks>
+    private protected static SourcedEffect Held(EffectDefinition effect, string? holding = null) =>
+        new(effect, EffectInstanceId.Of(holding ?? $"slot:{effect.Id}"));
+
+    private protected static IReadOnlyList<SourcedEffect> Holdings(params EffectDefinition[] effects) =>
+        effects.Select((e, i) => Held(e, $"slot{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}:{e.Id}"))
+               .ToArray();
 
     /// <summary>The source reports the kind it was built for.</summary>
     [Fact]
@@ -58,7 +73,7 @@ public abstract class EffectSourceContract
     {
         foreach (var row in EffectSourceCatalogue.Rows)
         {
-            Create(row.Kind, Array.Empty<EffectDefinition>()).Kind.ShouldBe(row.Kind);
+            Create(row.Kind, Array.Empty<SourcedEffect>()).Kind.ShouldBe(row.Kind);
         }
     }
 
@@ -72,9 +87,9 @@ public abstract class EffectSourceContract
         // Deliberately NOT in id order: a source that quietly sorted would pass an in-order fixture.
         var source = Create(
             EffectSourceKind.GEAR,
-            new[] { Effect("AFF_Z"), Effect("AFF_A"), Effect("AFF_M") });
+            Holdings(Effect("AFF_Z"), Effect("AFF_A"), Effect("AFF_M")));
 
-        source.Effects.Select(e => e.Id).ShouldBe(new[] { "AFF_Z", "AFF_A", "AFF_M" });
+        source.Effects.Select(e => e.Effect.Id).ShouldBe(new[] { "AFF_Z", "AFF_A", "AFF_M" });
     }
 
     /// <summary>
@@ -86,23 +101,23 @@ public abstract class EffectSourceContract
     {
         var source = Create(
             EffectSourceKind.PERKS,
-            new[] { Effect("PK_C"), Effect("PK_A"), Effect("PK_B"), Effect("PK_A") });
+            Holdings(Effect("PK_C"), Effect("PK_A"), Effect("PK_B"), Effect("PK_A")));
 
-        var first = source.Effects.Select(e => e.Id).ToArray();
-        var second = source.Effects.Select(e => e.Id).ToArray();
+        var first = source.Effects.Select(e => e.Effect.Id).ToArray();
+        var second = source.Effects.Select(e => e.Effect.Id).ToArray();
 
         second.ShouldBe(first);
         first.ShouldBe(new[] { "PK_C", "PK_A", "PK_B", "PK_A" });
     }
 
     /// <summary>
-    /// 🔒 A source with nothing to contribute reports an <b>empty</b> list, never <c>null</c>. Nine
-    /// of the ten sources are in exactly this state for the whole of M2.
+    /// 🔒 A source with nothing to contribute reports an <b>empty</b> list, never <c>null</c>. Every
+    /// one of the ten is in exactly this state for the whole of M2 unless a caller fills it.
     /// </summary>
     [Fact]
     public void A_source_with_nothing_to_contribute_reports_an_empty_list()
     {
-        var source = Create(EffectSourceKind.MOUNT, Array.Empty<EffectDefinition>());
+        var source = Create(EffectSourceKind.MOUNT, Array.Empty<SourcedEffect>());
 
         source.Effects.ShouldNotBeNull();
         source.Effects.ShouldBeEmpty();
@@ -115,10 +130,50 @@ public abstract class EffectSourceContract
     [Fact]
     public void Two_effects_with_one_id_are_both_reported()
     {
-        var source = Create(EffectSourceKind.GEAR, new[] { Effect("AFF_KEEN", 0.05), Effect("AFF_KEEN", 0.07) });
+        var source = Create(EffectSourceKind.GEAR, Holdings(Effect("AFF_KEEN", 0.05), Effect("AFF_KEEN", 0.07)));
 
         source.Effects.Count.ShouldBe(2);
-        source.Effects.Select(e => e.Value).ShouldBe(new double?[] { 0.05, 0.07 });
+        source.Effects.Select(e => e.Effect.Value).ShouldBe(new double?[] { 0.05, 0.07 });
+    }
+
+    /// <summary>
+    /// 🔒 <b>Every reported effect names a holding.</b> <c>EffectInstanceId</c> is the effects layer's
+    /// one instance identity and this layer may never derive it — a source that left it blank would
+    /// give every instance one shared `18` §3 counter.
+    /// </summary>
+    [Fact]
+    public void Every_reported_effect_names_a_holding()
+    {
+        var source = Create(
+            EffectSourceKind.TALENTS, Holdings(Effect("TAL_A"), Effect("TAL_B"), Effect("TAL_C")));
+
+        var unnamed = source.Effects
+            .Where(e => !e.Instance.NamesAHolding)
+            .Select(e => $"'{e.Effect.Id}' is reported with no EffectInstanceId")
+            .ToArray();
+
+        unnamed.ShouldBeEmpty();
+
+        // 🔒 Floored: ShouldBeEmpty passes on an empty collection, so an implementation reporting
+        //    nothing at all would satisfy the assertion above (steering S3).
+        source.Effects.Count.ShouldBe(3);
+    }
+
+    /// <summary>
+    /// 🔒 <b>Two copies of one authored effect are two DIFFERENT holdings.</b> This is the rule
+    /// <c>EffectInstanceId</c> exists for: <c>TriggerRegistry.Register</c> refuses a duplicate, and a
+    /// source that keyed both copies on the effect id would give <c>PK_FLURRY</c> one shared counter
+    /// — firing on every 5th attack instead of every 5th <em>per copy</em>, which produces a
+    /// legal-looking fight and is wrong in the only number that matters.
+    /// </summary>
+    [Fact]
+    public void Two_copies_of_one_effect_are_two_distinct_holdings()
+    {
+        var source = Create(EffectSourceKind.GEAR, Holdings(Effect("AFF_KEEN"), Effect("AFF_KEEN")));
+
+        source.Effects.Count.ShouldBe(2);
+        source.Effects[0].Effect.Id.ShouldBe(source.Effects[1].Effect.Id, "one authored effect");
+        source.Effects[0].Instance.ShouldNotBe(source.Effects[1].Instance, "two holdings of it");
     }
 
     /// <summary>
@@ -128,13 +183,13 @@ public abstract class EffectSourceContract
     [Fact]
     public void Mutating_the_list_that_was_passed_in_does_not_change_the_source()
     {
-        var mutable = new List<EffectDefinition> { Effect("AFF_A") };
+        var mutable = new List<SourcedEffect> { Held(Effect("AFF_A")) };
         var source = Create(EffectSourceKind.AFFIXES, mutable);
 
-        mutable.Add(Effect("AFF_B"));
-        mutable[0] = Effect("AFF_REPLACED");
+        mutable.Add(Held(Effect("AFF_B")));
+        mutable[0] = Held(Effect("AFF_REPLACED"));
 
-        source.Effects.Select(e => e.Id).ShouldBe(new[] { "AFF_A" });
+        source.Effects.Select(e => e.Effect.Id).ShouldBe(new[] { "AFF_A" });
     }
 
     /// <summary>
@@ -155,7 +210,7 @@ public abstract class EffectSourceContract
         typeof(IEffectSource).GetMethods().Length.ShouldBe(
             2,
             "18 §8 step 1 asks a source for two things and no more: which of the ten it is, and what " +
-            "it contributes. A third member is a widening that the nine unwritten implementations " +
+            "it contributes. A third member is a widening that the ten unwritten implementations " +
             "would inherit.");
     }
 }
@@ -166,7 +221,7 @@ public abstract class EffectSourceContract
 public sealed class ListEffectSourceContractTests : EffectSourceContract
 {
     private protected override IEffectSource Create(
-        EffectSourceKind kind, IReadOnlyList<EffectDefinition> effects) =>
+        EffectSourceKind kind, IReadOnlyList<SourcedEffect> effects) =>
         new ListEffectSource(kind, effects);
 
     /// <summary>
@@ -177,7 +232,8 @@ public sealed class ListEffectSourceContractTests : EffectSourceContract
     public void A_null_effect_is_refused_at_construction()
     {
         var thrown = Should.Throw<ArgumentException>(
-            () => new ListEffectSource(EffectSourceKind.GEAR, new[] { Effect("AFF_A"), null! }));
+            () => new ListEffectSource(
+                EffectSourceKind.GEAR, new[] { Held(Effect("AFF_A")), new SourcedEffect(null!, EffectInstanceId.Of("x")) }));
 
         // S2 — the index is the identity: "something was null" would not say which slot.
         thrown.Message.ShouldContain("element 1", Case.Sensitive);
@@ -191,7 +247,7 @@ public sealed class ListEffectSourceContractTests : EffectSourceContract
     public void A_kind_outside_18_8_step_1s_ten_is_refused()
     {
         var thrown = Should.Throw<ArgumentOutOfRangeException>(
-            () => new ListEffectSource((EffectSourceKind)99, Array.Empty<EffectDefinition>()));
+            () => new ListEffectSource((EffectSourceKind)99, Array.Empty<SourcedEffect>()));
 
         thrown.Message.ShouldContain("ten sources", Case.Sensitive);
     }

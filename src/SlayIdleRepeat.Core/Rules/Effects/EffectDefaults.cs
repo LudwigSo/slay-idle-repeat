@@ -72,9 +72,25 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// row that states a default states this one. Against it stands a concrete cost — under "refuse", `18`
 /// §7.4, §7.5, §7.6 and §9.1 are all unresolvable as written, which means four of the document's own
 /// worked examples do not run. A rule that makes the spec's examples fail is the weaker reading.
-/// The genuine protection against a mis-targeted offensive clause is
+/// </para>
+/// <para>
+/// 🔴 <b>THE RISK THIS LEAVES OPEN, and it is genuinely open — do not read the paragraph above as
+/// though something else caught it.</b> The right home for an authoring guard is
 /// <c>game-data/schema/effect.schema.json</c>, which partitions the 43 ops into key shapes and is
-/// `18` §10's stated place for exactly that kind of authoring guard.
+/// `18` §10's stated place for one. <b>It does not carry this guard today.</b> No <c>required</c>
+/// array in that file names <c>target</c>, so <c>{"op":"DAMAGE","value":0.8}</c> validates, and
+/// under this ruling it now resolves against the holder instead of being refused. An earlier draft
+/// of this remark claimed the schema was the protection; that claim was false and is corrected here.
+/// </para>
+/// <para>
+/// 🔒 <b>Why M2-02 did not simply add it.</b> The <c>required</c> array that would have to change
+/// (<c>"18 §2.2 — DAMAGE / DAMAGE_TRUE / DAMAGE_MAXHP_PCT / HEAL / HEAL_LEECH / REFLECT"</c>) covers
+/// <c>HEAL</c> and <c>HEAL_LEECH</c> as well, and those legitimately mean the holder when untargeted
+/// — so the guard needs the group split before it can be stated, which is a change to `18` §10's op
+/// partition rather than a one-line edit. And the schema is shared content that a concurrently
+/// running task is authoring against; changing its validity rules mid-wave is how one branch breaks
+/// another's data at merge (steering S12). Recorded as the follow-up, in the file the ruling lives
+/// in, rather than done badly here.
 /// </para>
 /// <para>
 /// ⚠️ <b>Consequence, stated so it is a decision rather than a discovery.</b>
@@ -96,6 +112,14 @@ internal static class EffectDefaults
     /// <em>"—"</em>.
     /// </remarks>
     internal static EffectTrigger Always { get; } = new() { Kind = TriggerKind.ALWAYS };
+
+    // ⚠️ TriggerOf and IsAlwaysActive have no PRODUCTION caller yet, and that is stated rather than
+    //    left to be discovered. They are ruling 1 in the two shapes its consumers need: M2-08's tick
+    //    loop registers each collected effect with M2-04's TriggerRegistry, which needs a non-null
+    //    EffectTrigger (TriggerOf), and `18` §1.1's "re-evaluated at every resolution pass for
+    //    ALWAYS effects" needs the predicate (IsAlwaysActive). Declaring both here is what stops
+    //    each of those tasks answering the ruling for itself; the alternative — waiting — is how one
+    //    ruling becomes two implementations.
 
     /// <summary>🔒 Ruling 2 — the target an effect with none resolves against: `18` §5's <c>SELF</c>.</summary>
     internal const EffectTarget AbsentTarget = EffectTarget.SELF;

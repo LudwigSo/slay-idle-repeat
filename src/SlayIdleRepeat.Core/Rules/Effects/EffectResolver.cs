@@ -10,8 +10,10 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// effect's <see cref="CollectedEffect.Source"/> and index, which is what makes the order total.
 /// </param>
 /// <param name="Active">
-/// 🔒 The effects that survived step 2, in the same order — <b>the list `18` §8 steps 3-10 consume</b>,
-/// ready to hand to <c>StatAggregation.Aggregate</c>.
+/// 🔒 The <b>collected entries</b> that survived step 2, in the same order — each still carrying its
+/// <see cref="CollectedEffect.Instance"/>, which is the identity M2-08's <c>TriggerRegistry</c> needs
+/// and must not derive. Use <see cref="ResolvedEffects.ActiveDefinitions"/> for the bare list
+/// <c>StatAggregation.Aggregate</c> takes.
 /// </param>
 /// <param name="GatedOut">
 /// The ids step 2 removed, in the same order. Reported rather than dropped, on
@@ -19,10 +21,41 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// vanished because its condition read false is behaving correctly, and a build whose every perk
 /// vanished is a bug — and without this the two look identical from outside.
 /// </param>
+/// <param name="Gate">
+/// 🔒 <b>The step-2 gate this pass used</b> — handed back so that the caller gives
+/// <c>StatAggregation</c> the <em>same</em> one. See <see cref="EffectResolver"/>'s remarks: `18` §8
+/// step 2 is asked twice per pass and the two must not be able to answer differently. Returning it
+/// is what makes that structural rather than a convention the next caller can miss.
+/// </param>
 internal sealed record ResolvedEffects(
     IReadOnlyList<CollectedEffect> Collected,
-    IReadOnlyList<EffectDefinition> Active,
-    IReadOnlyList<string> GatedOut);
+    IReadOnlyList<CollectedEffect> Active,
+    IReadOnlyList<string> GatedOut,
+    IEffectConditionGate Gate)
+{
+    /// <summary>
+    /// The step-2 survivors as bare definitions, in `18` §8's resolution order — the argument
+    /// <c>StatAggregation.Aggregate</c> takes for steps 3-10.
+    /// </summary>
+    /// <remarks>
+    /// A projection rather than a second stored list: the order is <see cref="Active"/>'s, and two
+    /// stored copies of one ordering is two things that can disagree.
+    /// </remarks>
+    internal IReadOnlyList<EffectDefinition> ActiveDefinitions
+    {
+        get
+        {
+            var definitions = new EffectDefinition[Active.Count];
+
+            for (var i = 0; i < Active.Count; i++)
+            {
+                definitions[i] = Active[i].Effect;
+            }
+
+            return definitions;
+        }
+    }
+}
 
 /// <summary>
 /// 🔒 `18` §8 <b>steps 1 and 2</b> — <em>"collect all active effects from [ten sources] · filter by
@@ -71,11 +104,11 @@ internal sealed record ResolvedEffects(
 /// ⚠️ <b>Step 2 is applied to the whole op set here, and again to the stat ops by
 /// <c>StatAggregation</c>.</b> That is M2-07's stated design — its method must be correct when called
 /// on its own, which the balance harness does — and its remarks require the two evaluations to agree.
-/// <see cref="Resolve(EffectSourceSet, EffectEvaluationContext)"/> makes that structural rather than
-/// disciplinary: it builds one <see cref="EffectConditionGate"/> over the context and exposes it, so
-/// the caller hands <em>the same gate</em> to the aggregation and the second step 2 cannot answer
-/// differently from the first. `18` §4's functions are pure, so the repeat evaluation costs the call
-/// and nothing else.
+/// Both overloads therefore hand the gate back on <see cref="ResolvedEffects.Gate"/>, so the
+/// composition is
+/// <c>StatAggregationSeams.Strict with { Conditions = resolved.Gate }</c> and the second step 2
+/// <em>cannot</em> answer differently from the first. `18` §4's functions are pure, so the repeat
+/// evaluation costs the call and nothing else.
 /// </para>
 /// <para>
 /// ⚠️ <b>What step 1 does NOT do: default a trigger, resolve a target, read a value or fire
@@ -118,11 +151,11 @@ internal static class EffectResolver
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(gate);
 
-        // ── Step 1 · collect, in `18` §8 step 1's ten-source order …
+        // ── Step 1 · collect in `18` §8 step 1's ten-source order, then sort — so that the order
+        //    the effects arrived in cannot reach anything downstream (R5).
         var collected = EffectResolutionOrder.Sort(sources.Collect());
 
-        // … and then sort, so that collection order cannot reach anything downstream (R5).
-        var active = new List<EffectDefinition>(collected.Count);
+        var active = new List<CollectedEffect>(collected.Count);
         var gatedOut = new List<string>();
 
         // ── Step 2 · filter by condition, evaluated against current state.
@@ -130,7 +163,7 @@ internal static class EffectResolver
         {
             if (gate.IsActive(entry.Effect))
             {
-                active.Add(entry.Effect);
+                active.Add(entry);
             }
             else
             {
@@ -138,7 +171,7 @@ internal static class EffectResolver
             }
         }
 
-        return new ResolvedEffects(collected, active, gatedOut);
+        return new ResolvedEffects(collected, active, gatedOut, gate);
     }
 
     /// <summary>
@@ -157,11 +190,11 @@ internal static class EffectResolver
 
         var matching = new List<EffectDefinition>();
 
-        foreach (var effect in resolved.Active)
+        foreach (var entry in resolved.Active)
         {
-            if (EffectDefaults.TriggerKindOf(effect) == kind)
+            if (EffectDefaults.TriggerKindOf(entry.Effect) == kind)
             {
-                matching.Add(effect);
+                matching.Add(entry.Effect);
             }
         }
 

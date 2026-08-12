@@ -7,18 +7,36 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// index within that source.
 /// </summary>
 /// <param name="Effect">The authored effect.</param>
+/// <param name="Instance">
+/// 🔒 The holding it came from — <see cref="EffectInstanceId"/>, supplied by the source. Carried
+/// through so that a consumer of a resolution pass (M2-08's <c>TriggerRegistry</c>) has the identity
+/// `18` §3's per-instance counters need, without deriving one.
+/// </param>
 /// <param name="Source">Which of `18` §8 step 1's ten sources contributed it.</param>
 /// <param name="IndexInSource">
 /// Its position in <see cref="IEffectSource.Effects"/> — the second half of
 /// <see cref="EffectResolutionOrder"/>'s tiebreak.
 /// </param>
 /// <remarks>
+/// <para>
 /// 🔒 <b>The provenance is carried, not discarded, and it is not a log label.</b> It is what makes
 /// the resolution order <b>total</b>; see <see cref="EffectResolutionOrder"/> for the ruling and why
 /// the alternative — rewriting ids to be instance-unique — was rejected.
+/// </para>
+/// <para>
+/// 🔒 <b>TWO KEYS, and they answer different questions.</b> <see cref="Instance"/> is <em>identity</em>:
+/// which holding this is, stable across battle boundaries, refused as a duplicate by
+/// <c>TriggerRegistry.Register</c>. <see cref="Source"/> plus <see cref="IndexInSource"/> is
+/// <em>ordering</em>: where this copy sits in `18` §8 step 1's walk, valid for one resolution pass,
+/// and renumbered the moment the build gains a gear slot. Using the ordering pair as an identity
+/// would restart <c>PK_MIDAS</c>'s run-scoped counter on every re-equip; using the identity as an
+/// ordering key would put an authored string back into `18` §8's sort. <see cref="EffectInstanceId"/>
+/// is explicit that it is the effects layer's <b>one</b> identity, and this record does not add a
+/// second.
+/// </para>
 /// </remarks>
 internal readonly record struct CollectedEffect(
-    EffectDefinition Effect, EffectSourceKind Source, int IndexInSource);
+    EffectDefinition Effect, EffectInstanceId Instance, EffectSourceKind Source, int IndexInSource);
 
 /// <summary>
 /// 🔒 <b>`18` §8's effect-id order, made <em>total</em>.</b> Primary key: the ascending ordinal order
@@ -76,8 +94,15 @@ internal readonly record struct CollectedEffect(
 /// </remarks>
 internal static class EffectResolutionOrder
 {
-    /// <summary>🔒 The one comparer for collected effects. Total.</summary>
-    internal static IComparer<CollectedEffect> Comparer { get; } = new TotalOrder();
+    /// <summary>
+    /// 🔒 The one comparer for collected effects. Total.
+    /// </summary>
+    /// <remarks>
+    /// <c>private</c>: <see cref="Sort"/> is the only caller, and a comparer exposed without a sort
+    /// is an invitation to order effects somewhere else by some other rule. <see cref="Compare"/> is
+    /// <c>internal</c> so the totality can be asserted directly, which is the one thing a test needs.
+    /// </remarks>
+    private static IComparer<CollectedEffect> Comparer { get; } = new TotalOrder();
 
     /// <summary>The collected effects in `18` §8's resolution order.</summary>
     internal static IReadOnlyList<CollectedEffect> Sort(IEnumerable<CollectedEffect> collected)

@@ -105,7 +105,7 @@ public sealed class EffectSourceCatalogueTests
         offenders.ShouldBeEmpty();
 
         // 🔒 Floored, or the assertion above passes over an empty set the day somebody marks every
-        //    source available (steering S3). Nine of the ten are pending as M2-02 lands; the floor is
+        //    source available (steering S3). ALL TEN are pending as M2-02 lands; the floor is
         //    below that so wiring one is not a test edit, and the day it reaches zero this fails and
         //    whoever wired the last source has to delete this rule deliberately.
         EffectSourceCatalogue.Rows.Count(r => r.IsPending).ShouldBeGreaterThanOrEqualTo(

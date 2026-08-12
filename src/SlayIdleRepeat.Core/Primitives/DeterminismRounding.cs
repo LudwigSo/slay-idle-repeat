@@ -16,8 +16,14 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// <c>Rules/Effects/Ops/OpRounding</c>, <c>Content/Effects/ValueScale</c>,
 /// <c>Rules/Effects/Conditions/ConditionEvaluator</c> and two in <c>Rules/Effects/Triggers/</c> —
 /// plus two guard sites (<c>CanonicalStateWriter</c>, <c>CombatLog</c>) restating the predicate. Each
-/// was written correctly and independently, and each was a place the <c>4</c> or the trailing
-/// <c>+ 0.0</c> could drift. M2-03 recorded the duplication it could see and named the fix:
+/// was written independently, and each was a place the <c>4</c>, the midpoint mode or the trailing
+/// <c>+ 0.0</c> could drift. <b>Two of the six had already drifted:</b>
+/// <c>Rules/Effects/Triggers/TriggerInstance</c> and <c>TriggerRouting</c> rounded without the
+/// <c>+ 0.0</c>, so a <c>-0.0</c> survived them — unobservable in the first (its result is only
+/// compared with <c>&gt;</c>) and reaching <c>IRunEffectSink</c> in the second, where <c>CombatLog</c>
+/// would have refused it later, naming the log rather than the trigger. Consolidating them normalises
+/// both. That is the strongest single argument for this type existing and it is recorded rather than
+/// smoothed over. M2-03 recorded the duplication it could see and named the fix:
 /// <em>"a shared primitive under <c>Core.Primitives</c> is the real fix and belongs with M2-02's
 /// relocation of the `18` seams out of <c>Rules/Stats/</c>."</em> This is it.
 /// </para>
@@ -80,9 +86,18 @@ internal static class DeterminismRounding
     /// <see cref="Decimals"/> places, and not a negative zero.
     /// </summary>
     /// <remarks>
-    /// The predicate <c>ActorStats</c>, <c>CanonicalStateWriter</c> and <c>CombatLog</c> guard with.
+    /// The predicate <c>ActorStats</c> and <c>StatCaps</c> guard with, through
+    /// <c>StatRounding.IsRounded</c>.
+    /// <para>
+    /// ⚠️ <c>CanonicalStateWriter</c> and <c>CombatLog</c> do <b>not</b> use it, and the asymmetry is
+    /// deliberate: they state the NaN, the infinity, the negative zero and the unrounded value as
+    /// four separate arms so that each carries its own message (steering S2). Their rounding arm is
+    /// <c>Round(v) != v</c>, which is exactly equivalent to this predicate's third clause.
+    /// </para>
+    /// <para>
     /// NaN answers <c>false</c> — deliberately, since <c>Math.Round(NaN, 4) != NaN</c> and a NaN is
     /// exactly the value that must not be waved through.
+    /// </para>
     /// </remarks>
     internal static bool IsRounded(double value) =>
         double.IsFinite(value) &&

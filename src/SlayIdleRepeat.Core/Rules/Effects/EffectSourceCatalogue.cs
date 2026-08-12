@@ -31,12 +31,15 @@ internal sealed record EffectSourceRow(
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Nine of the ten have no data model, and none of them is stubbed.</b> Gear, affixes and set
+/// 🔒 <b>NONE of the ten has a data model, and none of them is stubbed.</b> Gear, affixes and set
 /// bonuses are M4-03; talents M4-06; pet auras M4-07; the mount M4-08; run buffs M3-08; shrine buffs
 /// and curses M3-11; perks M3-07. Steering S6 forbids filling a hole with a plausible value, and a
-/// plausible <c>GearItem</c> here would be nine invented shapes that nine later milestones would each
+/// plausible <c>GearItem</c> here would be ten invented shapes that seven later milestones would each
 /// have to find and delete. So the correct end state today is exactly what this is: <b>a collector
-/// that enumerates ten declared sources, of which one or two can currently yield anything.</b>
+/// that enumerates ten declared sources, none of which a real build can yet fill.</b> What CAN fill a
+/// slot is <c>ListEffectSource</c> — the degenerate implementation `05` §9's balance harness and the
+/// tests hand synthetic builds through — which is why the pipeline is testable end to end today
+/// without a single stub of gear, of a perk or of a draft.
 /// </para>
 /// <para>
 /// 🔒 <b>What is declared instead of stubbed.</b> A source is a name, a position in §8 step 1's
@@ -51,7 +54,7 @@ internal sealed record EffectSourceRow(
 /// 🔒 <b>Two floors, and they watch different things (steering S3).</b>
 /// <c>EffectSourceCatalogueTests.The_ten_sources_are_18_8_step_1_in_its_own_order</c> rebuilds §8 step
 /// 1's sentence from <see cref="EffectSourceRow.Phrase"/> and compares it with the literal quotation,
-/// so a dropped or reordered row fails against the <em>document</em>. Nine
+/// so a dropped or reordered row fails against the <em>document</em>. Ten
 /// <c>SubjectSetFloorTests.Pending</c> entries — one per absent source, keyed on
 /// <see cref="EffectSourceRow.PendingSubject"/> — fail on the day that source's type
 /// <em>arrives</em>, which is when somebody has to come back here and wire it.
@@ -63,7 +66,18 @@ internal sealed record EffectSourceRow(
 /// so on). If the owning milestone picks another name, the correct action is to <b>rename</b> the
 /// <c>Pending</c> entry rather than delete it — the subject being tracked is "this source now has
 /// something to collect from", not the string. The inbound path is stated here, in production code,
-/// because a note addressed to M4-03 is worthless in a test file M4-03 will never open.
+/// because a note addressed to M4-03 is worthless in a test file M4-03 will never open. And the two
+/// halves are no longer joined by prose alone: <c>EffectSourceDeferralRuleTests</c> reads these ten
+/// literals out of this type's IL and fails when one of them is tracked by no register entry.
+/// </para>
+/// <para>
+/// ⚠️ <b>The ten names use two spellings, and that is a per-source guess rather than a convention
+/// claim.</b> Three carry <c>Definition</c> (<c>PetDefinition</c>, <c>MountDefinition</c>,
+/// <c>PerkDefinition</c>) because `07` and `06` call those things definitions in prose and
+/// <see cref="Content.Effects.EffectDefinition"/> is the repo's one precedent; seven do not, because
+/// `08` §2 calls a gear item an item and `09` calls a talent a node. If a milestone's real name
+/// differs, <b>rename the register entry</b> — the guess being wrong is expected and cheap, the
+/// deferral going untracked is neither.
 /// </para>
 /// </remarks>
 internal static class EffectSourceCatalogue

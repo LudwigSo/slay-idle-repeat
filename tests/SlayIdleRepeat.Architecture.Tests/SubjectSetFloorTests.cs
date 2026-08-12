@@ -387,33 +387,27 @@ public sealed class SubjectSetFloorTests
         // primitive, and carries its own S3 floor. A tracked NAME could only ever have caught the
         // duplication being removed; the rule catches a seventh being added.
 
-        // 🔴 REWRITTEN, not deleted — the relocation this entry waited for is IMPOSSIBLE, and that
-        // is M2-02's finding rather than its omission.
+        // 🔴 ALSO DELETED — `IStatOpBehaviour`. Not because the deferral was discharged (it was not),
+        // but because this register is the wrong home for it, by this file's own stated filter.
         //
-        // The entry read: "M2-02 owns the relocation that closes the split." Its two siblings —
-        // IEffectConditionGate and IEffectValueReader — DID move to Rules/Effects/, because
-        // EffectDefinition is their whole signature and `Content` is below both layers. This one
-        // cannot: IStatOpBehaviour.Convert takes an ActorStats, OverrideCaps takes and returns a
-        // StatCaps, and both convert-shaped members return StatDelta — three Rules.Stats types.
-        // Moving the interface DOWN to Rules.Effects would make the bottom layer name the one above
-        // it, which is the exact edge IntraRulesLayeringRuleTests forbids. R17 is what was cited to
-        // require the move and is what blocks it; the two are the same rule read on two signatures.
+        // The entry read: "M2-02 owns the relocation that closes the split." M2-02 attempted it and
+        // found R17 forbids it: Convert takes an ActorStats and OverrideCaps takes and returns a
+        // StatCaps, so moving the interface DOWN to Rules.Effects would make the bottom layer name
+        // the one above it. R17 is both what was cited to require the move and what blocks it.
         //
-        // ⚠️ So the split M2-03 recorded — StatOpBehaviour's plumbing in Rules/Stats/ while its
-        // arithmetic sits with the other 41 ops in Rules/Effects/Ops/StatOps.cs — STANDS, and is not
-        // a defect awaiting a tidy-up. What would actually close it is a move of the VOCABULARY, not
-        // of the interface: `05` §1's stat block and cap table would have to sit at or below
-        // Rules.Effects, which is a decision about where `05` §1 lives and contradicts `30` §11.4's
-        // own tree ("Stats/ — 05 §1.1, 29"). That is a locked-section change, not a mechanical edit.
+        // ⚠️ THAT FINDING IS NOT LOST — it is in PRODUCTION CODE, in StatAggregationSeams.cs's
+        // remarks on the interface itself, with the two designs that WOULD close it (a read-only
+        // view seam on IResolvedStatReader's precedent; or moving `05` §1's vocabulary) and why
+        // M2-02 chose neither. That is where the next reader of the interface will actually look,
+        // and it is the same argument this file makes for EffectSourceCatalogue's inbound path.
         //
-        // The entry stays because the deferral is NOT discharged: it is still true that one
-        // interface's implementation is split across two namespaces, and a rename or deletion of the
-        // interface should still bring somebody back to this note.
-        new("IStatOpBehaviour", SubjectKind.CoreType, "M2-07",
-            "SlayIdleRepeat.Core.Rules.Stats.StatOpBehaviour, which implements it where it sits " +
-            "rather than with the other 41 ops (R17). ⚠️ M2-02 attempted the relocation M2-03 " +
-            "expected to close this and found R17 forbids it — see the note above this entry. " +
-            "Closing it needs a ruling on where `05` §1's stat block lives, not a file move"),
+        // 🔒 Why not keep the entry as well: `Live` exists for subjects whose SILENT disappearance
+        // would leave a rule vacuous, and this file says so itself thirty lines up — "most of M2-04's
+        // types are named in C# by the tests that cover them, so a rename is a compile error rather
+        // than a silent vacuity and an entry here would buy nothing but DILUTION". IStatOpBehaviour
+        // is named in C# by production code (StatAggregationSeams' record), so renaming or deleting
+        // it is a compile error across the solution, and no namespace-filtered rule keys on it, so a
+        // MOVE costs nothing either. The entry could never fire for the reason Live entries exist.
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

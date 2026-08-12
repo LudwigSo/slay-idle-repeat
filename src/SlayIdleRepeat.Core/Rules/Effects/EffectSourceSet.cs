@@ -17,10 +17,10 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// one, and step 1 is the step whose whole content is <em>which</em> sources.
 /// </para>
 /// <para>
-/// ⚠️ <b>Nine of the ten cannot be supplied today</b>, because their data models do not exist — see
+/// ⚠️ <b>None of the ten can be supplied from a real build today</b>, because no data model exists — see
 /// <see cref="EffectSourceCatalogue"/> for the milestone that lands each and the
 /// <c>SubjectSetFloorTests.Pending</c> entry that fires when it does. An empty set is therefore the
-/// normal state in M2, and <see cref="Collect"/> returning nothing from nine slots is the correct
+/// normal state in M2, and <see cref="Collect"/> returning nothing from an unfilled slot is the correct
 /// answer rather than a gap.
 /// </para>
 /// <para>
@@ -45,6 +45,9 @@ internal sealed class EffectSourceSet
     /// <exception cref="ArgumentException">
     /// Two sources claim the same kind, or an element is <c>null</c>.
     /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A source's kind is outside `18` §8 step 1's ten.
+    /// </exception>
     internal static EffectSourceSet Of(params IEffectSource[] sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
@@ -54,6 +57,14 @@ internal sealed class EffectSourceSet
         foreach (var source in sources)
         {
             ArgumentNullException.ThrowIfNull(source, nameof(sources));
+
+            // 🔒 Refused HERE, not left to Collect(). Collect walks the catalogue, so a source
+            //    carrying a kind outside `18` §8 step 1's ten would be stored, never visited, and
+            //    contribute nothing — silently, which is the exact failure this type's remarks say
+            //    it exists to prevent. ListEffectSource validates in its own constructor, but the
+            //    interface is the extension point for ten implementations by seven milestones and
+            //    none of them is obliged to.
+            _ = EffectSourceCatalogue.RowFor(source.Kind);
 
             if (!byKind.TryAdd(source.Kind, source))
             {
@@ -98,7 +109,7 @@ internal sealed class EffectSourceSet
         var collected = new List<CollectedEffect>();
 
         // 🔒 Over the CATALOGUE, not over _sources. The catalogue is `18` §8 step 1's ten in its own
-        //    order; iterating the dictionary would be both incomplete (nine slots absent today) and
+        //    order; iterating the dictionary would be both incomplete (most slots absent today) and
         //    hash-ordered, which is exactly the device-dependence §8 exists to remove.
         foreach (var row in EffectSourceCatalogue.Rows)
         {
@@ -114,12 +125,25 @@ internal sealed class EffectSourceSet
 
             for (var i = 0; i < effects.Count; i++)
             {
-                var effect = effects[i] ?? throw new InvalidOperationException(
-                    $"element {i.ToString(System.Globalization.CultureInfo.InvariantCulture)} of the " +
-                    $"{row.Kind} source is null. The resolution order is stated over effect ids and a " +
-                    "hole has none.");
+                var position = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-                collected.Add(new CollectedEffect(effect, row.Kind, i));
+                var effect = effects[i].Effect ?? throw new InvalidOperationException(
+                    $"element {position} of the {row.Kind} source has a null effect. The resolution " +
+                    "order is stated over effect ids and a hole has none.");
+
+                // 🔒 Checked here as well as in ListEffectSource's constructor: IEffectSource is the
+                //    extension point ten later implementations satisfy, and an unnamed holding makes
+                //    every instance share one `18` §3 counter — silently, in the direction that looks
+                //    like it works.
+                if (!effects[i].Instance.NamesAHolding)
+                {
+                    throw new InvalidOperationException(
+                        $"element {position} of the {row.Kind} source ('{effect.Id}') names no holding. " +
+                        "EffectInstanceId is the effects layer's one instance identity and a 18 §8 " +
+                        "step 1 source is the layer that knows one — see SourcedEffect.");
+                }
+
+                collected.Add(new CollectedEffect(effect, effects[i].Instance, row.Kind, i));
             }
         }
 

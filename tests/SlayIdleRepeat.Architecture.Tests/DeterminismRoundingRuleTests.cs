@@ -49,10 +49,15 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   an indirected one is invisible. This is the same class of hole
 ///   <c>IntraRulesLayeringRuleTests</c> records for a <c>const</c>, and it is narrow for the same
 ///   reason: nobody indirects a rounding precision by accident.</item>
-///   <item><c>decimal.Round</c>, <c>Math.Round(decimal, int)</c> and
-///   <c>double.Round</c>. `05` §1.1 says <em>"all combat math uses <c>double</c>"</em> and
-///   <c>Content</c>'s decimals are authored values, not accumulation points — but a decimal
-///   accumulation point would be outside this scan.</item>
+///   <item><c>decimal.Round(d, 4)</c> and <c>double.Round(x, 4)</c> — the static members on the
+///   <em>numeric types</em> rather than on <see cref="Math"/>. ⚠️ <c>Math.Round(decimal, int)</c> is
+///   <b>not</b> a hole and an earlier draft listed it as one: its declaring type is
+///   <c>System.Math</c> and its second parameter is an <c>Int32</c>, so the scan catches it like any
+///   other overload. `05` §1.1 says <em>"all combat math uses <c>double</c>"</em> and <c>Content</c>'s
+///   decimals are authored values rather than accumulation points, so neither hole bites today.</item>
+///   <item>The precision literal is sought at the two instructions before the call, which covers both
+///   overloads as Roslyn emits them. A mode argument computed rather than pushed — a conditional
+///   expression, a local — moves the literal further back and slips through.</item>
 ///   <item>Hand-rolled rounding — <c>Math.Floor(x * 10000 + 0.5) / 10000</c>. It is a different
 ///   <em>rule</em> (away-from-zero rather than to-even) and would produce a divergence this rule
 ///   would not name. <see cref="No_production_code_hand_rolls_a_4_dp_rounding_out_of_10000"/> closes
@@ -132,12 +137,20 @@ public sealed class DeterminismRoundingRuleTests
     }
 
     /// <summary>
-    /// 🔒 The <c>× 10000</c> spelling of the same rule. It is not <c>Math.Round</c>, so the rule above
-    /// cannot see it, and it rounds <b>away from zero</b> where `05` §1.1's
-    /// <c>Math.Round(x, 4)</c> rounds <b>to even</b> — so the two disagree at exactly the midpoints
-    /// M2-03's <c>OpRoundingTests</c> pins (<c>1.00005</c> is <c>1.0000</c> to even and
-    /// <c>1.0001</c> away from zero).
+    /// 🔒 `05` §1.1 — the <c>× 10000</c> spelling of the same rule. It is not <c>Math.Round</c>, so
+    /// the rule above cannot see it, and <c>Math.Floor(x * 10000 + 0.5) / 10000</c> rounds <b>away
+    /// from zero</b> where `05` §1.1's <c>Math.Round(x, 4)</c> rounds <b>to even</b> — so the two
+    /// disagree at every exactly-representable midpoint, which at four places is every value whose
+    /// fifth decimal digit is a 5 and whose binary expansion terminates there.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b><c>1.00005</c> is NOT such a value</b>, and an earlier draft of this remark used it as
+    /// the example. The nearest <c>double</c> to <c>1.00005</c> sits <em>above</em> the decimal
+    /// midpoint, so it rounds to <c>1.0001</c> under both modes — <c>StatAggregationTests</c> and
+    /// <c>DeterminismRoundingTests</c> both assert exactly that. The clean illustration is at zero
+    /// places, where <c>2.5</c> is exactly representable: to even it is <c>2</c>, away from zero it
+    /// is <c>3</c>.
+    /// </remarks>
     /// <remarks>
     /// Both scanned assemblies, and both the <c>double</c> and the <c>int</c> spellings of the
     /// constant. This is narrow by design: it closes the one hand-rolled form that is easy to reach
@@ -213,10 +226,18 @@ public sealed class DeterminismRoundingRuleTests
         }
     }
 
-    /// <summary><c>System.Math.Round</c> in one of its precision-taking overloads.</summary>
+    /// <summary>
+    /// <c>System.Math.Round</c> or <c>System.MathF.Round</c> in one of its precision-taking overloads.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <c>MathF</c> is included, and it is not hypothetical: `05` §1's stat table and `29`'s power
+    /// model both talk in fractions, and an author reaching for the single-precision helper would get
+    /// a rounding this rule could not see for one added string.
+    /// </remarks>
     private static bool IsMathRoundWithPrecision(MethodReference callee) =>
         callee.Name.Equals("Round", StringComparison.Ordinal) &&
-        callee.DeclaringType.FullName.Equals("System.Math", StringComparison.Ordinal) &&
+        (callee.DeclaringType.FullName.Equals("System.Math", StringComparison.Ordinal) ||
+         callee.DeclaringType.FullName.Equals("System.MathF", StringComparison.Ordinal)) &&
         callee.Parameters.Count >= 2 &&
         callee.Parameters[1].ParameterType.FullName.Equals("System.Int32", StringComparison.Ordinal);
 
@@ -244,9 +265,20 @@ public sealed class DeterminismRoundingRuleTests
     /// Every method with a body in the two shipped assemblies `05` §1.1 governs.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>Contracts</c> is excluded: `30` §11.6 shrinks it to wire envelopes, which carry rounded
     /// values rather than producing them. The adapters and composition roots are excluded for the
     /// same reason — an accumulation point is domain arithmetic by definition.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b><c>Application</c> is scanned although it has no compliant path</b>, and that is the
+    /// intent rather than an oversight. <c>DeterminismRounding</c> is <c>internal</c> to <c>Core</c>
+    /// and `30` §11.3 grants <c>InternalsVisibleTo</c> to <c>Core.Tests</c> alone, so the rule says in
+    /// effect <em>"<c>Application</c> must never round to 4 dp at all"</em> — which follows from `30`
+    /// §11.1: <c>Application</c> is choreography, every <b>decision</b> is <c>Core</c>'s, and an
+    /// accumulation point is a decision. An author who finds this rule blocking them has an
+    /// accumulation point in the wrong assembly, not a rule with a hole.
+    /// </para>
     /// </remarks>
     private static IEnumerable<(string Module, MethodDefinition Method)> ScannedMethods()
     {

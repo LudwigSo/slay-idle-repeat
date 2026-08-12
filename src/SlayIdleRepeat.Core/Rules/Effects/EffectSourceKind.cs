@@ -26,7 +26,7 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// </para>
 /// <para>
 /// 🔒 Wire values, as <see cref="Content.Effects.EffectOp"/>: explicit, no <c>0</c> member, and
-/// the ordinal is the §8 step 1 position. Nine of the ten have no data model yet — see
+/// the ordinal is the §8 step 1 position. None of the ten has a data model yet — see
 /// <see cref="EffectSourceCatalogue"/> for the milestone that lands each.
 /// </para>
 /// </remarks>
