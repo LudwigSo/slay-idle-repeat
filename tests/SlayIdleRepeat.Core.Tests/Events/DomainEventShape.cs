@@ -9,9 +9,10 @@ namespace SlayIdleRepeat.Core.Tests.Events;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The hierarchy is two types today — <see cref="DomainEvent"/> and
+/// The hierarchy is two types today — <see cref="DomainEvent"/> and the single concrete event
 /// <see cref="CurrencyChanged"/> — because four of `30` §7's six events name payload types no
-/// milestone has authored yet (see <c>GapRegister</c> in the architecture suite). Every rule
+/// milestone has authored yet, and a fifth has no producer (see <c>GapRegister</c> in the
+/// architecture suite). Every rule
 /// below is therefore stated over a set that is small now and grows through M3, M4, M12 and M14,
 /// and each one is written so that the <i>next</i> event is governed without a test edit.
 /// </para>

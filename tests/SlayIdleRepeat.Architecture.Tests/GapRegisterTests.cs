@@ -44,6 +44,49 @@ public sealed class GapRegisterTests
     }
 
     /// <summary>
+    /// 🔒 `30` §7 / `23` §6 — the converse of the rule above: every deferral names a subject some
+    /// transcribed specification actually enumerates. The analogue of <c>test-suites.json</c>'s
+    /// rule 5, and what stops <see cref="GapRegister.Deferred"/> and
+    /// <see cref="GapRegister.Surfaces"/> drifting apart as M1-06 and M4 add to them.
+    /// </summary>
+    /// <remarks>
+    /// An entry the undeclared direction cannot see is an exemption that can never be satisfied:
+    /// authoring the subject expires it (<see cref="GapRegister.Expired"/> catches that), but
+    /// nothing would ever have demanded the subject in the first place. That is a comment with a
+    /// milestone id on it, which is what this register exists instead of.
+    /// </remarks>
+    [Fact]
+    public void Every_deferral_names_a_subject_some_specification_enumerates()
+    {
+        ArchRule.Empty(
+            GapRegister.Unanchored(GapRegister.Surfaces, GapRegister.Deferred),
+            "Every GapRegister entry defers a subject a transcribed specification enumerates (23 §6, 30 §7).");
+    }
+
+    /// <summary>
+    /// `23` §6 — the teeth of the anchoring direction, both halves: silent on an entry the
+    /// transcription enumerates, loud on one it does not (`30` §7).
+    /// </summary>
+    [Fact]
+    public void The_anchoring_check_fires_on_a_deferral_no_transcription_enumerates()
+    {
+        var surface = new GapRegister.SpecifiedSurface(
+            "30 §7", Domain.EventsNamespace, new[] { "DiceRolled" });
+
+        var anchored = new GapRegister.Gap(
+            "DiceRolled", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+
+        GapRegister.Unanchored(new[] { surface }, new[] { anchored }).ShouldBeEmpty();
+
+        var floating = new GapRegister.Gap(
+            "AnEventNoSpecAsksFor", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+
+        GapRegister.Unanchored(new[] { surface }, new[] { floating })
+            .ShouldHaveSingleItem()
+            .ShouldContain("no GapRegister.Surfaces transcription enumerates it", Case.Sensitive);
+    }
+
+    /// <summary>
     /// `23` §6 — every entry names an owning milestone task, a predicate type and a written reason.
     /// An exemption with no milestone has no expiry; one with no reason has nothing to falsify.
     /// </summary>

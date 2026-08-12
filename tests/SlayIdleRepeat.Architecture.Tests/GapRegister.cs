@@ -18,7 +18,7 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// stays that way until someone re-reads the spec. This register is the difference.
 /// </para>
 /// <para>
-/// <b>The mechanism, and it fails in three directions.</b>
+/// <b>The mechanism, and it fails in four directions.</b>
 /// </para>
 /// <list type="number">
 ///   <item><b>Stale.</b> An entry whose <see cref="Gap.WaitsFor"/> type now exists — or whose own
@@ -29,10 +29,16 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   entry here. A sixth event quietly dropped from `30` §7 fails rather than vanishing. This is
 ///   the direction that is usually skipped, and it is the one that makes the register more than a
 ///   comment.</item>
+///   <item><b>Unanchored.</b> The converse, and the analogue of <c>test-suites.json</c>'s rule 5
+///   ("a renamed or deleted project must take its exemption with it"): an entry whose
+///   <see cref="Gap.Subject"/> appears in no transcription is deferring something no specification
+///   asks for. It can never be <i>satisfied</i>, only deleted by hand — which is the state this
+///   register replaces. It is also what holds M1-06 to the promise below: transcribe the command
+///   inventory into <see cref="Surfaces"/>, do not just add entries to <see cref="Deferred"/>.</item>
 ///   <item><b>Vacuous.</b> Both sets have floors, and both predicates are proven to distinguish a
 ///   type that exists from one that does not — see <c>GapRegisterTests</c>. A register whose
-///   subject set can silently become empty is steering <b>S3</b>'s failure mode, and the two rules
-///   above would report success forever.</item>
+///   subject set can silently become empty is steering <b>S3</b>'s failure mode, and the three
+///   rules above would report success forever.</item>
 /// </list>
 /// <para>
 /// 🔒 <b>One register for the repository, not one per milestone</b> (steering S4: one mechanism per
@@ -154,6 +160,14 @@ internal static class GapRegister
         "exemption whose predicate no longer describes the reason it was written is the one failure this " +
         "mechanism cannot detect for you.";
 
+    /// <summary>What an unanchored entry means, said once.</summary>
+    internal const string UnanchoredConsequence =
+        "A deferral is a promise about a piece of SPECIFIED surface. One whose subject no transcription " +
+        "enumerates is a promise about nothing: the undeclared direction cannot see it, so the entry can " +
+        "never be satisfied — only deleted by hand, which is the state this register exists to replace. " +
+        "Transcribe the section that enumerates the subject into GapRegister.Surfaces in the same commit, " +
+        "or delete the entry.";
+
     /// <summary>What an undeclared subject means, said once.</summary>
     internal const string UndeclaredConsequence =
         "A specification enumerates it, no Core namespace declares it, and nothing here says who will. " +
@@ -218,6 +232,28 @@ internal static class GapRegister
                 where !declared.Contains(subject)
                 select $"{surface.Citation} specifies '{subject}'. It is not declared under " +
                        $"{surface.Namespace}, and GapRegister.Deferred does not carry it. {UndeclaredConsequence}")
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Every entry deferring a subject no <see cref="SpecifiedSurface"/> enumerates. Empty means
+    /// the register holds.
+    /// </summary>
+    /// <remarks>
+    /// The converse of <see cref="Undeclared"/>, and the direction that keeps the two lists moving
+    /// together. Parameterised for the same reason as <see cref="Expired"/>.
+    /// </remarks>
+    internal static IReadOnlyList<string> Unanchored(
+        IEnumerable<SpecifiedSurface> surfaces,
+        IEnumerable<Gap> entries)
+    {
+        var specified = surfaces.SelectMany(s => s.Subjects).ToHashSet(StringComparer.Ordinal);
+
+        return entries
+            .Where(gap => !specified.Contains(gap.Subject))
+            .Select(gap =>
+                $"'{gap.Subject}' is declared deferred to {gap.Owner}, but no GapRegister.Surfaces " +
+                $"transcription enumerates it. {UnanchoredConsequence}")
             .ToArray();
     }
 

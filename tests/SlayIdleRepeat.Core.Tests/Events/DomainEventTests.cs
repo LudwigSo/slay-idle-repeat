@@ -11,7 +11,8 @@ namespace SlayIdleRepeat.Core.Tests.Events;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>Two of `30` §7's six events exist.</b> <c>DiceRolled</c>, <c>TileResolved</c>,
+/// ⚠️ <b>One of `30` §7's six events exists</b> — <c>CurrencyChanged</c>, which with the
+/// <c>DomainEvent</c> base makes the hierarchy two types. <c>DiceRolled</c>, <c>TileResolved</c>,
 /// <c>GearGranted</c> and <c>GuildContribution</c> name payload types no milestone has authored
 /// (<c>DieFace</c>, <c>TileType</c>, <c>GearInstance</c>, <c>GuildId</c>), and
 /// <c>PityCounterAdvanced</c> has no producer until <c>LuckService</c> (M4-01). Inventing any of
@@ -21,7 +22,8 @@ namespace SlayIdleRepeat.Core.Tests.Events;
 /// makes the deferral stale.
 /// </para>
 /// <para>
-/// So every rule below is stated over a set of size two, and none of them may be trusted on that
+/// So every rule below is stated over a subject set of one concrete event, and none of them may be
+/// trusted on that
 /// basis alone. Each is paired with a self-test that drives the same predicate against a
 /// deliberately wrong shape from <c>NonConformingEvents</c>, and the subject set itself has a
 /// floor — steering S3.
@@ -227,11 +229,25 @@ public sealed class DomainEventTests
     /// describing a change.
     /// </summary>
     /// <remarks>
-    /// <c>Events</c> has no row in <c>Core_internal_layering_holds</c>' five-row table, so nothing
-    /// in the architecture suite governs what it may reference. This is the substitute: keep the
+    /// <para>
+    /// <c>Events</c> has no row in <c>Core_internal_layering_holds</c>' forbidden-pair table — only
+    /// its <c>mustNotReachTheRoot</c> half covers the namespace — so almost nothing in the
+    /// architecture suite governs what an event may reference. This is the substitute: keep the
     /// namespace to <c>DomainEvent</c> and its subtypes, and a payload has to be declared in the
     /// layer that owns it — <c>Primitives</c>, <c>Content</c> or <c>Model</c> — where the layering
     /// rows do apply.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>A substitute, not the ruling</b> (steering S16). `30` §11.4's chain omits
+    /// <c>Commands</c> and <c>Events</c> altogether, while `30` §7 writes
+    /// <c>GearGranted(int, GearInstance, SourceClass, bool)</c> — and <c>GearInstance</c> is a
+    /// <c>Model</c> aggregate, so a row forbidding <c>Events → Model</c> would contradict `30` §7
+    /// and block M4-03. <b>Owner: M1-06's task brief takes the first cut</b> (it lands
+    /// <c>Commands/</c> and <c>Handlers/</c> and makes it two ungoverned regions); the binding
+    /// ruling is due at the <b>M4 kickoff</b>, before M4-03 authors <c>GearGranted</c>. The same
+    /// note sits on the <c>Events</c> row of
+    /// <c>SlayIdleRepeat.Architecture.Tests.SubjectSetFloorTests</c>.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Core_Events_holds_the_event_hierarchy_and_nothing_else()
@@ -240,8 +256,8 @@ public sealed class DomainEventTests
             .Where(t => t != typeof(DomainEvent) && !DomainEventShape.ConcreteEvents.Contains(t))
             .Select(t =>
                 $"{t.FullName} lives under Core/Events/ but is not a DomainEvent. Declare it in the layer " +
-                "that owns it — Primitives, Content or Model — where Core_internal_layering_holds has a row " +
-                "for it. Events has none.");
+                "that owns it — Primitives, Content or Model — where Core_internal_layering_holds has a " +
+                "forbidden-pair row for it. Events has none.");
 
         offenders.ShouldBeEmpty();
     }

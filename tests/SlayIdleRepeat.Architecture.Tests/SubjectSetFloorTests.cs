@@ -100,30 +100,52 @@ public sealed class SubjectSetFloorTests
         // event in the interval would leave it looking for a name nothing has, permanently green,
         // with no other test in the repository noticing.
         //
-        // ⚠️ "Stays empty" is only true because CurrencyFields() now skips DomainEvent subtypes.
-        // CurrencyChanged.Id is CurrencyId-typed, so its backing field matched the by-type half and
-        // took the rule's own `count == 0` sentinel away — the rule stayed toothless (constructors
-        // are exempt) but stopped being able to SAY it was asleep. See the exclusion's remark in
-        // DomainPurityTests, and the DomainEvent entry below that keeps its name tracked.
+        // ⚠️ "Stays empty" is only true because CurrencyFields() now skips the Core/Events/
+        // hierarchy. CurrencyChanged.Id is CurrencyId-typed, so its backing field matched the
+        // by-type half and took the rule's own `count == 0` sentinel away. Not "and the rule was
+        // still toothless because constructors are exempt": measured with the skip removed, the
+        // writers are the two constructors AND set_Id, the compiler-generated init accessor, which
+        // IsRehydrationOrConstruction does not exempt. It passed on the old EmitsCurrencyChanged,
+        // which counted touching the type as emitting it; that predicate is now narrowed to
+        // production, so this exclusion is the only thing keeping the set empty. See the exclusion's
+        // remark in DomainPurityTests, and the DomainEvent entry below that keeps its name tracked.
         new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
             "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (still vacuous until M1-04 " +
             "declares the first currency field; this pins the event name the IL scan looks for)"),
 
-        // Tracked because CurrencyFields() excludes event types by this exact simple name. Rename
-        // the base and the exclusion silently stops matching, CurrencyChanged's CurrencyId-typed
-        // backing field re-enters the subject set, and the vacuity sentinel above goes with it.
+        // Tracked because two rules key on this exact simple name: Domain.IsDomainEvent (the
+        // CurrencyFields() exclusion) and Contracts_never_redeclares_a_domain_type's derivation
+        // check. Rename the base and both stop matching silently — CurrencyChanged's CurrencyId-
+        // typed backing field re-enters the subject set and takes the vacuity sentinel above with
+        // it, and Contracts could redeclare the event hierarchy with that rule still green.
         new(Domain.DomainEventType, SubjectKind.CoreType, "M1-03",
-            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (the event-type exclusion " +
-            "that keeps its subject set genuinely empty until M1-04)"),
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (the event exclusion that " +
+            "keeps its subject set genuinely empty until M1-04), " +
+            "AccessibilityBoundaryTests.Contracts_never_redeclares_a_domain_type"),
 
         // Moved out of Pending by M1-03 rather than deleted: Every_rule_subject_is_present_or_
         // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these two
-        // lists, so dropping the row goes red. Events has no row in Core_internal_layering_holds'
-        // five-row table either — DomainEventTests.Core_Events_holds_the_event_hierarchy_and_nothing_
-        // else is what governs the namespace's contents in the meantime.
+        // lists, so dropping the row goes red.
+        //
+        // ⚠️ DOC CONTRADICTION, CARRIED FORWARD (steering S16). Events appears in no row of
+        // Core_internal_layering_holds' FORBIDDEN-PAIR table, and it must not be given one on a
+        // guess. 30 §11.4's chain is "Handlers -> Rules -> Model -> Content -> Primitives" and
+        // omits Commands and Events entirely, while 30 §7 writes
+        // GearGranted(int, GearInstance, SourceClass, bool) — and GearInstance is a Model
+        // aggregate. A row forbidding Events -> Model would therefore contradict 30 §7 and block
+        // M4-03 outright.
+        //   OWNER: M1-06's task brief takes the first cut, because it lands Commands/ and Handlers/
+        //   and turns one ungoverned region into two. The binding ruling is due at the M4 KICKOFF,
+        //   before M4-03 authors GearGranted — that is the commit where Events -> Model stops being
+        //   hypothetical. Whoever rules amends 30 §11.4 rather than only the table.
+        // What IS settled and enforced meanwhile: Events is in that rule's mustNotReachTheRoot
+        // list (an event naming GameRules or GameContext is a cycle under every reading), and
+        // DomainEventTests.Core_Events_holds_the_event_hierarchy_and_nothing_else governs what the
+        // namespace DECLARES. Neither says anything about Events -> Model, which is the open half.
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
-            "AccessibilityBoundaryTests.Core_internal_layering_holds, " +
-            "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace"),
+            "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace, " +
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (the mustNotReachTheRoot half only — " +
+            "Events has no row in the forbidden-pair table; see the note above)"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

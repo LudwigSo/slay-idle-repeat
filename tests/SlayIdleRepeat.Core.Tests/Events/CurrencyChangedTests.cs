@@ -25,9 +25,16 @@ namespace SlayIdleRepeat.Core.Tests.Events;
 /// <c>CurrencyChanged.Id</c> is a <c>CurrencyId</c>-typed instance property, so its
 /// compiler-generated backing field matched <c>CurrencyFields()</c> — which took the rule's
 /// <c>count == 0</c> early return away and left it looking awake a milestone before any currency is
-/// stored anywhere. It was still toothless (the only writes are in the record's own constructors,
-/// which the rule exempts), just no longer <i>visibly</i> so. <c>CurrencyFields()</c> now skips
-/// <c>DomainEvent</c> subtypes for that reason; an event is the emission, never the holder.
+/// stored anywhere. <c>CurrencyFields()</c> now skips the <c>Core/Events/</c> hierarchy for that
+/// reason; an event is the emission, never the holder.
+/// </para>
+/// <para>
+/// ⚠️ Not "and it was toothless anyway because constructors are exempt" — that reading was checked
+/// and is wrong. With the skip removed, the writers of
+/// <c>CurrencyChanged::&lt;Id&gt;k__BackingField</c> are its two constructors <i>and</i>
+/// <c>set_Id</c>, the compiler-generated <c>init</c> accessor, which the construction exemption does
+/// not cover. It passed only because the rule's emission predicate counted <i>touching</i>
+/// <c>CurrencyChanged</c> as emitting one; that predicate has since been narrowed to production.
 /// </para>
 /// <para>
 /// The reason is what turns `21` §8.3's <c>income_attribution.csv</c> — the report answering risk
