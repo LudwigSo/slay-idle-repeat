@@ -69,4 +69,19 @@ namespace SlayIdleRepeat.Core.Events;
 /// further out.
 /// </para>
 /// </remarks>
-public abstract record DomainEvent(int Sequence);
+public abstract record DomainEvent(int Sequence)
+{
+    /// <summary>
+    /// 🔒 The <see cref="Sequence"/> a producer stamps on an event it has just built, before
+    /// <c>GameRules.Apply</c> knows where in the list it belongs.
+    /// </summary>
+    /// <remarks>
+    /// Zero, and it is a placeholder rather than a value — the remarks above are explicit that the
+    /// ordinal is <c>Apply</c>'s to assign and never a constructor's or a caller's. It lives here
+    /// rather than on the first aggregate that needed it (M1-04's <c>Player</c>) because every
+    /// later producer needs the same one: <c>Run</c> (M1-05) reaching into an unrelated aggregate
+    /// for it, or restating the literal, is how two producers end up with two placeholders and
+    /// <c>Apply</c> can no longer tell an unstamped event from a first one.
+    /// </remarks>
+    internal const int UnstampedSequence = 0;
+}

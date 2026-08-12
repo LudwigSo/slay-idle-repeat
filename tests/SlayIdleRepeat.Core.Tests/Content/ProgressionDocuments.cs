@@ -3,8 +3,8 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// Hermetic <c>tuning/progression.json</c> fixtures — the <c>energy</c> block only, built as a
-/// <see cref="ContentSnapshot"/> in memory.
+/// Hermetic <c>tuning/progression.json</c> fixtures — the <c>energy</c> and <c>legendLevel</c>
+/// blocks, built as a <see cref="ContentSnapshot"/> in memory.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -46,6 +46,20 @@ internal static class ProgressionDocuments
     /// <summary>`28` C2 — the Reserve holds 1× Max Energy.</summary>
     internal const int ShippedReserveMultipleOfMax = 1;
 
+    /// <summary>`07` §1.1 — a player starts at Legend Level 1.</summary>
+    /// <remarks>
+    /// <c>const</c> rather than <c>static readonly</c> so <c>[InlineData]</c> can take it: a range
+    /// test that restated the two bounds as literals would keep passing after the data moved.
+    /// Pinned against the shipped file by
+    /// <c>SlayIdleRepeat.Application.Tests.Rules.Economy.EnergyTuningMatchesTuningDataTests</c>,
+    /// which reads <c>game-data/tuning/progression.json</c> for real.
+    /// </remarks>
+    internal const int ShippedLegendLevelMin = 1;
+
+    /// <summary>`07` §1.1 — the Legend Level ladder ends at 200 in v1.</summary>
+    /// <inheritdoc cref="ShippedLegendLevelMin"/>
+    internal const int ShippedLegendLevelMax = 200;
+
     /// <summary>A snapshot holding exactly the shipped energy block.</summary>
     internal static ContentSnapshot Shipped { get; } = With();
 
@@ -60,7 +74,9 @@ internal static class ProgressionDocuments
         ContentValue? maxCap = null,
         ContentValue? regenMinutesPerPoint = null,
         ContentValue? runCost = null,
-        ContentValue? reserveMultipleOfMax = null)
+        ContentValue? reserveMultipleOfMax = null,
+        ContentValue? legendLevelMin = null,
+        ContentValue? legendLevelMax = null)
     {
         var energy = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
@@ -72,9 +88,19 @@ internal static class ProgressionDocuments
             ["reserveMultipleOfMax"] = reserveMultipleOfMax ?? ContentValue.Number(ShippedReserveMultipleOfMax),
         });
 
+        // `07` §1.1's range only — not xpCoefficient, xpExponent or talentPointsPerLevel. LegendTuning
+        // reads two leaves because the Player aggregate's invariant needs two; the level-up CURVE is
+        // M4-10's, and a fixture that authored it would imply something reads it.
+        var legendLevel = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["min"] = legendLevelMin ?? ContentValue.Number(ShippedLegendLevelMin),
+            ["max"] = legendLevelMax ?? ContentValue.Number(ShippedLegendLevelMax),
+        });
+
         return Document(ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
             ["energy"] = energy,
+            ["legendLevel"] = legendLevel,
         }));
     }
 

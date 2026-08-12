@@ -358,6 +358,93 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
+    /// 🔴 `14` §16.6 — a record carrying a public <b>field</b> outside its primary constructor is
+    /// refused too. The check above counted <i>properties</i>; a field is in no parameter list and
+    /// is not a property, so it slipped past both halves and hashed as zero bytes.
+    /// </summary>
+    /// <remarks>
+    /// Latent in M0-07 since it shipped, and harmless only while no snapshot record existed. M1-04
+    /// authors the first one, so it closes this: without the fix the record below encodes happily
+    /// and <see cref="HashMetaCommandState_refuses_a_public_field_record_equality_can_see"/> shows
+    /// what that costs.
+    /// </remarks>
+    [Fact]
+    public void CanonicalBytes_refuses_a_record_field_declared_outside_the_primary_constructor()
+    {
+        var act = () => CanonicalStateWriter.CanonicalBytes(
+            new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 99 });
+
+        var thrown = Should.Throw<NotSupportedException>(act);
+
+        thrown.Message.ShouldMatchWildcard("*16.6*");
+        thrown.Message.ShouldMatchWildcard("*PUBLIC FIELD*");
+        thrown.Message.ShouldMatchWildcard("*ZERO BYTES*");
+        thrown.Message.ShouldMatchWildcard("*primary constructor*");
+    }
+
+    /// <summary>
+    /// 🔴 The consequence, stated as the assertion that fails without the fix: two states a
+    /// <b>public field</b> makes different must never share a <c>stateHash</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Measured, not assumed:</b> Roslyn's synthesized record <c>Equals</c> compares every
+    /// <i>instance field</i> of the type, not only the primary-constructor components — so equality
+    /// <b>does</b> see this field, and the divergence is exactly the property case's. The first
+    /// draft of this test asserted the opposite on a plausible reading of "the field list is the
+    /// parameter list" and went red, which is the reading being corrected here. The assertion is on
+    /// the refusal rather than on the two hashes differing because there is no encoding of this
+    /// shape that could be correct: the field is in no parameter list, so it has no position.
+    /// </remarks>
+    [Fact]
+    public void HashMetaCommandState_refuses_a_public_field_record_equality_can_see()
+    {
+        var quiet = new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 0 };
+        var busy = new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 99 };
+
+        busy.ShouldNotBe(
+            quiet,
+            "Roslyn's synthesized record Equals compares every INSTANCE FIELD of the type, not only " +
+            "the primary-constructor components — so a public field is visible to equality even " +
+            "though it is in no parameter list. That is precisely the divergence: the language " +
+            "calls these two records different and the encoder would call them the same.");
+
+        var hashQuiet = () => CanonicalStateWriter.HashMetaCommandState(quiet);
+        var hashBusy = () => CanonicalStateWriter.HashMetaCommandState(busy);
+
+        Should.Throw<NotSupportedException>(hashQuiet);
+        Should.Throw<NotSupportedException>(hashBusy);
+    }
+
+    /// <summary>
+    /// 🔴 And the field-order pin asks the same question, so the shape has no pinnable field order
+    /// either. Without this half, a future <c>CanonicalFieldOrder</c> could pin a list for a record
+    /// the bytes refuse — the drift the two sharing one <c>BuildPlan</c> exists to prevent.
+    /// </summary>
+    [Fact]
+    public void CanonicalFieldOrder_refuses_a_record_field_declared_outside_the_primary_constructor()
+    {
+        var act = () => CanonicalStateWriter.CanonicalFieldOrder(typeof(UnsupportedSnapshots.WithPublicField));
+
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*PUBLIC FIELD*");
+    }
+
+    /// <summary>
+    /// 🔒 The negative half: the fix refuses a public field and <b>only</b> a public field. A
+    /// positional record compiles its components to private backing fields, so requiring zero
+    /// public instance fields must cost a compliant snapshot nothing — including the real
+    /// <c>PlayerSnapshot</c>, whose value-typed members carry backing fields of their own.
+    /// </summary>
+    [Fact]
+    public void The_public_field_refusal_leaves_a_compliant_record_alone()
+    {
+        CanonicalStateWriter.IsCanonicalRecord(typeof(UnsupportedSnapshots.WithPublicField)).ShouldBeFalse();
+
+        CanonicalStateWriter.IsCanonicalRecord(typeof(PlayerLikeSnapshot)).ShouldBeTrue();
+        CanonicalStateWriter.IsCanonicalRecord(typeof(SlayIdleRepeat.Core.Primitives.EnergyBanks)).ShouldBeTrue();
+        CanonicalStateWriter.IsCanonicalRecord(typeof(SlayIdleRepeat.Core.Primitives.PlayerId)).ShouldBeTrue();
+    }
+
+    /// <summary>
     /// A snapshot nested deeper than the writer's descent limit terminates with a diagnosable
     /// failure rather than a stack overflow. Snapshots are shallow trees by construction; runaway
     /// depth is a bug in the snapshot, and it must be sayable rather than fatal to the process.

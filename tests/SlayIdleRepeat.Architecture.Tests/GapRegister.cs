@@ -127,14 +127,83 @@ internal static class GapRegister
         new("GuildContribution", "M14", "GuildId",
             "30 §7 writes it as (int Sequence, GuildId Guild, string CounterId, long Delta). GuildId is " +
             "M14's. Deferred, not dropped: guilds ship in v1 (milestone kickoff, 2026-08-11)."),
+
+        // ---------------------------------------------------------------- M1-04, 30 §4
+        //
+        // Four things 30 §4 puts on the Player aggregate that M1-04 authored the aggregate WITHOUT.
+        // None of them has an element type yet, and one of them has no decided content at all.
+
+        new("Inventory", "M4-03", "GearInstance",
+            "30 §4 lists 'inventory, gear instances' among Player's contents, and 08 §5 caps it at 400 " +
+            "slots. Neither can be stored before the thing being stored exists: GearInstance carries " +
+            "quality, chapterOrigin, a mercy counter, affixes and a lock (08 §2-3), and every one of " +
+            "those is a decision M4-03 makes. A List<something> authored now would freeze the item " +
+            "shape under M4-04's forge and M4-05's capacity curve (S6). Keyed on GearInstance because " +
+            "the shelf and the slots are the same missing type."),
+
+        new("ContainerShelf", "M4-02", "ContainerClass",
+            "30 §4 lists 'unopened containers (24 §4.0)' on Player, and 24 §4.0 is explicit that chests, " +
+            "Pet Eggs and Mount Crates are STORED OBJECTS rather than instant grants, on an uncapped " +
+            "shelf. What is missing is the class vocabulary — CHEST_STANDARD / CHEST_PREMIUM / " +
+            "CHEST_APEX / EGG_PET / CRATE_MOUNT — whose per-class ladders, soft-pity slopes and " +
+            "contents tables are all M4-02's. Keyed on ContainerClass rather than on GearInstance: " +
+            "eggs and crates yield pets and mounts, so gear arriving first would not make this " +
+            "writable."),
+
+        new("PityCounters", "M4-01", "LuckService",
+            "30 §4 lists 'all pity counters (24)' on Player, and 24 §1.1 requires them to be " +
+            "server-owned, visible and never reset. The storage is trivial; the KEY SPACE is not, and " +
+            "it is the same trap PityCounterAdvanced is deferred for — the pity-key vocabulary belongs " +
+            "to LuckService (24 §11, ten source classes in data/luck.json). A map authored now would " +
+            "freeze whether a key is an enum, a primitive or a content id before M4-01 knows. Keyed on " +
+            "the producer, because the payload is not what is missing."),
+
+        new("FeatCounters", "M4-13", "FeatDefinition",
+            "30 §4 lists 'Feats and Renown (28 D)' on Player, and 28 D2 requires the counters to be " +
+            "LIFETIME aggregate state rather than a projection over the event stream, incremented " +
+            "inside Apply. That makes them the sharpest S6 case in this register and NOT merely early: " +
+            "28 D2.2 catalogues 140 feats, but 16 O29 defers what each counter MEASURES ('feat counter " +
+            "semantics per feat, counters.json') until the M16 kickoff, and 30 §12.7 forbids rebuilding " +
+            "a counter after the fact. So the counter SET ITSELF IS UNDECIDED, and a set invented in " +
+            "M1-04 would be permanently unfixable the day it ships. M4-13 lands the counters early " +
+            "precisely because retroactivity needs them to predate the M16 feature; it cannot land " +
+            "them before O29 names them. Keyed on FeatDefinition, the type that reads feats.json / " +
+            "counters.json and therefore cannot exist until O29 is ruled."),
     };
 
     /// <summary>
     /// 🔒 The closed transcriptions the <b>undeclared</b> direction is checked against.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Transcribed by hand from the design document, which is the only way this can work: a list
     /// derived from the code would say the code is complete because the code says so.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The second entry is a transcription of a <i>fragment</i>, and says so in its citation.</b>
+    /// `30` §4's <c>Player</c> row enumerates eighteen things — <i>"Profile, Legend Level, all 8
+    /// currencies, inventory, unopened containers, gear instances, pets, mounts, talents, presets,
+    /// unlocks, FTUE progress, Energy + Reserve, all pity counters, Feats and Renown, daily/weekly
+    /// counters, ad caps, entitlement"</i> — and this mechanism cannot hold the whole row. It
+    /// matches a <b>type simple name</b> against a <c>Core</c> namespace, and most of those items
+    /// are not type names: <c>Profile</c>, <c>Legend Level</c> and <c>daily/weekly counters</c> are
+    /// <em>built</em>, as fields of <c>Player</c> rather than as types called that, so a verbatim
+    /// transcription would report them undeclared forever. Two more are built and would read the
+    /// same way: <c>FTUE progress</c> (<c>Player.FtueBeat</c> + <c>FtueCompletedAtUtc</c>, `19` D7)
+    /// and <c>Energy + Reserve</c> (<c>Player.Energy</c>, `28` C). <c>ad caps</c> is built too — it
+    /// is the daily counter mechanism, which exists precisely for it. And <c>entitlement</c> is
+    /// <b>ruled off</b> the aggregate entirely (`30` §3 and `12` §2.1 put it on the session), so it
+    /// is neither built here nor deferred.
+    /// </para>
+    /// <para>
+    /// What is left genuinely absent and genuinely type-shaped is <b>ten</b>: the four below, plus
+    /// pets (M4-07), mounts (M4-08), talents (M4-06), presets and unlocks (M4-10). Those five are
+    /// <em>not</em> transcribed here and that is the honest limit of this entry — each would need a
+    /// <see cref="Gap.WaitsFor"/> type name, and naming five types five unwritten milestones have
+    /// not chosen is the invention S6 forbids, dressed as bookkeeping. <b>M4-05 owns closing
+    /// this</b>: it is the first task that touches enough of `30` §4's row (inventory capacity) to
+    /// know what those types are called.
+    /// </para>
     /// </remarks>
     internal static readonly SpecifiedSurface[] Surfaces =
     {
@@ -146,6 +215,14 @@ internal static class GapRegister
             "CurrencyChanged",
             "PityCounterAdvanced",
             "GuildContribution",
+        }),
+
+        new("30 §4 (the Player-contents row, the four items M1-04 did not build)", Domain.ModelNamespace, new[]
+        {
+            "Inventory",
+            "ContainerShelf",
+            "PityCounters",
+            "FeatCounters",
         }),
     };
 

@@ -92,26 +92,37 @@ public sealed class SubjectSetFloorTests
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
 
-        // Moved out of Pending by M1-03, and tracked HERE for the same reason CurrencyId is: the
-        // rule keyed on this name is STILL VACUOUS. Every_currency_mutation_emits_CurrencyChanged
-        // is an IL scan over the fields CurrencyFields() recognises, and that set stays empty until
-        // M1-04 declares the first CurrencyId-typed instance field on the Player aggregate. So this
-        // commit gives the rule a real type to look for and does not wake it — and a rename of the
-        // event in the interval would leave it looking for a name nothing has, permanently green,
-        // with no other test in the repository noticing.
+        // Moved out of Pending by M1-03, when the rule keyed on this name was still VACUOUS.
         //
-        // ⚠️ "Stays empty" is only true because CurrencyFields() now skips the Core/Events/
-        // hierarchy. CurrencyChanged.Id is CurrencyId-typed, so its backing field matched the
-        // by-type half and took the rule's own `count == 0` sentinel away. Not "and the rule was
-        // still toothless because constructors are exempt": measured with the skip removed, the
-        // writers are the two constructors AND set_Id, the compiler-generated init accessor, which
-        // IsRehydrationOrConstruction does not exempt. It passed on the old EmitsCurrencyChanged,
-        // which counted touching the type as emitting it; that predicate is now narrowed to
-        // production, so this exclusion is the only thing keeping the set empty. See the exclusion's
-        // remark in DomainPurityTests, and the DomainEvent entry below that keeps its name tracked.
+        // 🔒 THE RULE IS AWAKE. M1-04 declared Player._wallet — an
+        // IReadOnlyDictionary<CurrencyId, long> instance field on the Player aggregate — and
+        // CurrencyFields() recognises it by BOTH halves of its predicate (CurrencyId-typed, and
+        // named for a wallet). Every_currency_mutation_emits_CurrencyChanged now quantifies over
+        // real production fields: PlayerSnapshot's Wallet component and the aggregate's own, and
+        // the only method outside a constructor that writes the aggregate's is Player.MoveBalance,
+        // which constructs a CurrencyChanged. Removing that construction turns the build red naming
+        // Player.MoveBalance and _wallet — demonstrated on this branch, reverted, and quoted in the
+        // task report (S1). The `count == 0` sentinel in the rule is now dead code on this
+        // repository and stays only as the guard for a future assembly with no wallet at all.
+        //
+        // ⚠️ Waking it up cost one narrow, principled clause. A positional record compiles each
+        // component to a compiler-generated `init` setter, so PlayerSnapshot.set_Wallet writes a
+        // currency-carrying field, is not a constructor, and is not named Rehydrate — the rule
+        // fired on it immediately, exactly as this comment predicted for CurrencyChanged.set_Id.
+        // IsRehydrationOrConstruction now also exempts a method that is BOTH [CompilerGenerated]
+        // AND an init-only setter, which is construction by the language's own definition. An
+        // author-written method that writes a currency field is still caught; see
+        // DomainPurityTests.The_construction_exemption_covers_a_records_init_accessor_and_nothing_else.
+        //
+        // The name is still tracked here, and that has not stopped mattering: the IL scan looks for
+        // the literal simple name CurrencyChanged, so renaming the event would make
+        // EmitsCurrencyChanged answer false for every emission and turn the now-live rule into a
+        // wall of false failures — or, if the field predicate were renamed in the same commit,
+        // permanently green with no other test noticing.
         new("CurrencyChanged", SubjectKind.CoreType, "M1-03",
-            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (still vacuous until M1-04 " +
-            "declares the first currency field; this pins the event name the IL scan looks for)"),
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (LIVE since M1-04 declared " +
+            "Player._wallet; this pins the event name the IL scan looks for when deciding whether a " +
+            "currency write emitted anything)"),
 
         // Tracked because two rules key on this exact simple name: Domain.IsDomainEvent (the
         // CurrencyFields() exclusion) and Contracts_never_redeclares_a_domain_type's derivation
@@ -154,10 +165,11 @@ public sealed class SubjectSetFloorTests
         new(Domain.SnapshotsNamespace, SubjectKind.CoreNamespace, "M0-07",
             "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the Snapshots exemption of 30 §11.3)"),
 
-        // Live only because Model.Snapshots sits beneath it — Domain.CoreTypesUnder matches
-        // by namespace PREFIX. The aggregates themselves are M1-04's, so the aggregate half
-        // of Apply_is_the_only_public_mutation is still quantifying over nothing; what is
-        // asserted here is that the prefix reaches something, not that M1 has arrived.
+        // Was live only because Model.Snapshots sits beneath it — Domain.CoreTypesUnder matches by
+        // namespace PREFIX — which meant the aggregate half of Apply_is_the_only_public_mutation
+        // was quantifying over nothing while this row looked satisfied. M1-04 landed the Player
+        // aggregate directly in this namespace, so the prefix and the aggregate half now reach the
+        // same thing; the Player row in this array is what tracks the aggregate half specifically.
         new(Domain.ModelNamespace, SubjectKind.CoreNamespace, "M0-07",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new("CanonicalStateWriter", SubjectKind.CoreType, "M0-07",
@@ -183,13 +195,37 @@ public sealed class SubjectSetFloorTests
         // Moved out of Pending by M1-01 rather than deleted, for the reason the type list exists:
         // DomainPurityTests.CurrencyFields() recognises a currency field by the hard-coded simple
         // name Domain.CurrencyIdType, and nothing else in this suite would notice that constant
-        // going stale. The rule itself is still VACUOUS today — it needs a non-static instance
-        // field typed CurrencyId, and M1-04 brings the first — and that vacuity is tracked by the
-        // CurrencyChanged (M1-03) entry in Live above, which is where M1-03 moved it. This entry
-        // tracks the other half: the name.
+        // going stale. M1-04 declared the first CurrencyId-typed instance field (Player._wallet),
+        // so the rule is LIVE — see the CurrencyChanged entry above for what that cost and what it
+        // now catches. This entry tracks the other half: the name the field is recognised BY.
+        // Renaming CurrencyId without updating Domain.CurrencyIdType would empty the subject set of
+        // a rule that is now doing real work, and the by-name half (*wallet*/*currenc*) would keep
+        // Player._wallet in it while silently dropping every future field that is only recognised
+        // by its type.
         new("CurrencyId", SubjectKind.CoreType, "M1-01",
-            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (vacuous until M1-04 " +
-            "declares the first currency field; this pins the name it will be recognised by)"),
+            "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (LIVE since M1-04; this " +
+            "pins the type name a currency-carrying field is recognised by)"),
+
+        // 🔒 M1-04. Two names the newly-live halves of two rules key on, tracked so a rename cannot
+        // quietly empty either subject set.
+        //
+        // Apply_is_the_only_public_mutation's AGGREGATE half — public types under Core/Model/ that
+        // are NOT under Model/Snapshots/ — quantified over nothing until this commit; the Model
+        // entry above only ever proved the PREFIX reached something, and it reached Snapshots,
+        // which that rule excludes. Player is the first real subject.
+        new("Player", SubjectKind.CoreType, "M1-04",
+            "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the aggregate half, live " +
+            "from this commit — before it, the rule's subject set was empty while the Model namespace " +
+            "was not)"),
+
+        // And the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests, whose subject set was empty
+        // until PlayerSnapshot. It is tracked HERE as well as by its own floor because the pin lives
+        // in a different suite: making PlayerSnapshot internal, nesting it, or moving it out of
+        // Core/Model/Snapshots/ would empty the pin's selector, and the architecture suite is where
+        // "a rule went quiet" is supposed to be noticed.
+        new("PlayerSnapshot", SubjectKind.CoreType, "M1-04",
+            "the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests (SnapshotFieldOrderPinTests — " +
+            "five rules that held vacuously until this record existed)"),
     };
 
     // ---------------------------------------------------------------- floors

@@ -110,9 +110,32 @@ internal static class Domain
                         .ToArray();
 
     /// <summary>True when the type is compiler-generated and therefore not the author's business.</summary>
-    internal static bool IsCompilerGenerated(TypeDefinition type) =>
-        type.CustomAttributes.Any(a =>
-            a.AttributeType.FullName == "System.Runtime.CompilerServices.CompilerGeneratedAttribute");
+    /// <remarks>
+    /// 🔒 <b>Walks out to the outermost declaring type</b>, exactly as <see cref="Il.NamespaceOf"/>
+    /// does, and that is not tidiness. The compiler marks <c>&lt;PrivateImplementationDetails&gt;</c>
+    /// with <c>[CompilerGenerated]</c> but does <b>not</b> mark the
+    /// <c>__StaticArrayInitTypeSize=N</c> types it nests inside it — and those nest at namespace
+    /// <c>""</c>. So the first <c>Core</c> type to compile a static array initialiser
+    /// (<c>Player.WalletCurrencies</c>, M1-04) made
+    /// <c>Every_Core_type_lives_under_a_documented_namespace</c> fail over a type no author wrote
+    /// and no author can move. Measured, red-then-green: without this walk the rule reports
+    /// <c>&lt;PrivateImplementationDetails&gt;/__StaticArrayInitTypeSize=24 is in namespace ''</c>.
+    /// </remarks>
+    internal static bool IsCompilerGenerated(TypeDefinition type)
+    {
+        var outer = type;
+        while (outer is not null)
+        {
+            if (IsCompilerGenerated((ICustomAttributeProvider)outer))
+            {
+                return true;
+            }
+
+            outer = outer.DeclaringType;
+        }
+
+        return false;
+    }
 
     /// <summary>True when the member is compiler-generated (record plumbing, backing fields, lambdas).</summary>
     internal static bool IsCompilerGenerated(ICustomAttributeProvider member) =>
