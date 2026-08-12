@@ -46,10 +46,46 @@ public sealed class BossTelegraphTests
         announced.SourceId.ShouldBe(CombatActor.Enemy(0), "the winding-up actor");
         announced.TargetId.ShouldBe(CombatActor.Hero, "who it will hit");
         announced.Value.ShouldBe(1.5, "the wind-up in SECONDS — the replayer scales it by 05 §8's toggle");
+
+        // 🔴 The index is asserted as 1, and the boss carries a mechanic that sorts BEFORE All In for
+        //    exactly that reason. `CombatLog.NoDataId` is 0, so an assertion of 0 here could not tell
+        //    "the effect index of All In" from "the emitter wrote no content id at all" — the two are
+        //    the same byte (steering S1).
+        CombatLog.NoDataId.ShouldBe((ushort)0, "which is what makes an index of 0 undiscriminating");
+
         announced.DataId.ShouldBe(
-            (ushort)0,
-            "the battle-local effect index of BOSS_DICELORD_P3_ALL_IN, which sorts before SYS_ENRAGE " +
-            "— ⚠️ the index is 0-based, so 0 IS a legitimate effect here and not 'names no content'");
+            (ushort)1,
+            "the battle-local effect index of BOSS_DICELORD_P3_ALL_IN: the plan's ids sort " +
+            "A_DICELORD_P1_ANTE, BOSS_DICELORD_P3_ALL_IN, SYS_ENRAGE, so All In is the second");
+    }
+
+    /// <summary>
+    /// 🔒 The floor under the index above: the battle-local effect table is the one
+    /// <c>BuildEffectIndex</c> makes from the <b>opening roster</b>, in ascending `18` §8 effect-id
+    /// order, and All In really is at position 1 in it.
+    /// </summary>
+    /// <remarks>
+    /// It is stated here rather than inside the emission case because the emission case is about
+    /// <em>which tick</em>; this is about <em>which number</em>, and the two fail for different
+    /// reasons. `05` §7's replayer rebuilds this same table from the same roster, which is why a
+    /// phase-3 mechanic has to be on the opening plan at all.
+    /// </remarks>
+    [Fact]
+    public void All_Ins_position_in_the_battles_effect_table_is_the_one_the_wind_up_names()
+    {
+        var ids = BossPlan().Effects
+                            .Select(h => h.Effect.Id)
+                            .Distinct(StringComparer.Ordinal)
+                            .OrderBy(id => id, EffectOrder.IdComparer)
+                            .ToArray();
+
+        ids.ShouldBe(
+            new[] { "A_DICELORD_P1_ANTE", "BOSS_DICELORD_P3_ALL_IN", BossBuiltIns.EnrageId },
+            Case.Sensitive,
+            "three effects, and All In is not first — so its index is not the byte that also means " +
+            "'names no content'");
+
+        Array.IndexOf(ids, "BOSS_DICELORD_P3_ALL_IN").ShouldBe(1);
     }
 
     /// <summary>
@@ -156,7 +192,17 @@ public sealed class BossTelegraphTests
 
         var thrown = Should.Throw<EffectContextException>(() => Build(1.5, oneSecondPeriod));
 
-        thrown.Message.ShouldContain("T2", Case.Sensitive);
+        // 🔒 Steering S2 — WHICH rule, and over which mechanic. `ShouldContain("T2")` alone stood
+        //    here and would have been satisfied by T1's message just as well, since every refusal in
+        //    this builder is the same exception type and T1 fires on the same effect.
+        thrown.Message.ShouldContain("T2", Case.Sensitive, "which rule fired");
+        thrown.Message.ShouldContain("BOSS_DICELORD_P3_ALL_IN", Case.Sensitive, "which mechanic");
+        thrown.Message.ShouldContain(BossTestBench.Dicelord, Case.Sensitive, "which boss");
+        thrown.Message.ShouldNotContain(
+            "T1",
+            Case.Sensitive,
+            "and NOT T1's — a 1.5 s lead is inside the band and a whole tick, so the only thing " +
+            "wrong with it is that the mechanic's own 1 s period has nowhere to put it");
     }
 
     /// <summary>
@@ -295,10 +341,19 @@ public sealed class BossTelegraphTests
 
     // ════════════════════════════════════════════════════ fixtures
 
+    /// <summary>
+    /// 🔒 The phase-1 <c>Ante</c> is here to move All In off effect index 0, which is the byte
+    /// <c>CombatLog.NoDataId</c> also uses — see
+    /// <see cref="All_Ins_position_in_the_battles_effect_table_is_the_one_the_wind_up_names"/>.
+    /// </summary>
+    private const string AnteEffect = "A_DICELORD_P1_ANTE";
+
     private static ActorPlan BossPlan() =>
         BossTestBench.Boss(
             BossTestBench.Dicelord,
             maxHp: 1000.0,
+            BossTestBench.InPhase(
+                BossTestBench.Dicelord, 1, BossTestBench.OnPhaseEnter(AnteEffect, 1)),
             BossTestBench.InPhase(BossTestBench.Dicelord, 3, BossTestBench.AllIn()),
             BossTestBench.BuiltIn(BossTestBench.Dicelord, BossBuiltIns.Enrage));
 
@@ -311,6 +366,7 @@ public sealed class BossTelegraphTests
         Phase3HpFraction = 0.33,
         PhaseOfInstance = new Dictionary<EffectInstanceId, int>
         {
+            [BossBuiltIns.PhaseInstance(BossTestBench.Dicelord, 1, AnteEffect)] = 1,
             [EffectInstanceId.Of(AllInInstance)] = 3,
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>

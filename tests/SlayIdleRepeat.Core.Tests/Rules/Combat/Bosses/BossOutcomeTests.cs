@@ -16,6 +16,15 @@ public sealed class BossOutcomeTests
 {
     private const string RollInstance = "BOSS_DICELORD#P1#BOSS_DICELORD_ROLL_OF_FATE_P1";
 
+    /// <summary>
+    /// Phase 1 is entered at pre-tick 0c, so R8 anchors the roll at 0 and its 10 s period first fires
+    /// at tick 200.
+    /// </summary>
+    private const int FiringTick = 200;
+
+    /// <summary>`14` §8.1's battle seed, pinned so every "which row won" assertion is computable.</summary>
+    private const ulong DefaultSeed = 0xC0FFEE_1234_5678UL;
+
     // ════════════════════════════════════════════════════ 1 · the seam
 
     /// <summary>
@@ -32,7 +41,9 @@ public sealed class BossOutcomeTests
             () => BattleSeams.Strict.Outcomes.Resolve(
                 dicelord, BossTestBench.FateBossAtk, "BOSS_DICELORD_ROLL_OF_FATE_P1"));
 
-        thrown.Message.ShouldContain("M2-12", Case.Sensitive);
+        thrown.Message.ShouldContain("M2-12", Case.Sensitive, "the engine that owns the seam");
+        thrown.Message.ShouldContain(
+            "M2-13", Case.Sensitive, "and the task that authors the content which reaches it");
         thrown.Message.ShouldContain(BossTestBench.FateBossAtk, Case.Sensitive);
         thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
     }
@@ -71,7 +82,7 @@ public sealed class BossOutcomeTests
     {
         var outcomes = new RecordingOutcomes();
 
-        Fight(outcomes, BossTestBench.RollOfFateP1());
+        var run = Fight(outcomes, BossTestBench.RollOfFateP1());
 
         outcomes.Resolutions.Count.ShouldBe(
             1, "three outcomes, one draw, one winner — that is what 'mutually exclusive' means");
@@ -80,10 +91,61 @@ public sealed class BossOutcomeTests
 
         resolved.Holder.ShouldBe(BossTestBench.Dicelord, "17 §9's Dicelord rolled it");
         resolved.SourceEffectId.ShouldBe("BOSS_DICELORD_ROLL_OF_FATE_P1");
-        new[]
-        {
-            BossTestBench.FateBossAtk, BossTestBench.FateHeroAtk, BossTestBench.FateBothAspd,
-        }.ShouldContain(resolved.ChosenEffectId, "the winner is one of the three authored rows");
+        resolved.ChosenEffectId.ShouldBe(
+            BossTestBench.FateBossAtk,
+            "🔒 the LITERAL row the pinned seed drew, not 'one of the three': battleSeed " +
+            "0xC0FFEE12345678 on 14 §8.1's combat stream draws unit 0.2902859852621159, and over " +
+            "17 §9's 2/2/2 table (total 6) the threshold 1.741 is first exceeded by the first row's " +
+            "cumulative 2. An assertion that accepted any of the three would pass on an op that " +
+            "always answered with row 1");
+
+        // 🔴 THE SINGLE-DRAW PROOF, which is what this case is named for. Without it the name
+        //    promises an assertion the body never made: three chance-gated effects would resolve
+        //    one winner just as often as this does, while spending THREE indices.
+        run.Driver.RngPositionAt(FiringTick).ShouldBe(
+            0UL,
+            "the control: nothing in this fight has drawn before the roll, so the roll IS combat " +
+            "draw 0 — which is what makes the literal row above computable from the seed alone");
+
+        run.Driver.RngPositionAt(FiringTick + 1).ShouldBe(
+            1UL,
+            "14 §8.0's WeightedPick is ONE draw. Position is the persisted state of the stream, so " +
+            "three would desynchronise every later draw of the battle between client and server");
+
+        run.Driver.RngPositionAt(FiringTick + 50).ShouldBe(
+            1UL, "and nothing else in the fight draws either — the roll is the only spender");
+    }
+
+    /// <summary>
+    /// 🔒 The negative control for the single-draw proof: on a tick with <b>no</b> firing the stream
+    /// advances by <b>zero</b>. Without it, <em>"the position was 1 after the roll"</em> is equally
+    /// consistent with a stream that advances once per tick regardless.
+    /// </summary>
+    [Fact]
+    public void A_tick_with_no_roll_advances_the_draw_stream_by_nothing()
+    {
+        var run = Fight(new RecordingOutcomes(), BossTestBench.RollOfFateP1());
+
+        run.Driver.RngPositionAt(FiringTick - 1).ShouldBe(run.Driver.RngPositionAt(FiringTick));
+        run.Driver.RngPositionAt(FiringTick + 2).ShouldBe(run.Driver.RngPositionAt(FiringTick + 1));
+    }
+
+    /// <summary>
+    /// 🔒 `14` §8.1 — the same fight on a <b>different</b> battle seed reaches a different row, which
+    /// is what proves the case above pinned a <em>draw</em> and not a row the op always answers with.
+    /// </summary>
+    [Fact]
+    public void A_different_battle_seed_over_the_same_table_reaches_a_different_row()
+    {
+        var outcomes = new RecordingOutcomes();
+
+        Fight(outcomes, BossTestBench.RollOfFateP1(), battleSeed: 5UL);
+
+        outcomes.Resolutions.Count.ShouldBe(1, "the floor: the roll still fired exactly once");
+        outcomes.Resolutions[0].ChosenEffectId.ShouldBe(
+            BossTestBench.FateBothAspd,
+            "battleSeed 5 draws unit 0.7877096435394318; over 2/2/2 the threshold 4.726 is first " +
+            "exceeded by the THIRD row's cumulative 6");
     }
 
     /// <summary>
@@ -91,11 +153,19 @@ public sealed class BossOutcomeTests
     /// <c>4/2</c> over two — are driven by the <b>same</b> op through the <b>same</b> seam. That is
     /// the whole claim of E6: the boss script is data, and there is no branch between the phases.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Both rows run on the SAME battle seed, and the winners differ.</b> Seed 1 draws unit
+    /// 0.48523718978942976 on `14` §8.1's combat stream: over phase 1's <c>2/2/2</c> (total 6) the
+    /// threshold 2.911 first falls to the <b>second</b> row, and over phase 2's <c>4/2</c> (total 6)
+    /// the same 2.911 first falls to the <b>first</b>. So the two tables cannot be told apart by a
+    /// code path — one draw, one walk, two data shapes, two answers. An assertion of the form
+    /// <em>"the winner is in the table"</em> stood here and was true of every implementation.
+    /// </remarks>
     [Theory]
-    [InlineData("BOSS_DICELORD_ROLL_OF_FATE_P1", 3)]
-    [InlineData("BOSS_DICELORD_ROLL_OF_FATE_P2", 2)]
+    [InlineData("BOSS_DICELORD_ROLL_OF_FATE_P1", 3, BossTestBench.FateHeroAtk)]
+    [InlineData("BOSS_DICELORD_ROLL_OF_FATE_P2", 2, BossTestBench.FateBossAtk)]
     public void Both_of_the_Dicelords_tables_reach_the_seam_through_the_one_op(
-        string rollId, int rows)
+        string rollId, int rows, string expected)
     {
         var roll = rollId.EndsWith("P1", StringComparison.Ordinal)
             ? BossTestBench.RollOfFateP1()
@@ -105,12 +175,15 @@ public sealed class BossOutcomeTests
 
         var outcomes = new RecordingOutcomes();
 
-        Fight(outcomes, roll);
+        Fight(outcomes, roll, battleSeed: 1UL);
 
         outcomes.Resolutions.Count.ShouldBe(1, "one firing, one winner, whichever table it was");
         outcomes.Resolutions[0].SourceEffectId.ShouldBe(rollId);
 
-        roll.Outcomes.Select(o => o.EffectId).ShouldContain(outcomes.Resolutions[0].ChosenEffectId);
+        outcomes.Resolutions[0].ChosenEffectId.ShouldBe(
+            expected,
+            "the SAME seed over the two authored tables, and the tables disagree — which is what " +
+            "'no engine branch between them' means");
     }
 
     // 🔴 A case that asserted "the outcome rows are on the boss's own plan" against a plan THIS FILE
@@ -147,18 +220,54 @@ public sealed class BossOutcomeTests
     /// The positive control for the case above: the same fight with the authored rows on the plan
     /// resolves rather than throwing, and the resolved effect reaches `18` §2.3's engine.
     /// </summary>
-    [Fact]
-    public void The_real_resolver_fires_the_row_the_draw_picked()
+    /// <remarks>
+    /// 🔒 The winner is pinned as a <b>literal at a pinned seed</b>, and the pair of rows below is
+    /// what makes it a draw rather than a constant. An assertion of the form <em>"the applied id is
+    /// one of the three"</em> stood here and could not fail: an implementation that always fired the
+    /// first row satisfied it exactly (steering S1).
+    /// </remarks>
+    [Theory]
+    [InlineData(DefaultSeed, BossTestBench.FateBossAtk, "unit 0.2902859852621159 → row 1")]
+    [InlineData(5UL, BossTestBench.FateBothAspd, "unit 0.7877096435394318 → row 3")]
+    public void The_real_resolver_fires_the_row_the_draw_picked(
+        ulong battleSeed, string expected, string arithmetic)
     {
-        var run = RealResolverFight(BossTestBench.RollOfFateP1());
+        var run = RealResolverFight(BossTestBench.RollOfFateP1(), battleSeed);
 
         run.Statuses.Applied.Count.ShouldBe(
             1, "one roll, one winner, and the winner is an APPLY_STATUS this suite can observe");
 
-        new[]
-        {
-            BossTestBench.FateBossAtk, BossTestBench.FateHeroAtk, BossTestBench.FateBothAspd,
-        }.ShouldContain(run.Statuses.Applied[0]);
+        run.Statuses.Applied[0].ShouldBe(expected, arithmetic);
+    }
+
+    // ════════════════════════════════════════════════════ 3 · determinism
+
+    /// <summary>
+    /// 🔒 `14` §8.2 — the boss engine adds a draw and two event kinds to the fight, so the fight has
+    /// to replay: the <b>same</b> battle seed over the <b>same</b> roster produces byte-identical
+    /// logs, the same <c>LogHash</c>, and the same drawn row.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <c>LogHash</c> is what `14` §8.2 compares across x64 and ARM64 and what `11` §6 compares as
+    /// an anti-tamper check, so this is the assertion the whole feature's determinism claim reduces
+    /// to. The floors below are what stop it passing on two empty logs — a fight that threw its
+    /// hands up twice hashes identically too.
+    /// </remarks>
+    [Fact]
+    public void The_same_battle_seed_replays_a_boss_fight_to_the_same_LogHash()
+    {
+        var first = RealResolverFight(BossTestBench.RollOfFateP1());
+        var second = RealResolverFight(BossTestBench.RollOfFateP1());
+
+        BossTestBench.PhaseChanges(first.Result.Log).Count.ShouldBe(
+            1, "the floor: there IS a boss fight with a phase entry in it");
+        first.Statuses.Applied.Count.ShouldBe(1, "and a roll that resolved");
+
+        second.Result.LogHash.ShouldBe(first.Result.LogHash);
+        second.Statuses.Applied.ShouldBe(first.Statuses.Applied, Case.Sensitive);
+        second.Result.Log.Select(e => (e.Tick, e.Type, e.SourceId, e.TargetId, e.Value, e.DataId))
+              .ShouldBe(first.Result.Log.Select(
+                  e => (e.Tick, e.Type, e.SourceId, e.TargetId, e.Value, e.DataId)));
     }
 
     // ════════════════════════════════════════════════════ fixtures
@@ -194,7 +303,8 @@ public sealed class BossOutcomeTests
     /// A fight long enough for one firing of the roll — phase 1 is entered at the pre-tick, so an
     /// interval of 10 s (or 14 s) first fires at tick 200 (or 280).
     /// </summary>
-    private static BossRun Fight(RecordingOutcomes outcomes, EffectDefinition roll) =>
+    private static BossRun Fight(
+        RecordingOutcomes outcomes, EffectDefinition roll, ulong battleSeed = DefaultSeed) =>
         BossTestBench.Run(
             new List<ActorPlan> { BossTestBench.Hero(), BossPlan(roll) },
             new List<BossEncounter> { Encounter(roll) },
@@ -204,10 +314,11 @@ public sealed class BossOutcomeTests
             },
             Array.Empty<(int, string, double)>(),
             outcomes: _ => outcomes,
-            maxTicks: 300);
+            maxTicks: 300,
+            battleSeed: battleSeed);
 
     /// <summary>The same fight wired to the <b>real</b> <see cref="BossOutcomes"/>.</summary>
-    private static BossRun RealResolverFight(EffectDefinition roll) =>
+    private static BossRun RealResolverFight(EffectDefinition roll, ulong battleSeed = DefaultSeed) =>
         BossTestBench.Run(
             new List<ActorPlan> { BossTestBench.Hero(), BossPlan(roll) },
             new List<BossEncounter> { Encounter(roll) },
@@ -217,5 +328,6 @@ public sealed class BossOutcomeTests
             },
             Array.Empty<(int, string, double)>(),
             outcomes: services => new BossOutcomes(services),
-            maxTicks: 300);
+            maxTicks: 300,
+            battleSeed: battleSeed);
 }

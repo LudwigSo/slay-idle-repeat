@@ -144,15 +144,28 @@ internal static class BossTestBench
     /// <summary>A <c>SUMMON</c> mechanic — `17` §2's phase-3 adds.</summary>
     /// <param name="id">The effect id.</param>
     /// <param name="maxAlive">`18` §2.4's <c>maxAlive</c>, which `17` §1 caps at 3.</param>
-    internal static EffectDefinition Summon(string id, int maxAlive = BossAdds.MaxAlive) => new()
+    /// <param name="count">`18` §2.4's count — how many adds one firing asks for.</param>
+    /// <param name="everySeconds">
+    /// When given, the mechanic is a <c>PERIODIC</c> of that period instead of `17` §2's
+    /// <c>ON_PHASE_ENTER</c> — the shape that produces a <b>second wave</b>, which is the only way to
+    /// observe `05` §3.1's <em>"summons … never reuse a dead one's id"</em> and the 3-alive cap
+    /// refusing a firing.
+    /// </param>
+    internal static EffectDefinition Summon(
+        string id,
+        int maxAlive = BossAdds.MaxAlive,
+        double count = 2.0,
+        double? everySeconds = null) => new()
     {
         Id = id,
         Op = EffectOp.SUMMON,
         Archetype = nameof(EnemyArchetype.SWARM),
-        Value = 2.0,
+        Value = count,
         MaxAlive = maxAlive,
         Target = EffectTarget.SELF,
-        Trigger = new EffectTrigger { Kind = TriggerKind.ON_PHASE_ENTER, Phase = 3 },
+        Trigger = everySeconds is { } period
+            ? new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = period }
+            : new EffectTrigger { Kind = TriggerKind.ON_PHASE_ENTER, Phase = 3 },
     };
 
     /// <summary>`17` §9 — <em>Roll of Fate</em>, phase 1's three equally weighted outcomes.</summary>
@@ -281,6 +294,11 @@ internal static class BossTestBench
     /// exist until the simulation does.
     /// </param>
     /// <param name="maxTicks">`05` §3's bound, shortened.</param>
+    /// <param name="battleSeed">
+    /// 🔒 `14` §8.1's battle seed. Pinned by the caller whenever a case asserts <b>which</b> row a
+    /// draw reached, because <c>DeterministicRng(battleSeed, RngStreams.Combat)</c> is what decides
+    /// it.
+    /// </param>
     internal static BossRun Run(
         IReadOnlyList<ActorPlan> roster,
         IReadOnlyList<BossEncounter> encounters,
@@ -289,7 +307,8 @@ internal static class BossTestBench
         RecordingStatuses? statuses = null,
         ISummonSource? summons = null,
         Func<BattleServices, IBossOutcomes>? outcomes = null,
-        int maxTicks = 200)
+        int maxTicks = 200,
+        ulong battleSeed = 0xC0FFEE_1234_5678UL)
     {
         BossPhaseController? controller = null;
         BossDriver? driver = null;
@@ -316,7 +335,8 @@ internal static class BossTestBench
                     Outcomes = outcomes is null ? seams.Outcomes : outcomes(services),
                 };
             },
-            rules: Rules(maxTicks)));
+            rules: Rules(maxTicks),
+            battleSeed: battleSeed));
 
         return new BossRun(result, controller!, driver!, recorded);
     }
@@ -397,6 +417,22 @@ internal sealed class BossDriver : IStatusTimeline
     internal List<InstanceSample> Samples { get; } = new();
 
     /// <summary>
+    /// 🔴 <c>DeterministicRng.Position</c> at the <b>top</b> of every tick — the reading that makes
+    /// <em>"one firing costs exactly one draw index"</em> an assertion rather than a sentence in a
+    /// test name.
+    /// </summary>
+    /// <remarks>
+    /// `14` §8.1's combat stream is the fight's persisted draw counter, so an op that spent two
+    /// indices where the document says one desynchronises every later draw between client and
+    /// server — a defect invisible in the outcome the roll produced.
+    /// </remarks>
+    internal Dictionary<int, ulong> RngPositions { get; } = new();
+
+    /// <summary>The stream's position at the top of a tick.</summary>
+    /// <param name="tick">The tick.</param>
+    internal ulong RngPositionAt(int tick) => RngPositions[tick];
+
+    /// <summary>
     /// The fight's roster, so a test can read live actor state — `18` §2.4's
     /// <c>CombatFlowState</c>, which no seam surfaces.
     /// </summary>
@@ -459,6 +495,8 @@ internal sealed class BossDriver : IStatusTimeline
 
     private void Sample(int tick)
     {
+        RngPositions[tick] = _services.Rng.Position;
+
         foreach (var id in _watched)
         {
             if (!_services.Triggers.IsRegistered(id))

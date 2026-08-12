@@ -52,10 +52,15 @@ public sealed class BossPhaseControllerTests
             Case.Sensitive,
             "0b sweeps ON_BATTLE_START, then 0c enters phase 1");
 
-        var phaseChange = result.Log.ToList().FindIndex(e => e.Type == CombatEventType.PhaseChange);
-        var battleStart = result.Log.ToList().FindIndex(e => e.Type == CombatEventType.BattleStart);
+        var events = result.Log.ToList();
+        var phaseChange = events.FindIndex(e => e.Type == CombatEventType.PhaseChange);
+        var battleStart = events.FindIndex(e => e.Type == CombatEventType.BattleStart);
 
         phaseChange.ShouldBeGreaterThanOrEqualTo(0, "the floor: phase 1's entry IS logged");
+        battleStart.ShouldBeGreaterThanOrEqualTo(
+            0,
+            "and the second floor: 0d's banner IS logged. Without it a log that never reached 0d " +
+            "would make the ordering claim below a comparison against -1");
         phaseChange.ShouldBeLessThan(battleStart, "0c precedes 0d");
     }
 
@@ -228,18 +233,31 @@ public sealed class BossPhaseControllerTests
     /// 🔒 The check is handed <b>every</b> actor — <em>"'is this a boss' is the controller's
     /// question"</em> — and answers nothing for one that is not a boss.
     /// </summary>
+    /// <remarks>
+    /// 🔴 The two floors are what make the emptiness a rule rather than an accident. A script step
+    /// whose actor id matched nothing would leave every HP untouched and no check ever asked, and
+    /// <em>"one PhaseChange"</em> would then be true for a reason that has nothing to do with `05`
+    /// §3.1's question (steering S1/S3).
+    /// </remarks>
     [Fact]
     public void An_HP_decrease_on_a_non_boss_actor_enters_no_phase()
     {
-        var result = Fight(
+        var run = Fight(
             withMinion: true,
             script: new[]
             {
                 (Tick: 60, ActorId: "ENEMY_1", Fraction: 0.10),
                 (Tick: 80, ActorId: "HERO", Fraction: 0.10),
-            }).Result;
+            });
 
-        var changes = BossTestBench.PhaseChanges(result.Log);
+        run.Driver.Actors.Single(a => string.Equals(a.Id, "ENEMY_1", StringComparison.Ordinal))
+           .HpFraction.ShouldBe(0.10, "the floor: the minion really did lose HP");
+        run.Driver.Actors.Single(a => string.Equals(a.Id, "HERO", StringComparison.Ordinal))
+           .HpFraction.ShouldBe(0.10, "and so did the hero");
+        run.Driver.Actors.Single(a => a.IsBoss).HpFraction.ShouldBe(
+            1.0, "while the boss itself never lost any");
+
+        var changes = BossTestBench.PhaseChanges(run.Result.Log);
 
         changes.Count.ShouldBe(1, "only pre-tick 0c's phase 1 — the boss itself never lost HP");
         changes[0].Value.ShouldBe(1.0);
@@ -264,7 +282,17 @@ public sealed class BossPhaseControllerTests
                 },
                 rules: BossTestBench.Rules(maxTicks: 5))));
 
-        thrown.Message.ShouldContain("BOSS_UNSCRIPTED", Case.Sensitive);
+        // 🔒 Steering S2 — WHICH rule fired, not merely that something did. EffectContextException is
+        //    thrown by a dozen independent rules in this layer, so the type alone discriminates
+        //    nothing; the boss's id and the missing encounter are what name this one.
+        thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
+        thrown.Message.ShouldContain("BOSS_UNSCRIPTED", Case.Sensitive, "which boss");
+        thrown.Message.ShouldContain("encounter", Case.Insensitive, "and what it is missing");
+        thrown.Message.ShouldContain(
+            BossTestBench.Thornmaw,
+            Case.Sensitive,
+            "and what it DOES hold — a refusal that did not say would send M2-13 looking for a " +
+            "controller with no bosses at all rather than one with the wrong boss");
     }
 
     // ════════════════════════════════════════════════════ 4 · the first-clear extension
@@ -273,19 +301,30 @@ public sealed class BossPhaseControllerTests
     /// 🔴 `17` §1 — <em>"the first time a player fights a boss, phase 1 lasts 20% longer"</em>. On a
     /// repeat clear the boundary is 0.66; on a first clear it is 0.5920, and 0.66 enters nothing.
     /// </summary>
+    /// <remarks>
+    /// 🔴 The expectation is the <b>whole</b> <c>PhaseChange</c> sequence, not a count of the 2s.
+    /// <c>Count(e =&gt; e.Value == 2.0).ShouldBe(0)</c> stood here for the first-clear row and passed
+    /// on an empty log — a controller that entered no phase at all, logged nothing, or was never
+    /// reached satisfied it exactly (steering S1). Pinning the sequence floors phase 1's own entry,
+    /// which no first-clear rule touches.
+    /// </remarks>
     [Theory]
-    [InlineData(false, 1)]
-    [InlineData(true, 0)]
+    [InlineData(false, new[] { 1.0, 2.0 })]
+    [InlineData(true, new[] { 1.0 })]
     public void At_exactly_66_percent_a_repeat_clear_enters_phase_2_and_a_first_clear_does_not(
-        bool firstClear, int expectedEntries)
+        bool firstClear, double[] expectedPhases)
     {
-        var result = Fight(
+        var run = Fight(
             firstClear: firstClear,
-            script: new[] { (Tick: 100, ActorId: BossTestBench.Thornmaw, Fraction: 0.66) }).Result;
+            script: new[] { (Tick: 100, ActorId: BossTestBench.Thornmaw, Fraction: 0.66) });
 
-        BossTestBench.PhaseChanges(result.Log).Count(e => e.Value == 2.0).ShouldBe(
-            expectedEntries,
-            "17 §1 triggers phase 2 AT 66%, so <= — and the first clear moves that boundary to 0.5920");
+        run.Driver.Actors.Single(a => a.IsBoss).HpFraction.ShouldBe(
+            0.66, "the floor: the boss really was put on 17 §1's boundary");
+
+        BossTestBench.PhaseChanges(run.Result.Log).Select(e => e.Value).ShouldBe(
+            expectedPhases,
+            "17 §1 triggers phase 2 AT 66%, so <= — and the first clear moves that boundary to " +
+            "0.5920, at which 66% is still phase 1 while phase 1's own pre-tick entry is unchanged");
     }
 
     /// <summary>

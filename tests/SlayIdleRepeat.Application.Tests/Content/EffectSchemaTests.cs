@@ -647,10 +647,18 @@ public sealed class EffectSchemaTests
     }
 
     /// <summary>
-    /// Each row below is a <b>single edit</b> away from the control above (steering S2 — the same
-    /// reasoning as <see cref="ALL_COMBAT_is_rejected_where_one_concrete_stat_is_required"/>: a
-    /// <c>oneOf</c> failure reports whichever branch missed by least, so the edit is the claim).
+    /// Each row below is a <b>single edit</b> away from the minimal control this test states inline
+    /// (steering S2 — the same reasoning as
+    /// <see cref="ALL_COMBAT_is_rejected_where_one_concrete_stat_is_required"/>: a <c>oneOf</c>
+    /// failure reports whichever branch missed by least, so the edit is the claim).
     /// </summary>
+    /// <remarks>
+    /// 🔴 The control is asserted <b>in the test body</b>, not merely in the summary above. Every row
+    /// below drops the <c>trigger</c> and <c>target</c> the worked example carries; without proving
+    /// that <c>{id, op, outcomes}</c> alone <em>is</em> valid, each rejection would be equally
+    /// consistent with the schema requiring one of those two keys — and the theory would pass while
+    /// testing nothing about the table at all (steering S1).
+    /// </remarks>
     [Theory]
     // one outcome is not a choice — $defs/outcomes has minItems 2
     [InlineData("""
@@ -674,6 +682,13 @@ public sealed class EffectSchemaTests
         """)]
     public void A_malformed_RANDOM_OUTCOME_table_is_rejected(string body)
     {
+        Validate("""
+        { "id": "BOSS_DICELORD_ROLL_OF_FATE_P1", "op": "RANDOM_OUTCOME",
+          "outcomes": [ { "effectId": "EFF_A", "weight": 1 }, { "effectId": "EFF_B", "weight": 2 } ] }
+        """).ShouldBeEmpty(
+            "the control: the same shape with a well-formed table and no trigger or target IS valid, " +
+            "so every rejection below is about the table and not about a missing key");
+
         Validate($$"""
         { "id": "BOSS_DICELORD_ROLL_OF_FATE_P1", "op": "RANDOM_OUTCOME", {{body}} }
         """).ShouldNotBeEmpty();

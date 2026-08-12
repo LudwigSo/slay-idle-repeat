@@ -38,6 +38,7 @@ public sealed class EffectOpResolverTests
         EffectOps.All.Count.ShouldBe(44, "18 §11 — and S3's floor under the loop below");
 
         var unrouted = new List<string>();
+        var stubbed = new List<string>();
 
         foreach (var op in EffectOps.All)
         {
@@ -70,10 +71,17 @@ public sealed class EffectOpResolverTests
             {
                 // 🔴 PHASE 1a — RANDOM_OUTCOME's handler is a stub. Reaching it IS the routing claim
                 //    this test makes; the behaviour is RandomOutcomeOpTests' (currently red).
+                //    🔒 Recorded rather than swallowed: an unqualified catch here would let ANY op
+                //    whose handler started throwing this be counted as routed, silently.
+                stubbed.Add(op.ToString());
             }
         }
 
         unrouted.ShouldBeEmpty();
+
+        // 🔴 PHASE 1a — exactly the one stubbed op, and no other. When M2-12's handler lands this
+        //    goes empty and the catch above is deleted with it.
+        stubbed.ShouldBe([nameof(EffectOp.RANDOM_OUTCOME)]);
     }
 
     /// <summary>

@@ -113,8 +113,9 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔒 `17` §11 — the two universal built-ins are attached <b>by the builder</b>, once, for every
-    /// boss: the 70 s enrage and the phase-3 <c>STUN</c>/<c>FREEZE</c> immunity.
+    /// 🔒 `17` §11 — the <b>three</b> universal built-ins are attached <b>by the builder</b>, once,
+    /// for every boss: the 70 s enrage, and one <c>IMMUNE_STATUS</c> each for the phase-3
+    /// <c>STUN</c> and <c>FREEZE</c> immunity `17` §1 states as one sentence.
     /// </summary>
     [Fact]
     public void The_three_universal_built_ins_are_attached_to_every_boss()
@@ -123,7 +124,10 @@ public sealed class BossEncounterBuilderTests
 
         var ids = encounter.Plan.Effects.Select(h => h.Effect.Id).ToArray();
 
-        ids.Length.ShouldBeGreaterThan(0, "the floor under the membership assertions");
+        ids.Length.ShouldBe(
+            6,
+            "the floor under the membership assertions: three authored mechanics plus 17 §11's " +
+            "three built-ins, and nothing the builder invented on top");
         ids.ShouldContain(BossBuiltIns.EnrageId);
         ids.ShouldContain(BossBuiltIns.Phase3StunImmunityId);
         ids.ShouldContain(BossBuiltIns.Phase3FreezeImmunityId);
@@ -165,8 +169,13 @@ public sealed class BossEncounterBuilderTests
             () => BossEncounterBuilder.Build(
                 BossTestBench.Request(script, BossTestBench.Lookup())));
 
+        // 🔒 Steering S2 — six independent authoring rules throw this one exception type, so the type
+        //    discriminates nothing. The expected sequence is what names THIS rule: no other refusal
+        //    in the builder states it.
+        thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
         thrown.Message.ShouldContain("phases", Case.Insensitive);
-        thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive);
+        thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive, "which boss");
+        thrown.Message.ShouldContain("1, 2, 3", Case.Sensitive, "what 17 §1 requires instead");
     }
 
     /// <summary>
@@ -186,7 +195,14 @@ public sealed class BossEncounterBuilderTests
             () => BossEncounterBuilder.Build(
                 BossTestBench.Request(script, BossTestBench.Lookup(Aura(Bask)))));
 
+        thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
         thrown.Message.ShouldContain("BOSS_THORNMAW_P1_TYPO", Case.Sensitive, "which mechanic");
+        thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive, "which boss");
+        thrown.Message.ShouldNotContain(
+            "1, 2, 3",
+            Case.Sensitive,
+            "and NOT the phase-shape rule's message — this script's blocks are 1, 2, 3, so a builder " +
+            "that reported one generic authoring failure for both would be caught here");
     }
 
     /// <summary>
@@ -247,9 +263,18 @@ public sealed class BossEncounterBuilderTests
     /// 🔒 `17` §11 — the built-ins are <em>"implemented once, applied to all bosses"</em>, so a
     /// script that authored one would be a second, disagreeing copy.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The lookup carries all three built-ins on purpose, and that is the fix to a case that
+    /// passed for the wrong reason.</b> It previously held <c>SYS_ENRAGE</c> alone, so the
+    /// <c>SYS_PHASE3_IMMUNE_STUN</c> row was refused by the <em>unresolved-mechanic</em> rule —
+    /// whose message also names the id — and the case proved nothing about this rule at all
+    /// (steering S2). With every built-in resolvable, the only thing wrong with the script is that
+    /// it authored one.
+    /// </remarks>
     [Theory]
     [InlineData("SYS_ENRAGE")]
     [InlineData("SYS_PHASE3_IMMUNE_STUN")]
+    [InlineData("SYS_PHASE3_IMMUNE_FREEZE")]
     public void A_script_that_authors_one_of_the_built_ins_is_refused(string builtInId)
     {
         var script = BossTestBench.Script(
@@ -258,11 +283,18 @@ public sealed class BossEncounterBuilderTests
             BossTestBench.Block(2),
             BossTestBench.Block(3));
 
-        var thrown = Should.Throw<EffectContextException>(
-            () => BossEncounterBuilder.Build(
-                BossTestBench.Request(script, BossTestBench.Lookup(BossBuiltIns.Enrage))));
+        var lookup = BossTestBench.Lookup(BossBuiltIns.All.ToArray());
 
-        thrown.Message.ShouldContain(builtInId, Case.Sensitive);
+        lookup.Keys.ShouldContain(
+            builtInId, "the floor: the id RESOLVES, so the refusal below is about authoring it");
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => BossEncounterBuilder.Build(BossTestBench.Request(script, lookup)));
+
+        thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
+        thrown.Message.ShouldContain(builtInId, Case.Sensitive, "which built-in");
+        thrown.Message.ShouldContain(
+            "built-in", Case.Insensitive, "and WHY — 17 §11 attaches it, a script may not author it");
     }
 
     /// <summary>
