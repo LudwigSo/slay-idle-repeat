@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rng;
 
 namespace SlayIdleRepeat.Core.Model;
 
@@ -328,7 +330,12 @@ public sealed class Run
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="streamName"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="streamName"/> is not in the registry of `14` §8.1.</exception>
-    public ulong StreamPosition(string streamName) => throw new NotImplementedException();
+    public ulong StreamPosition(string streamName)
+    {
+        RequireRegisteredStream(streamName, nameof(streamName));
+
+        return _streamPositions.TryGetValue(streamName, out var position) ? position : 0UL;
+    }
 
     /// <summary>
     /// How many times one `12` §4.3 in-run ad placement has been used in this run, or zero.
@@ -340,7 +347,12 @@ public sealed class Run
     /// pre-registering itself at run start — would put a content list inside the aggregate.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="placementId"/> is blank.</exception>
-    public long AdUseCount(string placementId) => throw new NotImplementedException();
+    public long AdUseCount(string placementId)
+    {
+        RequirePlacementId(placementId, nameof(placementId));
+
+        return _adUses.TryGetValue(placementId, out var uses) ? uses : 0L;
+    }
 
     /// <summary>
     /// The balance of one <b>run-scoped</b> currency.
@@ -352,7 +364,12 @@ public sealed class Run
     /// <c>GOLD</c> — rather than answered with a zero, which would read as "the run has none" about
     /// a balance that lives on the other aggregate.
     /// </exception>
-    public long BalanceOf(CurrencyId currency) => throw new NotImplementedException();
+    public long BalanceOf(CurrencyId currency)
+    {
+        RequireRunCurrency(currency, nameof(currency));
+
+        return _wallet;
+    }
 
     /// <summary>
     /// 🔒 `30` §11.3 — the persisted shape of this aggregate, stamped with the <b>current</b>
@@ -365,7 +382,20 @@ public sealed class Run
     /// mutated in place and a shared reference would let a later increment rewrite a snapshot already
     /// handed to a persistence adapter.
     /// </remarks>
-    public RunSnapshot ToSnapshot() => throw new NotImplementedException();
+    public RunSnapshot ToSnapshot() => new(
+        SnapshotSchema.SchemaVersion,
+        Id,
+        PlayerId,
+        RunSeed,
+        ChapterId,
+        Tier,
+        _lastAppliedAtUtc,
+        _position,
+        _currentHp,
+        _maxHp,
+        _wallet,
+        _streamPositions,
+        CopyAdUses(_adUses));
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
@@ -403,7 +433,56 @@ public sealed class Run
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="snapshot"/> is null.</exception>
-    public static Result<Run> Rehydrate(RunSnapshot snapshot) => throw new NotImplementedException();
+    public static Result<Run> Rehydrate(RunSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        if (snapshot.SchemaVersion != SnapshotSchema.SchemaVersion)
+        {
+            return Result<Run>.Failure(
+                "RunSnapshot.SchemaVersion is " + Text(snapshot.SchemaVersion) + "; this build reads " +
+                Text(SnapshotSchema.SchemaVersion) + " and NO MIGRATION EXISTS. 14 §16.6 makes a " +
+                "field added, removed or reordered a versioned migration, and the M1 kickoff ruled " +
+                "that no migration code is written before soft launch (written migrations become " +
+                "mandatory at M18). Reading this row against the current layout would shift every " +
+                "field after the first change by one place, silently, for every run that has it. " +
+                "Refusing is the loud failure at the seam 30 §11.3 asks for.");
+        }
+
+        var faults = new List<string>();
+
+        RequireIdentity(snapshot, faults);
+        RequireChapterAndTier(snapshot, faults);
+        RequireTimestamp(snapshot, faults);
+        RequireVitals(snapshot, faults);
+        RequireGold(snapshot, faults);
+        var streams = ReadStreamPositions(snapshot, faults);
+        var adUses = ReadAdUses(snapshot, faults);
+
+        // The two `is null` arms are unreachable while `faults` is empty — every path that returns
+        // null also adds a fault — but they are written as a pattern rather than as two `!`
+        // operators so the correlation is checked rather than asserted at the compiler.
+        if (faults.Count > 0 || streams is null || adUses is null)
+        {
+            return Result<Run>.Failure(
+                "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
+                " problem(s)): " + string.Join(" | ", faults));
+        }
+
+        return Result<Run>.Success(new Run(
+            snapshot.Id,
+            snapshot.PlayerId,
+            snapshot.RunSeed,
+            snapshot.ChapterId,
+            snapshot.Tier,
+            snapshot.LastAppliedAtUtc,
+            snapshot.Position,
+            snapshot.CurrentHp,
+            snapshot.MaxHp,
+            snapshot.Gold,
+            streams,
+            adUses));
+    }
 
     /// <summary>
     /// 🔒 Moves the run's <c>GOLD</c> and produces the `30` §7 <c>CurrencyChanged</c> that attributes
@@ -431,8 +510,52 @@ public sealed class Run
     /// </exception>
     /// <exception cref="ArgumentException"><paramref name="reason"/> is blank.</exception>
     /// <exception cref="InvalidOperationException">The movement would take the balance negative.</exception>
-    internal CurrencyChanged MoveCurrency(CurrencyId currency, long delta, string reason) =>
-        throw new NotImplementedException();
+    internal CurrencyChanged MoveCurrency(CurrencyId currency, long delta, string reason)
+    {
+        RequireRunCurrency(currency, nameof(currency));
+
+        var balance = _wallet;
+
+        // Checked, because `long.MaxValue + 1` wraps to a large negative in the default unchecked
+        // context — a grant that silently bankrupts the run, straight past the guard below that
+        // exists to stop exactly that.
+        long next;
+        try
+        {
+            next = checked(balance + delta);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(delta),
+                delta,
+                "Moving " + Text(currency) + " by " + Text(delta) + " from a balance of " +
+                Text(balance) + " overflows a 64-bit balance. A movement this size is an economy " +
+                "defect upstream — a multiplier chain, most likely — not an amount to store.");
+        }
+
+        if (next < 0)
+        {
+            throw new InvalidOperationException(
+                "Moving " + Text(currency) + " by " + Text(delta) + " would take the balance from " +
+                Text(balance) + " to " + Text(next) + ". 30 §11.5 makes 'a currency never goes " +
+                "negative' an invariant of the Run aggregate. A spend the player cannot afford is " +
+                "refused by the handler as a RejectionReason before it reaches the aggregate; " +
+                "reaching here means a rule debited without checking.");
+        }
+
+        // 🔒 Built BEFORE the write, not after. CurrencyChanged refuses a blank Reason in its own
+        // property initialiser, so constructing it second would leave the balance already moved and
+        // the throw unrecoverable — a currency movement with no attribution, which is the one
+        // outcome 30 §7 and this whole seam exist to make impossible. The newobj and the stfld stay
+        // in the same method body either way, which is what
+        // DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged reads.
+        var change = new CurrencyChanged(DomainEvent.UnstampedSequence, currency, delta, reason);
+
+        _wallet = next;
+
+        return change;
+    }
 
     /// <summary>
     /// `14` §2.3 — records the node index the run has moved to.
@@ -445,7 +568,12 @@ public sealed class Run
     /// move a run in both directions, so a monotonicity guard here would refuse legal play.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="position"/> is negative.</exception>
-    internal void MoveTo(int position) => throw new NotImplementedException();
+    internal void MoveTo(int position)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(position);
+
+        _position = position;
+    }
 
     /// <summary>
     /// 🔒 The <b>one</b> HP seam: writes the current and maximum hit points a rule computed, in one
@@ -471,7 +599,44 @@ public sealed class Run
     /// <paramref name="max"/> is below 1, <paramref name="current"/> is negative, or
     /// <paramref name="current"/> exceeds <paramref name="max"/>.
     /// </exception>
-    internal void SetHitPoints(int current, int max) => throw new NotImplementedException();
+    internal void SetHitPoints(int current, int max)
+    {
+        // Both halves are checked BEFORE either is written, so a refusal cannot leave the pair
+        // half-updated — which would be the very state taking both arguments exists to prevent.
+        if (max < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(max),
+                max,
+                "A run's maximum hit points is at least 1; " + Text(max) + " is not a maximum a hero " +
+                "can be alive under. 03 §7a.5's SHR_HP raises it for the run, so it moves — but it " +
+                "never reaches zero, and a run whose maximum is zero has no HP bar to render.");
+        }
+
+        if (current < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(current),
+                current,
+                "Hit points are never negative; " + Text(current) + " is. 02 §6's revive acts on a " +
+                "hero standing at zero, so zero is the floor and the state a downed hero is in — " +
+                "anything below it is a damage rule that subtracted without clamping.");
+        }
+
+        if (current > max)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(current),
+                current,
+                Text(current) + " exceeds the maximum of " + Text(max) + ". 30 §11.5 keeps the " +
+                "arithmetic in the rule that computes it: overheal is clamped by the healing rule, " +
+                "not accepted and trimmed here, because a silent clamp would make a rule that " +
+                "over-delivered look correct.");
+        }
+
+        _currentHp = current;
+        _maxHp = max;
+    }
 
     /// <summary>
     /// `14` §16.3 — records that a command has been applied to this run at
@@ -488,7 +653,22 @@ public sealed class Run
     /// TTL past the point `14` §16.3 expires it.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="nowUtc"/> is offset or goes backwards.</exception>
-    internal void MarkApplied(DateTimeOffset nowUtc) => throw new NotImplementedException();
+    internal void MarkApplied(DateTimeOffset nowUtc)
+    {
+        RequireZeroOffset(nowUtc, nameof(nowUtc));
+
+        if (nowUtc < _lastAppliedAtUtc)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(nowUtc),
+                nowUtc,
+                "This run last accepted a command at " + Text(_lastAppliedAtUtc) + ", which is after " +
+                Text(nowUtc) + ". 14 §16.3 measures the sliding 48-hour run TTL FROM this instant, " +
+                "so moving it backwards would keep a run alive past the point it expires.");
+        }
+
+        _lastAppliedAtUtc = nowUtc;
+    }
 
     /// <summary>
     /// `12` §4.3 — registers and advances one in-run ad placement's count. The placement comes into
@@ -506,7 +686,37 @@ public sealed class Run
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="placementId"/> is blank.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is negative, or the count overflows.</exception>
-    internal void CountAdUse(string placementId, long amount) => throw new NotImplementedException();
+    internal void CountAdUse(string placementId, long amount)
+    {
+        RequirePlacementId(placementId, nameof(placementId));
+
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "An ad-use counter counts upwards; '" + placementId + "' cannot be advanced by " +
+                Text(amount) + ". 12 §4.3's in-run caps are per run and the run IS the period, so " +
+                "there is nothing to settle back down — a negative advance would be a way to hand a " +
+                "player an impression they have already watched.");
+        }
+
+        _adUses.TryGetValue(placementId, out var current);
+
+        try
+        {
+            _adUses[placementId] = checked(current + amount);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Advancing the ad-use counter '" + placementId + "' by " + Text(amount) + " from " +
+                Text(current) + " overflows a 64-bit count. A count that large inside one run is a " +
+                "loop that did not terminate.");
+        }
+    }
 
     /// <summary>
     /// 🔒 `14` §8.1 — the <b>one</b> seam that writes the per-stream draw counters: it replaces the
@@ -545,6 +755,380 @@ public sealed class Run
     /// A committed stream is missing from <paramref name="positions"/>, or its position moved
     /// backwards.
     /// </exception>
-    internal void CommitStreamPositions(IReadOnlyDictionary<string, ulong> positions) =>
-        throw new NotImplementedException();
+    internal void CommitStreamPositions(IReadOnlyDictionary<string, ulong> positions)
+    {
+        ArgumentNullException.ThrowIfNull(positions);
+
+        // 🔒 Copied into an ORDINAL dictionary rather than adopted. The caller may hold a mutable
+        // reference to the map it handed in, and it may have built it with any comparer at all —
+        // under OrdinalIgnoreCase the key "DICE" IS "dice", so a run that adopted the caller's
+        // comparer would answer for a stream 14 §8.1 does not have. CanonicalStateWriter orders
+        // string keys ordinally, so the stateHash follows that order too.
+        var next = new Dictionary<string, ulong>(positions.Count, StringComparer.Ordinal);
+
+        foreach (var (streamName, position) in positions)
+        {
+            RequireRegisteredStream(streamName, nameof(positions));
+            next[streamName] = position;
+        }
+
+        // Both refusals run over the WHOLE incoming map before anything is written, so a rejected
+        // commit leaves the run exactly as it was rather than half folded in.
+        foreach (var (streamName, committed) in _streamPositions)
+        {
+            if (!next.TryGetValue(streamName, out var incoming))
+            {
+                throw new InvalidOperationException(
+                    "The incoming map has no row for the stream '" + streamName + "', which this " +
+                    "run has already committed at draw " + Text(committed) + ". A dropped key " +
+                    "would silently reset that stream to 0 and the next draw from it would repeat " +
+                    "a sequence the player has already played — the unreproducible run 14 §8.1's " +
+                    "counter model exists to prevent. Commit the scope's final positions for every " +
+                    "stream, which is the only call this seam accepts.");
+            }
+
+            if (incoming < committed)
+            {
+                throw new InvalidOperationException(
+                    "The stream '" + streamName + "' is committed at draw " + Text(committed) +
+                    " and this map puts it back at " + Text(incoming) + ". A draw counter that " +
+                    "moves backwards is a determinism defect, not a request to refuse: the next " +
+                    "draw would repeat a sequence the player has already played (14 §8.1). It " +
+                    "throws rather than producing a RejectionReason because a rejection would hand " +
+                    "the corrupt scope back to the player as a polite 'no' and leave the run in it.");
+            }
+        }
+
+        _streamPositions = next.Count == 0
+            ? NoStreamPositions
+            : new ReadOnlyDictionary<string, ulong>(next);
+    }
+
+    /// <summary>
+    /// The empty stream map every run that has drawn nothing shares, and the empty ad-use map every
+    /// snapshot of a run with no impressions shares.
+    /// </summary>
+    /// <remarks>
+    /// Safe to share precisely because they are read-only and empty: nothing can write to them, and
+    /// two runs holding the same empty map are indistinguishable from two holding their own. Worth
+    /// having because `14` §2.4 has the <b>client</b> recompute a <c>stateHash</c> — and therefore
+    /// call <see cref="ToSnapshot"/> — on every command, on a mid-range handset.
+    /// </remarks>
+    private static readonly ReadOnlyDictionary<string, ulong> NoStreamPositions =
+        new(new Dictionary<string, ulong>(0, StringComparer.Ordinal));
+
+    /// <inheritdoc cref="NoStreamPositions"/>
+    private static readonly ReadOnlyDictionary<string, long> NoAdUses =
+        new(new Dictionary<string, long>(0, StringComparer.Ordinal));
+
+    /// <summary>An ordinal copy of the ad counts, so no caller shares the aggregate's dictionary.</summary>
+    /// <remarks>
+    /// Short-circuits on empty, which is the normal state: most runs never watch an ad, and this
+    /// runs once per <c>stateHash</c>. <see cref="_streamPositions"/> needs no equivalent — it is
+    /// replaced wholesale, so the object handed out can never change afterwards.
+    /// </remarks>
+    private static ReadOnlyDictionary<string, long> CopyAdUses(Dictionary<string, long> adUses) =>
+        adUses.Count == 0
+            ? NoAdUses
+            : new ReadOnlyDictionary<string, long>(new Dictionary<string, long>(adUses, StringComparer.Ordinal));
+
+    /// <summary>
+    /// 🔒 <c>GOLD</c> is the one <c>RUN</c>-scoped currency (`10` §1, assumption <b>A3</b>). The
+    /// mirror image of <c>Player.RequireWalletCurrency</c>, and it names the aggregate that does
+    /// hold the currency rather than answering a zero about the wrong one.
+    /// </summary>
+    private static void RequireRunCurrency(CurrencyId currency, string parameterName)
+    {
+        if (currency == CurrencyId.GOLD)
+        {
+            return;
+        }
+
+        var because = Enum.IsDefined(currency)
+            ? Text(currency) + " is player-scoped (10 §1, tuning/currencies.json, milestone " +
+              "assumption A3). It lives on the Player aggregate — as a wallet row, or as " +
+              "Player.Energy for ENERGY's two banks — and moves through Player.MoveCurrency or " +
+              "Player.SetEnergy. GOLD is the only currency scoped to a run."
+            : "10 §1 fixes eight currencies and this is not one of them; an undefined CurrencyId " +
+              "is an uninitialised field, not a balance.";
+
+        throw new ArgumentOutOfRangeException(parameterName, currency, because);
+    }
+
+    /// <summary>
+    /// 🔒 The same <c>RngStreams.IsRegistered</c> predicate <c>DeterministicRng</c>'s constructor
+    /// uses: a name that cannot be drawn from cannot be read or persisted either.
+    /// </summary>
+    /// <remarks>
+    /// The offending key is quoted <b>exactly</b> as it arrived, case and all. The registry is
+    /// ordinal, so <c>DICE</c> and <c>dice</c> are two different questions, and a message that
+    /// normalised the key would point a reader at a row the data does not carry.
+    /// </remarks>
+    private static void RequireRegisteredStream(string streamName, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(streamName, parameterName);
+
+        if (RngStreams.IsRegistered(streamName))
+        {
+            return;
+        }
+
+        throw new ArgumentException(
+            "'" + streamName + "' is not a row of the 14 §8.1 stream registry, which is the eight " +
+            "fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus minigame:{index} " +
+            "for a non-negative index in canonical decimal form. The comparison is ordinal and " +
+            "case-sensitive, and minigame:03 is deliberately a different string from minigame:3: a " +
+            "name the registry does not recognise cannot be drawn from, so a run cannot stand at a " +
+            "position in it either.",
+            parameterName);
+    }
+
+    /// <summary>A placement id names the placement it counts, so it is never blank.</summary>
+    private static void RequirePlacementId(string placementId, string parameterName)
+    {
+        if (!string.IsNullOrWhiteSpace(placementId))
+        {
+            return;
+        }
+
+        throw new ArgumentException(
+            "An ad-use key is one of 12 §4.3's in-run placement ids, as authored in " +
+            "tuning/ads.json's inRunPlacements. The keys are open rather than a closed type because " +
+            "AdPlacementId is an Application-layer type (12 §7) that Core may not name — but 'open' " +
+            "means the caller picks the id, not that there is no id.",
+            parameterName);
+    }
+
+    private static void RequireZeroOffset(DateTimeOffset instant, string parameterName)
+    {
+        if (instant.Offset == TimeSpan.Zero)
+        {
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(
+            parameterName,
+            instant,
+            Text(instant) + " carries a " + Text(instant.Offset) + " offset. Every instant in this " +
+            "aggregate is UTC: CanonicalStateWriter encodes a DateTimeOffset as Unix milliseconds, " +
+            "so two offsets naming the same instant hash IDENTICALLY while record equality calls " +
+            "them different. Convert at the edge; the domain stores UTC.");
+    }
+
+    private static void RequireIdentity(RunSnapshot snapshot, List<string> faults)
+    {
+        // default(RunId) runs no constructor, so its Value is null rather than validated — RunId's
+        // own remarks name Rehydrate as the seam that has to catch it. Same for PlayerId.
+        if (string.IsNullOrWhiteSpace(snapshot.Id.Value))
+        {
+            faults.Add(
+                nameof(RunSnapshot.Id) + " is blank or default(RunId), so this row names no run. " +
+                "RunId validates in its constructor, which default(RunId) never runs.");
+        }
+
+        if (string.IsNullOrWhiteSpace(snapshot.PlayerId.Value))
+        {
+            faults.Add(
+                nameof(RunSnapshot.PlayerId) + " is blank or default(PlayerId). 30 §4 makes Run a " +
+                "CHILD of Player, so a run that names no player is an orphan rather than a run.");
+        }
+    }
+
+    private static void RequireChapterAndTier(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.ChapterId < 1)
+        {
+            faults.Add(
+                nameof(RunSnapshot.ChapterId) + " is " + Text(snapshot.ChapterId) + ". 02 §1 runs " +
+                "chapters from 1 and chapter.schema.json sets \"minimum\": 1. ⚠️ There is " +
+                "deliberately no upper bound: content/chapters/ is empty and the schema sits on " +
+                "ContentLoader.SchemasAwaitingContent (M3-14), so a ceiling here would be a content " +
+                "bound in code (21 §3.1) and a partial invariant wearing the real one's name.");
+        }
+
+        if (!Enum.IsDefined(snapshot.Tier))
+        {
+            faults.Add(
+                nameof(RunSnapshot.Tier) + " is " + Text((int)snapshot.Tier) + ", which is not one " +
+                "of 10 §7's three tiers (NORMAL, HEROIC, MYTHIC). DifficultyTier has no zero member " +
+                "on purpose, so this is what an uninitialised column reads as — and 02 §2 widens " +
+                "the tier straight into runSeed, so an undefined one would seed a difficulty the " +
+                "game does not have.");
+        }
+    }
+
+    private static void RequireTimestamp(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.LastAppliedAtUtc.Offset == TimeSpan.Zero)
+        {
+            return;
+        }
+
+        faults.Add(
+            nameof(RunSnapshot.LastAppliedAtUtc) + " is " + Text(snapshot.LastAppliedAtUtc) +
+            ", carrying a " + Text(snapshot.LastAppliedAtUtc.Offset) + " offset. Every persisted " +
+            "instant is UTC: CanonicalStateWriter encodes a DateTimeOffset as Unix milliseconds, so " +
+            "two offsets naming one instant share a stateHash while record equality calls the two " +
+            "snapshots different.");
+    }
+
+    private static void RequireVitals(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.Position < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.Position) + " is " + Text(snapshot.Position) + ". ⚠️ That is the " +
+                "WHOLE position check: 30 §11.5's 'a run's position is a valid node' needs node " +
+                "identity, which is M3-01's and is registered as the Board entry in the gap " +
+                "register. A range check invented here would be a partial invariant wearing the " +
+                "real one's name.");
+        }
+
+        var maxIsValid = snapshot.MaxHp >= 1;
+
+        if (!maxIsValid)
+        {
+            faults.Add(
+                nameof(RunSnapshot.MaxHp) + " is " + Text(snapshot.MaxHp) + ". A run's maximum hit " +
+                "points is at least 1; a row whose maximum is zero or below describes a hero the " +
+                "game cannot render an HP bar for.");
+        }
+
+        if (snapshot.CurrentHp < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.CurrentHp) + " is " + Text(snapshot.CurrentHp) + ". Hit points " +
+                "are never negative — 02 §6's revive acts on a hero standing at zero, so zero is " +
+                "the floor and a legal state rather than a defect.");
+        }
+
+        // 🔒 Only when the maximum is itself valid, so ONE defect produces ONE fault. Comparing a
+        // current against a maximum the row does not have would report two problems for one, and a
+        // reader handed two faults for one defect fixes the wrong one (steering S2).
+        else if (maxIsValid && snapshot.CurrentHp > snapshot.MaxHp)
+        {
+            faults.Add(
+                nameof(RunSnapshot.CurrentHp) + " is " + Text(snapshot.CurrentHp) + ", above " +
+                nameof(RunSnapshot.MaxHp) + " " + Text(snapshot.MaxHp) + ". Overheal is clamped by " +
+                "the rule that computes it (30 §11.5), so a stored current above the maximum is a " +
+                "row no rule could have written.");
+        }
+    }
+
+    private static void RequireGold(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.Gold >= 0)
+        {
+            return;
+        }
+
+        faults.Add(
+            nameof(RunSnapshot.Gold) + " is " + Text(snapshot.Gold) + ". 30 §11.5 makes 'a currency " +
+            "never goes negative' an invariant of this aggregate, and GOLD is the one RUN-scoped " +
+            "currency of 10 §1 (assumption A3).");
+    }
+
+    private static IReadOnlyDictionary<string, ulong>? ReadStreamPositions(
+        RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.RngStreamPositions is null)
+        {
+            faults.Add(
+                nameof(RunSnapshot.RngStreamPositions) + " is null. An absent counter map is not an " +
+                "empty one: the sparse map means 'every stream absent from here stands at draw 0', " +
+                "which a null cannot say.");
+            return null;
+        }
+
+        // Copied into an ORDINAL dictionary rather than kept — the caller may hold a mutable
+        // reference to the map it handed in, and CanonicalStateWriter orders string keys ordinally.
+        var copy = new Dictionary<string, ulong>(snapshot.RngStreamPositions.Count, StringComparer.Ordinal);
+        var faulted = false;
+
+        foreach (var (streamName, position) in snapshot.RngStreamPositions)
+        {
+            if (!RngStreams.IsRegistered(streamName))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.RngStreamPositions) + " carries the stream name '" +
+                    streamName + "', which is not a row of the 14 §8.1 registry — the same " +
+                    "RngStreams.IsRegistered predicate DeterministicRng's constructor uses. A name " +
+                    "that cannot be drawn from cannot be persisted either.");
+                faulted = true;
+                continue;
+            }
+
+            copy[streamName] = position;
+        }
+
+        return faulted
+            ? null
+            : copy.Count == 0 ? NoStreamPositions : new ReadOnlyDictionary<string, ulong>(copy);
+    }
+
+    private static Dictionary<string, long>? ReadAdUses(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.AdUses is null)
+        {
+            faults.Add(
+                nameof(RunSnapshot.AdUses) + " is null. An absent counter map is not an empty one.");
+            return null;
+        }
+
+        var copy = new Dictionary<string, long>(snapshot.AdUses.Count, StringComparer.Ordinal);
+        var faulted = false;
+
+        foreach (var (placementId, uses) in snapshot.AdUses)
+        {
+            if (string.IsNullOrWhiteSpace(placementId))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.AdUses) + " carries a blank placement key. A key names the " +
+                    "12 §4.3 in-run placement it counts.");
+                faulted = true;
+                continue;
+            }
+
+            if (uses < 0)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.AdUses) + "['" + placementId + "'] is " + Text(uses) + ". A " +
+                    "use counter counts upwards from zero and the run IS the period (12 §4.3), so " +
+                    "it is never settled back down.");
+                faulted = true;
+                continue;
+            }
+
+            copy[placementId] = uses;
+        }
+
+        return faulted ? null : copy;
+    }
+
+    /// <summary>
+    /// 🔒 Renders a value with <see cref="CultureInfo.InvariantCulture"/>.
+    /// </summary>
+    /// <remarks>
+    /// The same reason <c>Player</c> has one: `14` §8.2 wants <c>Core</c> reading identically
+    /// everywhere, and a bare interpolation renders <c>12.08.2026 05:00:00 +00:00</c> on a German
+    /// laptop and <c>08/12/2026 05:00:00 +00:00</c> in the container — two diagnostics for one
+    /// corrupt row, and a message a reader cannot grep. Enums and strings are rendered directly;
+    /// their rendering does not consult a culture.
+    /// </remarks>
+    private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
+
+    /// <inheritdoc cref="Text(int)"/>
+    private static string Text(long value) => value.ToString(CultureInfo.InvariantCulture);
+
+    /// <inheritdoc cref="Text(int)"/>
+    private static string Text(ulong value) => value.ToString(CultureInfo.InvariantCulture);
+
+    /// <inheritdoc cref="Text(int)"/>
+    private static string Text(CurrencyId value) => value.ToString();
+
+    /// <inheritdoc cref="Text(int)"/>
+    private static string Text(TimeSpan value) => value.ToString("c", CultureInfo.InvariantCulture);
+
+    /// <inheritdoc cref="Text(int)"/>
+    private static string Text(DateTimeOffset value) => value.ToString("O", CultureInfo.InvariantCulture);
 }

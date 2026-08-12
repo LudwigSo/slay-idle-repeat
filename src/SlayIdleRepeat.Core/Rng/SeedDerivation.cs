@@ -73,8 +73,29 @@ public static class SeedDerivation
     /// <see cref="DifficultyTier"/>, or <paramref name="runCounter"/> is negative.
     /// </exception>
     public static ulong RunSeed(
-        PlayerId playerId, int chapterId, DifficultyTier tier, DateTimeOffset nowUtc, long runCounter) =>
-        throw new NotImplementedException();
+        PlayerId playerId, int chapterId, DifficultyTier tier, DateTimeOffset nowUtc, long runCounter)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(chapterId, 1);
+
+        if (!Enum.IsDefined(tier))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tier),
+                tier,
+                "10 §7 runs three tiers — NORMAL, HEROIC, MYTHIC — and DifficultyTier has no zero " +
+                "member on purpose. Widening an undefined tier into the hash would produce a " +
+                "perfectly stable runSeed for a difficulty the game does not have.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(runCounter);
+
+        // 🔒 Argument for argument, in 02 §2's order. playerId.Value rather than playerId because
+        // 14 §8.0's canonical encoding has exactly two shapes and a PlayerId is the string it wraps;
+        // a default(PlayerId) therefore arrives here as a null string and Hash64Argument refuses it,
+        // which is the loud failure a stable seed for no player would not be.
+        return Hash64.Of(
+            playerId.Value, chapterId, tier, nowUtc.ToUnixTimeSeconds(), runCounter);
+    }
 
     /// <summary>
     /// 🔒 `14` §8.1 — <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>. Combat draw
