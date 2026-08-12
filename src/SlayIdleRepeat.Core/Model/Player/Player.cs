@@ -79,19 +79,6 @@ namespace SlayIdleRepeat.Core.Model;
 /// </remarks>
 public sealed class Player
 {
-    /// <summary>
-    /// 🔒 The <see cref="DomainEvent.Sequence"/> an aggregate stamps on an event it produces.
-    /// </summary>
-    /// <remarks>
-    /// Zero, and it is a placeholder rather than a value. <c>DomainEvent</c> is explicit that the
-    /// ordinal <em>"is assigned by <c>GameRules.Apply</c> (M1-06) — never by a constructor, and
-    /// never by a caller"</em>, because a mutator does not know its event's position in the list
-    /// the command will return. <c>Apply</c> restamps with a <c>with</c> expression, which
-    /// <c>CurrencyChanged</c> keeps possible by leaving every component but <c>Reason</c> as the
-    /// positional <c>init</c>.
-    /// </remarks>
-    internal const int UnstampedSequence = 0;
-
     /// <summary>The UTC time of day every game day and game week begins at (`30` §2.3, `27` §4).</summary>
     /// <remarks>
     /// Not a 📐 tunable: `30` §2.3 writes 05:00 UTC into the reset rule itself — <em>"quest expiry,
@@ -113,7 +100,16 @@ public sealed class Player
     /// placed here deliberately, and a filter would silently adopt it into every player's wallet
     /// and every <c>stateHash</c> in existence.
     /// </remarks>
-    public static IReadOnlyList<CurrencyId> WalletCurrencies { get; } = new[]
+    /// <remarks>
+    /// 🔒 Wrapped in <see cref="Array.AsReadOnly{T}"/>, which is the house idiom
+    /// (<c>RngStreams.FixedNames</c>, <c>ContentSnapshot.DocumentPaths</c>, <c>RejectionReasons</c>)
+    /// and here is load-bearing rather than tidy: a bare array behind an
+    /// <see cref="IReadOnlyList{T}"/> casts straight back to <c>CurrencyId[]</c>, so a caller could
+    /// rewrite what a wallet <em>is</em>, process-wide, on the one type that goes furthest to make
+    /// its state unreachable — and <c>Apply_is_the_only_public_mutation</c> inspects setters,
+    /// fields, constructors and mutating methods, not exposed collections, so it would not see it.
+    /// </remarks>
+    public static IReadOnlyList<CurrencyId> WalletCurrencies { get; } = Array.AsReadOnly(new[]
     {
         CurrencyId.CROWNS,
         CurrencyId.SOUL_SHARDS,
@@ -121,7 +117,7 @@ public sealed class Player
         CurrencyId.MERGE_DUST,
         CurrencyId.BEAST_FEED,
         CurrencyId.HONOR,
-    };
+    });
 
     /// <summary>
     /// 🔒 The wallet. Replaced <b>wholesale</b> on every movement rather than mutated in place.
@@ -136,6 +132,7 @@ public sealed class Player
     /// </remarks>
     private IReadOnlyDictionary<CurrencyId, long> _wallet;
 
+    private long _runsStarted;
     private EnergyBanks _energy;
     private DateTimeOffset _energyAnchorUtc;
     private DateTimeOffset _lastAppliedAtUtc;
@@ -172,6 +169,7 @@ public sealed class Player
         string displayName,
         int legendLevel,
         long legendXp,
+        long runsStarted,
         IReadOnlyDictionary<CurrencyId, long> wallet,
         EnergyBanks energy,
         DateTimeOffset energyAnchorUtc,
@@ -187,6 +185,7 @@ public sealed class Player
         DisplayName = displayName;
         LegendLevel = legendLevel;
         LegendXp = legendXp;
+        _runsStarted = runsStarted;
         _wallet = wallet;
         _energy = energy;
         _energyAnchorUtc = energyAnchorUtc;
@@ -223,9 +222,27 @@ public sealed class Player
     public long LegendXp { get; }
 
     /// <summary>
+    /// 🔒 `02` §2's <c>runCounter</c> — the player's lifetime runs-started counter, and the fourth
+    /// argument of <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>.
+    /// </summary>
+    /// <remarks>
+    /// It is what makes two runs started in the same second on the same chapter and tier draw
+    /// different boards, so `02` §2's determinism claim depends on it being monotonic and never
+    /// reset. M1-05's <c>START_RUN</c> reads it and <see cref="BeginRun"/> advances it.
+    /// </remarks>
+    public long RunsStarted => _runsStarted;
+
+    /// <summary>
     /// The six player-scoped wallet balances (`10` §1). Read-only, and every currency in
     /// <see cref="WalletCurrencies"/> is present — a missing key is a corrupt row, not a zero.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>A frozen view, unlike <see cref="DailyCounters"/>.</b> The wallet is replaced wholesale
+    /// on every movement, so the object a caller holds is a snapshot of the balances at the moment
+    /// it read them and never changes afterwards. The two counter maps are the opposite. The
+    /// asymmetry is forced by the currency rule (see the field's remarks) rather than chosen, and
+    /// it is stated on both getters so a caller does not have to infer it.
+    /// </remarks>
     public IReadOnlyDictionary<CurrencyId, long> Wallet => _wallet;
 
     /// <summary>The two Energy banks (`10` §3, `28` C) — where the <c>ENERGY</c> currency lives.</summary>
@@ -252,12 +269,20 @@ public sealed class Player
     public DateTimeOffset DailyPeriodStartUtc => _dailyPeriodStartUtc;
 
     /// <summary>The daily counters for the current game day. Read-only; empty is the normal state.</summary>
+    /// <remarks>
+    /// ⚠️ <b>A live view, unlike <see cref="Wallet"/>.</b> The counters are mutated in place, so a
+    /// caller holding this reference across a <c>CountDaily</c> or a <c>ResetDailyCounters</c> sees
+    /// the new values — a handler that captured it before <c>AdvanceTime</c> would find it empty
+    /// afterwards. Read it, do not hold it. <see cref="ToSnapshot"/> hands out a copy for exactly
+    /// this reason.
+    /// </remarks>
     public IReadOnlyDictionary<string, long> DailyCounters => _dailyCountersView;
 
     /// <summary>The Monday 05:00 UTC game-week boundary <see cref="WeeklyCounters"/> were last reset at (A2).</summary>
     public DateTimeOffset WeeklyPeriodStartUtc => _weeklyPeriodStartUtc;
 
     /// <summary>The weekly counters for the current game week. Read-only.</summary>
+    /// <remarks>⚠️ A live view, like <see cref="DailyCounters"/> and unlike <see cref="Wallet"/>.</remarks>
     public IReadOnlyDictionary<string, long> WeeklyCounters => _weeklyCountersView;
 
     /// <summary>
@@ -308,6 +333,7 @@ public sealed class Player
         DisplayName,
         LegendLevel,
         LegendXp,
+        _runsStarted,
         _wallet,
         _energy,
         _energyAnchorUtc,
@@ -394,7 +420,10 @@ public sealed class Player
         var daily = ReadCounters(snapshot.DailyCounters, nameof(PlayerSnapshot.DailyCounters), faults);
         var weekly = ReadCounters(snapshot.WeeklyCounters, nameof(PlayerSnapshot.WeeklyCounters), faults);
 
-        if (faults.Count > 0)
+        // The three `is null` arms are unreachable while `faults` is empty — every path that
+        // returns null also adds a fault — but they are written as a pattern rather than as three
+        // `!` operators so the correlation is checked rather than asserted at the compiler.
+        if (faults.Count > 0 || wallet is null || daily is null || weekly is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -406,16 +435,17 @@ public sealed class Player
             snapshot.DisplayName,
             snapshot.LegendLevel,
             snapshot.LegendXp,
-            wallet!,
+            snapshot.RunsStarted,
+            wallet,
             snapshot.Energy,
             snapshot.EnergyAnchorUtc,
             snapshot.LastAppliedAtUtc,
             snapshot.FtueBeatId,
             snapshot.FtueCompletedAtUtc,
             snapshot.DailyPeriodStartUtc,
-            daily!,
+            daily,
             snapshot.WeeklyPeriodStartUtc,
-            weekly!));
+            weekly));
     }
 
     /// <summary>
@@ -428,7 +458,7 @@ public sealed class Player
     /// 🔒 Why it moved — the attribution column of `21` §8.3's <c>income_attribution.csv</c>.
     /// A stable <c>lower_snake_case</c> token. Never blank; <c>CurrencyChanged</c> refuses that.
     /// </param>
-    /// <returns>The event, with <see cref="DomainEvent.Sequence"/> left at <see cref="UnstampedSequence"/>.</returns>
+    /// <returns>The event, with <see cref="DomainEvent.Sequence"/> left at <c>DomainEvent.UnstampedSequence</c>.</returns>
     /// <remarks>
     /// <c>internal</c>, so the only public route to it is <c>GameRules.Apply</c> (`30` §11.2).
     /// Throws rather than returning a <see cref="Result{T}"/> on an unaffordable spend: refusing a
@@ -475,7 +505,7 @@ public sealed class Player
                 "reaching here means a rule debited without checking.");
         }
 
-        return MoveBalance(currency, delta, _energy, reason);
+        return MoveBalance(currency, delta, next, _energy, reason);
     }
 
     /// <summary>
@@ -508,24 +538,81 @@ public sealed class Player
     {
         ArgumentNullException.ThrowIfNull(tuning);
 
-        RequireWithinCeiling(banks.Energy, _energy.Energy, MaxEnergyFor(tuning), "the main Energy bar", "10 §3");
-        RequireWithinCeiling(banks.Reserve, _energy.Reserve, ReserveCapacityFor(tuning), "the Energy Reserve", "28 C2");
+        var max = tuning.MaxEnergyAt(LegendLevel);
+
+        RequireWithinCeiling(banks.Energy, _energy.Energy, max, "the main Energy bar", "10 §3");
+        RequireWithinCeiling(
+            banks.Reserve, _energy.Reserve, tuning.ReserveCapacityAt(LegendLevel), "the Energy Reserve", "28 C2");
 
         var delta = ((long)banks.Energy + banks.Reserve) - ((long)_energy.Energy + _energy.Reserve);
 
-        return MoveBalance(CurrencyId.ENERGY, delta, banks, reason);
+        return MoveBalance(CurrencyId.ENERGY, delta, delta, banks, reason);
+    }
+
+    /// <summary>
+    /// 🔒 `10` §3 / `28` C2 — the <b>one</b> accrual seam: writes the regenerated banks and moves
+    /// the anchor by the span that produced them, in one call.
+    /// </summary>
+    /// <param name="banks"><c>EnergyMath.Accrue(...).Banks</c>.</param>
+    /// <param name="anchorAdvance">
+    /// <c>EnergyMath.Accrue(...).AnchorAdvance</c> — the <b>same</b> accrual's, never another's.
+    /// </param>
+    /// <param name="tuning">The energy numbers, so the ceiling can be derived for this Legend Level.</param>
+    /// <param name="reason">Why Energy moved. A stable <c>lower_snake_case</c> token.</param>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>It takes both halves of one accrual, and that is the invariant.</b>
+    /// <c>EnergyMath.Accrue</c> answers with the banks <em>and</em> the anchor advance because they
+    /// are one fact; a caller that wrote the banks and forgot the anchor would re-grant the same
+    /// span of regeneration on every subsequent command — unbounded Energy — and no aggregate-level
+    /// invariant could catch it, because each of the two writes is individually legal. Making the
+    /// anchor unreachable except through here is what makes that unrepresentable rather than merely
+    /// discouraged. <see cref="SetEnergy"/> stays for grants and spends, which legitimately move a
+    /// balance without moving the anchor.
+    /// </para>
+    /// <para>
+    /// ⚠️ It takes the two values rather than <c>EnergyAccrual</c> itself for a layering reason, not
+    /// an ergonomic one: <c>EnergyAccrual</c> lives in <c>Core/Rules/Economy/</c>, and naming it in
+    /// a <c>Model</c> signature is exactly the <c>Model → Rules</c> reference `30` §11.4 forbids —
+    /// <c>Core_internal_layering_holds</c> reads method signatures.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="reason"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="anchorAdvance"/> is negative.</exception>
+    /// <exception cref="InvalidOperationException">The banks would exceed their ceiling.</exception>
+    internal CurrencyChanged AccrueEnergy(
+        EnergyBanks banks, TimeSpan anchorAdvance, EnergyTuning tuning, string reason)
+    {
+        // The anchor is checked FIRST so a negative advance cannot leave the banks written and the
+        // anchor not — the same ordering reason MoveBalance builds its event before writing.
+        RequireForwardAnchor(anchorAdvance);
+
+        var change = SetEnergy(banks, tuning, reason);
+
+        AdvanceEnergyAnchor(anchorAdvance);
+
+        return change;
     }
 
     /// <summary>
     /// Advances the regeneration anchor by the span a rule actually accrued — recorded assumption
     /// <b>A1</b>: <c>wholeUnits × regenInterval</c>, never to the instant asked about.
     /// </summary>
-    /// <param name="accrued">
-    /// <c>EnergyMath.Accrue(...).AnchorAdvance</c>. Never negative; zero is the normal answer when
-    /// less than one interval has passed, and it must leave the sub-unit remainder in place.
-    /// </param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="accrued"/> is negative.</exception>
-    internal void AdvanceEnergyAnchor(TimeSpan accrued)
+    /// <remarks>
+    /// 🔒 <c>private</c>, reachable only through <see cref="AccrueEnergy"/>. See its remarks: the
+    /// anchor and the banks are one fact, and an internal mutator that moved only one of them would
+    /// let a caller re-grant the same span forever with every individual call legal.
+    /// </remarks>
+    private void AdvanceEnergyAnchor(TimeSpan accrued)
+    {
+        RequireForwardAnchor(accrued);
+
+        _energyAnchorUtc += accrued;
+    }
+
+    /// <summary>The anchor only moves forwards.</summary>
+    private static void RequireForwardAnchor(TimeSpan accrued)
     {
         if (accrued < TimeSpan.Zero)
         {
@@ -535,8 +622,35 @@ public sealed class Player
                 "The regeneration anchor only moves forwards. A negative advance would hand the " +
                 "player the same span of regeneration twice on the next command.");
         }
+    }
 
-        _energyAnchorUtc += accrued;
+    /// <summary>
+    /// 🔒 `02` §2 — advances the lifetime runs-started counter and answers the value the run being
+    /// started is seeded with.
+    /// </summary>
+    /// <returns>
+    /// The counter <b>after</b> the increment, which is the <c>runCounter</c> argument to
+    /// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>.
+    /// </returns>
+    /// <remarks>
+    /// It returns the value rather than leaving the caller to read <see cref="RunsStarted"/> back,
+    /// so that "the counter this run was seeded with" and "the counter now stored" cannot be two
+    /// different numbers — a second <c>START_RUN</c> interleaving between the increment and the
+    /// read would silently seed both runs the same way, which is the one thing `02` §2's counter
+    /// exists to prevent.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The counter would overflow a 64-bit count.</exception>
+    internal long BeginRun()
+    {
+        if (_runsStarted == long.MaxValue)
+        {
+            throw new InvalidOperationException(
+                "The lifetime runs-started counter is at long.MaxValue and cannot advance. 02 §2 " +
+                "feeds it into runSeed, so wrapping it to a negative would start re-seeding runs " +
+                "with values the player has already played.");
+        }
+
+        return ++_runsStarted;
     }
 
     /// <summary>`30` §2.3 — records that a command has been applied at <paramref name="nowUtc"/>.</summary>
@@ -587,6 +701,16 @@ public sealed class Player
         RequireGameDayBoundary(periodStartUtc, nameof(periodStartUtc));
         RequireNotBefore(periodStartUtc, _dailyPeriodStartUtc, nameof(periodStartUtc), "daily");
 
+        // 🔒 The boundary already in force is a NO-OP, not a clear. 30 §2.3 runs lazy catch-up as
+        // the first step of EVERY command, so M1-08 calls this on every command a player sends —
+        // and clearing on equality would wipe the day's ad caps, dungeon entries and quest progress
+        // several times an hour, which is the exact outcome RequireNotBefore's message is about.
+        // Only a boundary that is genuinely LATER starts a new period.
+        if (periodStartUtc == _dailyPeriodStartUtc)
+        {
+            return;
+        }
+
         _dailyCounters.Clear();
         _dailyPeriodStartUtc = periodStartUtc;
     }
@@ -613,6 +737,12 @@ public sealed class Player
         }
 
         RequireNotBefore(periodStartUtc, _weeklyPeriodStartUtc, nameof(periodStartUtc), "weekly");
+
+        // The boundary already in force is a no-op — see ResetDailyCounters.
+        if (periodStartUtc == _weeklyPeriodStartUtc)
+        {
+            return;
+        }
 
         _weeklyCounters.Clear();
         _weeklyPeriodStartUtc = periodStartUtc;
@@ -729,46 +859,30 @@ public sealed class Player
     /// that this method has exactly one job and cannot grow a branch that writes without emitting.
     /// </para>
     /// </remarks>
-    private CurrencyChanged MoveBalance(CurrencyId currency, long delta, EnergyBanks banks, string reason)
+    private CurrencyChanged MoveBalance(
+        CurrencyId currency, long delta, long balance, EnergyBanks banks, string reason)
     {
+        // 🔒 Built BEFORE the write, not after. CurrencyChanged refuses a blank Reason in its own
+        // property initialiser, so constructing it second would leave the balance already moved and
+        // the throw unrecoverable — a currency movement with no attribution, which is the one
+        // outcome 30 §7 and this whole seam exist to make impossible. The newobj and the stfld stay
+        // in the same method body either way, which is what the IL rule reads.
+        var change = new CurrencyChanged(DomainEvent.UnstampedSequence, currency, delta, reason);
+
         if (currency == CurrencyId.ENERGY)
         {
             _energy = banks;
         }
         else
         {
-            var next = new Dictionary<CurrencyId, long>(_wallet) { [currency] = _wallet[currency] + delta };
+            // `balance` is the value MoveCurrency already added in a CHECKED context. Re-adding
+            // here would put the overflow back, in an unchecked one, a guard away from the caller.
+            var next = new Dictionary<CurrencyId, long>(_wallet) { [currency] = balance };
             _wallet = new ReadOnlyDictionary<CurrencyId, long>(next);
         }
 
-        return new CurrencyChanged(UnstampedSequence, currency, delta, reason);
+        return change;
     }
-
-    /// <summary>
-    /// Max Energy at this player's Legend Level — `10` §3's <c>baseMax + perLegendLevel ×
-    /// (level − 1)</c>, capped.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ <b>A second site for the same formula, and it is forced rather than chosen.</b>
-    /// <c>EnergyMath.MaxEnergy</c> owns it, and `30` §11.4 forbids <c>Model</c> from referencing
-    /// <c>Rules</c> — so an aggregate holding `30` §11.5's <em>"Energy never exceeds max +
-    /// reserve"</em> cannot call the rule that knows the maximum. Both sides read the same authored
-    /// numbers out of <see cref="EnergyTuning"/>, and
-    /// <c>PlayerEnergyTests.The_aggregates_ceiling_is_the_same_number_EnergyMath_computes</c> pins
-    /// the two against each other across the whole authored Legend Level range, so a change to one
-    /// cannot silently diverge from the other.
-    /// </remarks>
-    private int MaxEnergyFor(EnergyTuning tuning)
-    {
-        var grown = tuning.BaseMax + ((long)tuning.PerLegendLevel * (LegendLevel - 1));
-
-        return (int)Math.Min(grown, tuning.MaxCap);
-    }
-
-    /// <summary>`28` C2 — the Reserve's capacity: <c>reserveMultipleOfMax ×</c> Max Energy.</summary>
-    /// <remarks>Same forced duplication as <see cref="MaxEnergyFor"/>, pinned by the same test.</remarks>
-    private int ReserveCapacityFor(EnergyTuning tuning) =>
-        (int)Math.Min((long)MaxEnergyFor(tuning) * tuning.ReserveMultipleOfMax, int.MaxValue);
 
     private void RequireWithinCeiling(int next, int current, int cap, string bank, string citation)
     {
@@ -955,6 +1069,15 @@ public sealed class Player
                 nameof(PlayerSnapshot.LegendXp) + " is " + Text(snapshot.LegendXp) + ". Legend XP " +
                 "is lifetime banked income (02 §5.1a) and is never spent, so it cannot be negative.");
         }
+
+        if (snapshot.RunsStarted < 0)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.RunsStarted) + " is " + Text(snapshot.RunsStarted) + ". 02 §2 " +
+                "calls it the lifetime runs-started counter and feeds it into runSeed, so it counts " +
+                "upwards from zero and is never reset — a negative one would seed a run with a " +
+                "value no play produced.");
+        }
     }
 
     private static IReadOnlyDictionary<CurrencyId, long>? ReadWallet(PlayerSnapshot snapshot, List<string> faults)
@@ -1035,19 +1158,18 @@ public sealed class Player
                 "(30 §2.3).");
         }
 
-        if (snapshot.WeeklyPeriodStartUtc.Offset != TimeSpan.Zero)
-        {
-            return;
-        }
-
-        if (snapshot.WeeklyPeriodStartUtc.TimeOfDay != GameDayStart ||
-            snapshot.WeeklyPeriodStartUtc.DayOfWeek != DayOfWeek.Monday)
+        // ⚠️ Both halves of the failure are named, because the guard fires on either. Reporting only
+        // the weekday for a Monday-at-06:00 row would read "…, a Monday. The game week starts MONDAY
+        // 05:00 UTC" — self-contradictory, and pointing the reader at the one field that is correct.
+        if (snapshot.WeeklyPeriodStartUtc.Offset == TimeSpan.Zero &&
+            (snapshot.WeeklyPeriodStartUtc.TimeOfDay != GameDayStart ||
+             snapshot.WeeklyPeriodStartUtc.DayOfWeek != DayOfWeek.Monday))
         {
             faults.Add(
                 nameof(PlayerSnapshot.WeeklyPeriodStartUtc) + " is " +
-                Text(snapshot.WeeklyPeriodStartUtc) + ", a " + snapshot.WeeklyPeriodStartUtc.DayOfWeek +
-                ". The game week starts MONDAY 05:00 UTC (milestone assumption A2, derived from " +
-                "27 §4).");
+                Text(snapshot.WeeklyPeriodStartUtc) + " — a " + snapshot.WeeklyPeriodStartUtc.DayOfWeek +
+                " at " + Text(snapshot.WeeklyPeriodStartUtc.TimeOfDay) + " UTC. The game week starts " +
+                "MONDAY 05:00 UTC (milestone assumption A2, derived from 27 §4).");
         }
     }
 
@@ -1086,7 +1208,7 @@ public sealed class Player
     }
 
     private static Dictionary<string, long>? ReadCounters(
-        IReadOnlyDictionary<string, long> counters, string field, List<string> faults)
+        IReadOnlyDictionary<string, long>? counters, string field, List<string> faults)
     {
         if (counters is null)
         {
@@ -1125,9 +1247,27 @@ public sealed class Player
         return faulted ? null : copy;
     }
 
+    /// <summary>
+    /// The empty counter map every snapshot of a player with no counters shares.
+    /// </summary>
+    /// <remarks>
+    /// Safe to share precisely because it is read-only and empty: nothing can write to it, and two
+    /// snapshots holding the same empty map are indistinguishable from two holding their own.
+    /// </remarks>
+    private static readonly ReadOnlyDictionary<string, long> NoCounters =
+        new(new Dictionary<string, long>(0, StringComparer.Ordinal));
+
     /// <summary>An ordinal copy of a counter map, so no caller shares the aggregate's dictionary.</summary>
+    /// <remarks>
+    /// Short-circuits on empty, which is the normal state today and is on a hot path: `14` §2.4 has
+    /// the <b>client</b> recompute a <c>stateHash</c> — and therefore call
+    /// <see cref="ToSnapshot"/> — on every command, on a mid-range handset, and none of `30`
+    /// §2.3's five counter systems exists yet.
+    /// </remarks>
     private static ReadOnlyDictionary<string, long> Copy(Dictionary<string, long> counters) =>
-        new(new Dictionary<string, long>(counters, StringComparer.Ordinal));
+        counters.Count == 0
+            ? NoCounters
+            : new ReadOnlyDictionary<string, long>(new Dictionary<string, long>(counters, StringComparer.Ordinal));
 
     /// <summary>
     /// 🔒 Renders a value with <see cref="CultureInfo.InvariantCulture"/>.
