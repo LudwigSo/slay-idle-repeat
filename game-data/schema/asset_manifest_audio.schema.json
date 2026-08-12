@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/asset_manifest_audio.schema.json",
+  "title": "assets/asset_manifest_audio.json",
+  "description": "20 §1 (audio direction), §3 (the 12 music tracks), §4.1–§4.6 (the six SFX families), §5 (technical spec). One row per audio asset slot. 🔒 Counts are transcribed and never reconciled — doc 20's stated totals sit beside the counted ones in `totals`, so a future disagreement is visible instead of resolved.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "direction", "technical", "promptScaffolds", "totals", "families", "discrepancies", "assets"],
+  "$defs": {
+    "audioId": {
+      "description": "20 §5: `mus_*` and `sfx_*`, snake_case. 🔒 Written as an alternation so the pattern does not open with two literal characters — see the note in asset_manifest_art.schema.json's `assetId`.",
+      "type": "string",
+      "pattern": "^(mus|sfx)_[a-z0-9_]+$"
+    },
+    "familyId": { "enum": ["music", "dice", "board_movement", "combat", "pets_mounts", "meta_progression", "ui"] },
+    "presentText": { "type": "string", "minLength": 1 },
+    "presentSeconds": {
+      "description": "🔒 ABSENT where doc 20 states no figure for this asset — never a value inferred from §1's band (game-data/README.md, 16 R6).",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 600
+    },
+    "deliveryFormat": {
+      "description": "20 §5 fixes exactly two delivery formats, one per kind. It was `{ type: string, minLength: 1 }`, which accepted any prose at all — a typo, a third format nobody ruled, or an SFX row claiming the music format. `musicRow`/`sfxRow` bind each kind to its own.",
+      "enum": [
+        "OGG Vorbis, q6, 44.1 kHz stereo",
+        "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping"
+      ]
+    },
+    "musicRow": {
+      "description": "🔒 A `20` §3 music track. §3 gives every track a Use column and a loop length; §5's Ducking row is about what SFX do TO music, so a music row carries no `ducksMusic` at all.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "family", "sourceSection", "format", "use", "lengthSeconds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/audioId" },
+        "kind": { "const": "mus" },
+        "family": { "$ref": "#/$defs/familyId" },
+        "sourceSection": { "type": "string", "minLength": 1 },
+        "use": { "$ref": "#/$defs/presentText" },
+        "descriptor": { "$ref": "#/$defs/presentText" },
+        "groupDescriptor": { "$ref": "#/$defs/presentText" },
+        "lengthSeconds": { "$ref": "#/$defs/presentSeconds" },
+        "durationSeconds": { "$ref": "#/$defs/presentSeconds" },
+        "format": { "const": "OGG Vorbis, q6, 44.1 kHz stereo" },
+        "note": { "$ref": "#/$defs/presentText" }
+      }
+    },
+    "sfxRow": {
+      "description": "🔒 A `20` §4 sound effect. §4 gives SFX no Use column and no loop length, and §5's Ducking row states one for every SFX. Listing the two shapes separately is what makes those absences ASSERTED rather than merely described in prose: the flat property list accepted a music track carrying `ducksMusic`, or an SFX carrying a loop length, and AudioAsset documents both as impossible.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "family", "sourceSection", "format", "ducksMusic"],
+      "properties": {
+        "id": { "$ref": "#/$defs/audioId" },
+        "kind": { "const": "sfx" },
+        "family": { "$ref": "#/$defs/familyId" },
+        "sourceSection": { "type": "string", "minLength": 1 },
+        "descriptor": { "$ref": "#/$defs/presentText" },
+        "groupDescriptor": { "$ref": "#/$defs/presentText" },
+        "durationSeconds": { "$ref": "#/$defs/presentSeconds" },
+        "format": { "const": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping" },
+        "ducksMusic": { "type": "boolean" },
+        "note": { "$ref": "#/$defs/presentText" }
+      }
+    },
+    "discrepancy": {
+      "description": "🔒 `DSC_` is the one pattern in this file that ContentInvariants.IsIdNamespace accepts (four literal characters behind the `^`), and asset_manifest_art.schema.json governs an `id` with the same pattern. The discrepancy register is therefore ONE id space spanning both manifests — deliberately, because ManifestValidator.CheckDiscrepancyRecords reads the two together as a single set of records. The consequence to know: the same `DSC_*` id in both files is a build failure, reported by CheckIdSpaces as a duplicate id. Unlike `assetId`, this one is meant to be shared.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sourceSection", "claim", "observed", "detail"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^DSC_[A-Z0-9_]+$" },
+        "sourceSection": { "type": "string", "minLength": 1 },
+        "claim": { "type": "string", "minLength": 1 },
+        "observed": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+
+    "direction": {
+      "description": "20 §1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["palette", "musicMood", "loopLength", "sfxLength", "frequencyDiscipline", "loudness", "silence", "_doc"],
+      "properties": {
+        "palette": { "type": "string", "minLength": 1 },
+        "musicMood": { "type": "string", "minLength": 1 },
+        "loopLength": { "type": "string", "minLength": 1 },
+        "sfxLength": { "type": "string", "minLength": 1 },
+        "frequencyDiscipline": { "type": "string", "minLength": 1 },
+        "loudness": { "type": "string", "minLength": 1 },
+        "silence": { "type": "string", "minLength": 1 },
+        "_doc": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "technical": {
+      "description": "20 §5.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["musicFormat", "sfxFormat", "loopPoints", "naming", "busStructure", "ducking", "adHandling", "polyphonyCaps", "memory", "_doc"],
+      "properties": {
+        "musicFormat": { "type": "string", "minLength": 1 },
+        "sfxFormat": { "type": "string", "minLength": 1 },
+        "loopPoints": { "type": "string", "minLength": 1 },
+        "naming": { "type": "string", "minLength": 1 },
+        "busStructure": { "type": "string", "minLength": 1 },
+        "ducking": { "type": "string", "minLength": 1 },
+        "adHandling": { "type": "string", "minLength": 1 },
+        "polyphonyCaps": { "type": "string", "minLength": 1 },
+        "memory": { "type": "string", "minLength": 1 },
+        "_doc": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "promptScaffolds": {
+      "description": "20 §3 and §4 — the generation scaffolds each row's descriptor slots into.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["music", "sfx", "_doc"],
+      "properties": {
+        "music": { "type": "string", "minLength": 1 },
+        "sfx": { "type": "string", "minLength": 1 },
+        "_doc": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "totals": {
+      "description": "🔒 `claimed*` are doc 20's own stated figures; `transcribed*` are counted from the id lists. Separate keys so a disagreement is visible rather than resolved.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimedMusic", "claimedSfx", "claimedCombined", "transcribedMusic", "transcribedSfx", "transcribedCombined", "sfxWithoutDescriptor", "_doc"],
+      "properties": {
+        "claimedMusic": { "type": "integer", "minimum": 1 },
+        "claimedSfx": { "type": "integer", "minimum": 1 },
+        "claimedCombined": { "type": "integer", "minimum": 1 },
+        "transcribedMusic": { "type": "integer", "minimum": 1 },
+        "transcribedSfx": { "type": "integer", "minimum": 1 },
+        "transcribedCombined": { "type": "integer", "minimum": 1 },
+        "sfxWithoutDescriptor": { "type": "integer", "minimum": 0 },
+        "_doc": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "families": {
+      "description": "20 §3 plus §4.1–§4.6, each carrying the doc's claimed count beside the transcribed one.",
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "claimedCount", "transcribedCount", "countsAgree", "sourceSection"],
+        "properties": {
+          "id": { "$ref": "#/$defs/familyId" },
+          "label": { "type": "string", "minLength": 1 },
+          "claimedCount": { "type": "integer", "minimum": 1 },
+          "transcribedCount": { "type": "integer", "minimum": 1 },
+          "countsAgree": { "type": "boolean" },
+          "sourceSection": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+
+    "discrepancies": {
+      "description": "🔒 Every place this transcription disagrees with, or cannot mechanically check, a claim in doc 20. Owned by O30 at M11-01.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/discrepancy" }
+    },
+
+    "assets": {
+      "description": "One row per audio asset slot. Consumed by M8-01a (provenance keyed to `id`) and M8-10 (one placeholder per row).",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "$comment": "🔒 ABSENT, not null, where doc 20 authorises no value. These files enter the ContentSnapshot, and M0-09's RealDataNegativeCaseTests pins the population of JSON nulls across the whole snapshot at 96 tuning holes; a categorical absence here is a different thing and must not be counted as one. The typed reader surfaces an absent member as null, and AbsentValueTests pins each absence population.",
+        "required": ["id", "kind", "family", "sourceSection", "format"],
+        "properties": {
+          "id": { "$ref": "#/$defs/audioId" },
+          "kind": { "enum": ["mus", "sfx"] },
+          "family": { "$ref": "#/$defs/familyId" },
+          "sourceSection": { "type": "string", "minLength": 1 },
+          "use": {
+            "description": "20 §3's Use column. null for SFX, which §4 does not give one.",
+            "$ref": "#/$defs/presentText"
+          },
+          "descriptor": {
+            "description": "The prompt descriptor doc 20 attaches to this id. 🔒 null where the doc attaches none — see DSC_SHARED_DESCRIPTORS.",
+            "$ref": "#/$defs/presentText"
+          },
+          "groupDescriptor": {
+            "description": "Reserved for a descriptor a human rules as covering a run of ids. Null throughout today: no such ruling exists, and inventing one is not transcription.",
+            "$ref": "#/$defs/presentText"
+          },
+          "lengthSeconds": {
+            "description": "20 §3's per-track loop length. Music only.",
+            "$ref": "#/$defs/presentSeconds"
+          },
+          "durationSeconds": {
+            "description": "A duration doc 20 states inline in the descriptor (e.g. 'rising fanfare, 1.2 s'). Null for the 86 SFX that state none.",
+            "$ref": "#/$defs/presentSeconds"
+          },
+          "format": { "$ref": "#/$defs/deliveryFormat" },
+          "ducksMusic": {
+            "description": "20 §5's Ducking row. Present on SFX only.",
+            "type": "boolean"
+          },
+          "note": { "$ref": "#/$defs/presentText" }
+        },
+        "oneOf": [
+          { "$ref": "#/$defs/musicRow" },
+          { "$ref": "#/$defs/sfxRow" }
+        ]
+      }
+    }
+  }
+}
