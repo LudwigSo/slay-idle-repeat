@@ -53,8 +53,6 @@ public sealed class SubjectSetFloorTests
             "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation, DomainPurityTests.Every_command_type_is_handled_by_Apply"),
         new("GameCommand", SubjectKind.CoreType, "M1-06",
             "DomainPurityTests.Every_command_type_is_handled_by_Apply, AccessibilityBoundaryTests.Contracts_never_redeclares_a_domain_type"),
-        new("Entitlements", SubjectKind.CoreType, "M1-07",
-            "IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new("GuildView", SubjectKind.CoreType, "M14",
             "IsolationTests.GuildView_is_a_read_only_projection"),
         new("InMemoryGame", SubjectKind.CoreType, "M1-11",
@@ -86,6 +84,13 @@ public sealed class SubjectSetFloorTests
     /// </summary>
     private static readonly PendingSubject[] Live =
     {
+        // Arrived in M1-07, which is why it is no longer in Pending. It has to be tracked HERE, not
+        // nowhere: the rule keyed on it stays vacuous until M1-10 lands Core/Rules/, so a rename in
+        // the meantime would empty it permanently with the whole suite green — the exact silence
+        // Every_rule_subject_is_present_or_declared_pending exists to break.
+        new(Domain.EntitlementsType, SubjectKind.CoreType, "M1-07",
+            "IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
+
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RngNamespace, SubjectKind.CoreNamespace, "M0-06",
