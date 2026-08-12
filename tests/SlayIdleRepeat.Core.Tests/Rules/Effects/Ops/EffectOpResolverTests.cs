@@ -7,24 +7,35 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary>
-/// 🔒 All 43 ops of `18` §2 reach a route, and each family's disposition is the one the document
+/// 🔒 All 44 ops of `18` §2 reach a route, and each family's disposition is the one the document
 /// gives it.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Steering S3 — the resolver's <c>switch</c> has a <c>default</c> arm only because C# requires one
-/// on an enum switch, so it cannot be what catches a forty-fourth op: that op would fall into it and
+/// on an enum switch, so it cannot be what catches a forty-fifth op: that op would fall into it and
 /// throw in whichever battle first authored one. These tests enumerate
 /// <see cref="EffectOps.All"/> and are what catch it at build time.
+/// </para>
+/// <para>
+/// 🔒 <b>The Phase 1a accommodation is gone.</b> Both loops used to tolerate a
+/// <see cref="NotSupportedException"/> from <c>CombatFlowOps.RandomOutcome</c> and record the op as
+/// <em>stubbed</em>/<em>unproven</em>, because its handler had not been written; the remark then said
+/// the accommodation is deleted when the handler lands, and M2-12's implementation phase landed it.
+/// Every one of the 44 is now resolved for real and its disposition asserted — which is the stronger
+/// claim, and the reason the loops below hand in a `14` §8.1 combat draw stream: the forty-fourth op
+/// takes one draw, and an evaluation carrying no stream is refused rather than answered.
+/// </para>
 /// </remarks>
 public sealed class EffectOpResolverTests
 {
     /// <summary>
-    /// Every op is routed — no op reaches the <c>default</c> arm, and the count is floored at 43.
+    /// Every op is routed — no op reaches the <c>default</c> arm, and the count is floored at 44.
     /// </summary>
     [Fact]
     public void Every_op_of_18_2_is_routed()
     {
-        EffectOps.All.Count.ShouldBe(43, "18 §11 — and S3's floor under the loop below");
+        EffectOps.All.Count.ShouldBe(44, "18 §11 — and S3's floor under the loop below");
 
         var unrouted = new List<string>();
 
@@ -42,6 +53,11 @@ public sealed class EffectOpResolverTests
             {
                 CurrentTarget = enemy,
                 Attacker = enemy,
+
+                // `14` §8.1's combat stream — RANDOM_OUTCOME takes exactly one draw and refuses an
+                // evaluation that carries none, so without this the routing claim could not be made
+                // for the forty-fourth op at all.
+                Rng = EffectTestBattle.CombatRng(6),
             };
 
             var context = bench.Context(
@@ -51,7 +67,7 @@ public sealed class EffectOpResolverTests
             {
                 EffectOpResolver.Resolve(OpFixtures.Exemplar(op), context);
             }
-            catch (EffectContextException e) when (e.Message.Contains("is not one of 18 §2's 43", StringComparison.Ordinal))
+            catch (EffectContextException e) when (e.Message.Contains("is not one of 18 §2's 44", StringComparison.Ordinal))
             {
                 unrouted.Add($"{op} fell through to the default arm");
             }
@@ -84,6 +100,7 @@ public sealed class EffectOpResolverTests
             {
                 CurrentTarget = enemy,
                 Attacker = enemy,
+                Rng = EffectTestBattle.CombatRng(6),
             };
 
             var expected = EffectOps.FamilyOf(op) switch

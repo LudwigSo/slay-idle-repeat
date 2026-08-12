@@ -240,6 +240,9 @@ internal sealed class RecordingPhases : IBossPhases
     /// <summary>Every call, as <c>"hook:actor@tick"</c>.</summary>
     internal List<string> Calls { get; } = new();
 
+    /// <summary>Every slot-2a call, as <c>"2a:actor@tick"</c> — M2-12's telegraph pass.</summary>
+    internal List<string> Ticks { get; } = new();
+
     /// <summary>The tick the phase block was registered on — its R8 anchor.</summary>
     internal int? AnchoredAt { get; private set; }
 
@@ -248,6 +251,13 @@ internal sealed class RecordingPhases : IBossPhases
 
     /// <inheritdoc />
     public void EnterInitialPhase(BattleActor actor, int tick) => Calls.Add($"enter1:{actor.Id}@{tick}");
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Recorded separately from <see cref="Calls"/>: it fires once per actor on every tick, so
+    /// folding it in would bury the two hooks this double exists to observe.
+    /// </remarks>
+    public void AdvanceTick(BattleActor actor, int tick) => Ticks.Add($"2a:{actor.Id}@{tick}");
 
     /// <inheritdoc />
     public void AfterHpDecrease(BattleActor actor, int tick)
@@ -267,6 +277,14 @@ internal sealed class RecordingPhases : IBossPhases
         _services.Triggers.Register(id, _phaseEffect, tick, actor.HpFraction);
         actor.AddInstance(id, _phaseEffect);
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// This double models one threshold, so it answers phase 2 once it has crossed and phase 1
+    /// before — enough for `18` §6's <c>PHASE</c> scope to have a reading, and deliberately not a
+    /// second copy of `17` §1's three-band machine, which is <c>BossPhaseController</c>'s.
+    /// </remarks>
+    public int? CurrentPhase(BattleActor actor) => actor.IsBoss ? (_entered ? 2 : 1) : null;
 }
 
 /// <summary>A pet-ability slot that records slot 5's calls.</summary>

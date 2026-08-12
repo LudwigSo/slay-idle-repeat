@@ -76,7 +76,7 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 /// <para>
 /// 🔴 <b>THE RISK THIS LEAVES OPEN, and it is genuinely open — do not read the paragraph above as
 /// though something else caught it.</b> The right home for an authoring guard is
-/// <c>game-data/schema/effect.schema.json</c>, which partitions the 43 ops into key shapes and is
+/// <c>game-data/schema/effect.schema.json</c>, which partitions the 44 ops into key shapes and is
 /// `18` §10's stated place for one. <b>It does not carry this guard today.</b> No <c>required</c>
 /// array in that file names <c>target</c>, so <c>{"op":"DAMAGE","value":0.8}</c> validates, and
 /// under this ruling it now resolves against the holder instead of being refused. An earlier draft

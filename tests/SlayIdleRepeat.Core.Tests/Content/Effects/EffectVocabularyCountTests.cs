@@ -16,8 +16,9 @@ namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 /// </para>
 /// <para>
 /// 🔒 <b>Equalities, not floors.</b> These are closed vocabularies fixed by a document, not
-/// growing populations like the adapter list: `18` §11 states <em>"43 ops = 41 +
-/// <c>CLEAR_SUMMONS</c> + <c>STAT_COPY</c>; 23 triggers = 21 + <c>ON_DEATH</c> + <c>ON_REVIVE</c>;
+/// growing populations like the adapter list: `18` §11 states <em>"44 ops = 41 +
+/// <c>CLEAR_SUMMONS</c> + <c>STAT_COPY</c> + <c>RANDOM_OUTCOME</c>; 23 triggers = 21 +
+/// <c>ON_DEATH</c> + <c>ON_REVIVE</c>;
 /// 23 conditions = 20 + the three <c>ATTACKER_IS_*</c>; 11 targets = 9 + <c>OTHER_ENEMIES</c> +
 /// <c>OWNER</c>; 6 duration scopes = 5 + <c>PHASE</c>"</em>. An op ARRIVING is as much a change to
 /// review as one leaving — `18` §10 requires the op, the schema and the document to move in one
@@ -27,11 +28,11 @@ namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 public sealed class EffectVocabularyCountTests
 {
     [Fact]
-    public void There_are_43_ops_in_five_families()
+    public void There_are_44_ops_in_five_families()
     {
         EffectOps.All.Count.ShouldBe(
-            43,
-            "18 §11: '43 ops = 41 + CLEAR_SUMMONS + STAT_COPY'");
+            44,
+            "18 §11: '44 ops = 41 + CLEAR_SUMMONS + STAT_COPY + RANDOM_OUTCOME'");
 
         Enum.GetValues<EffectOpFamily>().Length.ShouldBe(5, "18 §2.1-§2.5");
     }
@@ -40,13 +41,13 @@ public sealed class EffectVocabularyCountTests
     [InlineData(EffectOpFamily.STAT, 6)]                 // 18 §2.1
     [InlineData(EffectOpFamily.DAMAGE_AND_HEALING, 7)]   // 18 §2.2
     [InlineData(EffectOpFamily.STATUS, 6)]               // 18 §2.3
-    [InlineData(EffectOpFamily.COMBAT_FLOW, 11)]         // 18 §2.4
+    [InlineData(EffectOpFamily.COMBAT_FLOW, 12)]         // 18 §2.4, twelfth is 18 §10.1 E6's RANDOM_OUTCOME
     [InlineData(EffectOpFamily.RUN_AND_BOARD, 13)]       // 18 §2.5
     public void Each_family_holds_the_ops_its_section_tabulates(EffectOpFamily family, int expected)
     {
         EffectOps.All.Count(op => EffectOps.FamilyOf(op) == family).ShouldBe(
             expected,
-            $"18 §2 tabulates {expected} ops in {family}; 6+7+6+11+13 = 43");
+            $"18 §2 tabulates {expected} ops in {family}; 6+7+6+12+13 = 44");
     }
 
     [Fact]

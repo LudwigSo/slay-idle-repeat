@@ -5,7 +5,7 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>
 /// 🔒 Whether an effect is <b>well-formed for its op</b> — the in-code counterpart of
-/// <c>game-data/schema/effect.schema.json</c>'s sixteen key-shape branches, answerable without a
+/// <c>game-data/schema/effect.schema.json</c>'s seventeen key-shape branches, answerable without a
 /// battle.
 /// </summary>
 /// <remarks>
@@ -178,6 +178,19 @@ internal static class EffectOpValidation
             case EffectOp.CLEAR_SUMMONS:
                 break;
 
+            // 🔒 18 §10.1 E6 — the forty-fourth op. Every rule below is checkable without a battle,
+            //    and each one has its own message so a test can pin WHICH fired (steering S2).
+            case EffectOp.RANDOM_OUTCOME:
+                RequireOutcomes(effect, problems);
+                if (effect.Value is not null)
+                {
+                    problems.Add("RANDOM_OUTCOME carries a value; 18 §10.1 E6 gives it none — its table " +
+                                 "is the 'outcomes' key and its own number is the 1-based index of the " +
+                                 "row that won, which nothing authors");
+                }
+
+                break;
+
             // 🔒 §2.5 — A4. Every argument these need beyond the eight-part shape is UNAUTHORED, and
             //    M3 authors it when it builds the resolvers. What is checkable today is the shape:
             //    the op is declared, it is a run/board op, and nothing combat-side is asked of it.
@@ -205,7 +218,7 @@ internal static class EffectOpValidation
                 break;
 
             default:
-                problems.Add($"op {(int)effect.Op} is not one of 18 §2's 43");
+                problems.Add($"op {(int)effect.Op} is not one of 18 §2's 44");
                 break;
         }
 
@@ -224,6 +237,7 @@ internal static class EffectOpValidation
         Exclusive(effect, problems, effect.FaceIndex is not null, "faceIndex", EffectOp.MODIFY_DIE_FACE);
         Exclusive(effect, problems, effect.NewFace is not null, "newFace", EffectOp.MODIFY_DIE_FACE);
         Exclusive(effect, problems, effect.Scope is not null, "scope", EffectOp.MODIFY_DIE_FACE);
+        Exclusive(effect, problems, effect.Outcomes is not null, "outcomes", EffectOp.RANDOM_OUTCOME);
 
         // 🔒 The last two op-specific keys. The schema admits `valueMode` on nine ops and `statusId`
         //    on four; without these, {"op":"EXTRA_ATTACK","valueMode":"FLAT"} and
@@ -360,9 +374,101 @@ internal static class EffectOpValidation
         }
     }
 
+    /// <summary>
+    /// 🔒 `18` §10.1 E6 — <c>RANDOM_OUTCOME</c>'s <c>outcomes</c> table, checked against everything
+    /// `14` §8.0's <see cref="Rng.DeterministicRng.WeightedPick{T}"/> would refuse at fire time,
+    /// plus the two rules only this op has: a choice needs two rows, and a row may not name the
+    /// roll itself.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Each rule adds its <b>own</b> message. A single "the outcomes table is malformed" would
+    /// make a test asserting the rejection unable to say which rule fired (steering S2) — and five
+    /// of these are reachable at once from one badly authored table.
+    /// </remarks>
+    private static void RequireOutcomes(EffectDefinition effect, List<string> problems)
+    {
+        if (effect.Outcomes is not { } outcomes)
+        {
+            problems.Add("RANDOM_OUTCOME names no outcomes, and 18 §10.1 E6 makes that table the whole " +
+                         "op — 17 §9's Roll of Fate is one d6 with three mutually exclusive results");
+            return;
+        }
+
+        if (outcomes.Count < 2)
+        {
+            problems.Add($"RANDOM_OUTCOME offers {outcomes.Count.ToString(CultureInfo.InvariantCulture)} " +
+                         "outcome(s); one outcome is not a choice — author that effect directly rather " +
+                         "than spending a combat draw index to reach it");
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var total = 0.0;
+
+        foreach (var outcome in outcomes)
+        {
+            if (!double.IsFinite(outcome.Weight) || outcome.Weight < 0.0)
+            {
+                problems.Add($"RANDOM_OUTCOME weighs '{outcome.EffectId}' at " +
+                             $"{outcome.Weight.ToString("R", CultureInfo.InvariantCulture)}; 14 §8.0 takes " +
+                             "a finite, non-negative weight — anything else makes the cumulative walk " +
+                             "non-monotonic and its answer arbitrary");
+            }
+            else
+            {
+                total += outcome.Weight;
+            }
+
+            // 🔴 The id's own rule, and the two below it read the id — so a blank one stops here
+            //    rather than being reported three times over. A RandomOutcomeEntry is a record
+            //    struct, so `default` (and a JSON row that omits effectId) carries a null id; without
+            //    this rule, BossEncounterBuilder's O1 lookup raises a bare ArgumentNullException that
+            //    names neither the rule, the boss nor the phase (steering S2).
+            if (string.IsNullOrWhiteSpace(outcome.EffectId))
+            {
+                problems.Add("a RANDOM_OUTCOME row names no effectId; 18 §10.1 E6's rows ARE effect " +
+                             "ids — a blank one names no sibling of the content that owns the roll, " +
+                             "and there is no registry a wider lookup could fall back to");
+                continue;
+            }
+
+            if (!seen.Add(outcome.EffectId))
+            {
+                problems.Add($"RANDOM_OUTCOME names '{outcome.EffectId}' twice; 14 §8.0's weighted walk " +
+                             "would pick the FIRST row every time and the second's weight would silently " +
+                             "only widen the first's share");
+            }
+
+            if (string.Equals(outcome.EffectId, effect.Id, StringComparison.Ordinal))
+            {
+                problems.Add($"RANDOM_OUTCOME names its own id '{effect.Id}' as an outcome, which rolls " +
+                             "the roll — an unbounded recursion that spends a draw index per turn of it");
+            }
+        }
+
+        if (outcomes.Count > 0 && total <= 0.0)
+        {
+            problems.Add("every RANDOM_OUTCOME row weighs zero, so no row can be picked; 14 §8.0's walk " +
+                         "is strict, which is how content disables ONE row without disabling the roll");
+        }
+    }
+
+    /// <remarks>
+    /// ⚠️ The owner list is joined <b>inside</b> the failure and not on the way into it. This runs
+    /// seventeen times per <see cref="Problems"/> call and <see cref="Problems"/> is now on a battle
+    /// path — <c>CombatFlowOps.RandomOutcome</c> re-reads its own table before every draw — so an
+    /// eagerly built message was seventeen strings allocated per roll to describe a failure that had
+    /// not happened.
+    /// </remarks>
     private static void Exclusive(
-        EffectDefinition effect, List<string> problems, bool present, string key, params EffectOp[] owners) =>
-        ExclusiveTo(effect, problems, present, key, string.Join(", ", owners), owners.Contains(effect.Op));
+        EffectDefinition effect, List<string> problems, bool present, string key, params EffectOp[] owners)
+    {
+        if (!present || owners.Contains(effect.Op))
+        {
+            return;
+        }
+
+        ExclusiveTo(effect, problems, present: true, key, string.Join(", ", owners), owned: false);
+    }
 
     /// <summary>The same rule with the ownership stated as a predicate rather than as a list.</summary>
     private static void ExclusiveTo(
@@ -372,7 +478,7 @@ internal static class EffectOpValidation
         {
             problems.Add(
                 $"{effect.Op} carries '{key}', which belongs to [{owners}]. " +
-                "game-data/schema/effect.schema.json partitions the 43 ops into closed key shapes so " +
+                "game-data/schema/effect.schema.json partitions the 44 ops into closed key shapes so " +
                 "that a borrowed key is a failure rather than a field that silently means nothing.");
         }
     }

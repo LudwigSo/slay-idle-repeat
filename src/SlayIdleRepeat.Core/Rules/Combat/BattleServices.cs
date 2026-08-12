@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
@@ -65,12 +66,72 @@ internal sealed class BattleServices
     internal int Tick => _simulation.Tick;
 
     /// <summary>
+    /// 🔒 `18` §6 — the phase this fight's boss is in, or <c>null</c> outside a boss fight. The one
+    /// reading a <c>PHASE</c>-scoped duration needs, routed from <see cref="IBossPhases"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>R3's closing.</b> `18` §6 makes every boss <c>AURA</c> <c>PHASE</c>-scoped and
+    /// <c>DurationEvaluator</c> has implemented the boundary since M2-06 — but its two inputs,
+    /// <c>EffectApplication.AppliedInPhase</c> and <c>DurationProbe.CurrentPhase</c>, had no source
+    /// and every caller left them <c>null</c>, so the scope degraded to <c>BATTLE</c> inside boss
+    /// fights and nothing went red. This is that source, and it is a <b>reading</b>: it neither
+    /// stores a phase nor derives one from HP.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Both inputs come from here, and that is deliberate.</b> <c>DurationEvaluator</c> throws
+    /// when an effect was applied in a phase and the probe carries none — a contradiction it is right
+    /// to refuse. Reading both from the same member is what makes that contradiction impossible to
+    /// produce by wiring one and forgetting the other.
+    /// </para>
+    /// </remarks>
+    internal int? CurrentBossPhase => _simulation.CurrentBossPhase;
+
+    /// <summary>
     /// The `18` §4/§5 evaluation context for one holder, assembled from this fight's roster and
     /// clock — the same one the loop uses, not a second reading of the same battle.
     /// </summary>
     internal EffectEvaluationContext ContextFor(
         BattleActor holder, BattleActor? target = null, BattleActor? attacker = null) =>
         _simulation.ContextFor(holder, target, attacker);
+
+    /// <summary>
+    /// 🔒 `05` §3.1 — the <c>ON_PHASE_ENTER</c> sweep a phase entry owes, over the boss's own
+    /// instances in ascending effect-id order.
+    /// </summary>
+    /// <param name="boss">The boss that just entered a phase.</param>
+    /// <param name="phase">The phase entered, <c>1..3</c>.</param>
+    /// <remarks>
+    /// Routed through the loop for <see cref="AfterHpDecrease"/>'s reason: <see cref="IBossPhases"/>
+    /// owns <em>when</em> a phase is entered, and `18` §2.5's routing, `05` §3.1's cascade bound and
+    /// the op seams the entry's effects resolve through are all the loop's. A seam that resolved them
+    /// itself would be a second, quieter copy of all three.
+    /// </remarks>
+    internal void FirePhaseEntry(BattleActor boss, int phase) =>
+        _simulation.FirePhaseEntry(boss, phase);
+
+    /// <summary>
+    /// 🔒 `18` §10.1 E6 — resolves the one effect a <c>RANDOM_OUTCOME</c> drew, once
+    /// <see cref="IBossOutcomes"/> has found it among the holder's holdings.
+    /// </summary>
+    /// <param name="holder">The actor whose roll it was.</param>
+    /// <param name="effect">The winning row's effect. It carries no trigger of its own.</param>
+    internal void ResolveOutcome(BattleActor holder, EffectDefinition effect) =>
+        _simulation.ResolveOutcome(holder, effect);
+
+    /// <summary>
+    /// 🔒 `05` §7 — one effect's position in <b>the</b> battle's effect table, the <c>ushort</c>
+    /// <c>Telegraph</c> and <c>RunEffectQueued</c> both carry.
+    /// </summary>
+    /// <param name="effect">The effect being named.</param>
+    /// <returns>Its 0-based position in the opening roster's table.</returns>
+    /// <remarks>
+    /// 🔒 <b>A reading of the one table, never a second one.</b> The loop builds it once from the
+    /// opening roster in `18` §8's ordinal order and its positions are inside every committed
+    /// <c>LogHash</c>; a seam that rebuilt the same expression for itself would be a second table
+    /// kept identical by hand, and would re-sort the whole roster on every emission.
+    /// </remarks>
+    internal ushort EffectIndexOf(EffectDefinition effect) => _simulation.EffectIndexOf(effect);
 
     /// <summary>
     /// 🔒 `05` §3.1's phase check — <em>"runs immediately after <b>every</b> boss HP decrease

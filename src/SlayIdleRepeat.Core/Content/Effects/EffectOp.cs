@@ -1,7 +1,7 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
 /// <summary>
-/// 🔒 The 43 operations of `18` §2 — the complete verb vocabulary of the effect DSL.
+/// 🔒 The 44 operations of `18` §2 — the complete verb vocabulary of the effect DSL.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -12,11 +12,11 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// using a new op name and let the schema validation fail"</em>.
 /// </para>
 /// <para>
-/// 🔒 <b>43, in five families.</b> `18` §11 fixes the count and its arithmetic: <em>"43 ops = 41 +
-/// <c>CLEAR_SUMMONS</c> + <c>STAT_COPY</c>"</em>. The families are §2.1 stat (6), §2.2 damage and
-/// healing (7), §2.3 status (6), §2.4 combat-flow (11) and §2.5 run and board (13) — 6+7+6+11+13.
-/// Two §2.5 ops share one table row (<c>APPLY_CURSE</c> / <c>CLEANSE_CURSE</c>), which is why a
-/// row count of the tables gives 42 and the op count gives 43.
+/// 🔒 <b>44, in five families.</b> `18` §11 fixes the count and its arithmetic: <em>"44 ops = 41 +
+/// <c>CLEAR_SUMMONS</c> + <c>STAT_COPY</c> + <c>RANDOM_OUTCOME</c>"</em>. The families are §2.1 stat
+/// (6), §2.2 damage and healing (7), §2.3 status (6), §2.4 combat-flow (12) and §2.5 run and board
+/// (13) — 6+7+6+12+13. Two §2.5 ops share one table row (<c>APPLY_CURSE</c> /
+/// <c>CLEANSE_CURSE</c>), which is why a row count of the tables gives 43 and the op count gives 44.
 /// </para>
 /// <para>
 /// 🔒 <b>The numbers are wire values</b>, on the same rule as
@@ -26,7 +26,8 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// id</em>, ordinally, through <see cref="EffectOrder"/>.
 /// </para>
 /// <para>
-/// ⚠️ Declaring an op is not implementing it. M2-01 declares all 43; §2.5's thirteen run and board
+/// ⚠️ Declaring an op is not implementing it. M2-01 declares 43 and M2-12 the forty-fourth; §2.5's
+/// thirteen run and board
 /// ops are <em>"resolved by the run controller, never by the combat simulator"</em>, and that
 /// controller is M3 over an aggregate that is M1-05. A declared op with no resolver is the correct
 /// state until then.
@@ -97,7 +98,7 @@ public enum EffectOp
     /// <summary>Scale duration of statuses applied to this actor.</summary>
     STATUS_DURATION_PCT = 19,
 
-    // ---------------------------------------------------------------- §2.4 combat-flow (11)
+    // ---------------------------------------------------------------- §2.4 combat-flow (12)
 
     /// <summary>Perform an additional attack immediately.</summary>
     EXTRA_ATTACK = 20,
@@ -188,4 +189,35 @@ public enum EffectOp
 
     /// <summary>Run-scoped curse handling — cleanse.</summary>
     CLEANSE_CURSE = 43,
+
+    // ------------------------------------------------- §2.4 combat-flow, the 18 §10 E6 extension
+    //
+    // 🔒 Declared HERE and not among its family above because the numbers are wire values: append,
+    //    never renumber (see the type remarks). Its family is COMBAT_FLOW all the same —
+    //    EffectOps.FamilyOf is the authority, never the position in this file.
+
+    /// <summary>
+    /// 🔒 <b>The forty-fourth op, added by M2-12 under `18` §10 (extension E6).</b> Draw <b>one</b>
+    /// value from the battle's combat stream over the <c>outcomes</c> weight table and fire the
+    /// single effect it names — `17` §9's Dicelord <em>Roll of Fate</em>, one visible d6 with three
+    /// <b>mutually exclusive</b> weighted outcomes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why three <c>chance</c>-gated effects are not this op.</b> `18` §4's conditions are
+    /// <em>"pure functions of current state"</em> and a draw is not state, so three gated effects are
+    /// three <b>independent</b> draws: all three can fire, or none can, and neither is a d6. They
+    /// would also spend <b>three</b> draw indices where `14` §8.0's <c>WeightedPick</c> spends
+    /// <b>one</b>, and the draw counter is the persisted state of the stream — so the two readings
+    /// desynchronise every later draw of the battle.
+    /// </para>
+    /// <para>
+    /// ⚠️ Carries <b>no <c>value</c></b>: the table is the new <c>outcomes</c> key
+    /// (<see cref="EffectDefinition.Outcomes"/>), and each row names a <b>sibling</b> effect id —
+    /// declared by the same owning content — rather than embedding an effect object inside an effect
+    /// (<see cref="RandomOutcomeEntry"/> states why). Its own number is the <b>1-based index</b> of
+    /// the row that won.
+    /// </para>
+    /// </remarks>
+    RANDOM_OUTCOME = 44,
 }

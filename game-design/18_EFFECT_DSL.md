@@ -138,6 +138,7 @@ The last two exist only inside `ON_HEAL` contexts (`05` §4.3): `HEAL_AMOUNT` is
 | `DAMAGE_TAKEN_MULT` | Multiply incoming damage (Rimehold's Core — `17` §6) |
 | `CLEAR_SUMMONS` | Despawn all living summons owned by the target (default `SELF`). Despawned ≠ killed: no `ON_DEATH`, no `ON_KILL`, no on-death explosions, no rewards (Ossuary King's Rise Again — `17` §4) |
 | `STAT_COPY` | Copy `value` × the copy-source's **final resolved** stat onto the holder as a percent-bucket add for `duration`. Reads the start-of-tick snapshot, so mutual copies cannot recurse. `stat` may be a stat name or `HIGHEST_PCT_BONUS` (Cogitator's Recalibrate — `17` §7; `PK_PACK_LEADER` copying the hero's CRIT to pets) |
+| `RANDOM_OUTCOME` | Draw **one** value from the battle's combat stream over the `outcomes` weight table and fire the single effect that row names — the **mutually exclusive** choice §10.1 E6 adds for the Dicelord's *Roll of Fate* (`17` §9). Each row is `{"effectId": …, "weight": …}` and names a **sibling** effect id — one declared by the **same owning content** as the `RANDOM_OUTCOME` itself — never an embedded effect object. An effect is embedded in the content that owns it rather than living in a registry, so the reference resolves inside that one owner and needs nothing global; the boss encounter builder holds the script’s own effect set at the moment it has to answer and refuses a row naming an id the script does not declare. It is a reference rather than a nested object because (a) the outcome rows are ordinary phase mechanics that must **also** sit on the actor plan to be registered, telegraphable and index-resolvable, so inlining would author each one twice, and (b) no other op nests an effect inside an effect and `effect.schema.json`’s `oneOf` is a closed op-to-key partition with no shape for one; weights are relative, and a `0` weight disables that row. Carries **no** `value`: its own number is the 1-based index of the row that won. 🔒 Exactly one draw index per roll — three `chance`-gated effects would be three *independent* draws, which is neither mutual exclusion nor one d6 |
 
 ### 2.5 Run and board operations
 
@@ -501,12 +502,20 @@ Every row below adds a **key or a token, never a number** — the numbers stay i
 | E3 | `ATTACK_MULT_NEXT`, `FORCE_CRIT_NEXT` | the N of "the next N attacks" | `charges` | both need a count, and `05` §4 already spends the one `value` on the multiplier |
 | E4 | `SURVIVE_LETHAL` | which unit `value` is in | `valueMode` | §2.4 says "HP fraction", §7.4 writes `"value": 1` (a *full-HP* fraction) and `06` says "at 1 HP". Reuses §2.2's existing modes rather than picking a reading |
 | E5 | `REMOVE_STATUS` | the tag group | `statusTag` | §2.3 offers "a status or a tag group" and named a key only for the first |
+| E6 | `RANDOM_OUTCOME` (new op) | a **mutually exclusive** weighted choice | `outcomes` (`[{effectId, weight}]`) | `17` §9's *Roll of Fate* is one visible d6 with three results. §4's conditions are "pure functions of current state" and a draw is **not** state, so three `chance`-gated effects are three *independent* draws — all three can fire, or none — and they spend **three** draw indices where `14` §8.0's `WeightedPick` spends **one**, desynchronising every later draw of the battle |
 
 ⚠️ **Not taken, and recorded so nobody assumes it was.** `REVIVE` has E4's problem word for word —
 §2.4 gives it "at a given HP fraction" — and is deliberately left fraction-only: no authored content
-needs a flat revive, and a key nobody asked for is still a key nobody agreed. `17` §9's Dicelord
-*Roll of Fate* (a visible d6 with three weighted outcomes) has **no** DSL construct and is **not**
-given one here: a 44th op would break §11's pinned count, and the ruling belongs with the boss engine.
+needs a flat revive, and a key nobody asked for is still a key nobody agreed.
+
+🔴 **The one entry that moved.** This paragraph used to record `17` §9's Dicelord *Roll of Fate* as
+having no DSL construct and deliberately not being given one, on the grounds that "a 44th op would
+break §11's pinned count, and the ruling belongs with the boss engine". **M2-12 is the boss engine,
+and it has ruled**: the construct is E6 above, the count in §11 moves from 43 to 44 with it, and the
+reasoning is the one E6's own row states — independent `chance` draws are not mutual exclusion, and
+three draws are not `WeightedPick`'s one. Adding the op is the cheaper of the two failures the
+pinned count exists to catch: a count that moves in a reviewed commit, against a boss mechanic that
+no amount of authored content could express.
 
 ---
 
@@ -514,14 +523,14 @@ given one here: a 44th op would break §11's pinned count, and the ruling belong
 
 - [ ] `EffectDefinition` record and JSON schema
 - [ ] `EffectResolver` implementing §8's order exactly
-- [ ] All 43 ops implemented with unit tests
+- [ ] All 44 ops implemented with unit tests
 - [ ] All 23 trigger kinds wired into the combat and run loops
 - [ ] All 23 condition functions
 - [ ] All 98 perks, 60 talents, 14 affixes, 4 set bonuses, 24 pet definitions, 12 mount definitions, 12 statuses and 8 boss scripts authored as data — **zero hardcoded content**
 - [ ] Schema validation in the build, failing on unknown ops or ids
 - [ ] Parity test: client and server resolvers agree on 10,000 random build permutations
 
-*(Counts after the `16` A7 batch extension: 43 ops = 41 + `CLEAR_SUMMONS` + `STAT_COPY`; 23 triggers = 21 + `ON_DEATH` + `ON_REVIVE`; 23 conditions = 20 + the three `ATTACKER_IS_*`; 11 targets = 9 + `OTHER_ENEMIES` + `OWNER`; 6 duration scopes = 5 + `PHASE`.)*
+*(Counts after the `16` A7 batch extension and §10.1 E6: 44 ops = 41 + `CLEAR_SUMMONS` + `STAT_COPY` + `RANDOM_OUTCOME`; 23 triggers = 21 + `ON_DEATH` + `ON_REVIVE`; 23 conditions = 20 + the three `ATTACKER_IS_*`; 11 targets = 9 + `OTHER_ENEMIES` + `OWNER`; 6 duration scopes = 5 + `PHASE`.)*
 
 ### 11.1 Erratum on the last checklist line — the parity test (M2-17)
 
@@ -555,9 +564,14 @@ token to the emission sets in
 `tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/` (today `EffectVocabularyEmissionSets`),
 whose emitted vocabulary is asserted against this document's catalogues **in both directions** — the
 catalogue being the closed enum, never the emission set itself. All five §10.1 extensions, plus
-§3.1's R11 `chance` and M2-06's three `valueScale` argument keys, are covered there. A 44th op cannot
-be added without either reaching the permutation corpus or turning a test red.
+§3.1's R11 `chance` and M2-06's three `valueScale` argument keys, are covered there. A **45th** op
+cannot be added without either reaching the permutation corpus or turning a test red — as the 44th
+demonstrated, below.
 
 ⚠️ Adding, removing or reordering a token **moves every hash in the committed table**, because the
 generator anchors each axis by `list[index % list.Count]`. That is a documented regeneration, not a
 determinism break, and the reviewer says which it was in the table's `review.why`.
+
+🔴 **The forty-fourth op exercised that clause immediately.** §10.1's E6 `RANDOM_OUTCOME` (M2-12,
+ruling R20) was added to the emission set and the table regenerated under the documented command;
+`review.why` records it. No hash was regenerated to turn a red test green.

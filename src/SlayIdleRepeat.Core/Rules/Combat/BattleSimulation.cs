@@ -48,6 +48,7 @@ internal readonly record struct EventReadings(
 /// for tick in 0..MaxTicks-1
 ///   1   status timers advance; DoT/HoT cadence boundaries apply    → IStatusTimeline (M2-10)
 ///   2   statuses whose duration reached 0 expire                   → IStatusTimeline (M2-10)
+///   2a  boss telegraphs — `17` §1's 1.0–1.5 s wind-up             → IBossPhases     (M2-12)
 ///   3   PERIODIC triggers fire — the ONLY PERIODIC path            → TriggerRegistry.PeriodicDue
 ///   4   basic attacks in fixed initiative order                    → IAttackPipeline (M2-09)
 ///   5   pet ability cooldowns advance                              → IPetAbilities
@@ -225,6 +226,22 @@ internal sealed class BattleSimulation
             for (var i = 0; i < _actors.Count; i++)
             {
                 _seams.Timeline.ExpireDue(_actors[i], Tick);
+            }
+
+            // ── 2a · boss telegraphs — `17` §1's 1.0-1.5 s wind-up (M2-12) ──────────────────
+            //
+            // 🔒 Not one of `05` §3.1's eight slots, and added deliberately rather than folded into
+            // one: a wind-up is emitted AHEAD of the firing it announces, so nothing that happens at
+            // the firing can raise it, and `05` §3.1 makes no per-tick call into IBossPhases at all.
+            // It sits before slot 3 because slot 3 is what advances a PERIODIC's schedule, and the
+            // pass reads TriggerInstance.NextFiringTick. NoBossPhases.AdvanceTick is a no-op, so a
+            // fight with no boss logs — and hashes — exactly as it did before this slot existed.
+            //
+            // Bounded before the walk for RunPeriodics' reason: the roster can grow mid-tick.
+            var standing = _actors.Count;
+            for (var i = 0; i < standing; i++)
+            {
+                _seams.Phases.AdvanceTick(_actors[i], Tick);
             }
 
             // ── 3 · PERIODIC triggers, actor order then effect-id order ──────────────────────
@@ -898,6 +915,80 @@ internal sealed class BattleSimulation
     // ══════════════════════════════════════════════════════════════════ HP, deaths, summons
 
     /// <summary>
+    /// 🔒 `18` §6 — the phase <b>this fight</b> is in, for a <c>PHASE</c>-scoped duration.
+    /// <c>null</c> when the roster carries no boss, which is §6's <em>"outside a boss fight"</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The fight's boss, singular, and the documents are what make that well-defined.</b> `17`
+    /// §1 gives a boss node one boss and `18` §6 writes <em>"the boss"</em>; `05` §3.1's roster puts
+    /// it at <c>CombatActor.FirstEnemy</c>. A roster carrying two bosses is outside every document,
+    /// and this answers with the first in `05` §3.1 index order rather than inventing a rule for a
+    /// case nothing authors — recorded here so the assumption is greppable rather than implied
+    /// (steering S6).
+    /// </para>
+    /// <para>
+    /// ⚠️ It walks the roster on each call rather than caching, because <c>AdmitSummon</c> appends to
+    /// it mid-fight and a cached boss would be a second, staler answer to a question the seam
+    /// already owns.
+    /// </para>
+    /// </remarks>
+    internal int? CurrentBossPhase
+    {
+        get
+        {
+            for (var i = 0; i < _actors.Count; i++)
+            {
+                if (_actors[i].IsBoss)
+                {
+                    return _seams.Phases.CurrentPhase(_actors[i]);
+                }
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 🔒 `05` §3.1's pre-tick 0c and phase check — <em>"the boss's phase 1 counts as entered: fire
+    /// its <c>ON_PHASE_ENTER(1)</c> effects"</em>, and the same for every later entry.
+    /// </summary>
+    /// <param name="boss">The boss that just entered a phase.</param>
+    /// <param name="phase">The phase entered, <c>1..3</c>.</param>
+    /// <remarks>
+    /// 🔒 <b>A routing, not a second implementation.</b> <see cref="IBossPhases"/> decides <em>when</em>
+    /// a phase is entered and what that does to `18` §6's scopes; what it cannot do for itself is
+    /// resolve the effects the entry fires, because `18` §2.5's routing, `05` §3.1's cascade bound and
+    /// the op seams are all the loop's. <see cref="FireTriggers"/> already walks the holder's
+    /// instances in ascending effect-id order, which is the order `05` §3.1 gives this sweep.
+    /// </remarks>
+    internal void FirePhaseEntry(BattleActor boss, int phase)
+    {
+        ArgumentNullException.ThrowIfNull(boss);
+
+        FireTriggers(boss, Occurrence(TriggerKind.ON_PHASE_ENTER, boss) with { Phase = phase });
+    }
+
+    /// <summary>
+    /// 🔒 `18` §10.1 E6 — resolves the <b>one</b> effect a <c>RANDOM_OUTCOME</c>'s draw named, once
+    /// <see cref="IBossOutcomes"/> has found it among the holder's own holdings.
+    /// </summary>
+    /// <param name="holder">The actor whose roll it was.</param>
+    /// <param name="effect">The winning row's effect.</param>
+    /// <remarks>
+    /// 🔒 An outcome row carries <b>no trigger of its own</b> — the <c>RANDOM_OUTCOME</c>'s own
+    /// cadence is the roll's — so it is never on the registry and cannot be reached through
+    /// <see cref="FireTriggers"/>. This is the same resolution path every fired effect takes, which
+    /// is what keeps `18` §2.5's routing and the cascade bound applying to it too.
+    /// </remarks>
+    internal void ResolveOutcome(BattleActor holder, EffectDefinition effect)
+    {
+        ArgumentNullException.ThrowIfNull(holder);
+
+        ResolveFired(holder, effect, Occurrence(TriggerKind.PERIODIC, holder), target: null, attacker: null);
+    }
+
+    /// <summary>
     /// 🔒 `05` §3.1's phase check plus <c>ON_LOW_HP</c> — called after every HP decrease, by the loop
     /// and by M2-09/M2-10 through <see cref="BattleServices.AfterHpDecrease"/>.
     /// </summary>
@@ -1338,19 +1429,34 @@ internal sealed class BattleSimulation
         return index;
     }
 
-    private ushort EffectIndexOf(EffectDefinition effect) =>
-        _effectIndex.TryGetValue(effect.Id, out var index)
+    /// <summary>
+    /// 🔒 One effect's position in the battle's effect table — the <c>ushort</c> `05` §7's
+    /// <c>RunEffectQueued</c> and <c>Telegraph</c> both carry.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>One table, built once, read by everyone.</b> It is <c>internal</c> rather than private
+    /// because M2-12's telegraph pass needs the same positions, and the alternative — a seam
+    /// rebuilding <see cref="BuildEffectIndex"/>'s expression for itself — would be a second table
+    /// that has to be kept identical to this one by hand, on a number that is inside every committed
+    /// <c>LogHash</c>.
+    /// </remarks>
+    internal ushort EffectIndexOf(EffectDefinition effect)
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+
+        return _effectIndex.TryGetValue(effect.Id, out var index)
             ? index
             : throw new EffectContextException(
                 effect.Id,
                 "it is not in the battle's effect table",
-                "`05` §7's RunEffectQueued carries a battle-local INDEX into the table of authored " +
+                "`05` §7's RunEffectQueued and Telegraph carry a battle-local INDEX into the table of authored " +
                 "effect ids, built once from the opening roster in `18` §8's ordinal order — because " +
                 "no string fits a ushort and SimulationResult's five fields cannot carry the table. An " +
                 "effect that arrived mid-fight (a summon's) has no stable position in it: appending " +
                 "would shift nothing, but re-sorting would move indices that are already inside " +
                 "LogHash. No authored `18` §2.5 op is reachable from a summon, so this is refused " +
                 "rather than solved by guessing which of the two is meant.");
+    }
 
     // ══════════════════════════════════════════════════════════════════ the seams M2-08 implements
 
@@ -1487,6 +1593,14 @@ internal sealed class BattleSimulation
                 _battle.AdmitSummon(plan with { OwnerId = owner.Id });
             }
         }
+
+        // 🔒 `18` §10.1 E6 — RANDOM_OUTCOME's winner, routed to the seam that knows what an effect
+        //    id IS. R17 forbids `Rules/Effects/Ops/` naming a `Rules.Combat.Bosses` type, so the op
+        //    validates and draws (exactly one WeightedPick) and this carries the id across. The
+        //    strict default is NoBossOutcomes, which throws naming M2-12/M2-13 — the seam is only
+        //    reached because authored content rolled.
+        public void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId) =>
+            _battle._seams.Outcomes.Resolve(Actor(holder), chosenEffectId, sourceEffectId);
 
         public void ClearSummons(IEffectActorView owner, string sourceEffectId)
         {

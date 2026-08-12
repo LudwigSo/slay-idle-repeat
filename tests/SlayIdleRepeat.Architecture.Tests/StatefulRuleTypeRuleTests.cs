@@ -11,13 +11,22 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>Why this rule exists, stated plainly.</b> The annotation is false five times over under `Rules/Combat/` alone. `05` §3
+/// ⚠️ <b>Why this rule exists, stated plainly.</b> The annotation was already false five times over
+/// under `Rules/Combat/` alone when M2-09 wrote this rule, and the list has since grown to
+/// <see cref="Stateful"/>'s current length as M2-10 and M2-12 landed. `05` §3
 /// is a fixed-tick simulation — a 1800-tick loop is an accumulator by construction, HP and a cooldown
-/// have to live somewhere, and a ward outlives the hit that failed to break it. Every one of the five
-/// is justified in its own <c>⚠️</c> paragraph, and every one of those paragraphs argues from the
+/// have to live somewhere, and a ward outlives the hit that failed to break it. Every entry
+/// is justified in its own <c>⚠️</c> paragraph, and every one of those paragraphs argued from the
 /// previous one's precedent. That is <b>accretion, not a record</b>: nothing in the suite quantified
-/// over statelessness at all, so the sixth and the seventh would cost nothing and `30` §11.4 would go
+/// over statelessness at all, so the next one would cost nothing and `30` §11.4 would go
 /// on saying the opposite of the code.
+/// </para>
+/// <para>
+/// 🔒 <b>This file is the one statement of the list, and no count is written down anywhere.</b> `30`
+/// §11.4's erratum used to restate the five names and went stale twice — M2-10 added three entries
+/// and M2-12 a fourth without it moving. A closed list with two copies is not closed, so the document
+/// now points here and the numbers below are read off <see cref="Stateful"/> rather than asserted in
+/// prose.
 /// </para>
 /// <para>
 /// 🔒 <b>Enumerated, on <c>Domain.PublicRuleTypes</c>' precedent and for its reason.</b> A blanket
@@ -38,9 +47,9 @@ public sealed class StatefulRuleTypeRuleTests
     /// one accumulates and why a stateless function could not.
     /// </summary>
     /// <remarks>
-    /// All five are per-battle or per-actor, owned by exactly one caller, never shared and never
-    /// static — which is what makes them carry none of the properties `30` §11.4's annotation exists
-    /// to protect.
+    /// Every one of them is per-battle or per-actor, owned by exactly one caller, never shared and
+    /// never static — which is what makes them carry none of the properties `30` §11.4's annotation
+    /// exists to protect. That sentence, and not a count, is the entry criterion.
     /// </remarks>
     private static readonly IReadOnlyList<string> Stateful = new List<string>
     {
@@ -86,7 +95,30 @@ public sealed class StatefulRuleTypeRuleTests
         // immunity mandatory — *"without it, stun-locking becomes the only viable build"* — and
         // M2-10's proof of it was a mutation that took the fight from 1200 actionable ticks to 0.
         "SlayIdleRepeat.Core.Rules.Combat.Status.StunWindow",
+
+        // M2-12 — `05` §3.1's phase check is stated over the phase the boss is CURRENTLY in, not over
+        // its HP: *"while currentPhase < PhaseFor(hp) … enter the next phase"*, and *"phases never
+        // revert — healing back above a threshold does not re-enter an earlier phase."* Both
+        // sentences are about what already happened, so `_phase` accumulates exactly the fact no
+        // function of present state can recover: a boss at 70% HP that has been to phase 3 is in
+        // phase 3, and one that has not is in phase 1. BossPhaseRules.PhaseFor is the stateless half
+        // and is a static calculator; this is the half that remembers, and `18` §6's PHASE scope
+        // then reads it through IBossPhases.CurrentPhase on every tick of slot 2.
+        //
+        // It is also per-fight and owned by one caller: BattleSeams builds one per BattleServices,
+        // nothing shares it and nothing static holds it — the same shape as the eight above.
+        "SlayIdleRepeat.Core.Rules.Combat.Bosses.BossPhaseController",
     };
+
+    // ⚠️ The other three types under Rules/Combat/Bosses/ that hold instance fields are deliberately
+    //    NOT here, and the rule proves each one does not need to be. BossOutcomes holds a `readonly
+    //    BattleServices` and BossSummonSource holds a readonly catalogue plus three readonly numbers
+    //    — all of them the fight or the encounter the object was BUILT with, which `30` §11.4's own
+    //    definition excludes. BossTelegraphs, BossPhaseRules, BossBuiltIns and BossAdds are static.
+    //    The telegraph pass in particular was checked rather than assumed: it emits on the tick
+    //    `NextFiringTick − leadTicks`, which is a function of the registry reading at that tick, so
+    //    "once per firing" needs no remembered set. If that ever stops being true, the next entry
+    //    is a diff and this comment is where the question gets asked again.
 
     // ⚠️ AttackPipeline is deliberately NOT here, and the rule proves it does not need to be: its one
     //    field is a `readonly BattleServices`, which is the fight it belongs to rather than anything
@@ -156,8 +188,8 @@ public sealed class StatefulRuleTypeRuleTests
                 offenders.Add(
                     $"{Il.Describe(field)} is instance state on a Rules/Combat/ type that is not on " +
                     $"{nameof(StatefulRuleTypeRuleTests)}.{nameof(Stateful)}. `30` §11.4 makes " +
-                    "Rules/ 'internal, static, stateless calculators'; the five exceptions are " +
-                    "enumerated so that a sixth is a decision in a diff rather than a precedent " +
+                    "Rules/ 'internal, static, stateless calculators'; the exceptions are " +
+                    "enumerated so that the next one is a decision in a diff rather than a precedent " +
                     "somebody followed. If this one is right, add it to the list with what it " +
                     "accumulates and why a stateless function could not.");
             }

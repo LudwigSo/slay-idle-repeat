@@ -18,7 +18,8 @@ public enum EffectOpFamily
     /// <summary>`18` §2.3 — six status operations.</summary>
     STATUS = 3,
 
-    /// <summary>`18` §2.4 — eleven combat-flow operations.</summary>
+    /// <summary>`18` §2.4 — twelve combat-flow operations, the twelfth being `18` §10 E6's
+    /// <see cref="EffectOp.RANDOM_OUTCOME"/>.</summary>
     COMBAT_FLOW = 4,
 
     /// <summary>`18` §2.5 — thirteen run and board operations, resolved by the run controller.</summary>

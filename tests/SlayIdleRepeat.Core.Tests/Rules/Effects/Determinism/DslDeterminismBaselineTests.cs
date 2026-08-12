@@ -41,7 +41,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// 🔴 <b>R18 — `18` §10 step 4 is this file.</b> The extension procedure ends <em>"add the op to the
 /// client/server parity test"</em>, and the coverage tests below are what that step now means. The
 /// generator's emitted vocabulary is asserted against `18`'s catalogues <b>in both directions</b>
-/// (steering S3), so a 44th op cannot be added without either appearing in the corpus or failing a
+/// (steering S3), so a 45th op cannot be added without either appearing in the corpus or failing a
 /// test — and every one of `18` §10.1's extensions has to reach the corpus too.
 /// </para>
 /// </remarks>
@@ -177,8 +177,18 @@ public sealed class DslDeterminismBaselineTests
             "not carry the author's timezone — ContentValidator's baseline writer states the same " +
             "rule for recordedOn.");
 
-        DslDeterminismBaseline.ReviewedBy.ShouldBe(
-            "M2-17", "the task that owns this table, so a later regeneration names its own owner");
+        // 🔴 A TASK ID, not the literal "M2-17". The rule this case states — "a later regeneration
+        //    names its OWN owner" — was asserted as `ShouldBe("M2-17")`, which says the exact
+        //    opposite: it freezes the first issue's reviewer and makes the documented regeneration
+        //    command impossible to follow, because the regenerated table's reviewer is whoever
+        //    regenerated it. M2-12's boss engine was the first regeneration and hit it. The shape is
+        //    what the sentence actually asks for, and it still fails on an empty string, on a
+        //    person's name, and on anything that is not a milestone task.
+        DslDeterminismBaseline.ReviewedBy.ShouldMatch(
+            "^M[0-9]+-[0-9]+[a-z]?$",
+            $"review.reviewedBy is '{DslDeterminismBaseline.ReviewedBy}'. It names the TASK that " +
+            "reviewed this issue of the table, so a later regeneration names its own owner rather " +
+            "than inheriting the first issue's.");
     }
 
     /// <summary>
@@ -220,7 +230,7 @@ public sealed class DslDeterminismBaselineTests
 
     // ══════════════════════════════════════════════════════ R18 · vocabulary coverage, both ways
 
-    /// <summary>🔴 R18 — all 43 ops of `18` §2 reach the corpus, and nothing outside them does.</summary>
+    /// <summary>🔴 R18 — all 44 ops of `18` §2 reach the corpus, and nothing outside them does.</summary>
     [Fact]
     public void Every_op_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -229,8 +239,8 @@ public sealed class DslDeterminismBaselineTests
             EffectVocabularyEmissionSets.Ops,
             EffectOps.All,
             "op",
-            "18 §11: '43 ops = 41 + CLEAR_SUMMONS + STAT_COPY'; 18 §10 step 4: 'add the op to the " +
-            "client/server parity test'");
+            "18 §11: '44 ops = 41 + CLEAR_SUMMONS + STAT_COPY + RANDOM_OUTCOME'; 18 §10 step 4: " +
+            "'add the op to the client/server parity test'");
     }
 
     /// <summary>🔴 R18 — all 23 trigger kinds of `18` §3.1 reach the corpus.</summary>
@@ -797,7 +807,7 @@ public sealed class DslDeterminismBaselineTests
     {
         BothDirections(emitted, catalogue, subject, citation);
 
-        // And the declared emission set is `18`'s vocabulary too — so a 44th op cannot be added to
+        // And the declared emission set is `18`'s vocabulary too — so a 45th op cannot be added to
         // the enum and quietly left out of the generator's reach.
         BothDirections(declared, catalogue, $"declared {subject}", citation);
     }

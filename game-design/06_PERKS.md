@@ -238,7 +238,7 @@ Additional rules:
 
 The `effects` array is interpreted by a single generic effect resolver. **Do not write per-perk code.** Any perk that cannot be expressed in the effect DSL must extend the DSL, not bypass it. This is what makes 98 perks (and later 300) maintainable.
 
-✅ **The full DSL — 43 operations, 23 triggers, 23 conditions (after the `16` A7 batch extension), resolution order and worked examples — is specified in `18_EFFECT_DSL.md`.** That document also resolves the two ambiguous perk designs previously flagged here: `CP_GLASS_HEART` (§9.1) and `PET_DICEBEAST` (§9.2).
+✅ **The full DSL — 44 operations, 23 triggers, 23 conditions (after the `16` A7 batch extension and `18` §10.1's E6 extension), resolution order and worked examples — is specified in `18_EFFECT_DSL.md`.** That document also resolves the two ambiguous perk designs previously flagged here: `CP_GLASS_HEART` (§9.1) and `PET_DICEBEAST` (§9.2).
 
 ---
 

@@ -195,7 +195,16 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
             return;
         }
 
-        var probe = new DurationProbe { BattleTimeSeconds = BattleClock.SecondsAt(tick) };
+        // 🔴 R3 — CurrentBossPhase is what makes `18` §6's PHASE scope mean anything. M2-10 left this
+        //    probe without a phase because nothing in the battle could answer the question, and the
+        //    consequence was silent: DurationEvaluator took §6's "outside a boss fight it behaves as
+        //    BATTLE" fallback INSIDE boss fights, so every boss AURA outlived the phase that granted
+        //    it. M2-12 added IBossPhases.CurrentPhase and routed it here.
+        var probe = new DurationProbe
+        {
+            BattleTimeSeconds = BattleClock.SecondsAt(tick),
+            CurrentPhase = _services.CurrentBossPhase,
+        };
 
         foreach (var instance in statuses.Ordered())
         {
@@ -372,6 +381,12 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
             EffectId = sourceEffectId,
             Duration = ScaledDuration(receiver, duration),
             AppliedAtSeconds = BattleClock.SecondsAt(_services.Tick),
+
+            // 🔴 R3 — the other half of `18` §6's PHASE scope: §6 ends the effect when the boss exits
+            //    "the phase in which the effect WAS APPLIED", so the phase has to be stamped here, at
+            //    application, and not re-read at expiry. null outside a boss fight, which is §6's own
+            //    BATTLE fallback. See BattleServices.CurrentBossPhase.
+            AppliedInPhase = _services.CurrentBossPhase,
         };
 
         var instance = statuses.Find(statusId);

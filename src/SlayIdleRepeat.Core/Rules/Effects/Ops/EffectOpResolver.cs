@@ -3,7 +3,7 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>How one op resolution ended.</summary>
-/// <param name="Op">Which of `18` §2's 43 ops ran.</param>
+/// <param name="Op">Which of `18` §2's 44 ops ran.</param>
 /// <param name="Amount">
 /// The op's own number, rounded to 4 dp. <c>0</c> for the ops that carry no magnitude
 /// (<c>REMOVE_STATUS</c>, <c>CLEAR_SUMMONS</c>) and for every queued §2.5 op.
@@ -59,7 +59,7 @@ internal enum OpDisposition
 }
 
 /// <summary>
-/// 🔒 `18` §2 — the one place all 43 ops are routed, and the only thing in the DSL that knows which
+/// 🔒 `18` §2 — the one place all 44 ops are routed, and the only thing in the DSL that knows which
 /// op does what.
 /// </summary>
 /// <remarks>
@@ -71,7 +71,7 @@ internal enum OpDisposition
 /// </para>
 /// <para>
 /// 🔒 <b>The switch is total and its default arm cannot be the safety net.</b> C# requires a default
-/// arm on an enum switch (<c>CS8524</c>), so a forty-fourth op would fall into it and throw in
+/// arm on an enum switch (<c>CS8524</c>), so a forty-fifth op would fall into it and throw in
 /// whichever battle first authored one. <c>EffectOpResolverTests.Every_op_of_18_2_is_routed</c> is
 /// what catches it at build time by enumerating <see cref="EffectOps.All"/> — the same arrangement
 /// M2-01 records for <c>EffectOps.FamilyOf</c>.
@@ -132,7 +132,7 @@ internal static class EffectOpResolver
             EffectOp.STATUS_POWER_PCT => Resolved(effect, StatusOps.ScaleOutgoingPower(effect, context)),
             EffectOp.STATUS_DURATION_PCT => Resolved(effect, StatusOps.ScaleIncomingDuration(effect, context)),
 
-            // ── §2.4 combat-flow (11).
+            // ── §2.4 combat-flow (12).
             EffectOp.EXTRA_ATTACK => Resolved(effect, CombatFlowOps.ExtraAttack(effect, context)),
             EffectOp.ATTACK_MULT_NEXT => Resolved(effect, CombatFlowOps.AttackMultiplierCharges(effect, context)),
             EffectOp.FORCE_CRIT_NEXT => Resolved(effect, CombatFlowOps.ForcedCritCharges(effect, context)),
@@ -144,6 +144,7 @@ internal static class EffectOpResolver
             EffectOp.DAMAGE_TAKEN_MULT => Resolved(effect, CombatFlowOps.DamageTakenMultiplier(effect, context)),
             EffectOp.CLEAR_SUMMONS => Resolved(effect, CombatFlowOps.ClearSummons(effect, context)),
             EffectOp.STAT_COPY => Resolved(effect, StatCopyOp.Resolve(effect, context)),
+            EffectOp.RANDOM_OUTCOME => Resolved(effect, CombatFlowOps.RandomOutcome(effect, context)),
 
             // ── §2.5 run and board (13) · queued, never resolved.
             EffectOp.GRANT_CURRENCY or
@@ -163,8 +164,8 @@ internal static class EffectOpResolver
 
             _ => throw new EffectContextException(
                 effect.Id,
-                $"op {effect.Op} is not one of 18 §2's 43",
-                "18 §11 fixes the count and 18 §10 is the procedure for a forty-fourth: the op, its " +
+                $"op {effect.Op} is not one of 18 §2's 44",
+                "18 §11 fixes the count and 18 §10 is the procedure for a forty-fifth: the op, its " +
                 "schema branch and its row in 18, in one commit — and an arm here."),
         };
     }

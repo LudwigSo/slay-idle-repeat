@@ -66,6 +66,17 @@ internal sealed class OpTestBench
     internal List<(string Holder, StatId Stat, double Fraction)> PercentBuckets { get; } = [];
 
     /// <summary>
+    /// 🔒 `18` §10.1 E6 — every <c>RANDOM_OUTCOME</c> hand-off, as
+    /// <c>(holder, chosenEffectId, sourceEffectId)</c>.
+    /// </summary>
+    /// <remarks>
+    /// A list rather than a single slot precisely so <em>mutual exclusivity</em> is assertable:
+    /// "exactly one row per roll" is the claim, and a recorder that overwrote would make one call
+    /// and three indistinguishable.
+    /// </remarks>
+    internal List<(string Holder, string ChosenEffectId, string SourceEffectId)> RandomOutcomes { get; } = [];
+
+    /// <summary>
     /// What <see cref="IAttackPipeline.ResolveAttack"/> answers.
     /// </summary>
     /// <remarks>
@@ -259,6 +270,12 @@ internal sealed class OpTestBench
             bench.Calls.Add($"maxAlive={maxAlive?.ToString(CultureInfo.InvariantCulture) ?? "null"}");
         }
 
+        public void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId)
+        {
+            bench.RandomOutcomes.Add((holder.Id, chosenEffectId, sourceEffectId));
+            bench.Record($"{nameof(RandomOutcome)}:{chosenEffectId}", holder.Id, 0.0, sourceEffectId);
+        }
+
         public void ClearSummons(IEffectActorView owner, string sourceEffectId) =>
             bench.Record(nameof(ClearSummons), owner.Id, 0.0, sourceEffectId);
 
@@ -363,6 +380,18 @@ internal static class OpFixtures
             EffectOp.SUMMON => effect with { Archetype = "SWARM", Value = 2.0 },
 
             EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
+
+            // 🔒 18 §10.1 E6 — RANDOM_OUTCOME carries NO value (its own number is the winning row's
+            //    index) and needs two rows, because one outcome is not a choice.
+            EffectOp.RANDOM_OUTCOME => effect with
+            {
+                Value = null,
+                Outcomes = new[]
+                {
+                    new RandomOutcomeEntry("EX_OUTCOME_A", 1.0),
+                    new RandomOutcomeEntry("EX_OUTCOME_B", 1.0),
+                },
+            },
 
             _ => effect,
         };

@@ -14,6 +14,10 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// <param name="Phases">`05` §3.1's phase check, pre-tick 0c and the enrage — <b>M2-12</b>.</param>
 /// <param name="Summons">`18` §2.4's <c>SUMMON</c> — the roster half is <b>M2-12</b>'s.</param>
 /// <param name="Pets">`05` §3.1 <b>slot 5</b> — pet ability cooldowns. See <see cref="IPetAbilities"/>.</param>
+/// <param name="Outcomes">
+/// `18` §2.4 / §10.1 E6's <c>RANDOM_OUTCOME</c> winner — <b>M2-12/M2-13</b>. See
+/// <see cref="IBossOutcomes"/>.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Why the defaults are not all refusals.</b> <c>EffectOpSeams.Strict</c> throws on every
@@ -37,6 +41,8 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 ///   wiring gap, not a fight.</item>
 ///   <item><see cref="NoSummons"/> throws on every call. A <c>SUMMON</c> reaching it means content
 ///   asked, which is <c>EffectOpSeams.Strict</c>'s shape exactly.</item>
+///   <item><see cref="NoBossOutcomes"/> throws on every call, for <see cref="NoSummons"/>' reason: a
+///   <c>RANDOM_OUTCOME</c> only reaches it because authored content rolled one.</item>
 /// </list>
 /// </remarks>
 internal sealed record BattleSeams(
@@ -45,7 +51,8 @@ internal sealed record BattleSeams(
     IStatusTimeline Timeline,
     IBossPhases Phases,
     ISummonSource Summons,
-    IPetAbilities Pets)
+    IPetAbilities Pets,
+    IBossOutcomes Outcomes)
 {
     /// <summary>
     /// 🔒 The seam set M2-08 shipped: <b>every</b> engine absent, the damage pipeline included. Kept
@@ -66,7 +73,8 @@ internal sealed record BattleSeams(
         NoStatusTimeline.Instance,
         NoBossPhases.Instance,
         NoSummons.Instance,
-        NoPetAbilities.Instance);
+        NoPetAbilities.Instance,
+        NoBossOutcomes.Instance);
 
     /// <summary>
     /// 🔒 The seam set a fight gets by default: `05` §4's damage pipeline <b>wired</b>, and the four
@@ -224,10 +232,27 @@ internal interface IStatusTimeline
 ///     re-anchor it at a phase entry and the boss would enrage 70 s after reaching 66% HP.
 ///   </item>
 ///   <item>
+///     <b>Once per actor per tick, between slots 2 and 3</b> — <see cref="AdvanceTick"/>, `17` §1's
+///     telegraph pass. 🔒 <b>Added by M2-12</b>, because `05` §3.1's eight slots make no per-tick
+///     call into this interface and a wind-up is emitted <em>ahead</em> of the firing it announces,
+///     so nothing at the firing can raise it. See the member's own remarks for the alternative that
+///     was rejected.
+///   </item>
+///   <item>
 ///     <b>Telegraphs and the first-clear extension are M2-12's too</b>, and neither is a call the
-///     loop makes: `17` §1's wind-up is emitted by the mechanic that is about to land, through
-///     <c>CombatLog.AppendTelegraph</c>, and the first-clear extension changes
-///     <c>CombatRules.MaxTicks</c> before the fight starts rather than during it.
+///     loop makes: `17` §1's wind-up is emitted through <c>CombatLog.AppendTelegraph</c> by
+///     <see cref="AdvanceTick"/>, ahead of the mechanic that is about to land.
+///     <para>
+///     🔴 <b>ERRATUM, corrected in place.</b> This paragraph previously read that the first-clear
+///     extension <em>"changes <c>CombatRules.MaxTicks</c> before the fight starts"</em>. It does
+///     not, and it cannot: <c>CombatRules.PvE.MaxTicks</c> already equals <c>CombatLog.MaxTicks</c>
+///     (1800) and <c>BattlePlan.Validated</c> throws above it, so there is no headroom — and
+///     extending the fight would lengthen the <em>whole</em> fight rather than phase 1. `17` §1 says
+///     <em>"phase 1 lasts 20% longer"</em>; a phase is an <b>HP band</b>, and at constant DPS its
+///     duration is proportional to its width, so the first clear widens the band by 20% and moves
+///     the phase-2 boundary from 0.66 to 0.5920. No tunable, no extra HP, no <c>MaxTicks</c> change.
+///     See <c>BossPhaseRules</c>.
+///     </para>
 ///   </item>
 /// </list>
 /// </remarks>
@@ -241,6 +266,91 @@ internal interface IBossPhases
     /// the floor.
     /// </summary>
     void AfterHpDecrease(BattleActor actor, int tick);
+
+    /// <summary>
+    /// 🔒 `17` §1 / §11 — the per-tick telegraph pass, once per actor in `05` §3.1 actor order,
+    /// between slots 2 and 3.
+    /// </summary>
+    /// <param name="actor">The actor the loop reached. Most calls are not a boss's.</param>
+    /// <param name="tick">The tick being run.</param>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why the loop gained a slot rather than the boss gaining a pulse.</b> The alternative was
+    /// a synthetic <c>PERIODIC</c> built-in attached to every boss, so that slot 3 pumped the
+    /// controller with no engine edit at all. It was rejected: a fabricated effect id would enter the
+    /// battle's effect table — which is built from the opening roster and whose <b>positions</b> are
+    /// `05` §7's <c>RunEffectQueued</c> and <c>Telegraph</c> indices — and would therefore shift
+    /// indices that are already inside every committed <c>LogHash</c>. This call site costs four
+    /// lines and perturbs nothing.
+    /// </para>
+    /// <para>
+    /// <see cref="NoBossPhases"/> no-ops it, which is correct rather than lenient: a fight with no
+    /// boss has no wind-up to announce, and the log of such a fight is byte-identical with and
+    /// without this slot.
+    /// </para>
+    /// </remarks>
+    void AdvanceTick(BattleActor actor, int tick);
+
+    /// <summary>
+    /// 🔒 `18` §6 — the phase the boss is <b>in</b>, so that a <c>PHASE</c>-scoped effect can end
+    /// <em>"when the boss exits the phase in which the effect was applied"</em>. <c>null</c> outside
+    /// a boss fight, and <c>null</c> for a boss whose phase 1 has not been entered yet.
+    /// </summary>
+    /// <param name="actor">The boss being asked about.</param>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>R3 — without this member the scope silently did nothing.</b> `18` §6 makes every boss
+    /// <c>AURA</c> <c>PHASE</c>-scoped, and <c>DurationEvaluator</c> has implemented the rule since
+    /// M2-06: it reads <c>EffectApplication.AppliedInPhase</c> and <c>DurationProbe.CurrentPhase</c>
+    /// and ends the effect the moment the second exceeds the first. Both were left <c>null</c> by
+    /// every caller, because nothing in the battle could answer the question — so `18` §6's
+    /// <em>"outside a boss fight it behaves as <c>BATTLE</c>"</em> fallback was taken <b>inside</b>
+    /// boss fights too, and a phase-2 aura survived into phase 3 with nothing going red. This is the
+    /// smallest thing that closes it: one reading, on the seam that already owns the phase.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>A reading, never a transition.</b> It must not consult HP: `05` §3.1's <em>"phases never
+    /// revert"</em> means the current phase is what the controller has <em>entered</em>, and a boss
+    /// healed back above 66% is still in the phase it reached. An implementation that recomputed
+    /// from HP would end a phase-3 aura on a heal.
+    /// </para>
+    /// </remarks>
+    int? CurrentPhase(BattleActor actor);
+}
+
+/// <summary>
+/// 🔒 `18` §2.4 / §10.1 <b>E6</b> — the <b>one</b> effect a <c>RANDOM_OUTCOME</c>'s single draw
+/// picked, handed over by id. The seam <b>M2-12</b> implements and <b>M2-13</b> authors against.
+/// </summary>
+/// <remarks>
+/// <para>
+/// ═══ 🔒 <b>WHY THE OP CANNOT SIMPLY FIRE THE WINNER ITSELF</b> ═══
+/// </para>
+/// <para>
+/// R17 fixes the intra-<c>Rules</c> layering as
+/// <c>Rules.Combat ▶ Rules.Stats ▶ Rules.Effects</c> and <c>IntraRulesLayeringRuleTests</c> fails
+/// the build on a violation, so <c>Rules/Effects/Ops/</c> may not name a <c>Rules.Combat.Bosses</c>
+/// type. The op therefore does what the bottom layer can do — validate the table and take exactly
+/// one <c>DeterministicRng.WeightedPick</c> — and names the winner across
+/// <c>ICombatFlowSink.RandomOutcome</c>; <see cref="BattleSimulation"/> routes it here.
+/// </para>
+/// <para>
+/// The split mirrors <see cref="ISummonSource"/>'s exactly: the op knows <em>what was asked for</em>,
+/// the roster half knows <em>what that is</em>.
+/// </para>
+/// </remarks>
+internal interface IBossOutcomes
+{
+    /// <summary>Fires the single effect the roll drew.</summary>
+    /// <param name="holder">The actor whose effect rolled — `17` §9's Dicelord.</param>
+    /// <param name="chosenEffectId">
+    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A <b>sibling</b> reference — an id the
+    /// same owning boss script declares — never an embedded effect
+    /// (<c>RandomOutcomeEntry</c> states why). That is what makes the outcomes mutually exclusive:
+    /// one call per roll, one effect per call.
+    /// </param>
+    /// <param name="sourceEffectId">The <c>RANDOM_OUTCOME</c> effect's own id, for the failure message.</param>
+    void Resolve(BattleActor holder, string chosenEffectId, string sourceEffectId);
 }
 
 /// <summary>
@@ -366,6 +476,56 @@ internal sealed class NoBossPhases : IBossPhases
     public void AfterHpDecrease(BattleActor actor, int tick)
     {
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// 🔒 A <b>no-op</b>, not a refusal, and it is the one member of this class that is right rather
+    /// than merely loud: a fight with no boss has no `17` §1 wind-up to announce, and the loop walks
+    /// this slot on every one of 1800 ticks. <see cref="EnterInitialPhase"/> is where a roster
+    /// carrying a boss becomes a wiring gap.
+    /// </remarks>
+    public void AdvanceTick(BattleActor actor, int tick)
+    {
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// 🔒 <c>null</c>, which is `18` §6's own answer for <em>"outside a boss fight"</em> and is
+    /// therefore correct rather than merely quiet: a fight this controller runs has no phases at
+    /// all, so a <c>PHASE</c>-scoped effect in it behaves as <c>BATTLE</c> exactly as §6 says. A
+    /// roster that <em>does</em> carry a boss never gets this far —
+    /// <see cref="EnterInitialPhase"/> refuses it at pre-tick 0c.
+    /// </remarks>
+    public int? CurrentPhase(BattleActor actor) => null;
+}
+
+/// <summary>
+/// The `18` §10.1 E6 outcome resolver M2-08 ships: none, stated as a refusal naming M2-12/M2-13.
+/// </summary>
+/// <remarks>
+/// A refusal rather than a no-op, on <see cref="NoSummons"/>' reasoning: an op only reaches a seam
+/// because authored content asked for it, and a silently dropped outcome would make `17` §9's
+/// <em>Roll of Fate</em> a d6 with no faces — a boss that rolls, visibly, and does nothing.
+/// </remarks>
+internal sealed class NoBossOutcomes : IBossOutcomes
+{
+    /// <summary>The single instance.</summary>
+    internal static NoBossOutcomes Instance { get; } = new();
+
+    private NoBossOutcomes()
+    {
+    }
+
+    /// <inheritdoc />
+    public void Resolve(BattleActor holder, string chosenEffectId, string sourceEffectId) =>
+        throw new EffectContextException(
+            sourceEffectId,
+            $"its RANDOM_OUTCOME drew '{chosenEffectId}' and no boss outcome resolver was supplied",
+            "`18` §10.1 E6 hands this seam ONE effect id per roll — a SIBLING id the same boss " +
+            "script declares, never an embedded effect — and resolving it against the boss's own " +
+            "holdings is M2-12's boss " +
+            "engine — the scripts that author the tables are M2-13's. Firing nothing would make " +
+            "`17` §9's Roll of Fate a d6 with no faces. Pass a BattleSeams with a real IBossOutcomes.");
 }
 
 /// <summary>

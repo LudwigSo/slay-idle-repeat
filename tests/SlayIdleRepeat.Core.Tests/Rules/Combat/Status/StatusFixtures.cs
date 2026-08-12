@@ -300,6 +300,25 @@ internal class RecordingStatusPipeline : IAttackPipeline
 
         /// <inheritdoc />
         public void AfterHpDecrease(BattleActor actor, int tick) => HpDecreaseCalls++;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// M2-12's per-tick telegraph slot. This fixture counts `05` §3.1's phase check and nothing
+        /// else, so the slot is deliberately a no-op here — a counter would make the status suites
+        /// fail on a boss-engine change that has nothing to do with statuses.
+        /// </remarks>
+        public void AdvanceTick(BattleActor actor, int tick)
+        {
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// M2-12's `18` §6 <c>PHASE</c>-scope reading. <c>null</c>, deliberately: this fixture models
+        /// no phases at all, and §6's own answer for a fight without them is that a <c>PHASE</c>
+        /// scope behaves as <c>BATTLE</c>. Every status case in this file is written against that
+        /// reading; the scope's own boundary is probed in <c>BossPhaseScopeTests</c>.
+        /// </remarks>
+        public int? CurrentPhase(BattleActor actor) => null;
     }
 
     private void Notify(BattleActor actor)

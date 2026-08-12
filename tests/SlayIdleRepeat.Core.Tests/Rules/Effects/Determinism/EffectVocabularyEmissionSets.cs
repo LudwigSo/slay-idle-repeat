@@ -27,9 +27,15 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// </para>
 /// <para>
 /// 🔒 <b>The counts are `18` §11's, and M2-01's <c>EffectVocabularyCountTests</c> is the floor that
-/// keeps this honest</b> — 43 ops, 23 triggers, 23 conditions, 11 targets, 26 stats, 6 duration
-/// scopes, 5 stacking modes, 8 value modes. A 44th op cannot be added without either appearing here
+/// keeps this honest</b> — 44 ops, 23 triggers, 23 conditions, 11 targets, 26 stats, 6 duration
+/// scopes, 5 stacking modes, 8 value modes. A 45th op cannot be added without either appearing here
 /// or failing <c>Every_op_18_declares_is_emitted_by_the_permutation_generator</c>.
+/// </para>
+/// <para>
+/// 🔴 <b>The 44th arrived that way.</b> `18` §10.1 E6's <c>RANDOM_OUTCOME</c> was declared by M2-12's
+/// Phase 1a and reached no permutation, so that rule was red until it was listed here — which is the
+/// mechanism working, not a break. Listing it moved every hash in <c>DslDeterminismBaseline.json</c>
+/// (see the paragraph below), and `18` §11.1 documents that as a regeneration.
 /// </para>
 /// <para>
 /// ⚠️ <b>The <em>order</em> of these lists is part of the corpus definition, not decoration.</b> The
@@ -51,7 +57,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// </remarks>
 internal static class EffectVocabularyEmissionSets
 {
-    /// <summary>`18` §2's 43 ops, in `18` §2's five families.</summary>
+    /// <summary>`18` §2's 44 ops, in `18` §2's five families.</summary>
     internal static IReadOnlyList<EffectOp> Ops { get; } = new List<EffectOp>
     {
         // §2.1 stat (6)
@@ -79,7 +85,7 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.STATUS_POWER_PCT,
         EffectOp.STATUS_DURATION_PCT,
 
-        // §2.4 combat-flow (11)
+        // §2.4 combat-flow (12)
         EffectOp.EXTRA_ATTACK,
         EffectOp.ATTACK_MULT_NEXT,
         EffectOp.FORCE_CRIT_NEXT,
@@ -91,6 +97,7 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.DAMAGE_TAKEN_MULT,
         EffectOp.CLEAR_SUMMONS,
         EffectOp.STAT_COPY,
+        EffectOp.RANDOM_OUTCOME,
 
         // §2.5 run and board (13)
         EffectOp.GRANT_CURRENCY,

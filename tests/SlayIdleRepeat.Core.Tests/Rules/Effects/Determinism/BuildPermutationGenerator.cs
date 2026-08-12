@@ -55,10 +55,10 @@ internal sealed record BuildPermutation(
 /// the moment one does.
 /// </para>
 /// <para>
-/// 🔒 <b>Every permutation is anchored, then filled.</b> Uniform draws over 43 ops would cover the
+/// 🔒 <b>Every permutation is anchored, then filled.</b> Uniform draws over 44 ops would cover the
 /// vocabulary in expectation and not by construction, and "in expectation" is not a property a test
 /// can assert. Each permutation therefore emits one <em>anchor</em> per vocabulary axis, rotated by
-/// the permutation index — <c>Ops[i % 43]</c>, <c>Triggers[i % 23]</c>, and so on — so 10 000
+/// the permutation index — <c>Ops[i % 44]</c>, <c>Triggers[i % 23]</c>, and so on — so 10 000
 /// permutations exhaust every axis by arithmetic. The filler effects on top are the random part, and
 /// are what makes the corpus a permutation set rather than a rotation.
 /// </para>
@@ -243,7 +243,7 @@ internal static class BuildPermutationGenerator
         var placed = new List<(EffectDefinition Effect, EffectSourceKind Kind)>();
 
         // ── The vocabulary anchors. One per axis, rotated by the index, so 10 000 permutations
-        //    exhaust 43 / 23 / 23 / 11 / 26 / 6 / 5 / 8 by arithmetic rather than in expectation.
+        //    exhaust 44 / 23 / 23 / 11 / 26 / 6 / 5 / 8 by arithmetic rather than in expectation.
         Place(placed, rng, WellFormed(EffectVocabularyEmissionSets.Ops[index % EffectVocabularyEmissionSets.Ops.Count], rng, "EFF_ANCHOR_OP"));
         Place(placed, rng, TriggerAnchor(index, rng));
         Place(placed, rng, ConditionAnchor(index, rng));
@@ -839,6 +839,20 @@ internal static class BuildPermutationGenerator
                 Value = null,
                 Archetype = Archetypes[rng.Range(0, Archetypes.Count)],
                 MaxAlive = 1 + rng.Range(0, 4),
+            },
+
+            // 🔒 `18` §10.1 E6 — the table IS the op, and it carries no value. Two rows because one
+            //    outcome is not a choice, and both weights positive because `14` §8.0's walk has no
+            //    row to pick otherwise: an emitted effect EffectOpValidation would refuse is an
+            //    effect the resolver will never actually be handed.
+            EffectOp.RANDOM_OUTCOME => effect with
+            {
+                Value = null,
+                Outcomes = new[]
+                {
+                    new RandomOutcomeEntry($"{id}_OUTCOME_A", 1 + rng.Range(0, 4)),
+                    new RandomOutcomeEntry($"{id}_OUTCOME_B", 1 + rng.Range(0, 4)),
+                },
             },
 
             EffectOp.STAT_COPY => effect with

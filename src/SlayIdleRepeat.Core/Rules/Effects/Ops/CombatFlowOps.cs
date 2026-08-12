@@ -4,7 +4,7 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>
-/// 🔒 Ten of `18` §2.4's eleven combat-flow ops. The eleventh, <c>STAT_COPY</c>, is
+/// 🔒 Eleven of `18` §2.4's twelve combat-flow ops. The twelfth, <c>STAT_COPY</c>, is
 /// <see cref="StatCopyOp"/> — it is the one op in the DSL whose <c>target</c> does not name who it
 /// writes to, and that inversion is worth a file of its own.
 /// </summary>
@@ -171,6 +171,100 @@ internal static class CombatFlowOps
             OpTargets.Holder(context), archetype, count, effect.MaxAlive, effect.Id);
 
         return count;
+    }
+
+    /// <summary>
+    /// 🔒 `18` §2.4 / §10.1 E6 — <c>RANDOM_OUTCOME</c>: <b>one</b> draw over the <c>outcomes</c>
+    /// weight table, and the single effect id it names handed to
+    /// <see cref="ICombatFlowSink.RandomOutcome"/>. Returns the <b>1-based index</b> of the row that
+    /// won.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why this op exists at all.</b> `17` §9's Dicelord <em>Roll of Fate</em> is one visible
+    /// d6 with three <b>mutually exclusive</b> weighted outcomes. `18` §4's conditions are
+    /// <em>"pure functions of current state"</em> and a draw is not state, so three
+    /// <c>chance</c>-gated effects would be three <b>independent</b> draws — all three can fire, or
+    /// none — and would spend <b>three</b> draw indices where `14` §8.0's
+    /// <see cref="Rng.DeterministicRng.WeightedPick{T}"/> spends <b>one</b>.
+    /// <see cref="Rng.DeterministicRng.Position"/> is the persisted state of the stream, so the two
+    /// readings desynchronise every later draw of the battle.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Validation runs BEFORE the draw</b>, mirroring <c>WeightedPick</c>'s own contract that
+    /// <em>a rejected call is not a call</em>: a refused <c>RANDOM_OUTCOME</c> consumes no draw
+    /// index, or a malformed table would shift every later draw of that battle.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The table is re-read through <see cref="EffectOpValidation"/> rather than re-checked
+    /// here.</b> Its rules are the ones <see cref="Rng.DeterministicRng.WeightedPick{T}"/> would
+    /// refuse at fire time plus the two only this op has, and a second copy of them would be a second
+    /// set of words for one authoring error — which is exactly what steering S2 asks a refusal not to
+    /// be.
+    /// </para>
+    /// </remarks>
+    /// <param name="effect">The authored roll, carrying `18` §10.1 E6's <c>outcomes</c> table.</param>
+    /// <param name="context">The `18` §4/§5 state and the seams the winner is named across.</param>
+    /// <returns>The 1-based index of the row that won.</returns>
+    /// <exception cref="EffectContextException">
+    /// The table is malformed, or the context carries no draw stream.
+    /// </exception>
+    internal static double RandomOutcome(EffectDefinition effect, EffectOpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var problems = EffectOpValidation.Problems(effect);
+        if (problems.Count > 0)
+        {
+            throw new EffectContextException(
+                effect.Id,
+                string.Join("; ", problems),
+                "`18` §10.1 E6's outcomes table IS the op, so a malformed one has nothing to roll. " +
+                "It is refused BEFORE the draw because DeterministicRng.Position is the persisted " +
+                "state of the stream — a rejected call that spent an index would shift every later " +
+                "draw of the battle between the client and the server.");
+        }
+
+        var rng = context.Evaluation.Rng ?? throw new EffectContextException(
+            nameof(EffectOp.RANDOM_OUTCOME),
+            "the context carries no draw stream",
+            "`14` §8.1: a combat draw is new DeterministicRng(battleSeed, RngStreams.Combat), and " +
+            "the battleSeed is handed in by the simulator. Answering with the first row instead " +
+            "would be a stable, reproducible, wrong 'random' — `18` §5's RANDOM_ENEMY is refused " +
+            "for the same reason.");
+
+        // Validation above has already refused a null, short, duplicated or unweighted table, so
+        // every row below is one 14 §8.0 can walk.
+        var outcomes = effect.Outcomes!;
+        var table = new (string Item, double Weight)[outcomes.Count];
+
+        for (var row = 0; row < outcomes.Count; row++)
+        {
+            table[row] = (outcomes[row].EffectId, outcomes[row].Weight);
+        }
+
+        // 🔒 ONE draw. Three chance-gated effects would spend three and could fire all three.
+        var chosen = rng.WeightedPick(table);
+
+        context.Seams.Flow.RandomOutcome(OpTargets.Holder(context), chosen, effect.Id);
+
+        for (var row = 0; row < outcomes.Count; row++)
+        {
+            if (string.Equals(outcomes[row].EffectId, chosen, StringComparison.Ordinal))
+            {
+                // 🔒 `18` §10 step 3's number: 1-based, so that the op's amount is the face the d6
+                // showed rather than an array offset nobody authored.
+                return row + 1;
+            }
+        }
+
+        throw new EffectContextException(
+            effect.Id,
+            $"its weighted walk answered '{chosen}', which is not a row of its own table",
+            "14 §8.0's WeightedPick returns an item OF the table it was handed, so this is " +
+            "unreachable — and it is stated rather than assumed because the alternative is returning " +
+            "an index nobody computed (steering S6).");
     }
 
     /// <summary>
