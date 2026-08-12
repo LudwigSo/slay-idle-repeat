@@ -38,9 +38,39 @@ game-data/
 ├── tuning/            # the 16 canonical tunable files (21 §3.1). Economy lives here.
 │   └── experiments/   # sparse override patches. Never edit tuning/ to run an experiment.
 ├── content/           # what the game is made of: chapters, enemies, perks, gear, …
+├── assets/            # the art & audio asset-slot register (15 §E, 20 §3-§4). Not tunables.
 ├── schema/            # JSON Schema (draft 2020-12) for everything above
 └── loc/               # en.json + de.json. Every user-facing string, from day one.
 ```
+
+### `assets/` — the asset-slot register
+
+`asset_manifest_art.json` and `asset_manifest_audio.json` (M8-09) transcribe the manifests in
+`15_ART_DIRECTION_AND_ASSET_MANIFEST.md` §C–§E21 and `20_AUDIO_MANIFEST.md` §3–§5 into one row per
+asset slot. They are a **production-pipeline register**, not game content and not tunables: no game
+rule reads them. Their consumers are the M8 asset tasks — provenance records keyed to an asset id,
+the post-processing pipeline (delivery size, pivot, atlas) and placeholder generation.
+
+They pair by the stem rule like any other non-`content/` file (`assets/X.json` →
+`schema/X.schema.json`) and are therefore validated at build time by `tools/ContentValidator`. Two
+conventions here differ from `tuning/`, deliberately:
+
+- 🔒 **Counts are transcribed, never reconciled.** Where a row count disagrees with the design
+  doc's own stated total, the disagreement is recorded in the file's `discrepancies` block rather
+  than fixed — `15` §E20 claims 50 misc UI icons and lists 49. Reconciling the manifest totals is
+  task **M11-01**'s job, and a quiet fix here destroys the evidence it needs.
+- 🔒 **An unauthorised value is an ABSENT member, not `null`.** The rule above ("`null` means the
+  design docs do not authorise a value") is stated over *numbers* in `tuning/`, each of which
+  somebody could quietly fill with a plausible zero — and
+  `RealDataNegativeCaseTests.The_shipped_data_set_still_carries_exactly_its_96_unauthorised_holes`
+  pins that population across the whole snapshot. A 974-row register carrying "§C states no pivot
+  for a 9-slice panel" as a `null` would add ~3,500 to a population of 96 and destroy the guard. So
+  the register omits the member; the typed reader in `tools/AssetManifest` surfaces it as `null`,
+  and `AbsentValueTests` pins each absence population the same way.
+
+⚠️ Both files enter the `ContentSnapshot` and so ship to client and server, and every edit to them
+moves the content version stamp. That is ~550 KB of the shipped payload for data no rule reads —
+see the open item raised against M0-09 in the M8-09 hand-over.
 
 ### `tuning/` — numbers that change the economy
 
