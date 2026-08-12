@@ -63,6 +63,7 @@ internal sealed class CombatFlowState
     private readonly List<AttackMultiplierCharge> _attackMultipliers = new();
     private readonly List<DeathSave> _armedSaves = new();
     private readonly List<(double Multiplier, string SourceEffectId)> _damageTakenMultipliers = new();
+    private readonly List<(double Fraction, string SourceEffectId)> _thorns = new();
     private readonly Dictionary<StatId, double> _percentBuckets = new();
     private readonly Dictionary<string, int> _saveFirings = new(StringComparer.Ordinal);
 
@@ -220,6 +221,48 @@ internal sealed class CombatFlowState
         }
 
         return product;
+    }
+
+    /// <summary>
+    /// 🔒 `05` §4.2 / R4 — <c>REFLECT</c> <em>"adds to <c>THORN</c> for its duration"</em>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>The duration is not held here</b>, exactly as <see cref="AddDamageTakenMultiplier"/>'s
+    /// is not, and the two are one decision: `18` §6's bookkeeping is M2-06's evaluator driven by
+    /// M2-10's slot-2 expiry sweep, and neither is wired to this class. Stating a second, disagreeing
+    /// copy of `18` §6 here is what steering S6 forbids.
+    /// </remarks>
+    internal void AddThorns(double fraction, string sourceEffectId) =>
+        _thorns.Add((fraction, sourceEffectId));
+
+    /// <summary>
+    /// 🔒 `05` §4 step 10's <c>defender.THORN</c> contribution from live <c>REFLECT</c>s — a
+    /// <b>sum</b>, in ascending effect-id order. <c>0</c> when none is active.
+    /// </summary>
+    /// <remarks>
+    /// A sum rather than a product, because `05` §1 types <c>THORN</c> as <em>"% of damage taken
+    /// reflected"</em> and `18` §2.2 has <c>REFLECT</c> <em>"return a % of incoming damage"</em> —
+    /// two 10% reflects return 20%, not 21%. The ordering is still imposed: `05` §1.1 rounds at
+    /// every accumulation point, and floating-point addition is not associative, so an unordered
+    /// sum is not a deterministic one (the same argument `18` §8's steps 4 and 5 record).
+    /// </remarks>
+    internal double ThornsBonus()
+    {
+        if (_thorns.Count == 0)
+        {
+            return 0.0;
+        }
+
+        _thorns.Sort(static (left, right) =>
+            EffectOrder.IdComparer.Compare(left.SourceEffectId, right.SourceEffectId));
+
+        var total = 0.0;
+        foreach (var (fraction, _) in _thorns)
+        {
+            total = StatRounding.Round(total + fraction);
+        }
+
+        return total;
     }
 
     /// <summary>`18` §2.4's <c>STAT_COPY</c> write — a percent-bucket add onto the holder.</summary>

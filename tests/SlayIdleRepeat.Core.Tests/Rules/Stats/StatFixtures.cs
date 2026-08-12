@@ -93,6 +93,25 @@ internal static class StatFixtures
         });
 
     /// <summary>
+    /// 🔒 `05` §4's two 📐 dials as the shipped <c>content/combat_caps.json</c> authors them —
+    /// <c>120</c> and <c>20</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ A restatement, for <see cref="HeroCurve"/>'s reason and with its safeguard:
+    /// <c>SlayIdleRepeat.Core.Tests</c> references <c>SlayIdleRepeat.Core</c> and nothing else, so it
+    /// has no JSON reader. The copy cannot be allowed to drift, and it cannot: the shipped document
+    /// is asserted against `05` §4 by
+    /// <c>SlayIdleRepeat.Application.Tests.Content.CombatCapsDataTests</c>, which reads the real
+    /// file, and a content build rule mirrors it against <c>tuning/power_model.json</c>. What is
+    /// tested here is `05` §4's arithmetic; what is tested there is the transcription.
+    /// </remarks>
+    internal static MitigationConstants Mitigation() => new(Flat: 120, PerLevel: 20);
+
+    /// <summary>🔒 `05` §4.1's 📐 <c>wardCapPct</c>, as the shipped document authors it.</summary>
+    /// <remarks>See <see cref="Mitigation"/> for why a restatement here is safe.</remarks>
+    internal const double WardCapPct = 1.0;
+
+    /// <summary>
     /// A <see cref="ContentSnapshot"/> holding a <c>content/combat_caps.json</c> of the shipped
     /// shape, with an optional single-pointer mutation.
     /// </summary>

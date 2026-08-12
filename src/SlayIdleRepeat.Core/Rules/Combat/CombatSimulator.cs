@@ -64,19 +64,52 @@ public static class CombatSimulator
     /// 🔒 `05` §6.0 — <em>"all enemies, Elites, Guardians and bosses in a <c>(chapter, tier)</c> share
     /// this level"</em>, which is why one value covers the whole side.
     /// </param>
+    /// <param name="mitigationFlatConstant">
+    /// 🔒 `05` §4 step 3's <c>120</c> — 📐 <c>content/combat_caps.json#/mitigation/flatConstant</c>.
+    /// See the remarks for why it is a parameter rather than a constant.
+    /// </param>
+    /// <param name="mitigationPerLevelConstant">
+    /// 🔒 `05` §4 step 3's <c>20</c> — 📐 <c>…#/mitigation/perLevelConstant</c>.
+    /// </param>
+    /// <param name="wardCapPct">🔒 `05` §4.1's 📐 ward pool ceiling — <c>…#/wardCapPct</c>.</param>
     /// <exception cref="ArgumentException">The roster is empty or breaks a <c>BattlePlan</c> rule.</exception>
     /// <remarks>
+    /// <para>
     /// A fight with no authored effects and no boss: every actor swings its basic attack on `05`
     /// §3.1's schedule until one side is cleared or the 90 s timeout decides it on remaining HP
     /// fraction. That is what `05` §1's three-argument signature can express, and it is what the
     /// balance harness's standard dummy (`05` §9, `29` §2.5) is.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Why the three 📐 constants are parameters.</b> `05` §4 says of the mitigation pair
+    /// <em>"the two most important balance dials in the game. Expose them in data"</em>, and `05`
+    /// §4.1 puts <c>wardCapPct</c> in the same document. This method is <c>static</c> and holds no
+    /// content snapshot, so the only honest routes are to take them or to write them here — and
+    /// writing them here would be a third copy of a pair the content build already mirrors against
+    /// <c>tuning/power_model.json</c>, in the one file `05` §9's balance harness grades the
+    /// simulator with. Steering S6 forbids the alternative of defaulting them: a zeroed mitigation
+    /// pair mitigates <b>100%</b> of every hit, and a zero <c>wardCapPct</c> deletes every shield in
+    /// the game, both silently.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>M2-09 widened this signature, and it widened no public <em>type</em>.</b> R16's
+    /// enumerated closure (<c>Domain.PublicRuleTypes</c>) is a list of six type names; three
+    /// <see cref="double"/>s add none of them, so the closure is untouched. The precedent is M2-08's
+    /// own: `05` §1 writes <c>Simulate(seed, heroSnapshot, enemySnapshot)</c> and this method already
+    /// carried <c>heroLevel</c> and <c>enemyLevel</c> beyond it — added for `05` §4's
+    /// <c>20 × attacker.Level</c> term, which is the very expression these two dials complete.
+    /// Recorded as errata against `05` §1.
+    /// </para>
     /// </remarks>
     public static SimulationResult Simulate(
         ulong battleSeed,
         ActorStats hero,
         int heroLevel,
         IReadOnlyList<ActorStats> enemies,
-        int enemyLevel)
+        int enemyLevel,
+        double mitigationFlatConstant,
+        double mitigationPerLevelConstant,
+        double wardCapPct)
     {
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(enemies);
@@ -126,6 +159,8 @@ public static class CombatSimulator
             BattleSeed = battleSeed,
             Actors = actors,
             Caps = StatCaps.None,
+            Mitigation = new MitigationConstants(mitigationFlatConstant, mitigationPerLevelConstant),
+            WardCapPct = wardCapPct,
             RunCounters = new RunTriggerCounters(),
         });
     }

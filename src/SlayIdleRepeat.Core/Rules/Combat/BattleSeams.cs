@@ -47,10 +47,18 @@ internal sealed record BattleSeams(
     IPetAbilities Pets)
 {
     /// <summary>
-    /// 🔒 The seam set M2-08 ships: the damage engine, the status engine, the status timeline, the
-    /// boss phases and the summon roster all absent, each stated so that the absence is loud where
-    /// content asks for it and silent where the loop merely walks past.
+    /// 🔒 The seam set M2-08 shipped: <b>every</b> engine absent, the damage pipeline included. Kept
+    /// as the base a test builds a partial engine on top of (<c>Strict with { … }</c>), and as the
+    /// one way to observe M2-03's refusals from inside a fight.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>No longer what a battle gets by default.</b> `05` §4 landed in M2-09, so
+    /// <see cref="BattlePlan.Seams"/> defaults to <see cref="For"/> — a plan that took this set
+    /// would refuse the first swing of every fight. The distinction is kept rather than collapsed
+    /// because <c>UnwiredAttackPipeline</c> is still <c>EffectOpSeams.Strict</c>'s default for op
+    /// resolution <em>outside</em> a battle, where there is no <see cref="BattleServices"/> to build
+    /// a real pipeline from.
+    /// </remarks>
     internal static BattleSeams Strict { get; } = new(
         UnwiredAttackPipeline.Instance,
         UnwiredStatusEngine.Instance,
@@ -58,6 +66,24 @@ internal sealed record BattleSeams(
         NoBossPhases.Instance,
         NoSummons.Instance,
         NoPetAbilities.Instance);
+
+    /// <summary>
+    /// 🔒 The seam set a fight gets by default: `05` §4's damage pipeline <b>wired</b>, and the four
+    /// engines M2-10 and M2-12 own still refusing where content asks and walking past where the loop
+    /// merely steps.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is a factory rather than a singleton for <see cref="BattleServices"/>' stated reason:
+    /// <see cref="AttackPipeline"/> writes <c>Hit</c>/<c>Miss</c>/<c>Crit</c> into <em>this</em>
+    /// fight's log, draws from <em>this</em> fight's stream and routes <em>this</em> fight's phase
+    /// check, none of which exists until the battle does. A static instance would be one setter away
+    /// from pointing at the previous battle's log.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The battle's log, draw stream, roster, dials and HP routing.</param>
+    internal static BattleSeams For(BattleServices services) =>
+        Strict with { Attack = new AttackPipeline(services) };
 }
 
 /// <summary>

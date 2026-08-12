@@ -11,6 +11,26 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
 /// <summary>
+/// 🔒 The three `18` §2.2 value-mode bases that exist only <b>inside the moment that fired</b>, as
+/// the tick loop carries them from the event to <see cref="EffectOpContext"/>.
+/// </summary>
+/// <param name="DamageDealt">
+/// `18` §2.2's <c>DAMAGE_DEALT_PCT</c> basis — 🔒 `05` §4 step 8's <em>on-damage basis</em>, the
+/// post-mitigation, post-floor hit <b>before</b> ward absorption, so a leech on an <c>ON_HIT</c>
+/// still reads a fully-warded hit (`05` §4.1).
+/// </param>
+/// <param name="HealAmount">`05` §4.3's <c>healed</c> — <c>HEAL_AMOUNT</c>'s subject in an <c>ON_HEAL</c>.</param>
+/// <param name="OverhealAmount">`05` §4.3's <c>overheal</c> — <c>OVERHEAL_AMOUNT</c>'s subject, likewise.</param>
+/// <remarks>
+/// 🔒 <b>Every member is nullable and none defaults to 0.</b> <c>OpValue</c> throws rather than
+/// reading zero for a mode whose basis the context does not carry (steering S6), and that refusal is
+/// what makes `18` §2.2's <em>"exist only inside <c>ON_HEAL</c> contexts"</em> enforceable at all. A
+/// zero here would turn it into a silent no-op.
+/// </remarks>
+internal readonly record struct EventReadings(
+    double? DamageDealt = null, double? HealAmount = null, double? OverhealAmount = null);
+
+/// <summary>
 /// 🔒 `05` §3.1 — the battle-start pre-tick and the strict eight-step tick loop, for one fight.
 /// </summary>
 /// <remarks>
@@ -158,6 +178,12 @@ internal sealed class BattleSimulation
 
     /// <summary>`05` §3 / §3.3's bounds.</summary>
     internal CombatRules Rules => _plan.Rules;
+
+    /// <summary>🔒 `05` §4's two 📐 dials, as the plan was given them (`combat_caps.json`).</summary>
+    internal MitigationConstants Mitigation => _plan.Mitigation;
+
+    /// <summary>🔒 `05` §4.1's 📐 ward pool ceiling, likewise.</summary>
+    internal double WardCapPct => _plan.WardCapPct;
 
     /// <summary>Every actor in `05` §3.1 index order, summons appended.</summary>
     internal IReadOnlyList<BattleActor> Actors => _actors;
@@ -527,23 +553,30 @@ internal sealed class BattleSimulation
             return true;
         }
 
+        // 🔒 `18` §2.2's DAMAGE_DEALT_PCT basis is `05` §4 step 8's ON-DAMAGE BASIS — the
+        // post-mitigation, post-floor hit BEFORE ward absorption — and not step 9's HpLost. `05`
+        // §4.1: "a lifesteal attacker still heals off a fully-warded hit". A leech on an ON_HIT
+        // reading the post-absorption number would heal nothing off a shielded target, which is the
+        // opposite of what that ruling says.
+        var dealt = new EventReadings(DamageDealt: resolution.Basis);
+
         if (resolution.Blocked)
         {
-            FireTriggers(defender, Occurrence(TriggerKind.ON_BLOCK, defender), attacker, attacker);
+            FireTriggers(defender, Occurrence(TriggerKind.ON_BLOCK, defender), attacker, attacker, dealt);
         }
 
-        FireTriggers(attacker, Occurrence(TriggerKind.ON_HIT, attacker), defender);
+        FireTriggers(attacker, Occurrence(TriggerKind.ON_HIT, attacker), defender, null, dealt);
 
         if (resolution.Crit)
         {
-            FireTriggers(attacker, Occurrence(TriggerKind.ON_CRIT, attacker), defender);
+            FireTriggers(attacker, Occurrence(TriggerKind.ON_CRIT, attacker), defender, null, dealt);
         }
 
-        FireTriggers(defender, Occurrence(TriggerKind.ON_HIT_TAKEN, defender), attacker, attacker);
+        FireTriggers(defender, Occurrence(TriggerKind.ON_HIT_TAKEN, defender), attacker, attacker, dealt);
 
         if (!defender.IsAlive && Rules.OnKillTriggersFire)
         {
-            FireTriggers(attacker, Occurrence(TriggerKind.ON_KILL, attacker), defender);
+            FireTriggers(attacker, Occurrence(TriggerKind.ON_KILL, attacker), defender, null, dealt);
         }
 
         return true;
@@ -632,7 +665,8 @@ internal sealed class BattleSimulation
         BattleActor holder,
         in TriggerOccurrence occurrence,
         BattleActor? target = null,
-        BattleActor? attacker = null)
+        BattleActor? attacker = null,
+        EventReadings readings = default)
     {
         if (holder.Instances.Count == 0)
         {
@@ -656,7 +690,7 @@ internal sealed class BattleSimulation
 
             if (Triggers.Evaluate(held.Id, occurrence, Rng) == TriggerOutcome.FIRES)
             {
-                ResolveFired(holder, Triggers[held.Id].Effect, occurrence, target, attacker);
+                ResolveFired(holder, Triggers[held.Id].Effect, occurrence, target, attacker, readings);
             }
         }
     }
@@ -670,7 +704,8 @@ internal sealed class BattleSimulation
         EffectDefinition effect,
         in TriggerOccurrence occurrence,
         BattleActor? target,
-        BattleActor? attacker)
+        BattleActor? attacker,
+        EventReadings readings = default)
     {
         if (_cascadeDepth >= MaxCascadeDepth)
         {
@@ -702,6 +737,9 @@ internal sealed class BattleSimulation
             {
                 Evaluation = ContextFor(holder, target, attacker),
                 Seams = OpSeamsFor(holder, target, attacker),
+                DamageDealt = readings.DamageDealt,
+                HealAmount = readings.HealAmount,
+                OverhealAmount = readings.OverhealAmount,
             });
         }
         finally
@@ -784,6 +822,68 @@ internal sealed class BattleSimulation
         ArgumentNullException.ThrowIfNull(actor);
 
         FireTriggers(actor, Occurrence(TriggerKind.ON_LOW_HP, actor));
+    }
+
+    /// <summary>
+    /// 🔒 `05` §4.3's <c>ON_HEAL</c>, fired after the HP is applied — see
+    /// <see cref="BattleServices.AfterHeal"/>.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Both readings travel to the op layer.</b> `18` §2.2's <c>HEAL_AMOUNT</c> and
+    /// <c>OVERHEAL_AMOUNT</c> throw rather than read zero when the context does not carry them
+    /// (<c>OpValue</c>, steering S6), so a heal that fired the trigger without them would make
+    /// <c>PK_TRANSFUSION</c> an exception rather than a perk.
+    /// </remarks>
+    internal void AfterHeal(BattleActor actor, double healed, double overheal)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        FireTriggers(
+            actor,
+            Occurrence(TriggerKind.ON_HEAL, actor),
+            readings: new EventReadings(HealAmount: healed, OverhealAmount: overheal));
+    }
+
+    /// <summary>
+    /// 🔒 `05` §4.1's ward expiry — see <see cref="BattleServices.ExpireWards"/> for why it is a
+    /// routing here rather than a call M2-10 makes on the pool directly.
+    /// </summary>
+    internal int ExpireWards(BattleActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        var dropped = actor.Wards.ExpireDue(Tick);
+
+        foreach (var segment in dropped)
+        {
+            // 🔒 StatusExpired, and NEVER WardBroken. `05` §4.1: "segment expiry silently removes
+            // its remainder (StatusExpired), and does not fire WardBroken" — the distinction
+            // `18` §6's `until: WARD_BROKEN` terminator is built on.
+            Log.Append(
+                Tick, CombatEventType.StatusExpired, CombatActor.None, actor.LogId, segment.Amount);
+        }
+
+        return dropped.Count;
+    }
+
+    /// <summary>🔒 `05` §4.1's ward grant with an expiry — see <see cref="BattleServices.GrantWard"/>.</summary>
+    internal void GrantWard(
+        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int expiresAtTick)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (_seams.Attack is not AttackPipeline pipeline)
+        {
+            throw new EffectContextException(
+                sourceEffectId,
+                "it grants a ward with a `18` §6 duration and this fight's IAttackPipeline is not " +
+                $"{nameof(AttackPipeline)}",
+                "`05` §4.1's segments are the pool's, and the pool is written by exactly one engine. " +
+                "A test double that replaced the pipeline has replaced the ward pool with it; grant " +
+                "through that double, or pass a BattleSeams built by BattleSeams.For.");
+        }
+
+        pipeline.GrantWard(target, amount, sourceCapPct, sourceEffectId, expiresAtTick);
     }
 
     /// <summary>
@@ -1010,7 +1110,11 @@ internal sealed class BattleSimulation
         // `18` §9.1's CP_GLASS_HEART re-bases Max HP mid-fight, and a boss clipped below 66% must
         // enter phase 2 there rather than on whatever unrelated swing lands next. ON_LOW_HP is a
         // crossing for the same reason.
-        if (actor.SetStats(aggregated.Final))
+        // 🔒 The WHOLE record, not `aggregated.Final` — M2-07's first stated obligation on M2-09.
+        // AggregatedStats' remarks: "a consumer that keeps Final and discards the wrapper caps every
+        // CP_GLASS_HEART ward at 1 HP with nothing going red". And its second: this runs on every
+        // re-aggregation, so `05` §3.1's SYS_ENRAGE moves the ward cap with the boss's Max HP.
+        if (actor.SetStats(aggregated))
         {
             AfterHpDecrease(actor);
         }

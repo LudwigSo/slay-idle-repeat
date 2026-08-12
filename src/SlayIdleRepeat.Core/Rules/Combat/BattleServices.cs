@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
+using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
@@ -43,6 +44,17 @@ internal sealed class BattleServices
     /// <summary>`05` §3 / §3.3's bounds for this fight.</summary>
     internal CombatRules Rules => _simulation.Rules;
 
+    /// <summary>
+    /// 🔒 `05` §4's two 📐 dials, from <c>content/combat_caps.json#/mitigation</c> — a reading of
+    /// the plan, never a restatement. `05` §4 calls them <em>"the two most important balance dials
+    /// in the game"</em>, and a <c>120</c> written into the damage formula would be their third
+    /// copy: the content build already mirrors the file against <c>tuning/power_model.json</c>.
+    /// </summary>
+    internal MitigationConstants Mitigation => _simulation.Mitigation;
+
+    /// <summary>🔒 `05` §4.1's 📐 <c>wardCapPct</c>, likewise.</summary>
+    internal double WardCapPct => _simulation.WardCapPct;
+
     /// <summary>Every actor, in `05` §3.1 index order, living and dead, summons appended.</summary>
     internal IReadOnlyList<BattleActor> Actors => _simulation.Actors;
 
@@ -70,6 +82,57 @@ internal sealed class BattleServices
     /// <em>"at that moment"</em>, and the death <em>resolution</em> then waits for slot 6.
     /// </remarks>
     internal void AfterHpDecrease(BattleActor actor) => _simulation.AfterHpDecrease(actor);
+
+    /// <summary>
+    /// 🔒 `05` §4.3's <c>ON_HEAL</c> — fired <b>after</b> the HP is applied, with both readings in
+    /// hand, which is what makes `18` §2.2's <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> value
+    /// modes readable (<c>TriggerRegistry</c>).
+    /// </summary>
+    /// <param name="actor">The recipient — `05` §4.3's <c>target</c>, and the trigger's holder.</param>
+    /// <param name="healed">`05` §4.3's <c>healed</c>, after <c>HEAL%</c> and the Max-HP clip.</param>
+    /// <param name="overheal">
+    /// `05` §4.3's <c>overheal</c> — <em>"discarded unless an effect consumes it"</em>
+    /// (<c>PK_TRANSFUSION</c>). Fired even when <paramref name="healed"/> is 0, because a heal into
+    /// a full bar is exactly when the overheal is largest.
+    /// </param>
+    internal void AfterHeal(BattleActor actor, double healed, double overheal) =>
+        _simulation.AfterHeal(actor, healed, overheal);
+
+    /// <summary>
+    /// 🔒 `05` §4.1's ward <b>expiry</b> — <em>"segment expiry silently removes its remainder
+    /// (<c>StatusExpired</c>), and does <b>not</b> fire <c>WardBroken</c>"</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Routed through the loop rather than left to each caller, because the distinction it encodes
+    /// is the one `18` §6's <c>until: WARD_BROKEN</c> terminator is built on (`17` §4's Ossify).
+    /// A second expiry path that emitted <c>WardBroken</c> would end that DR buff on a timer nobody
+    /// watched, and nothing in the log would look wrong.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The tick loop does not call this.</b> `05` §3.1 puts expiries in <b>slot 2</b>, which is
+    /// <c>IStatusTimeline.ExpireDue</c> and M2-10's; a ward segment's timer is a `18` §6 duration
+    /// like any other. M2-09 owns the mechanism and states it here so that M2-10 routes rather than
+    /// reimplements.
+    /// </para>
+    /// </remarks>
+    /// <param name="actor">The actor whose pool is being swept.</param>
+    /// <returns>How many segments were dropped.</returns>
+    internal int ExpireWards(BattleActor actor) => _simulation.ExpireWards(actor);
+
+    /// <summary>
+    /// 🔒 `05` §4.1's ward grant <b>with an expiry</b> — the form `18` §6's durations need, which
+    /// <c>IAttackPipeline.GrantWard</c> cannot express because M2-03 declared it without a duration
+    /// and M2-10 is coding against that signature.
+    /// </summary>
+    /// <param name="target">The actor receiving the ward.</param>
+    /// <param name="amount">The authored ward, before the pool and per-source clips.</param>
+    /// <param name="sourceCapPct">`18` §2.2's per-instance ceiling, or <c>null</c> where none is authored.</param>
+    /// <param name="sourceEffectId">The `18` §8 id the segment carries.</param>
+    /// <param name="expiresAtTick">The tick the segment's timer runs out on.</param>
+    internal void GrantWard(
+        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int expiresAtTick) =>
+        _simulation.GrantWard(target, amount, sourceCapPct, sourceEffectId, expiresAtTick);
 
     /// <summary>
     /// 🔒 `05` §3.1's summon entry rule — <em>"summons enter at the end of the enemy index list with

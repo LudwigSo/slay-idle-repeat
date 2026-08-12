@@ -510,6 +510,39 @@ public sealed class SubjectSetFloorTests
             "table, archetype rows, on-hit tables, elite modifiers and identities and chapter pools " +
             "all enter Core through it, and EnemiesDataTests asserts the document it names"),
 
+        // ── M2-09 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 The three names DamageResolutionRuleTests keys on by hard-coded FULL name, and every one
+        // of them can go silent through a rename with the whole suite green. Its rules are stated as
+        // "no method outside X does Y", so a rename that empties the *subject* side reports success
+        // over nothing — which is exactly this file's subject.
+        //
+        //   MitigationConstants — the rule looks for `get_Flat`/`get_PerLevel` on this type. Rename
+        //                         it, or replace the record with two loose doubles on BattlePlan, and
+        //                         The_05_4_mitigation_quotient_is_computed_in_exactly_one_place
+        //                         quantifies over nothing while `05` §4's two most important balance
+        //                         dials go unwatched. The floor case beside it fires on that, which is
+        //                         why the pair exists — but the floor cannot say WHICH name went away.
+        //   AttackPipeline      — the exemption arm of both the mitigation rule and the ward rule.
+        //                         A vacuous exemption makes a rule stricter rather than silent, so it
+        //                         would report the real formula as an offender; that is loud, and the
+        //                         entry is here so the diff that renames it also reads why.
+        //   WardPool            — Only_the_attack_pipeline_absorbs_damage_with_a_ward looks for calls
+        //                         to `WardPool.Absorb`. Rename or inline the pool and the rule is
+        //                         green over an empty set with `05` §4.1's four rules — the ceiling,
+        //                         the absorption order, the per-source cap and the
+        //                         WardBroken-versus-expiry distinction `18` §6's `until: WARD_BROKEN`
+        //                         is built on — restated wherever the absorption went.
+        new("MitigationConstants", SubjectKind.CoreType, "M2-07",
+            "DamageResolutionRuleTests.The_05_4_mitigation_quotient_is_computed_in_exactly_one_place " +
+            "and its floor — 05 §4's two 📐 dials, mirrored in data against tuning/power_model.json"),
+        new("AttackPipeline", SubjectKind.CoreType, "M2-09",
+            "DamageResolutionRuleTests — the exemption arm of both the mitigation rule and the ward " +
+            "absorption rule; 05 §4's ten-step pipeline"),
+        new("WardPool", SubjectKind.CoreType, "M2-09",
+            "DamageResolutionRuleTests.Only_the_attack_pipeline_absorbs_damage_with_a_ward — 05 §4.1's " +
+            "one absorb pool per actor"),
+
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RngNamespace, SubjectKind.CoreNamespace, "M0-06",

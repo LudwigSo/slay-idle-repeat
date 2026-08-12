@@ -379,6 +379,8 @@ public sealed class TriggerWiringTests
             {
                 BattleSeed = 7,
                 Caps = SlayIdleRepeat.Core.Tests.Rules.Stats.StatFixtures.Caps(),
+                Mitigation = SlayIdleRepeat.Core.Tests.Rules.Stats.StatFixtures.Mitigation(),
+                WardCapPct = SlayIdleRepeat.Core.Tests.Rules.Stats.StatFixtures.WardCapPct,
                 RunCounters = counters,
                 Actors = new[]
                 {
