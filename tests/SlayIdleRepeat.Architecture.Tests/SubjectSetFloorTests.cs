@@ -62,8 +62,6 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -95,6 +93,16 @@ public sealed class SubjectSetFloorTests
         // this commit.
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
+
+        // Moved out of Pending by M2-05, which landed the first types under Core/Rules/ — the 18 §4
+        // condition evaluator and the 18 §5 target resolver. Two rules were quantifying over nothing
+        // until this commit: Handlers_and_Rules_are_internal (which is what keeps the DSL
+        // interpreter internal, since neither of 30 §11.2's two public exceptions is one of these)
+        // and the Rules row of Core_internal_layering_holds.
+        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M2-05",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, AccessibilityBoundaryTests." +
+            "Core_internal_layering_holds, IsolationTests.Entitlements_are_unreachable_from_the_rules_" +
+            "and_the_power_computation"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
@@ -143,6 +151,16 @@ public sealed class SubjectSetFloorTests
     // test edit.
     private const int OrderingCallSiteFloor = 10;
 
+    // ConditionPurityRuleTests (M2-05) is stated over the types under
+    // SlayIdleRepeat.Core.Rules.Effects.Conditions — a namespace FILTER, which is the shape this
+    // whole file exists to watch. Rename the folder, move the evaluator one directory up, or let
+    // M2-06 fold it into a neighbouring namespace, and both of that file's rules report success over
+    // nothing while 18 §4's "pure functions of current state" goes unguarded. There were 2 types on
+    // the commit the rules landed (ConditionEvaluator, ConditionArguments); the floor is 1, because
+    // the claim being made is that the namespace still REACHES the evaluator, not that it holds a
+    // particular number of helpers.
+    private const int ConditionEvaluationTypeFloor = 1;
+
     /// <summary>
     /// `23` §6 — the subject sets these rules quantify over are the ones they were written
     /// against. Pins a floor under every set whose emptiness would be reported as success:
@@ -174,6 +192,13 @@ public sealed class SubjectSetFloorTests
             "StringOrderingRuleTests.No_production_code_orders_strings_with_the_default_comparer is stated over them. " +
             "An empty set means nothing is stopping a bare OrderBy(x => x.Id) from putting the ambient collation back " +
             "into 18 §8's effect-id order.");
+
+        Floor(offenders, "types under " + ConditionPurityRuleTests.ConditionsNamespace,
+            ConditionPurityRuleTests.SubjectCount, ConditionEvaluationTypeFloor,
+            "ConditionPurityRuleTests' two rules — A_condition_never_draws_and_never_reads_a_clock and " +
+            "A_condition_never_mutates_anything — are stated over them. An empty set means the 18 §4 " +
+            "evaluator has moved out of that namespace and nothing is stopping the next edit from " +
+            "memoising a reading or drawing inside a condition.");
 
         Floor(offenders, "ports under " + Domain.PortsNamespace, Domain.Ports.Count, PortFloor,
             "DependencyRuleTests.Every_port_has_at_least_two_implementations and No_port_signature_exposes_a_vendor_type " +
