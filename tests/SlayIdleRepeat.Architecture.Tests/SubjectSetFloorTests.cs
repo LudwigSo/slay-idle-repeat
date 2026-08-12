@@ -132,10 +132,18 @@ public sealed class SubjectSetFloorTests
         // DurationScopes.OutlivesTheBattle is the one place that has to be read when the run layer
         // arrives: it is the ruling, named, with the three scopes on one side of it.
         //
-        // ⚠️ THE NAME IS A GUESS, recorded as one. M3's run controller is unwritten and no document
-        // fixes its type name, so this entry can only fire if M3 happens to pick "RunController".
-        // If it picks another name, whoever lands it should RENAME THIS ENTRY rather than delete
-        // it — the subject being tracked is "something ends a RUN-scoped effect", not the string.
+        // ⚠️ THE NAME IS AN INFERENCE, recorded as one — but not a coin flip. `18` §2.5 writes "the
+        // run controller" as its own noun, in the same sentence as "the combat simulator", and that
+        // second noun is already a C# type spelled exactly that way (Domain.PublicRuleTypes,
+        // `30` §11.2). PascalCasing §2.5's other noun is the precedent the document itself set, not
+        // a name picked out of the air. It is still only an inference, so:
+        //
+        // 🔒 THE INBOUND PATH IS IN THE PRODUCTION CODE, not here. DurationScopes' own remarks name
+        // this entry, because a note addressed to whoever lands M3 is worthless in a test file M3
+        // will never open. If M3 picks another name, that remark sends them here to RENAME this
+        // entry rather than leave it — the subject being tracked is "something ends a RUN-scoped
+        // effect", not the string. If it picks this name, the rule below fires on its own and
+        // deleting the entry is then correct, because the deferral has actually been discharged.
         new("RunController", SubjectKind.CoreType, "M3 — the run layer",
             "SlayIdleRepeat.Core.Rules.Effects.Duration.DurationScopes.OutlivesTheBattle, which sorts " +
             "18 §6's six scopes into the three a battle ends and the three it does not. The three it " +
@@ -227,6 +235,23 @@ public sealed class SubjectSetFloorTests
             "ConditionPurityRuleTests.A_condition_never_draws_and_never_reads_a_clock, " +
             "ConditionPurityRuleTests.A_condition_never_mutates_anything"),
 
+        // 🔒 The four evaluators M2-06 added, tracked by NAME for the reason the two above are: the
+        // count floor below is one number over THREE namespaces, so moving any one evaluator out
+        // would leave the floor satisfied by the record structs that travel with the other two while
+        // EffectEvaluationPurityRuleTests quietly stopped covering the type it was written for.
+        new("ValueScaleEvaluator", SubjectKind.CoreType, "M2-06",
+            "EffectEvaluationPurityRuleTests.An_effect_evaluator_never_draws_and_never_reads_a_clock, " +
+            "EffectEvaluationPurityRuleTests.An_effect_evaluator_holds_no_mutable_static_state"),
+        new("ValueModeEvaluator", SubjectKind.CoreType, "M2-06",
+            "EffectEvaluationPurityRuleTests.An_effect_evaluator_never_draws_and_never_reads_a_clock, " +
+            "EffectEvaluationPurityRuleTests.An_effect_evaluator_holds_no_mutable_static_state"),
+        new("DurationEvaluator", SubjectKind.CoreType, "M2-06",
+            "EffectEvaluationPurityRuleTests' two rules — and it is the one type in the three " +
+            "namespaces that holds a static field at all"),
+        new("EffectStackSet", SubjectKind.CoreType, "M2-06",
+            "EffectEvaluationPurityRuleTests' two rules — 05 §3.1 re-reads its Count at the moment " +
+            "each 20 Hz tick lands, which is where a cache would be added"),
+
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.RngNamespace, SubjectKind.CoreNamespace, "M0-06",
@@ -284,6 +309,17 @@ public sealed class SubjectSetFloorTests
     // particular number of helpers.
     private const int ConditionEvaluationTypeFloor = 1;
 
+    // EffectEvaluationPurityRuleTests (M2-06) is stated over the types under Rules/Effects/Values/,
+    // Rules/Effects/Duration/ and Rules/Effects/Stacking/ — three namespace FILTERS, the same shape
+    // this file exists to watch, and all three are one folder rename away from empty. There were 13
+    // types on the commit the rules landed (2 evaluators + ValueModeSubjects; DurationEvaluator,
+    // DurationScopes, EffectApplication, DurationProbe, DurationOutcome, WardPoolEvent,
+    // DurationEndReason; EffectStackSet, StackApplication). The floor is 3 — one reachable type per
+    // namespace — because the claim being made is that all three filters still reach something, not
+    // that any of them holds a particular number of helpers. The four evaluator NAMES in Live above
+    // are what pins which types those are.
+    private const int EffectEvaluationTypeFloor = 3;
+
     /// <summary>
     /// `23` §6 — the subject sets these rules quantify over are the ones they were written
     /// against. Pins a floor under every set whose emptiness would be reported as success:
@@ -328,6 +364,13 @@ public sealed class SubjectSetFloorTests
             "ConditionPurityRuleTests.The_18_5_target_resolver_holds_no_writable_static_state is stated " +
             "over them. An empty set means the 18 §5 resolver has moved and nothing is stopping the " +
             "next edit from caching a candidate list that is wrong on the next death.");
+
+        Floor(offenders, "types under the three 18 §1.1/§2.2/§6 evaluation namespaces",
+            EffectEvaluationPurityRuleTests.SubjectCount, EffectEvaluationTypeFloor,
+            "EffectEvaluationPurityRuleTests' two rules — An_effect_evaluator_never_draws_and_never_reads_a_clock " +
+            "and An_effect_evaluator_holds_no_mutable_static_state — are stated over them. An empty set means " +
+            "Values/, Duration/ or Stacking/ has been renamed or folded away, and nothing is stopping the next " +
+            "edit from memoising a step count that 18 §1.1 requires re-read at every resolution pass.");
 
         Floor(offenders, "ports under " + Domain.PortsNamespace, Domain.Ports.Count, PortFloor,
             "DependencyRuleTests.Every_port_has_at_least_two_implementations and No_port_signature_exposes_a_vendor_type " +

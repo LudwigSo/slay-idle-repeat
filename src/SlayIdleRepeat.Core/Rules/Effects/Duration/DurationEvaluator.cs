@@ -185,10 +185,22 @@ internal static class DurationEvaluator
 /// outlive the fight?
 /// </summary>
 /// <remarks>
+/// <para>
 /// It is a named predicate rather than a comparison scattered across M2-08, M2-09 and M2-10 because
 /// the answer is a <b>ruling</b> (kickoff A4), not a fact about the enum's ordering: <c>STAGE</c>,
 /// <c>RUN</c> and <c>PERMANENT</c> belong to a run controller that M3 builds, and the day it arrives
 /// this is the one place that has to be read.
+/// </para>
+/// <para>
+/// 🔒 <b>TO WHOEVER LANDS M3's RUN CONTROLLER.</b> The three scopes above have had no consumer since
+/// M2-06 declared them, and that deferral is tracked in the repo's one register —
+/// <c>SubjectSetFloorTests.Pending</c>, under the name <c>RunController</c>, which is `18` §2.5's own
+/// noun PascalCased the way that sentence's other noun (<c>CombatSimulator</c>) already was. If the
+/// type you are landing carries that name, the register fires by itself and you delete the entry. If
+/// it carries a different one, <b>rename the entry to match</b> rather than deleting it: the subject
+/// being tracked is "something ends a <c>RUN</c>-scoped effect", not the string, and nothing else in
+/// the repository is watching for it.
+/// </para>
 /// </remarks>
 internal static class DurationScopes
 {
