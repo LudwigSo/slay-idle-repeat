@@ -97,6 +97,55 @@ internal static class UnsupportedSnapshots
         public int RevivesUsed { get; init; }
     }
 
+    /// <summary>
+    /// 🔒 A positional record carrying public <b>fields</b> outside its primary constructor — the
+    /// same zero-byte defect as <see cref="WithPropertyOutsideTheConstructor"/>, reached by the door
+    /// the property check cannot watch.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A field is neither a primary-constructor parameter nor a property, so it falls through both
+    /// halves of the writer's shape check: the parameter loop never looks for it, and the
+    /// <c>GetProperties().Length != parameters.Length</c> converse cannot see it either. Before
+    /// M2-15 closed it, this record hashed <b>only <c>Tick</c></b>, and two instances differing in
+    /// <c>SourceId</c> and <c>Value</c> shared a hash.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is not a hypothetical shape. `05` §7 declares <c>CombatEvent</c> — the record behind
+    /// the battle <c>LogHash</c> — as six public fields, which is why the fixture is named after it.
+    /// Nothing else in the repository would have noticed: <c>AccessibilityBoundaryTests</c>' public-
+    /// mutable-field rule exempts <c>readonly</c> fields, and every test written over such a hash
+    /// passes.
+    /// </para>
+    /// </remarks>
+    internal sealed record CombatEventAsDocumented(int Tick)
+    {
+        /// <summary>A public field the encoding would not see.</summary>
+        public byte SourceId;
+
+        /// <summary>Another one.</summary>
+        public double Value;
+    }
+
+    /// <summary>The same defect with a <c>readonly</c> field, which is the shape a value type takes.</summary>
+    /// <remarks>
+    /// C# forbids a mutable instance field on a <c>readonly struct</c>, so `05` §7's declaration as
+    /// literally written does not compile at all — the shape it was reaching for is this one, and it
+    /// is refused too. <c>readonly</c> makes no difference to the encoding: an invisible field is
+    /// invisible whether or not it can change.
+    /// </remarks>
+    internal sealed record WithReadonlyPublicField(int Tick)
+    {
+        /// <summary>A public readonly field. Assigned by <c>With</c>.</summary>
+        public readonly byte SourceId;
+
+        /// <summary>Builds an instance carrying a field value, since a field cannot be an <c>init</c>.</summary>
+        internal static WithReadonlyPublicField With(int tick, byte sourceId) => new(tick, sourceId);
+
+        private WithReadonlyPublicField(int tick, byte sourceId)
+            : this(tick) => SourceId = sourceId;
+    }
+
     /// <summary>A record that contains itself, so a naive descent never terminates.</summary>
     internal sealed record SelfReferencing(int Depth, SelfReferencing? Next);
 

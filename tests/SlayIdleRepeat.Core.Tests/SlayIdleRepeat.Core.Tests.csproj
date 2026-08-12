@@ -55,4 +55,13 @@
     <EmbeddedResource Include="Model\Snapshots\SnapshotFieldOrder.json" />
   </ItemGroup>
 
+  <!--
+    The battle LogHash determinism pin (05 §7), embedded for the same reason as the two
+    above: M5-12 re-asserts it on Android/iOS ARM64, and 11 §6 depends on the client and
+    the server agreeing on these bytes.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Rules\Combat\CombatLogReferenceVectors.json" />
+  </ItemGroup>
+
 </Project>
