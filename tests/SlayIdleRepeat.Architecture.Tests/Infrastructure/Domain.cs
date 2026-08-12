@@ -61,7 +61,6 @@ internal static class Domain
     internal const string CurrencyChangedEvent = "CurrencyChanged";
     internal const string CurrencyIdType = "CurrencyId";
     internal const string EntitlementsType = "Entitlements";
-    internal const string GameContextType = "GameContext";
     internal const string GuildViewType = "GuildView";
     internal const string GhostSnapshotType = "GhostSnapshot";
     internal const string ClockPortType = "IClockPort";
