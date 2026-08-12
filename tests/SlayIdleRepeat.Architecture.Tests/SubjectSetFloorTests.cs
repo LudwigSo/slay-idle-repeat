@@ -73,33 +73,23 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        // 🔒 An UNRESOLVED DOC CONTRADICTION, parked where it expires by itself. It is not a
-        // file-contention deferral, and the difference matters to whoever picks it up.
+        // 🔒 CombatSimulator's entry lived here and was DELETED by M2-08, which is the mechanism
+        // working exactly as this file's remarks describe. The entry recorded an unresolved
+        // contradiction — `05` §7 declares CombatEvent, CombatEventType and SimulationResult public
+        // while `30` §11.2 is 🔒 that CombatSimulator and PowerCalculator are "the only two `Rules`
+        // types that are public" — and said that whoever landed the type had to get a ruling first
+        // and then do both halves in one commit.
         //
-        // `05` §7 declares CombatEvent, CombatEventType and SimulationResult PUBLIC, because
-        // `05` §8 has the client replay the log and `11` §6 has the PvP backend recompute LogHash
-        // over it. C# forces the same conclusion: a public CombatSimulator.Simulate returning an
-        // internal SimulationResult does not compile.
+        // Both halves are in that commit. R15 ruled that §11.2 enumerates public ENTRY POINTS rather
+        // than the closure of the public surface, because C# requires a public Simulate's return and
+        // parameter types to be public too (CS0050/CS0051), and R16 widened Domain.PublicRuleTypes to
+        // the ENUMERATED signature closure — see its remarks, which carry both rulings. The type now
+        // exists, so leaving the entry would fail Every_rule_subject_is_present_or_declared_pending.
         //
-        // But `30` §11.2 is 🔒 and reads "The only two `Rules` types that are public", naming
-        // CombatSimulator and PowerCalculator — and Domain.PublicRuleTypes is a faithful
-        // transcription of that closed list. So the two documents disagree, and widening the list
-        // is a change to a LOCKED section, not a mechanical edit.
-        //
-        // ⚠️ Whoever lands CombatSimulator must therefore get a CONDUCTOR RULING on the `05` §7 /
-        // `30` §11.2 conflict first, and then do both halves in one commit: make the three result
-        // types public, and add them to Domain.PublicRuleTypes. M2-15 left them internal — fully
-        // tested through the `30` §11.3 InternalsVisibleTo grant, so nothing is unverified; only
-        // the visibility is deferred. (M1-12 was also holding Domain.cs at the time, but that is
-        // the lesser reason and it will have passed.)
-        //
-        // This entry is the expiry: Every_rule_subject_is_present_or_declared_pending fails the
-        // moment a type named CombatSimulator exists, which is exactly when the ruling is needed.
-        new("CombatSimulator", SubjectKind.CoreType, "M2-08",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — see the note above this entry: " +
-            "landing CombatSimulator needs a ruling on the `05` §7 / `30` §11.2 contradiction, then makes " +
-            "CombatEvent, CombatEventType and SimulationResult public and adds them to Domain.PublicRuleTypes " +
-            "in the same commit"),
+        // The name is still pinned: it is in Domain.PublicRuleTypes, which the exemption arm of
+        // AccessibilityBoundaryTests.Handlers_and_Rules_are_internal reads, and
+        // PublicRuleTypeFloorTests asserts every name in that list resolves to a public Core type —
+        // so a rename empties the exemption loudly rather than quietly.
 
         // The other member of Domain.PublicRuleTypes. Tracked for the same reason its sibling is:
         // the list is a transcription of a 🔒 section, and a rule keyed on it must not be able to

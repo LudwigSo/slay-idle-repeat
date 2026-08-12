@@ -174,7 +174,7 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// asserting it.
 /// </para>
 /// </remarks>
-internal readonly record struct CombatEvent(
+public readonly record struct CombatEvent(
     int Tick,
     CombatEventType Type,
     byte SourceId,

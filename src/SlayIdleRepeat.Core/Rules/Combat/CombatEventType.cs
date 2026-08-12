@@ -62,7 +62,7 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// to tick slot 6, so it lands after every attack in the tick.
 /// </para>
 /// </remarks>
-internal enum CombatEventType
+public enum CombatEventType
 {
     /// <summary>The pre-tick has completed and tick 0 is about to run (`05` §3.1 step 0d).</summary>
     /// <remarks>

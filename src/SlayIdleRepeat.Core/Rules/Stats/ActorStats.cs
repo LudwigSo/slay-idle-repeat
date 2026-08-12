@@ -42,7 +42,7 @@ namespace SlayIdleRepeat.Core.Rules.Stats;
 /// <c>ALL_COMBAT</c> selects exactly the fourteen here — see <see cref="StatSelector"/>.
 /// </para>
 /// </remarks>
-internal sealed class ActorStats : IEquatable<ActorStats>
+public sealed class ActorStats : IEquatable<ActorStats>
 {
     /// <summary>
     /// Which slot of <see cref="_values"/> each combat stat occupies, derived from
