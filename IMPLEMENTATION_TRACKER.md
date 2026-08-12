@@ -197,9 +197,9 @@ These live across the whole project; they start in M0 and grow with every milest
 | M2-02 | `EffectResolver` implementing the exact 10-step resolution order (collect → … → caps → 4-dp round) | 18 §8 | ⬜ |
 | M2-03 | All 43 ops in 5 families, each with unit tests | 18 §2 | ⬜ |
 | M2-04 | All 23 triggers, incl. `everyNth` counter semantics. **Combat-side triggers are wired into the tick loop; the six run-side ones (`ON_TILE_RESOLVED`, `ON_ROLL`, `ON_PERK_TAKEN`, `ON_STAGE_GATE`, `ON_RUN_START`/`ON_RUN_END`) are declared, validated and unit-tested at the resolver** against the read-only run-state view — the run controller that wires them is M3 (kickoff assumption) | 18 §4 | ⬜ |
-| M2-05 | All 23 condition functions + comparators/combinators; 11 targets with context-degradation rules | 18 §5–6 | ⬜ |
+| M2-05 | All 23 condition functions + comparators/combinators; 11 targets with context-degradation rules | 18 §5–6 | 🔄 wave 2 · `feature-M2-05-conditions-targets` |
 | M2-06 | Duration scopes (6) + early terminators + 5 stacking modes; `valueScale`/`valueMode` evaluators | 18 §3, §7 | ⬜ |
-| M2-07 | 14-stat actor block, aggregation order, caps from **`game-data/content/combat_caps.json`** (+ its schema; **not** a 17th `tuning/` file — kickoff A1), hero base stat curve. Closes 1 📐-baseline entry | 05 §1–2 | ⬜ |
+| M2-07 | 14-stat actor block, aggregation order, caps from **`game-data/content/combat_caps.json`** (+ its schema; **not** a 17th `tuning/` file — kickoff A1), hero base stat curve. Closes 1 📐-baseline entry | 05 §1–2 | 🔄 wave 2 · `feature-M2-07-actor-stats` |
 | M2-08 | Fixed-tick engine: 20 ticks/s, pre-tick sequence, strict 8-step tick loop, initiative, targeting (`targetPriority` + lowest-HP tie-break), timeout rule | 05 §3 | ⬜ |
 | M2-09 | `ResolveAttack` 10-step pipeline; ward pool (cap, absorption order, bypass list); `Heal()` + overheal; `ReflectDamage`; `AttackMultiplier` transient | 05 §4 | ⬜ |
 | M2-10 | 12 status effects + the DoT/HoT cadence engine (anchoring, stacking, mitigation exemptions) | 05 §5 | ⬜ |
@@ -207,7 +207,7 @@ These live across the whole project; they start in M0 and grow with every milest
 | M2-12 | Boss engine: 3 phases at 100/66/33 %, `SYS_ENRAGE`, telegraph events, first-clear phase-1 extension, summon entry rule, damage-amp state flag, phase-change log events | 17 §1 | ⬜ |
 | M2-13 | All 8 boss scripts + `BOSS_FTUE` authored as DSL data in **`game-data/content/bosses/`** + schema (coefficient rows from `17` §1.2 + mechanics). Closes 1 📐-baseline entry | 17 §2–9 | ⬜ |
 | M2-14 | PvP duel mode in the same code path: `IS_PVP` semantics, attacker-first initiative, no `ON_KILL`, 60 s cap, tie rules | 05 §3.3, 11 §6 | ⬜ |
-| M2-15 | Combat log format (`CombatEvent`, `SimulationResult`) + `LogHash`; compute-then-animate contract; `RunEffectQueued` combat→run bridge | 05 §7, 18 §2.5 | ⬜ |
+| M2-15 | Combat log format (`CombatEvent`, `SimulationResult`) + `LogHash`; compute-then-animate contract; `RunEffectQueued` combat→run bridge | 05 §7, 18 §2.5 | 🔄 wave 2 · `feature-M2-15-combat-log` |
 | M2-16a | Balance harness v1: 10 000 fights per (chapter, tier, archetype) over `calibration_builds.json`'s 5 archetype **statlines**; CLI + the nightly CI job (X-08); **guardrails 1, 3, 4, 5, 6** live. Plus the kickoff §2 assertion: Sporequeen's median duration stays in the 35–60 s band | 05 §9 | ⬜ |
 | M2-16b | **Guardrail 2** — no single perk raises clear rate by more than 12 pp in isolation — and the `CP_GLASS_HEART` ×2→×1.6 trigger it gates | 05 §9, 18 §9.1 | ⛔ **deferred by kickoff decision 4 — owner M3-07.** Not blocked by a defect: measuring a per-perk swing needs the 98-perk catalogue, which M3-07 authors |
 | M2-17 | **DSL determinism baseline** over 10 000 seeded random build permutations: resolve → hash with `CanonicalStateWriter` → check against a committed reference table. (Restated at kickoff — one resolver, one assembly, no client build until M7. Real two-runtime parity is **M5-12**; the baseline is self-generated and proves stability, not correctness) | 18 §11 | ⬜ |
