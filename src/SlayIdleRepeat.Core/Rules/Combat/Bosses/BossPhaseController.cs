@@ -231,10 +231,12 @@ internal sealed class BossPhaseController : IBossPhases
             return;
         }
 
-        // 🔒 A wind-up announces a landing, so a landing the fight cannot reach is not announced.
-        // `05` §3 bounds the fight at CombatRules.MaxTicks; a Telegraph emitted for a firing beyond
-        // it would be a wind-up with no hit after it in the log, which the replayer would draw and
-        // nothing would ever resolve.
+        // 🔒 T4 (BossTelegraphs) — a wind-up announces a landing, so a landing the fight cannot reach
+        // is not announced. `05` §3 bounds the fight at CombatRules.MaxTicks; a Telegraph emitted for
+        // a firing beyond it would be a wind-up with no hit after it in the log, which the replayer
+        // would draw and nothing would ever resolve. It is the one wind-up rule that is NOT an
+        // authoring rule: which tick a firing lands on depends on the HP-driven tick the phase was
+        // entered at, so BossEncounterBuilder cannot decide it and this pass has to.
         if (firing >= _services.Rules.MaxTicks)
         {
             return;

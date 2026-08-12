@@ -564,8 +564,9 @@ token to the emission sets in
 `tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/` (today `EffectVocabularyEmissionSets`),
 whose emitted vocabulary is asserted against this document's catalogues **in both directions** — the
 catalogue being the closed enum, never the emission set itself. All five §10.1 extensions, plus
-§3.1's R11 `chance` and M2-06's three `valueScale` argument keys, are covered there. A 44th op cannot
-be added without either reaching the permutation corpus or turning a test red.
+§3.1's R11 `chance` and M2-06's three `valueScale` argument keys, are covered there. A **45th** op
+cannot be added without either reaching the permutation corpus or turning a test red — as the 44th
+demonstrated, below.
 
 ⚠️ Adding, removing or reordering a token **moves every hash in the committed table**, because the
 generator anchors each axis by `list[index % list.Count]`. That is a documented regeneration, not a

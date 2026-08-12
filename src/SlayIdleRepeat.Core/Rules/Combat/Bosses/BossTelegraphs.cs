@@ -42,6 +42,21 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 ///       wind-up.</item>
 ///     </list>
 ///   </item>
+///   <item>
+///     🔴 <b>T4 — a wind-up announces a landing the fight can reach.</b> The firing being announced
+///     must fall <b>before</b> <c>CombatRules.MaxTicks</c>, or the log ends with a <c>Telegraph</c>
+///     and no hit after it: the replayer (`05` §7/§8) draws the wind-up and nothing ever resolves it.
+///     <para>
+///     ⚠️ <b>Unlike T1–T3, this one cannot be an authoring rule, and that is why it is stated here
+///     rather than checked in <see cref="BossEncounterBuilder"/>.</b> T1, T2 and T3 are decidable
+///     from the script alone; whether firing <em>k</em> lands inside the fight depends on the tick
+///     the phase was <em>entered</em>, which is HP-driven and therefore unknowable before the fight
+///     runs. So T4 is enforced at emission, in
+///     <see cref="BossPhaseController.AdvanceTick"/>'s per-instance pass, and it is the only wind-up
+///     rule that has no <c>EffectContextException</c> and no marker — there is nothing wrong with the
+///     authoring for it to name.
+///     </para>
+///   </item>
 /// </list>
 /// </remarks>
 internal static class BossTelegraphs

@@ -27,7 +27,19 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 /// </para>
 /// <para>
 /// ⚠️ <b>The power fraction is handed in, not chosen.</b> `17` §1 gives a <em>band</em>, 25–35%, and
-/// picking a number inside it is authoring rather than engineering (steering S6).
+/// picking a number inside it is authoring rather than engineering (steering S6). 🔴 It arrives as a
+/// constructor argument from whoever wires this fight's seams, <b>not</b> from
+/// <see cref="BossScript"/> — which carries no field for it. See <see cref="BossAdds"/> for the gap
+/// and for who decides where it should live.
+/// </para>
+/// <para>
+/// 🔒 <b>The band is checked in <see cref="Spawn"/> and not in the constructor</b>, deliberately:
+/// the refusal names the <c>sourceEffectId</c> of the mechanic that asked, and the constructor does
+/// not know it. A boss carries one fraction for every summon it authors, so a constructor-time check
+/// could only name the boss — and `18` §2.4's <c>SUMMON</c> is authored per mechanic, which is the
+/// level a reader has to be sent back to. The cost is that the refusal is raised at the first summon
+/// rather than at wiring; <see cref="BossEncounterBuilder"/>'s <b>A5</b> already refuses the other
+/// half of the same authoring (the <c>maxAlive</c> cap) before a tick runs.
 /// </para>
 /// </remarks>
 internal sealed class BossSummonSource : ISummonSource

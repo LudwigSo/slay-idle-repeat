@@ -6,7 +6,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>🔒 Ten of `18` §2.4's eleven combat-flow ops. <c>STAT_COPY</c> is <c>StatCopyOpTests</c>.</summary>
+/// <summary>
+/// 🔒 Ten of `18` §2.4's twelve combat-flow ops. <c>STAT_COPY</c> is <c>StatCopyOpTests</c> and
+/// `18` §10.1 E6's <c>RANDOM_OUTCOME</c> — the twelfth — is <c>RandomOutcomeOpTests</c>.
+/// </summary>
 public sealed class CombatFlowOpTests
 {
     /// <summary>`18` §7.3 — <c>PK_FLURRY</c>: one extra attack on the current target.</summary>

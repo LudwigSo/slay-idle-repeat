@@ -9,7 +9,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// </summary>
 /// <param name="Id">The effect id — `18` §8's ordering key.</param>
 /// <param name="Op">
-/// 🔒 The `18` §2 op. Carried because <b>37 of the 43 ops reach nothing else in this record</b>: only
+/// 🔒 The `18` §2 op. Carried because <b>38 of the 44 ops reach nothing else in this record</b>: only
 /// §2.1's six stat ops touch <see cref="PermutationOutcome.FinalStats"/>, so without this column a
 /// regression that mis-mapped an <c>EffectOp</c> on a <c>DAMAGE</c> or a <c>GRANT_PERK</c> would move
 /// no row in the committed table and the baseline would be silently blind to five sixths of the

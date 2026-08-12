@@ -1,35 +1,6 @@
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `17` §1 — <em>"If a boss summons, adds use standard archetypes from `05` §6.1 at 25–35% of
-/// boss power, capped at 3 alive at once."</em>
-/// </summary>
-/// <remarks>
-/// <para>
-/// 🔒 <b>25–35% is a band, and the engine does not pick a number inside it.</b> Which fraction a
-/// given mechanic uses is boss-script data handed to <see cref="BossSummonSource"/>; what is stated
-/// here is the band it must sit in, so a script that authors 0.60 is refused rather than quietly
-/// spawning adds twice as strong as `17` intends (steering S6).
-/// </para>
-/// <para>
-/// <see cref="MaxAlive"/> is the ceiling `18` §2.4's <c>maxAlive</c> key carries on a boss's
-/// <c>SUMMON</c>; <c>BattleSimulation.BattleFlowSink.Summon</c> already enforces whatever the effect
-/// authors, so this is what the encounter builder checks the authoring against.
-/// </para>
-/// </remarks>
-internal static class BossAdds
-{
-    /// <summary>🔒 `17` §1 — the bottom of the adds' power band.</summary>
-    internal const double MinPowerFraction = 0.25;
-
-    /// <summary>🔒 `17` §1 — the top of the adds' power band.</summary>
-    internal const double MaxPowerFraction = 0.35;
-
-    /// <summary>🔒 `17` §1 — <em>"capped at 3 alive at once"</em>.</summary>
-    internal const int MaxAlive = 3;
-}
-
-/// <summary>
 /// 🔒 `17` §1 / `05` §9 — the fight-duration band a boss is tuned to, stated as named numbers so the
 /// balance harness and the documents cannot drift apart.
 /// </summary>
@@ -44,6 +15,15 @@ internal static class BossAdds
 /// whole distribution; an engine that refused it would turn a balance finding into a crash in the
 /// middle of a player's run, and would make the harness unable to measure the very thing it exists
 /// to measure.
+/// </para>
+/// <para>
+/// ⚠️ <b>Nothing in production reads these, and that is the point rather than an oversight.</b> The
+/// consumer is M2-16a's harness, which has not landed; until it does, the only readers are the
+/// transcription tests that pin the four numbers against `17` §1. They are code rather than data
+/// because `17` §1.2 names this band as <em>the arbiter the harness re-tunes the 📐 coefficient rows
+/// against</em> — it is the criterion, not the variable, and none of the four carries a 📐 marker in
+/// `17` §1 or `05` §9. The 📐 numbers a boss does own — §1.2's per-boss coefficients and §10's reward
+/// rows — are M2-13's, in <c>game-data/content/bosses/</c>, and are deliberately not here.
 /// </para>
 /// </remarks>
 internal static class BossDurationGuardrails

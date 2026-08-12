@@ -198,7 +198,11 @@ internal sealed record BossEncounterRequest
 ///   <item><term><c>A3</c></term><description>a script authors one of the three <see cref="BossBuiltIns"/>.</description></item>
 ///   <item><term><c>A4</c></term><description>a phase-2 or phase-3 block carries <c>ON_BATTLE_START</c>.</description></item>
 ///   <item><term><c>A5</c></term><description>a <c>SUMMON</c> authors <b>no</b> <c>maxAlive</c>, or one above <see cref="BossAdds.MaxAlive"/>.</description></item>
-///   <item><term><c>T1</c>, <c>T2</c>, <c>T3</c></term><description>the wind-up rules — see <see cref="BossTelegraphs"/>.</description></item>
+///   <item><term><c>T1</c>, <c>T2</c>, <c>T3</c></term><description>the wind-up rules — see
+///   <see cref="BossTelegraphs"/>. ⚠️ Its <b>T4</b> is deliberately absent from this register: it
+///   bounds a firing by <c>CombatRules.MaxTicks</c>, which depends on the HP-driven tick a phase was
+///   entered at and so cannot be decided from a script. It is enforced at emission instead, and it
+///   is the one wind-up rule with no marker because there is no authoring for it to refuse.</description></item>
 ///   <item><term><c>O1</c></term><description>a <c>RANDOM_OUTCOME</c> row names a non-sibling effect id.</description></item>
 /// </list>
 /// <para>

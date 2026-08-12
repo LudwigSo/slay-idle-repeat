@@ -9,7 +9,7 @@ public sealed class EffectOpsTests
 {
     /// <summary>
     /// 🔒 The rule that stands in for the compiler. <see cref="EffectOps.FamilyOf"/> needs a default
-    /// arm because C# requires one for an enum, so a 44th op would fall into it and throw at run
+    /// arm because C# requires one for an enum, so a 45th op would fall into it and throw at run
     /// time rather than fail to build. This enumerates the enum and is what actually catches it.
     /// </summary>
     [Fact]
