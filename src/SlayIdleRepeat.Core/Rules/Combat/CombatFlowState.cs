@@ -47,6 +47,16 @@ internal readonly record struct DeathSave(double Hp, bool IsRevive, string Sourc
 /// ordinal. A bare <c>OrderBy(x =&gt; x.Id)</c> would consult the ambient collation —
 /// <c>StringOrderingRuleTests</c> fails the build on exactly that.
 /// </para>
+/// <para>
+/// ⚠️ <b>A stateful class under <c>Rules/</c></b>, which `30` §11.4 annotates as <em>"internal,
+/// static, stateless calculators"</em> — recorded rather than hidden, on <c>CombatLog</c>'s precedent
+/// and for its reason. `18` §2.4's charges, saves and buckets are written by one op and read by a
+/// later attack, so they have to live somewhere across ticks; a stateless function would have to take
+/// and return the whole set on every call. It is per-actor, per-battle, owned by exactly one caller,
+/// never shared and never static, so it carries none of the properties that annotation protects — but
+/// it is a departure, and the three of them (<see cref="BattleSimulation"/>,
+/// <see cref="BattleActor"/>, this) should be read as one decision rather than three.
+/// </para>
 /// </remarks>
 internal sealed class CombatFlowState
 {
@@ -110,7 +120,7 @@ internal sealed class CombatFlowState
         for (var i = 0; i < _attackMultipliers.Count; i++)
         {
             var charge = _attackMultipliers[i];
-            multiplier = Math.Round(multiplier * charge.Multiplier, StatRounding.Decimals);
+            multiplier = StatRounding.Round(multiplier * charge.Multiplier);
             _attackMultipliers[i] = charge with { Charges = charge.Charges - 1 };
         }
 
@@ -206,7 +216,7 @@ internal sealed class CombatFlowState
         var product = 1.0;
         foreach (var (multiplier, _) in _damageTakenMultipliers)
         {
-            product = Math.Round(product * multiplier, StatRounding.Decimals);
+            product = StatRounding.Round(product * multiplier);
         }
 
         return product;
@@ -214,8 +224,7 @@ internal sealed class CombatFlowState
 
     /// <summary>`18` §2.4's <c>STAT_COPY</c> write — a percent-bucket add onto the holder.</summary>
     internal void AddPercentBucket(StatId stat, double fraction) =>
-        _percentBuckets[stat] = Math.Round(
-            _percentBuckets.GetValueOrDefault(stat) + fraction, StatRounding.Decimals);
+        _percentBuckets[stat] = StatRounding.Round(_percentBuckets.GetValueOrDefault(stat) + fraction);
 
     /// <summary>
     /// 🔒 `18` §2.4's <c>HIGHEST_PCT_BONUS</c> — <em>"whichever stat carries the largest percent

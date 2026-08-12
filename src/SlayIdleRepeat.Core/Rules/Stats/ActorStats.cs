@@ -103,7 +103,23 @@ public sealed class ActorStats : IEquatable<ActorStats>
     /// A combat stat is missing, a stat that is not a combat stat is present, or a value is NaN,
     /// infinite, a negative zero, or not rounded to four decimal places (`05` §1.1).
     /// </exception>
-    internal static ActorStats From(IReadOnlyDictionary<StatId, double> values)
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Public because it is the only way to build the argument
+    /// <c>CombatSimulator.Simulate</c> takes</b> — the rest of this type stays internal.
+    /// </para>
+    /// <para>
+    /// R15/R16 made this type public as part of the enumerated signature closure of `30` §11.2's
+    /// public entry point. That widening is only worth anything if the entry point can actually be
+    /// called: `05` §9's balance harness is a separate assembly with no <c>InternalsVisibleTo</c>
+    /// grant, and its inputs are authored stat maps in <c>data/tuning/calibration_builds.json</c> —
+    /// which is exactly this signature. A public <c>Simulate</c> whose parameter type no outside
+    /// assembly can construct is a public API in name only, and every accessibility rule would report
+    /// green over it. <see cref="StatId"/> is already public and lives in <c>Content</c>, so nothing
+    /// further is widened by this.
+    /// </para>
+    /// </remarks>
+    public static ActorStats From(IReadOnlyDictionary<StatId, double> values)
     {
         ArgumentNullException.ThrowIfNull(values);
 

@@ -77,6 +77,30 @@ internal static class StatRounding
     }
 
     /// <summary>
+    /// 🔒 The same rounding, for an accumulation point that is <b>not</b> a stat: a tick's battle
+    /// time, an attack cooldown, an HP fraction, a transient multiplier.
+    /// </summary>
+    /// <param name="value">The accumulated value.</param>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>It exists so that `05` §1.1 is one rule and not two.</b> The overload above needs a
+    /// <see cref="StatId"/> and a `18` §8 step to name in its failure message, which the combat loop
+    /// has neither of — so before this existed, <c>Rules.Combat</c> wrote
+    /// <c>Math.Round(x, StatRounding.Decimals)</c> at eight sites and the <c>-0.0</c> normalisation
+    /// at exactly one of them. That splits the rounding rule from the normalisation rule in the one
+    /// namespace whose output feeds <c>LogHash</c>: <c>-0.0</c> compares equal to <c>0.0</c> in C#
+    /// and hashes differently, which is a false divergence in `11` §6's tamper check.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It does not throw on NaN or infinity</b>, and that is the difference from the overload
+    /// above. A stat that is infinite is an overflow in a named `18` §8 step, worth stopping at; a
+    /// combat transient reaches <c>CombatLog</c>, which refuses a NaN and names the event and tick
+    /// that carried it — a better message than this method could write.
+    /// </para>
+    /// </remarks>
+    internal static double Round(double value) => Math.Round(value, Decimals) + 0.0;
+
+    /// <summary>
     /// True when a value is already in the form <see cref="Round"/> produces: rounded to
     /// <see cref="Decimals"/> places, finite, and not a negative zero.
     /// </summary>

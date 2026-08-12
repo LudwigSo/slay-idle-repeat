@@ -260,6 +260,109 @@ public sealed class TriggerWiringTests
     }
 
     /// <summary>
+    /// 🔒 <c>ON_BATTLE_END</c> — <c>TriggerRegistry</c>'s contract: <em>"after slot 8's break, at the
+    /// fight's last tick, with <c>TriggerOccurrence.HeroWon</c> set from the outcome. It is the only
+    /// kind that reads that field."</em>
+    /// </summary>
+    /// <remarks>
+    /// The <c>onlyIfWon</c> arm is what makes this discriminating rather than a smoke test: `18`
+    /// §9.2's <c>PET_DICEBEAST</c> grants only on a win, so a loop that fired the kind but left
+    /// <c>HeroWon</c> unset would fire the loser's effect and skip the winner's — a legal-looking log
+    /// and the wrong rewards.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ON_BATTLE_END_fires_at_the_last_tick_with_the_outcome_on_it(bool heroWins)
+    {
+        var fired = new List<string>();
+
+        var result = CombatSimulator.Simulate(BattleTestBench.Plan(
+            new[]
+            {
+                BattleTestBench.Hero(
+                    BattleTestBench.Stats(maxHp: heroWins ? 10_000 : 10, aspd: heroWins ? 1.0 : 0.001),
+                    1,
+                    OnBattleEnd("A_ON_WIN", onlyIfWon: true),
+                    OnBattleEnd("B_ALWAYS", onlyIfWon: null)),
+                BattleTestBench.Enemy(
+                    0, BattleTestBench.Stats(maxHp: heroWins ? 10 : 10_000)),
+            },
+            services => BattleSeams.Strict with
+            {
+                Attack = new RecordingAttackPipeline(services, damage: 10.0),
+                Statuses = new CapturingStatusEngine(fired),
+            }));
+
+        result.HeroWon.ShouldBe(heroWins);
+
+        fired.ShouldBe(heroWins
+            ? new[] { "A_ON_WIN", "B_ALWAYS" }
+            : new[] { "B_ALWAYS" });
+
+        static HeldEffect OnBattleEnd(string id, bool? onlyIfWon) => new(new EffectDefinition
+        {
+            Id = id,
+            Op = EffectOp.APPLY_STATUS,
+            StatusId = "RAGE",
+            Value = 0.1,
+            Target = EffectTarget.SELF,
+            Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_END, OnlyIfWon = onlyIfWon },
+        });
+    }
+
+    /// <summary>
+    /// 🔒 `05` §3.1's phase check runs after <b>every</b> HP decrease — and a shrinking <c>MAX_HP</c>
+    /// that clips current HP is one.
+    /// </summary>
+    /// <remarks>
+    /// `18` §9.1's <c>CP_GLASS_HEART</c> re-bases Max HP mid-fight. A boss clipped below a phase
+    /// threshold that way must enter the next phase there, not on whatever unrelated swing lands
+    /// next. Driven through <see cref="IStatusTimeline"/> because that is the slot a status-driven
+    /// Max HP change lands in.
+    /// </remarks>
+    [Fact]
+    public void A_MAX_HP_shrink_that_clips_current_HP_runs_the_phase_check()
+    {
+        RecordingPhases? phases = null;
+
+        CombatSimulator.Simulate(BattleTestBench.Plan(
+            new[]
+            {
+                BattleTestBench.Hero(BattleTestBench.Stats(maxHp: 10_000, aspd: 0.001)),
+                BattleTestBench.Enemy(0, BattleTestBench.Stats(maxHp: 1000, aspd: 0.001), isBoss: true),
+            },
+            services =>
+            {
+                phases = new RecordingPhases(services);
+
+                return BattleSeams.Strict with
+                {
+                    // Nobody deals damage: the ONLY HP decrease in the whole fight is the clip.
+                    Attack = new RecordingAttackPipeline(services, damage: 0.0),
+                    Timeline = new MaxHpRebaseAtTick(20, "ENEMY_0", fraction: -0.5),
+                    Phases = phases,
+                };
+            },
+            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true, IsPvp: false)));
+
+        phases.ShouldNotBeNull();
+
+        // The bucket lands in slot 1 of tick 20 and the aggregation that clips HP runs at the top of
+        // tick 21, which is where the check is owed.
+        phases.Calls.ShouldContain("check:ENEMY_0@21");
+
+        // 🔒 And it is the only check after tick 0. The two on tick 0 are the opening swings — the
+        // recording pipeline routes AfterHpDecrease for every resolved hit, damage or not — so
+        // pinning the set rather than the count is what stops an unrelated call from satisfying the
+        // assertion above.
+        phases.Calls.Where(c => c.StartsWith("check:", StringComparison.Ordinal))
+            .Distinct()
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(new[] { "check:ENEMY_0@0", "check:ENEMY_0@21", "check:HERO@0" });
+    }
+
+    /// <summary>
     /// 🔒 One registry per battle over the <b>run's</b> counters — which is what makes `18` §3's
     /// <em>"<c>ON_KILL</c> counters persist across battles"</em> true structurally.
     /// </summary>
@@ -303,6 +406,54 @@ public sealed class TriggerWiringTests
         // Kill 1 counted and did not fire; kill 2, in the NEXT battle, did.
         fired.ShouldBe(new[] { "PK_MIDAS" });
     }
+}
+
+/// <summary>
+/// A slot-1 timeline that re-bases one actor's <c>MAX_HP</c> on a given tick — `18` §9.1's
+/// <c>CP_GLASS_HEART</c>, through the production path.
+/// </summary>
+/// <remarks>
+/// 🔒 It writes a <b>percent bucket</b> and invalidates, which is exactly what
+/// <c>ICombatFlowSink.AddPercentBucket</c> does, rather than calling <c>SetStats</c> directly. That
+/// matters: the aggregation is what clips current HP, and the phase check hangs off
+/// <c>RefreshStats</c> observing that clip. A double that assigned the block itself would test
+/// nothing but itself.
+/// </remarks>
+internal sealed class MaxHpRebaseAtTick : IStatusTimeline
+{
+    private readonly int _tick;
+    private readonly string _actorId;
+    private readonly double _fraction;
+
+    internal MaxHpRebaseAtTick(int tick, string actorId, double fraction)
+    {
+        _tick = tick;
+        _actorId = actorId;
+        _fraction = fraction;
+    }
+
+    /// <inheritdoc />
+    public void AdvanceTimers(BattleActor actor, int tick)
+    {
+        if (tick != _tick || !string.Equals(actor.Id, _actorId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        actor.Flow.AddPercentBucket(StatId.MAX_HP, _fraction);
+        actor.InvalidateStats();
+    }
+
+    /// <inheritdoc />
+    public void ExpireDue(BattleActor actor, int tick)
+    {
+    }
+
+    /// <inheritdoc />
+    public bool CanAct(BattleActor actor) => true;
+
+    /// <inheritdoc />
+    public int StacksOn(BattleActor actor, string statusId) => 0;
 }
 
 /// <summary>A status engine that records the tick each application landed on.</summary>

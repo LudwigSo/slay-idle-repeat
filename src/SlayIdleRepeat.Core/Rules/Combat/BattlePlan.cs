@@ -122,7 +122,51 @@ internal sealed record BattlePlan
             RequireStableOnKillIds(actor);
         }
 
+        RequireTwoSides();
+
         return this;
+    }
+
+    /// <summary>
+    /// 🔒 A fight needs a hero and something to fight — checked here, because both failures produce a
+    /// <b>legal-looking one-tick log</b> rather than an error.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `05` §3.1's slot 8 breaks when the hero is down or the enemies are cleared, and both questions
+    /// are asked of a roster: with no hero-side <c>HERO</c> the fight ends at tick 0 as a loss, and
+    /// with no killable enemy it ends at tick 0 as a win. Neither throws, both seal a valid log, and
+    /// the balance harness would read a batch of them as content being trivially easy or trivially
+    /// impossible.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Exactly one hero-side hero, and this holds in a duel too.</b> `05` §3.3's Ghost Duel is
+    /// <em>"two hero-shaped sides"</em> — but the defending hero is on <see cref="BattleSide.ENEMY"/>
+    /// (<c>CombatActor</c> puts it at <c>FirstEnemy</c>), so it satisfies the enemy clause rather
+    /// than doubling the hero one.
+    /// </para>
+    /// </remarks>
+    private void RequireTwoSides()
+    {
+        var heroes = Actors.Count(a => a.Side == BattleSide.HERO && a.Kind == EffectActorKind.HERO);
+        if (heroes != 1)
+        {
+            throw new ArgumentException(
+                $"The roster carries {heroes.ToString(CultureInfo.InvariantCulture)} hero-side heroes; " +
+                "`05` §3 gives a fight exactly one. With none, `05` §3.1's slot 8 sees a downed hero on " +
+                "tick 0 and the fight ends as a one-tick loss with a perfectly valid log — which is the " +
+                "failure this whole method exists to make loud.",
+                nameof(Actors));
+        }
+
+        if (!Actors.Any(a => a.Side == BattleSide.ENEMY && a.Kind != EffectActorKind.PET))
+        {
+            throw new ArgumentException(
+                "The roster carries no killable enemy — `05` §3 gives a fight 1-5, and `05` §3.2 makes " +
+                "pets untargetable and unkillable, so a pet-only enemy side is the same as an empty " +
+                "one. Slot 8 would see the enemies cleared on tick 0 and report a one-tick win.",
+                nameof(Actors));
+        }
     }
 
     /// <summary>

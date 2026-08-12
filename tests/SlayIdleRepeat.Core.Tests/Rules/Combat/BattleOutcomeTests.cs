@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Rules.Combat;
+using SlayIdleRepeat.Core.Rules.Effects;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
@@ -144,6 +145,91 @@ public sealed class BattleOutcomeTests
         Should.Throw<ArgumentOutOfRangeException>(
             () => new CombatRules(maxTicks, OnKillTriggersFire: true, IsPvp: false).Validated());
 
+    /// <summary>
+    /// 🔒 A <b>despawned</b> summon has left the fight and has no stake in the timeout — `18` §2.4's
+    /// <em>"despawned ≠ killed"</em>.
+    /// </summary>
+    /// <remarks>
+    /// A killed actor sits at <c>0/max</c> and correctly drags its side's fraction down. A despawned
+    /// one keeps its HP, because <c>CLEAR_SUMMONS</c> is not a death — so counting it would prop the
+    /// side up at <c>max/max</c> and hand the timeout to whoever cleared their own summons. Here the
+    /// hero is at 0.50 and the enemy side's real remaining is 0.30; the despawned shard at full
+    /// health would lift the pack to 0.65 and steal the win.
+    /// </remarks>
+    [Fact]
+    public void A_despawned_summon_does_not_count_toward_the_timeout_fraction()
+    {
+        BattleServices? services = null;
+
+        var result = CombatSimulator.Simulate(BattleTestBench.Plan(
+            new[]
+            {
+                BattleTestBench.Hero(BattleTestBench.Stats(maxHp: 100, aspd: 0.001)),
+                BattleTestBench.Enemy(0, BattleTestBench.Stats(maxHp: 100, aspd: 0.001)),
+            },
+            s =>
+            {
+                services = s;
+
+                return BattleSeams.Strict with
+                {
+                    Attack = new RecordingAttackPipeline(s, damage: 0.0),
+                    Timeline = new DespawnedShard(s, heroHp: 50, enemyHp: 30, shardHp: 100),
+                };
+            },
+            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true, IsPvp: false)));
+
+        services.ShouldNotBeNull();
+
+        // The shard is really there, really despawned, and really still at full health.
+        var shard = services.Actors.Single(a => a.IsSummon);
+        shard.Despawned.ShouldBeTrue();
+        shard.CurrentHp.ShouldBe(100.0);
+
+        result.DurationTicks.ShouldBe(40);
+        result.HeroWon.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// 🔒 A roster with no hero, or nothing killable to fight, is refused — both would otherwise
+    /// produce a valid one-tick log rather than an error.
+    /// </summary>
+    [Fact]
+    public void A_roster_missing_a_side_is_refused_rather_than_decided_on_tick_0()
+    {
+        Should.Throw<ArgumentException>(() => CombatSimulator.Simulate(BattleTestBench.Plan(new[]
+            {
+                BattleTestBench.Pet(0),
+                BattleTestBench.Enemy(0),
+            })))
+            .Message.ShouldContain("one-tick loss");
+
+        Should.Throw<ArgumentException>(() => CombatSimulator.Simulate(BattleTestBench.Plan(new[]
+            {
+                BattleTestBench.Hero(),
+                BattleTestBench.Pet(0) with
+                {
+                    Id = "ENEMY_PET", Index = 9, LogId = 20, Side = BattleSide.ENEMY,
+                },
+            })))
+            .Message.ShouldContain("one-tick win");
+
+        // 🔒 `05` §3.3's duel satisfies both clauses: the defending hero is on the ENEMY side, so it
+        // is the killable enemy rather than a second hero-side hero.
+        Should.NotThrow(() => BattleTestBench.Plan(new[]
+            {
+                BattleTestBench.Hero(),
+                BattleTestBench.Hero() with
+                {
+                    Id = "HERO_DEFENDER",
+                    Index = CombatActor.FirstEnemy,
+                    LogId = CombatActor.FirstEnemy,
+                    Side = BattleSide.ENEMY,
+                },
+            })
+            .Validated());
+    }
+
     private static SimulationResult Standoff(
         double heroMaxHp, double heroHp, double enemyMaxHp, double enemyHp, int maxTicks = CombatLog.MaxTicks) =>
         Standoff(heroMaxHp, heroHp, new[] { (enemyMaxHp, enemyHp) }, maxTicks);
@@ -177,6 +263,74 @@ public sealed class BattleOutcomeTests
             },
             rules: new CombatRules(maxTicks, OnKillTriggersFire: true, IsPvp: false)));
     }
+}
+
+/// <summary>
+/// Sets the standings once and admits a summon that is immediately despawned — `18` §2.4's
+/// <c>CLEAR_SUMMONS</c>, which leaves the actor at full health and out of the fight.
+/// </summary>
+internal sealed class DespawnedShard : IStatusTimeline
+{
+    private readonly BattleServices _services;
+    private readonly double _heroHp;
+    private readonly double _enemyHp;
+    private readonly double _shardHp;
+
+    private bool _done;
+
+    internal DespawnedShard(BattleServices services, double heroHp, double enemyHp, double shardHp)
+    {
+        _services = services;
+        _heroHp = heroHp;
+        _enemyHp = enemyHp;
+        _shardHp = shardHp;
+    }
+
+    /// <inheritdoc />
+    public void AdvanceTimers(BattleActor actor, int tick)
+    {
+        if (tick != 0 || _done)
+        {
+            return;
+        }
+
+        if (actor.Id == "HERO")
+        {
+            actor.SetCurrentHp(_heroHp);
+
+            return;
+        }
+
+        if (actor.Id != "ENEMY_0")
+        {
+            return;
+        }
+
+        _done = true;
+        actor.SetCurrentHp(_enemyHp);
+
+        var shard = _services.AdmitSummon(
+            BattleTestBench.Enemy(50, BattleTestBench.Stats(maxHp: _shardHp, aspd: 0.001)) with
+            {
+                Id = "SHARD",
+                Index = -1,
+                LogId = 1,
+                OwnerId = actor.Id,
+            });
+
+        shard.Despawn();
+    }
+
+    /// <inheritdoc />
+    public void ExpireDue(BattleActor actor, int tick)
+    {
+    }
+
+    /// <inheritdoc />
+    public bool CanAct(BattleActor actor) => true;
+
+    /// <inheritdoc />
+    public int StacksOn(BattleActor actor, string statusId) => 0;
 }
 
 /// <summary>Sets the standings once, on tick 0's slot 1 — a fight already in progress.</summary>

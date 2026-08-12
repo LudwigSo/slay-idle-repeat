@@ -179,6 +179,64 @@ public sealed class AttackCadenceTests
         summon.IsSummon.ShouldBeTrue();
     }
 
+    /// <summary>
+    /// 🔒 A swing that never resolved does not consume the cooldown — the same cost as finding no
+    /// target at all.
+    /// </summary>
+    /// <remarks>
+    /// `05` §3.1 step 6 puts an actor out of play <em>"at that moment"</em>, so an <c>ON_ATTACK</c>
+    /// trigger that finishes the target leaves the attacker with nothing to hit. Slot 4a already
+    /// costs nothing when the target list is empty at selection time; dying two lines later is the
+    /// same situation and must cost the same, or an actor whose own trigger secured the kill loses a
+    /// whole attack cycle for it.
+    /// </remarks>
+    [Fact]
+    public void A_swing_whose_ON_ATTACK_trigger_kills_the_target_does_not_spend_the_cooldown()
+    {
+        RecordingAttackPipeline? pipeline = null;
+        BattleServices? services = null;
+
+        CombatSimulator.Simulate(BattleTestBench.Plan(
+            new[]
+            {
+                // The hero's ON_ATTACK deals 10 true damage before the swing resolves, which is
+                // exactly ENEMY_0's health. ENEMY_1 survives, so the fight continues.
+                BattleTestBench.Hero(BattleTestBench.Stats(maxHp: 10_000, aspd: 1.0), 1, new HeldEffect(
+                    new EffectDefinition
+                    {
+                        Id = "A_OPENING_STRIKE",
+                        Op = EffectOp.DAMAGE_TRUE,
+                        Value = 10.0,
+                        Target = EffectTarget.CURRENT_TARGET,
+                        Trigger = new EffectTrigger { Kind = TriggerKind.ON_ATTACK },
+                    })),
+                BattleTestBench.Enemy(0, BattleTestBench.Stats(maxHp: 10, aspd: 0.001)),
+                BattleTestBench.Enemy(1, BattleTestBench.Stats(maxHp: 10_000, aspd: 0.001)),
+            },
+            s =>
+            {
+                services = s;
+                pipeline = new RecordingAttackPipeline(s, damage: 1.0);
+
+                return BattleSeams.Strict with { Attack = pipeline };
+            },
+            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true, IsPvp: false)));
+
+        pipeline.ShouldNotBeNull();
+        services.ShouldNotBeNull();
+
+        // 🔒 Tick 0: the trigger killed ENEMY_0 before the swing resolved, so ResolveAttack was never
+        // reached and the cooldown was never spent — and the hero therefore swings again on tick 1,
+        // at ENEMY_1. A loop that charged for the unresolved swing would make it wait until tick 20.
+        pipeline.Swings.Where(s => s.Attacker == "HERO")
+            .Select(s => (s.Tick, s.Defender))
+            .ShouldBe(new[] { (1, "ENEMY_1") });
+
+        // ENEMY_0 really did die on tick 0, so the case above is the one described and not a fight
+        // in which the trigger simply missed.
+        services.Actors.Single(a => a.Id == "ENEMY_0").IsAlive.ShouldBeFalse();
+    }
+
     private static List<int> HeroSwingTicks(double aspd)
     {
         RecordingAttackPipeline? pipeline = null;

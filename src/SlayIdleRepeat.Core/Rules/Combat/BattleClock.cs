@@ -48,7 +48,7 @@ internal static class BattleClock
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tick);
 
-        return Math.Round((double)tick / CombatLog.TicksPerSecond, StatRounding.Decimals);
+        return StatRounding.Round((double)tick / CombatLog.TicksPerSecond);
     }
 
     /// <summary>

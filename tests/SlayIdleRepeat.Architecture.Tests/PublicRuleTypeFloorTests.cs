@@ -66,12 +66,57 @@ public sealed class PublicRuleTypeFloorTests
 
         foreach (var name in Domain.PublicRuleTypes)
         {
-            var type = Domain.FindInCore(name);
-            if (type is null)
+            // 🔒 Every type with that simple name, not the first. `Domain.FindInCore` is a
+            // `FirstOrDefault` while `Handlers_and_Rules_are_internal`'s exemption arm is a `Contains`
+            // over the same list — so it exempts EVERY type with the name. A second
+            // `Rules/Board/CombatEvent` would be exempted from the internal rule while a
+            // first-match guard checked only one of the two, and the guard would verify less than
+            // the rule it guards.
+            var matches = Domain.CoreTypes
+                .Where(t => t.Name.Equals(name, StringComparison.Ordinal))
+                .ToArray();
+
+            if (matches.Length > 1)
             {
-                continue;
+                offenders.Add(
+                    $"'{name}' resolves to {matches.Length} Core types ({string.Join(", ", matches.Select(t => t.FullName))}). " +
+                    "Handlers_and_Rules_are_internal exempts every type with a listed name, so a second one " +
+                    "is silently public too — and Domain.FindInCore, which the rest of the suite looks " +
+                    "subjects up with, would only ever see the first.");
             }
 
+            foreach (var type in matches)
+            {
+                Check(offenders, name, type);
+            }
+        }
+
+        // 🔒 A public type NESTED in a public Rules/ type is exempt from
+        // Handlers_and_Rules_are_internal entirely: its filter is `DeclaringType is null` plus
+        // `IsPublic`, and Cecil reports a nested public type as IsNestedPublic with IsPublic false.
+        // That gap was unreachable until this commit, because there were no public types under
+        // Rules/ to nest inside. There are five now, so it is closed here rather than by editing
+        // M0-08's rule file.
+        offenders.AddRange(
+            Domain.CoreTypes
+                .Where(t => t.IsNestedPublic && t.DeclaringType is not null)
+                .Where(t => Il.IsUnder(Il.NamespaceOf(t), Domain.RulesNamespace) ||
+                            Il.IsUnder(Il.NamespaceOf(t), Domain.HandlersNamespace))
+                .Where(t => !Domain.IsCompilerGenerated(t))
+                .Select(t =>
+                    $"{t.FullName} is a public type nested in a Rules/ or Handlers/ type. " +
+                    "Handlers_and_Rules_are_internal cannot see it — its filter is `DeclaringType is null` " +
+                    "and Cecil reports a nested public type as IsNestedPublic, not IsPublic — so it is " +
+                    "publicly reachable and governed by nothing. 30 §11.2's public surface is an " +
+                    "enumerated list of top-level types; make it internal, or lift it out and enumerate it."));
+
+        ArchRule.Empty(
+            offenders,
+            "Every name in Domain.PublicRuleTypes that exists names a public type under Rules/ or " +
+            "Handlers/, and no public type hides inside one (30 §11.2, R15/R16).");
+
+        static void Check(List<string> offenders, string name, Mono.Cecil.TypeDefinition type)
+        {
             if (!type.IsPublic)
             {
                 offenders.Add(
@@ -82,7 +127,7 @@ public sealed class PublicRuleTypeFloorTests
                     "halves — the names here, and the `public` keyword on the types. This is the half that " +
                     "goes unnoticed.");
 
-                continue;
+                return;
             }
 
             if (!Il.IsUnder(Il.NamespaceOf(type), Domain.RulesNamespace) &&
@@ -96,11 +141,84 @@ public sealed class PublicRuleTypeFloorTests
                     "`public` with it, unreviewed.");
             }
         }
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.2 — a public entry point is <b>callable</b>: every parameter type it declares that
+    /// lives in <c>Core</c> offers a public way to build one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The failure this closes is subtle and would have passed every other rule in the suite. R15's
+    /// warrant for exporting these types is `30` §11.2's two named external consumers — `14` §2.4's
+    /// client and `05` §9's balance harness, which is a <b>separate assembly</b> with no
+    /// <c>InternalsVisibleTo</c> grant. Export the type but leave its factory internal, and the
+    /// public method compiles, the accessibility rules go green, and no outside assembly can call it:
+    /// a public API in name only.
+    /// </para>
+    /// <para>
+    /// ⚠️ Stated over <c>Core</c>'s own types only. A BCL parameter (<c>ulong</c>,
+    /// <c>IReadOnlyList&lt;T&gt;</c>) is not this rule's business.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_public_entry_points_parameters_can_be_built_from_outside_Core()
+    {
+        var offenders = new List<string>();
+
+        var declared = Domain.CoreTypes
+            .Where(t => t.IsPublic && Domain.PublicRuleTypes.Contains(t.Name, StringComparer.Ordinal))
+            .ToArray();
+
+        // S3 — the subject set, floored. Without this the rule passes over an empty set the moment a
+        // rename empties PublicRuleTypes, which is the silence this whole file exists to break.
+        if (declared.Length < ResolvedPublicRuleTypeFloor)
+        {
+            offenders.Add(
+                $"only {declared.Length} of Domain.PublicRuleTypes' names resolve to a public Core type; " +
+                $"the floor is {ResolvedPublicRuleTypeFloor}. This rule would be quantifying over almost " +
+                "nothing.");
+        }
+
+        foreach (var type in declared)
+        {
+            foreach (var method in type.Methods.Where(m => m.IsPublic && !Domain.IsCompilerGenerated(m)))
+            {
+                foreach (var parameter in method.Parameters)
+                {
+                    foreach (var reference in Il.Flatten(parameter.ParameterType))
+                    {
+                        var resolved = Domain.CoreTypes.FirstOrDefault(
+                            t => t.FullName.Equals(reference.FullName, StringComparison.Ordinal));
+
+                        if (resolved is null || !resolved.IsPublic || CanBeBuiltFromOutside(resolved))
+                        {
+                            continue;
+                        }
+
+                        offenders.Add(
+                            $"{Il.Describe(method)} takes {resolved.FullName}, which is public but offers no " +
+                            "public constructor and no public static factory returning itself. `30` §11.2 " +
+                            "exports this entry point for a named external consumer — `05` §9's balance " +
+                            "harness is its own assembly with no InternalsVisibleTo grant — and it cannot " +
+                            "construct the argument. Make the factory public, or make the entry point " +
+                            "internal and take its name out of Domain.PublicRuleTypes.");
+                    }
+                }
+            }
+        }
 
         ArchRule.Empty(
             offenders,
-            "Every name in Domain.PublicRuleTypes that exists names a public type under Rules/ or " +
-            "Handlers/ (30 §11.2, R15/R16).");
+            "Every public Rules entry point can actually be called from outside Core (30 §11.2, R15).");
+
+        static bool CanBeBuiltFromOutside(Mono.Cecil.TypeDefinition type) =>
+            type.IsEnum ||
+            type.IsValueType ||
+            type.Methods.Any(m => m.IsPublic && m.IsConstructor) ||
+            type.Methods.Any(m =>
+                m.IsPublic && m.IsStatic &&
+                m.ReturnType.FullName.Equals(type.FullName, StringComparison.Ordinal));
     }
 
     /// <summary>

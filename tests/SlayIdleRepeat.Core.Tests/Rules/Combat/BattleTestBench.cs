@@ -257,7 +257,7 @@ internal sealed class RecordingPhases : IBossPhases
 
         var id = EffectInstanceId.Of($"{actor.Id}#phase2");
         _services.Triggers.Register(id, _phaseEffect, tick, actor.HpFraction);
-        actor.Instances.Add(id);
+        actor.AddInstance(id, _phaseEffect);
     }
 }
 

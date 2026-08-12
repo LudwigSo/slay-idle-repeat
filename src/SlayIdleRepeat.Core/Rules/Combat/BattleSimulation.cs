@@ -105,10 +105,9 @@ internal sealed class BattleSimulation
     private readonly BattleFlowSink _flow;
     private readonly BattleRunEffects _runEffects;
     private readonly Dictionary<string, ushort> _effectIndex;
-    private readonly HashSet<int> _stateDependentActors = new();
+    private readonly BattleActor _hero;
 
     private List<BattleActor>? _initiative;
-    private BattleActor? _hero;
     private int _nextEnemyIndex;
     private int _nextLogId;
     private int _cascadeDepth;
@@ -135,17 +134,17 @@ internal sealed class BattleSimulation
             .Select(a => new BattleActor(a, _seams.Timeline))
             .ToList();
 
-        _nextEnemyIndex = _actors.Count == 0 ? 0 : _actors[^1].Index + 1;
-        _nextLogId = _actors.Count == 0 ? CombatActor.FirstEnemy : _actors.Max(a => a.LogId) + 1;
+        _nextEnemyIndex = _actors[^1].Index + 1;
+        _nextLogId = _actors.Max(a => a.LogId) + 1;
 
         _effectIndex = BuildEffectIndex(_plan.Actors);
         _flow = new BattleFlowSink(this);
         _runEffects = new BattleRunEffects(this);
 
-        foreach (var actor in _actors)
-        {
-            NoteStateDependence(actor);
-        }
+        // Resolved once, here rather than lazily: `05` §3.2 gives a side one hero and no op adds or
+        // removes one (a summon is always an enemy, `18` §2.4). A `??=` would never latch a null and
+        // would re-scan the roster at slot 8 of every tick.
+        _hero = _actors.First(a => a.Side == BattleSide.HERO && a.Kind == EffectActorKind.HERO);
     }
 
     /// <summary>This fight's log.</summary>
@@ -225,9 +224,28 @@ internal sealed class BattleSimulation
         Tick = ranTicks - 1;
 
         var heroWon = Outcome();
-        var hero = Hero();
 
-        return Log.Complete(heroWon, ranTicks, hero?.CurrentHp ?? 0.0);
+        // ON_BATTLE_END - TriggerRegistry's contract: "after slot 8's break, at the fight's last
+        // tick, with TriggerOccurrence.HeroWon set from the outcome. It is the only kind that reads
+        // that field." Nothing else in the repository writes it, so `18` §9.2's PET_DICEBEAST
+        // win-only grant would silently do nothing without this sweep.
+        //
+        // `18` §2.5 fixes its position relative to the run queue — the queue is applied "after the
+        // outcome is fixed, before ON_BATTLE_END effects are granted" - which is why the outcome is
+        // computed first, and where M3's drain goes.
+        foreach (var actor in BattleStartOrder())
+        {
+            FireTriggers(actor, new TriggerOccurrence
+            {
+                Kind = TriggerKind.ON_BATTLE_END,
+                Tick = Tick,
+                IsPvp = Rules.IsPvp,
+                HeroWon = heroWon,
+                HpFraction = actor.HpFraction,
+            });
+        }
+
+        return Log.Complete(heroWon, ranTicks, _hero.CurrentHp);
     }
 
     // ══════════════════════════════════════════════════════════════════ the pre-tick
@@ -306,21 +324,28 @@ internal sealed class BattleSimulation
     /// </summary>
     private void RunPeriodics()
     {
-        for (var i = 0; i < _actors.Count; i++)
+        // The roster is bounded BEFORE the walk, for slot 4's reason: a PERIODIC can summon, and
+        // `05` §3.1 gives a summon a full cooldown so that it "never attacks on its spawn tick". An
+        // unbounded walk would reach the newcomer in the same slot 3 and fire its just-registered
+        // periodics at their own anchor tick, which is neither what R8 means nor consistent with the
+        // shielding slot 4 already has.
+        var standing = _actors.Count;
+
+        for (var i = 0; i < standing; i++)
         {
             var actor = _actors[i];
-            if (actor.Instances.Count == 0)
+            if (!actor.HoldsAPeriodic)
             {
                 continue;
             }
 
             // Snapshotted: a firing may register another instance on the same actor, and
             // PeriodicDue refuses a candidate list that changed under it.
-            var candidates = actor.Instances.ToArray();
+            var candidates = actor.Periodics.ToArray();
 
             foreach (var instance in Triggers.PeriodicDue(candidates, Tick))
             {
-                ResolveFired(actor, instance.Effect, PeriodicOccurrence(actor), null, null);
+                ResolveFired(actor, instance.Effect, Occurrence(TriggerKind.PERIODIC, actor), null, null);
             }
         }
     }
@@ -349,11 +374,13 @@ internal sealed class BattleSimulation
             {
                 var target = SelectTarget(attacker);
 
-                if (target is not null)
+                // The cooldown is consumed only by a swing that actually RESOLVED. An ON_ATTACK
+                // trigger can finish the target, and `05` §3.1 step 6 puts it out of play at that
+                // moment — leaving the actor with nothing to hit, which is the same situation as
+                // `target is null` above and must cost the same: nothing.
+                if (target is not null && ResolveBasicAttack(attacker, target))
                 {
-                    ResolveBasicAttack(attacker, target);
-
-                    // 🔒 "ASPD read at FIRE TIME" — the live block, brought up to date here rather
+                    // "ASPD read at FIRE TIME" — the live block, brought up to date here rather
                     // than the start-of-tick snapshot, so a HASTE applied by this tick's slot 3
                     // shortens THIS cooldown.
                     RefreshStats(attacker);
@@ -455,14 +482,26 @@ internal sealed class BattleSimulation
     ///   inside the pipeline and step 7 requires them appended as they happen.</item>
     ///   <item>M2-09 routes every HP change through <c>BattleServices.AfterHpDecrease</c>, which is
     ///   `05` §4 step 9's <c>PhaseCheck(defender)</c> and <c>ON_LOW_HP</c> in one call.</item>
-    ///   <item>The loop reads the returned <see cref="AttackResolution"/> and fires the on-hit family
-    ///   from it: <c>ON_DODGE</c>/<c>ON_HIT_TAKEN</c> on the defender, <c>ON_HIT</c> and
-    ///   <c>ON_CRIT</c> on the attacker, <c>ON_BLOCK</c> on the defender, and <c>ON_KILL</c> on the
-    ///   attacker when the defender went down — <b>unless <c>CombatRules.OnKillTriggersFire</c> is
-    ///   false</b>, which is `05` §3.3's duel rule.</item>
+    ///   <item>
+    ///     The loop reads the returned <see cref="AttackResolution"/> and fires the on-hit family
+    ///     from it, in <b>this order</b>: <c>ON_DODGE</c> on the defender (and nothing further -
+    ///     `05` §4 step 1 returns); otherwise <c>ON_BLOCK</c> on the defender, then <c>ON_HIT</c>
+    ///     and <c>ON_CRIT</c> on the attacker, then <c>ON_HIT_TAKEN</c> on the defender, then
+    ///     <c>ON_KILL</c> on the attacker when the defender went down — <b>unless
+    ///     <c>CombatRules.OnKillTriggersFire</c> is false</b>, which is `05` §3.3's duel rule.
+    ///     <para>
+    ///     WARNING: THE ORDER WITHIN THE FAMILY IS A RULING, NOT A QUOTATION. `05` §3.1 fixes only
+    ///     that they resolve "immediately, depth-first, in ascending effect-id order" and says
+    ///     nothing about which kind precedes which. It follows `05` §4's own step order - block is
+    ///     step 5, the hit lands at step 9 - and puts the defender's reaction after the attacker's
+    ///     so that a reactive effect sees the damage already applied. M2-09 must not reorder it
+    ///     without saying so.
+    ///     </para>
+    ///   </item>
     /// </list>
     /// </remarks>
-    private void ResolveBasicAttack(BattleActor attacker, BattleActor defender)
+    /// <returns>Whether the swing resolved. See the caller for why that decides the cooldown.</returns>
+    private bool ResolveBasicAttack(BattleActor attacker, BattleActor defender)
     {
         FireTriggers(attacker, Occurrence(TriggerKind.ON_ATTACK, attacker), defender);
 
@@ -470,7 +509,7 @@ internal sealed class BattleSimulation
         // out of play at that moment, so the swing has nothing to land on.
         if (!defender.IsAlive || !attacker.IsAlive)
         {
-            return;
+            return false;
         }
 
         var multiplier = attacker.Flow.ConsumeAttackMultiplier();
@@ -481,14 +520,16 @@ internal sealed class BattleSimulation
 
         if (resolution.Missed)
         {
-            FireTriggers(defender, Occurrence(TriggerKind.ON_DODGE, defender, attacker), attacker, attacker);
+            FireTriggers(defender, Occurrence(TriggerKind.ON_DODGE, defender), attacker, attacker);
 
-            return;
+            // A dodge IS a resolved swing: `05` §4 step 1 logs the MISS and returns, and the attacker
+            // has taken its shot.
+            return true;
         }
 
         if (resolution.Blocked)
         {
-            FireTriggers(defender, Occurrence(TriggerKind.ON_BLOCK, defender, attacker), attacker, attacker);
+            FireTriggers(defender, Occurrence(TriggerKind.ON_BLOCK, defender), attacker, attacker);
         }
 
         FireTriggers(attacker, Occurrence(TriggerKind.ON_HIT, attacker), defender);
@@ -498,12 +539,14 @@ internal sealed class BattleSimulation
             FireTriggers(attacker, Occurrence(TriggerKind.ON_CRIT, attacker), defender);
         }
 
-        FireTriggers(defender, Occurrence(TriggerKind.ON_HIT_TAKEN, defender, attacker), attacker, attacker);
+        FireTriggers(defender, Occurrence(TriggerKind.ON_HIT_TAKEN, defender), attacker, attacker);
 
         if (!defender.IsAlive && Rules.OnKillTriggersFire)
         {
             FireTriggers(attacker, Occurrence(TriggerKind.ON_KILL, attacker), defender);
         }
+
+        return true;
     }
 
     /// <summary>🔒 Slot 5 — <em>"pet ability cooldowns advance; ready abilities fire, pets in slot order."</em></summary>
@@ -596,22 +639,24 @@ internal sealed class BattleSimulation
             return;
         }
 
-        var ordered = holder.Instances
-            .Where(Triggers.IsRegistered)
-            .OrderBy(id => Triggers[id].Effect.Id, EffectOrder.IdComparer)
-            .ThenBy(id => id.Value, EffectInstanceId.Comparer)
-            .ToArray();
+        // Walked by index over BattleActor.Instances, which is ALREADY in `05` §3.1's ascending
+        // effect-id order because AddInstance imposes it on insert. A firing can register another
+        // instance on this actor, so the count is bounded first: a cascade resolves depth-first
+        // through its own FireTriggers call, not by growing the list this one is walking.
+        var standing = holder.Instances.Count;
 
-        foreach (var id in ordered)
+        for (var i = 0; i < standing; i++)
         {
-            if (!Triggers.IsRegistered(id) || Triggers[id].Trigger.Kind != occurrence.Kind)
+            var held = holder.Instances[i];
+
+            if (held.Kind != occurrence.Kind || !Triggers.IsRegistered(held.Id))
             {
                 continue;
             }
 
-            if (Triggers.Evaluate(id, occurrence, Rng) == TriggerOutcome.FIRES)
+            if (Triggers.Evaluate(held.Id, occurrence, Rng) == TriggerOutcome.FIRES)
             {
-                ResolveFired(holder, Triggers[id].Effect, occurrence, target, attacker);
+                ResolveFired(holder, Triggers[held.Id].Effect, occurrence, target, attacker);
             }
         }
     }
@@ -664,27 +709,27 @@ internal sealed class BattleSimulation
             _cascadeDepth--;
         }
 
-        // 🔒 Conservative, and it has to be: an op can add a stat effect, a status, a percent bucket
-        // or a cap override, and there is no cheap way to know which from here. `18` §8 is the whole
-        // aggregation, so the next reader re-runs it. See RefreshStats for what this costs.
-        holder.InvalidateStats();
-        target?.InvalidateStats();
+        // Conservative, and it has to be THIS conservative: an op resolves onto `18` §5's whole
+        // token set - ATTACKER, ALL_ENEMIES, ALL_PETS, LOWEST_HP_ENEMY, OTHER_ENEMIES — so the
+        // subjects it touched are not knowable from here, and invalidating only the holder and the
+        // current target would leave the rest reading a stale aggregation until something unrelated
+        // dirtied them. It is a bool on at most nine objects, and the aggregation itself is still
+        // gated by StatsAreStale, so the cost is the flag and not the pass.
+        for (var i = 0; i < _actors.Count; i++)
+        {
+            _actors[i].InvalidateStats();
+        }
     }
 
-    private TriggerOccurrence Occurrence(
-        TriggerKind kind, BattleActor holder, BattleActor? attacker = null) =>
+    /// <summary>
+    /// One moment, for one holder. The attacker is <b>not</b> on it - <c>TriggerOccurrence</c> has no
+    /// such field, and `18` §4's three <c>ATTACKER_IS_*</c> conditions read it off
+    /// <c>EffectEvaluationContext.Attacker</c>, which <see cref="FireTriggers"/> carries separately.
+    /// </summary>
+    private TriggerOccurrence Occurrence(TriggerKind kind, BattleActor holder) =>
         new()
         {
             Kind = kind,
-            Tick = Tick,
-            IsPvp = Rules.IsPvp,
-            HpFraction = holder.HpFraction,
-        };
-
-    private TriggerOccurrence PeriodicOccurrence(BattleActor holder) =>
-        new()
-        {
-            Kind = TriggerKind.PERIODIC,
             Tick = Tick,
             IsPvp = Rules.IsPvp,
             HpFraction = holder.HpFraction,
@@ -711,7 +756,7 @@ internal sealed class BattleSimulation
                 $"{actor.Id}#{held.Effect.Id}#{minted++.ToString(CultureInfo.InvariantCulture)}");
 
             Triggers.Register(id, held.Effect, activationTick, actor.HpFraction);
-            actor.Instances.Add(id);
+            actor.AddInstance(id, held.Effect);
         }
     }
 
@@ -774,8 +819,14 @@ internal sealed class BattleSimulation
         _initiative = null;
 
         RefreshStats(actor);
+
+        // `18` §2.4's STAT_COPY reads the start-of-tick snapshot, and the per-tick sweep that takes
+        // one has already run by the time a summon is admitted. Its opening block IS its correct
+        // snapshot for the rest of this tick; without this a STAT_COPY reading it would hit
+        // BattleStatReader's refusal with a message blaming the battle-start pre-tick.
+        actor.FreezeStartOfTick();
+
         RegisterHoldings(actor, Tick);
-        NoteStateDependence(actor);
 
         // 🔒 A FULL cooldown, not zero. Pre-tick 0a's "attackCooldown = 0" is about battle-opening
         // actors; a summon "never attacks on its spawn tick". Read after RefreshStats so it is the
@@ -788,14 +839,7 @@ internal sealed class BattleSimulation
 
     // ══════════════════════════════════════════════════════════════════ outcome
 
-    /// <summary>
-    /// The hero-side hero. Resolved once: `05` §3.2 gives a side one hero, and no op adds or removes
-    /// one — a summon is always an enemy (`18` §2.4).
-    /// </summary>
-    private BattleActor? Hero() =>
-        _hero ??= _actors.FirstOrDefault(a => a.Side == BattleSide.HERO && a.Kind == EffectActorKind.HERO);
-
-    private bool HeroIsDown() => Hero() is not { IsAlive: true };
+    private bool HeroIsDown() => !_hero.IsAlive;
 
     /// <summary>
     /// Slot 8's second half. A plain loop rather than LINQ: it runs on every one of 1800 ticks, and a
@@ -857,7 +901,11 @@ internal sealed class BattleSimulation
 
         foreach (var actor in _actors)
         {
-            if (actor.Side != side || actor.Kind == EffectActorKind.PET)
+            // `18` §2.4: "despawned ≠ killed", so a CLEAR_SUMMONS'd actor keeps its HP — but it
+            // has left the fight, and `05` §3 decides the timeout on the side's REMAINING HP. Counting
+            // a killed actor at 0/max is right; counting a despawned one at max/max would hand the
+            // timeout to the side whose summons were cleared.
+            if (actor.Side != side || actor.Kind == EffectActorKind.PET || actor.Despawned)
             {
                 continue;
             }
@@ -898,7 +946,7 @@ internal sealed class BattleSimulation
     /// </remarks>
     private void RefreshStats(BattleActor actor)
     {
-        if (!actor.StatsAreStale && !_stateDependentActors.Contains(actor.Index))
+        if (!actor.StatsAreStale && !actor.StatsDependOnLiveState)
         {
             return;
         }
@@ -917,23 +965,36 @@ internal sealed class BattleSimulation
         // on this branch. A fired stat op therefore reaches EffectOpResolver and changes nothing
         // that outlives the call. Left absent and greppable rather than approximated (steering S6):
         // an approximation here would be a second, disagreeing statement of `18` §6's stacking.
-        var effects = actor.Plan.Effects
-            .Where(e => e.Effect.Trigger is null)
-            .Select(e => e.Effect)
-            .ToList();
-
         // `18` §2.4's STAT_COPY writes land on the holder as percent-bucket adds that `18` §8 step 5
         // picks up. They are not authored effects, so they are stated as synthetic STAT_ADD_PCTs
         // under an id no authored effect can take (`18` §8 makes an id an identifier).
-        foreach (var (stat, fraction) in actor.Flow.PercentBuckets)
+        //
+        // The standing list is handed over as-is when there are none, which is every actor in every
+        // fight until a STAT_COPY fires: this method runs for every state-dependent actor on every
+        // one of 1800 ticks, and copying a constant list each time was measurable against `05`'s
+        // < 5 ms budget.
+        IReadOnlyList<EffectDefinition> effects;
+
+        if (actor.Flow.PercentBuckets.Count == 0)
         {
-            effects.Add(new EffectDefinition
+            effects = actor.StandingEffects;
+        }
+        else
+        {
+            var withBuckets = new List<EffectDefinition>(actor.StandingEffects);
+
+            foreach (var (stat, fraction) in actor.Flow.PercentBuckets)
             {
-                Id = $"(stat-copy:{stat})",
-                Op = EffectOp.STAT_ADD_PCT,
-                Stat = StatSelector.Of(stat),
-                Value = fraction,
-            });
+                withBuckets.Add(new EffectDefinition
+                {
+                    Id = $"(stat-copy:{stat})",
+                    Op = EffectOp.STAT_ADD_PCT,
+                    Stat = StatSelector.Of(stat),
+                    Value = fraction,
+                });
+            }
+
+            effects = withBuckets;
         }
 
         var aggregated = StatAggregation.Aggregate(
@@ -945,15 +1006,13 @@ internal sealed class BattleSimulation
                 new ScaledEffectValue(context),
                 StatOpBehaviour.Instance));
 
-        actor.SetStats(aggregated.Final);
-    }
-
-    /// <summary>Records whether an actor's aggregation reads live state. See <see cref="RefreshStats"/>.</summary>
-    private void NoteStateDependence(BattleActor actor)
-    {
-        if (actor.Plan.Effects.Any(e => e.Effect.Condition is not null || e.Effect.ValueScale is not null))
+        // `05` §3.1's phase check runs after EVERY HP decrease, and a shrinking MAX_HP is one:
+        // `18` §9.1's CP_GLASS_HEART re-bases Max HP mid-fight, and a boss clipped below 66% must
+        // enter phase 2 there rather than on whatever unrelated swing lands next. ON_LOW_HP is a
+        // crossing for the same reason.
+        if (actor.SetStats(aggregated.Final))
         {
-            _stateDependentActors.Add(actor.Index);
+            AfterHpDecrease(actor);
         }
     }
 
@@ -1126,13 +1185,19 @@ internal sealed class BattleSimulation
                 "not name. Reducing that instead would give the op a visible effect that is the wrong " +
                 "one. M2-12 brings the boss half; the pet half is the hero/pet milestone's.");
 
-        public void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId) =>
-            Actor(holder).Flow.ArmDeathSave(
-                new DeathSave(hp, IsRevive: false, sourceEffectId, FiresOnce: _battle.FiresOnce(sourceEffectId)));
+        public void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId)
+        {
+            var actor = Actor(holder);
+            actor.Flow.ArmDeathSave(new DeathSave(
+                hp, IsRevive: false, sourceEffectId, FiresOnce(actor, sourceEffectId)));
+        }
 
-        public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId) =>
-            Actor(holder).Flow.ArmDeathSave(
-                new DeathSave(hp, IsRevive: true, sourceEffectId, FiresOnce: _battle.FiresOnce(sourceEffectId)));
+        public void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId)
+        {
+            var actor = Actor(holder);
+            actor.Flow.ArmDeathSave(new DeathSave(
+                hp, IsRevive: true, sourceEffectId, FiresOnce(actor, sourceEffectId)));
+        }
 
         public void Summon(
             IEffectActorView summoner, string archetype, int count, int? maxAlive, string sourceEffectId)
@@ -1215,16 +1280,19 @@ internal sealed class BattleSimulation
     /// `05` §3.1's <em>"at most their authored <c>once</c> count per battle"</em>, read off the
     /// arming effect's trigger.
     /// </summary>
-    private bool FiresOnce(string sourceEffectId)
+    /// <remarks>
+    /// Read off the ARMING actor's own holdings and not the roster's. Two actors can hold the same
+    /// authored effect id with different triggers — a boss and its summon both carrying a phase
+    /// block - and a first-match scan of the whole roster would answer for whichever came first in
+    /// index order, which is not the one that armed the save.
+    /// </remarks>
+    private static bool FiresOnce(BattleActor holder, string sourceEffectId)
     {
-        foreach (var actor in _actors)
+        foreach (var held in holder.Plan.Effects)
         {
-            foreach (var held in actor.Plan.Effects)
+            if (string.Equals(held.Effect.Id, sourceEffectId, StringComparison.Ordinal))
             {
-                if (string.Equals(held.Effect.Id, sourceEffectId, StringComparison.Ordinal))
-                {
-                    return held.Effect.Trigger?.Once == true;
-                }
+                return held.Effect.Trigger?.Once == true;
             }
         }
 

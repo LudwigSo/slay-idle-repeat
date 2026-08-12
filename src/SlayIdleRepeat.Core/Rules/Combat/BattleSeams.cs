@@ -311,9 +311,22 @@ internal sealed class NoBossPhases : IBossPhases
 /// The `05` §3.1 slot 5 M2-08 ships: the slot runs and no pet ability is authored to fire in it.
 /// </summary>
 /// <remarks>
+/// <para>
 /// A no-op rather than a refusal, for <see cref="NoStatusTimeline"/>'s reason: `05` §3 makes pets
 /// optional (<em>"Pets (0–3)"</em>) and slot 5 runs on every tick of every fight. A fight with no pet
-/// abilities is the ordinary case, not a wiring gap.
+/// abilities is the ordinary case, not a wiring gap — and today it is the <em>only</em> case, because
+/// `18` §7.7's pet active is a wrapper holding an effect list plus a cooldown and no such wrapper
+/// type exists anywhere in the repository.
+/// </para>
+/// <para>
+/// 🔒 <b>THE DEFERRAL IS REGISTERED, and this is the pointer to it.</b> No M2 task owns slot 5, so
+/// the obligation is recorded where the repository's one expiring register can fire on it —
+/// <c>SubjectSetFloorTests.Pending</c>, under the name <c>PetAbility</c> (steering S4). Read that
+/// entry before changing this class: it explains why the name is an inference and asks whoever picks
+/// the milestone up to <em>rename</em> the entry rather than delete it if they choose another. This
+/// remark exists because a note addressed to a future milestone is worthless in a test file that
+/// milestone will never open — the precedent <c>DurationScopes</c> set.
+/// </para>
 /// </remarks>
 internal sealed class NoPetAbilities : IPetAbilities
 {

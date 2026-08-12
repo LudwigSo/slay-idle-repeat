@@ -14,11 +14,19 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// swing at, and only this one reads <c>targetPriority</c>.
 /// </para>
 /// <para>
-/// 🔒 <b>The roster predicate is <c>BattleRoster</c>'s, not restated here.</b> That type exists
-/// because "the living actors hostile to the holder" had already been written twice, and its remarks
-/// name this task as the fourth caller. It applies all three rules — holder-relative, living only,
-/// never a pet — and returns candidates in ascending `05` §3.1 index order, which is what makes every
-/// tie-break below total.
+/// 🔒 <b>The two selections that scan the enemy list use <c>BattleRoster</c>'s predicate, not a
+/// restatement of it.</b> That type exists because "the living actors hostile to the holder" had
+/// already been written twice, and its remarks name this task as the fourth caller. It applies all
+/// three rules — holder-relative, living only, never a pet — and returns candidates in ascending
+/// `05` §3.1 index order, which is what makes every tie-break below total.
+/// </para>
+/// <para>
+/// ⚠️ <b><see cref="ForEnemyAttack"/> is the exception, and deliberately.</b> `05` §3.2 gives it a
+/// one-actor answer — <em>"enemies always target the Hero"</em> — so it is a search for a single
+/// role rather than a scan of a set, and routing it through <c>BattleRoster</c> would build and sort
+/// a <c>List</c> of the hero side's members on every enemy swing to return one of them. It applies
+/// the same three rules inline; what it must never do is apply a <em>different</em> one, which is
+/// why the liveness and pet clauses are spelled out there rather than assumed.
 /// </para>
 /// <para>
 /// 🔒 <b>Every selection ends at the index, and that is not an invention.</b> `05` §3.2 gives one
