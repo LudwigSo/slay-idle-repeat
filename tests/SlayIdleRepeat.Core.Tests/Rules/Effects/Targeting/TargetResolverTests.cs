@@ -307,7 +307,10 @@ public sealed class TargetResolverTests
             reached.Add(TargetResolver.Resolve(EffectTarget.RANDOM_ENEMY, battle).Single().Id);
         }
 
-        reached.ShouldBe(new HashSet<string>(new[] { "GRUNT_A", "GRUNT_B", "GRUNT_C" }, StringComparer.Ordinal));
+        // Ordered before comparing: Shouldly's ShouldBe compares a HashSet as a SEQUENCE, in
+        // enumeration order, so the assertion would otherwise depend on the order the seeds happened
+        // to reach the three candidates in.
+        reached.OrderBy(id => id, StringComparer.Ordinal).ShouldBe(["GRUNT_A", "GRUNT_B", "GRUNT_C"]);
     }
 
     /// <summary>An empty candidate set is empty, and — 🔒 — takes no draw with it.</summary>
