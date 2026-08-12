@@ -22,18 +22,33 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// each one names what it would fail on.
 /// </para>
 /// <para>
-/// 🔒 <b>Which of these fail if idempotence is removed</b> — asked explicitly, because a suite where
-/// only one test can tell is a suite whose other names overpromise (steering <b>S1</b>). Deleting the
-/// early-return in <c>BeginSession.Handle</c> turns <b>five</b> of the seven red:
+/// 🔒 <b>Which of these fail if idempotence is removed — MEASURED, not claimed</b> (steering
+/// <b>S1</b>). The early-return in <c>BeginSession.Handle</c> was deleted, the suite run, the output
+/// recorded, and the mutation reverted. <b>Five of the seven</b> go red:
 /// <see cref="A_second_BEGIN_SESSION_in_the_same_game_day_grants_nothing"/>,
-/// <see cref="Ten_commands_in_one_game_day_pay_one_refill"/>,
+/// <see cref="Ten_commands_in_one_game_day_pay_one_refill"/> (<c>refills should be 1 but was 10</c>),
 /// <see cref="The_second_call_of_the_day_produces_no_events_at_all"/>,
 /// <see cref="A_repeat_call_does_not_advance_the_calendar_a_second_time"/> and
-/// <see cref="Energy_spent_during_the_day_is_not_topped_back_up"/> — the last being the one that
-/// shows the defect as a <em>player-visible</em> economy break rather than as a counter. The two that
-/// stay green are the ones about a <b>new</b> day, and that asymmetry is the point: they assert the
-/// counter is <em>cleared</em>, which is the opposite direction and is what stops a "fix" that simply
-/// never grants at all.
+/// <see cref="Energy_spent_during_the_day_is_not_topped_back_up"/> (<c>should be EnergyBanks { 4
+/// (+0) } but was EnergyBanks { 120 (+0) }</c>) — the last being the defect as a player would exploit
+/// it rather than as a counter.
+/// </para>
+/// <para>
+/// 🔴 <b>Two of those five only bite because the first measurement caught them not biting.</b> The
+/// original <see cref="A_second_BEGIN_SESSION_in_the_same_game_day_grants_nothing"/> compared the two
+/// Energy banks and stayed <b>green</b> under the mutation — the first call fills the bar and
+/// <c>EnergyMath.RefillToFull</c> is deficit-only, so the second grant is <em>zero</em> and the banks
+/// compare equal. The original
+/// <see cref="A_repeat_call_does_not_advance_the_calendar_a_second_time"/> stayed green too, because
+/// `19` G's own pause rule stops the second advance whether or not idempotence exists. Both now carry
+/// the assertion that separates them, and each says so at the line. <b>This is what a suite looks
+/// like before S1 is applied to it: two tests whose names were exactly right and whose assertions
+/// were true of the defect.</b>
+/// </para>
+/// <para>
+/// The two that stay green are the ones about a <b>new</b> game day, and that asymmetry is the point:
+/// they assert the counter is <em>cleared</em>, which is the opposite direction and is what stops a
+/// "fix" that simply never grants at all.
 /// </para>
 /// <para>
 /// 🔒 <b>The keying is not arbitrary and the tests know it.</b> M1-08's catch-up <b>clears the daily
@@ -70,6 +85,18 @@ public sealed class BeginSessionIdempotenceTests
             first.NewState.Player.Energy,
             "the second call of the game day grants nothing — 30 §2.3's daily effects are idempotent " +
             "per game day, and a refill paid twice is 10 §3.2's free-player budget doubled.");
+
+        // 🔴 S1 — THE ASSERTION ABOVE CANNOT FAIL ON ITS OWN, and this one is why the test is here.
+        // Measured by mutation: deleting the early-return in BeginSession.Handle left this test
+        // GREEN, because the first call fills the bar and EnergyMath.RefillToFull is deficit-only —
+        // so the second grant is zero and the two banks compare equal. What the broken handler DID
+        // produce is the row below: `CurrencyChanged { Sequence = 1, Id = ENERGY, Delta = 0,
+        // Reason = daily_free_refill }`. A zero-delta refill is invisible in the state and loud in
+        // 21 §8.3's income_attribution.csv, so the event list is where this claim is decidable.
+        second.Events.ShouldBeEmpty(
+            "…and it grants nothing OBSERVABLY: a no-op publishes no 30 §7 row. Without this line the " +
+            "test's name promises more than it delivers — a handler with no idempotence at all passes " +
+            "the energy comparison above, because a refill to a full bar is a grant of zero.");
     }
 
     /// <summary>
@@ -134,13 +161,25 @@ public sealed class BeginSessionIdempotenceTests
     }
 
     /// <summary>
-    /// 🔒 The calendar advances <b>at most once per game day</b> (`19` G), even across many commands.
+    /// 🔒 The calendar advances <b>at most once per game day</b> (`19` G), even when the player
+    /// claims the newly opened day and re-sends <c>BEGIN_SESSION</c> the same day.
     /// </summary>
     /// <remarks>
-    /// The fixture opens on a <b>claimed</b> day, which is the only state the advance is reachable
-    /// from — see <c>BeginSessionCalendarTests</c> for the pause. Without that, this test would be
-    /// asserting "the calendar did not move" of a calendar that could not move anyway, which is true
-    /// of every possible implementation.
+    /// <para>
+    /// 🔴 <b>The second half is the whole test, and S1 is how that was discovered.</b> The natural
+    /// version — advance once, re-send, assert the day did not move — was measured against a handler
+    /// with the early-return deleted and stayed <b>green</b>: the advance clears
+    /// <c>LoginCalendarDayClaimed</c>, so `19` G's own pause rule stops the second advance whether
+    /// or not the idempotence exists. That is genuinely two independent guards over one rule, which
+    /// is good — and it means the natural test proves the <em>calendar's</em> guard and says nothing
+    /// about the <em>day's</em>.
+    /// </para>
+    /// <para>
+    /// So the second half re-claims. A player whose calendar day is open <b>and claimed</b> inside a
+    /// game day the handler has already run is the only state where the two guards disagree, and it
+    /// is reachable the moment <c>CLAIM_CALENDAR</c> lands (M4-09): claim in the morning, re-open the
+    /// app in the evening. Without per-game-day idempotence that player advances twice in one day.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_repeat_call_does_not_advance_the_calendar_a_second_time()
@@ -156,9 +195,28 @@ public sealed class BeginSessionIdempotenceTests
 
         second.NewState.Player.LoginCalendarDay.ShouldBe(
             4,
-            "19 G advances 'at most once per game day'. A second advance inside one day would hand " +
-            "the player a day they never claimed and break 'nothing is skipped or lost' in the " +
-            "direction the rule does not even mention, because nobody expected it to be possible.");
+            "19 G advances 'at most once per game day' — and here 19 G's PAUSE also stops it, because " +
+            "day 4 is unclaimed. Two guards, one rule; the next assertion is the one that separates " +
+            "them.");
+
+        // 🔒 The player claims day 4 later the same game day — M4-09's CLAIM_CALENDAR, stood in for by
+        // the persisted row — and re-sends. The day's marker is already set, so only the per-game-day
+        // idempotence can refuse this one.
+        var claimedAgain = BeginSessions.Slice(
+            loginCalendarDay: 4,
+            loginCalendarDayClaimed: true,
+            dailyCounters: PlayerSnapshots.Counters((BeginSession.DailyRunCounter, 1)));
+
+        var third = BeginSessions.Send(claimedAgain, BeginSessions.Morning.AddHours(9));
+
+        third.NewState.Player.LoginCalendarDay.ShouldBe(
+            4,
+            "19 G: 'it advances AT MOST ONCE PER GAME DAY'. A player who claims in the morning and " +
+            "re-opens the app in the evening must not walk two rows of the 28-day table in one day — " +
+            "which would let a determined player finish the cycle in a fraction of the time and " +
+            "collect the day-28 S-tier chest four weeks early.");
+        third.NewState.Player.LoginCalendarDayClaimed.ShouldBeTrue(
+            "…and the claim they made is still theirs to be paid for, untouched.");
     }
 
     /// <summary>
