@@ -98,12 +98,17 @@ internal sealed class CommandDispatch
     /// did not do that, deliberately — the sentence is corrected rather than left to go stale
     /// (steering <b>S4</b>'s known limit).</b> A register entry needs a <c>WaitsFor</c>: the simple
     /// name of a <c>Core</c> type that must not yet exist and whose arrival makes the entry wrong.
-    /// Forty-eight of those would be forty-eight type names invented on behalf of milestones that
-    /// have not chosen them — which <c>GapRegister</c>'s own remarks call "the invention S6 forbids,
-    /// dressed as bookkeeping" — and a second, mirrored statement of an owner this row already
-    /// declares, which is what putting the wire name on the row was done to avoid. What M1-02 did
-    /// transcribe into <c>GapRegister.Surfaces</c> is the thing the register can decide: `14` §2.3's
-    /// <b>inventory</b>, so a command that stops being declared fails the build.
+    /// 🔒 <b>For a command, such an entry is not merely undesirable — it is unrepresentable.</b>
+    /// <c>GapRegister.Expired</c> has a second arm that fires on <c>IsPresentInCore(gap.Subject)</c>,
+    /// and the subject <em>is</em> the command type, which M1-02 authored: the entry would turn the
+    /// build red on the commit that wrote it. The softer argument holds too — forty-nine
+    /// <c>WaitsFor</c> names invented on behalf of milestones that have not chosen them is what
+    /// <c>GapRegister</c>'s own remarks call "the invention S6 forbids, dressed as bookkeeping", and
+    /// a mirrored owner is a second statement of what this row already declares, which is exactly
+    /// what putting the wire name on the row was done to avoid. What M1-02 did transcribe into
+    /// <c>GapRegister.Surfaces</c> is the thing the register can decide: `14` §2.3's
+    /// <b>inventory</b>, so a command that stops being declared fails the build. The `14` §2.3
+    /// <em>payload</em> column is a separate deferral and is written up in <c>CommandPayload</c>.
     /// </para>
     /// </remarks>
     internal CommandDispatch Deferred<TCommand>(string wireName, CommandKind kind, string owner)
@@ -114,8 +119,8 @@ internal sealed class CommandDispatch
             throw new ArgumentException(
                 "A deferred command names the milestone task that implements it (M3-15, M4-09). " +
                 "Without an owner the ILLEGAL_STATE it dispatches to is indistinguishable from a " +
-                "rule that refused the player, and the matching GapRegister entry has nothing to " +
-                "agree with.",
+                "rule that refused the player, and this row is the only place the deferral's expiry " +
+                "is written down.",
                 nameof(owner));
         }
 

@@ -323,7 +323,17 @@ public sealed class SubjectSetFloorTests
 
     private const int ProductionProjectFloor = 29;   // 26 under src/ + 3 under tools/
     private const int AdapterFloor = 21;
-    private const int CoreTypeFloor = 26;            // Il.AllTypes over SlayIdleRepeat.Core
+    // 🔒 M1-02 raised this from 26 to 110 (measured: 120 today). It is the one floor in this file
+    // that had gone quiet by standing still: the file's own preamble says these numbers are
+    // "derived from the tree as it stands on this commit", and 26 was M0-08's tree. At 26 the ENTIRE
+    // Core/Commands/ namespace could vanish — 51 types, `14` §2.3's whole wire vocabulary — with
+    // every rule in DomainPurityTests and AccessibilityBoundaryTests quantifying over a smaller set
+    // and this floor still clearing. Raised rather than left for M1-12 because M1-12's task is to
+    // prove the ten rules WOKE UP, and a floor that cannot notice them going back to sleep is the
+    // wrong thing to hand that task. 110 rather than 120: a floor, with room for the handful of
+    // compiler-generated types a refactor moves either way, and low enough that lowering it is still
+    // the deliberate act the comment above describes.
+    private const int CoreTypeFloor = 110;           // Il.AllTypes over SlayIdleRepeat.Core
     private const int PortFloor = 1;                 // IContentSourcePort (M0-09)
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 

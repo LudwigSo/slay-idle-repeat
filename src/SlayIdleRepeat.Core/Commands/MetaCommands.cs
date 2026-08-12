@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 namespace SlayIdleRepeat.Core.Commands;
 
 // 🔒 `14` §2.3's META half — the 30 rows of "Meta commands", in the table's own order. The table's
@@ -87,7 +90,8 @@ public sealed record MergeCommand(string InputItemIdA, string InputItemIdB, bool
 public sealed record EnhanceCommand(string ItemId) : GameCommand;
 
 /// <summary>
-/// 🔒 `14` §2.3 <c>SALVAGE</c> — break items down for Merge Dust and Set Tokens (`08` §4).
+/// 🔒 `14` §2.3 <c>SALVAGE</c> — break items down. `08` §4.3 pays Merge Dust and refunds 60 % of
+/// the Enhance Stones; an <b>SS</b> item additionally yields one Set Token (`24` §5.1).
 /// </summary>
 /// <remarks>
 /// 🔒 <b>Equality is hand-written, and it is not decoration.</b> <see cref="GameCommand"/>'s
@@ -116,7 +120,27 @@ public sealed record SalvageCommand : GameCommand
         other is not null && CommandPayload.SameIds(ItemIds, other.ItemIds);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => CommandPayload.HashIds(ItemIds);
+    /// <remarks>
+    /// 🔒 <see cref="GameCommand.EqualityContract"/> is in the hash, exactly as a <em>synthesized</em>
+    /// record hash carries it. Without it <c>SalvageCommand([])</c> and <c>ClaimInboxCommand([])</c>
+    /// hash identically — legal, since <c>Equals</c> still tells them apart, but it buckets two
+    /// different commands together in the <c>Dictionary&lt;GameCommand, …&gt;</c> `14` §16.3's
+    /// idempotency replay will be.
+    /// </remarks>
+    public override int GetHashCode() =>
+        HashCode.Combine(EqualityContract, CommandPayload.HashIds(ItemIds));
+
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ItemIds)} = {CommandPayload.Text(ItemIds)}");
+
+        return true;
+    }
 }
 
 /// <summary>
@@ -135,8 +159,9 @@ public sealed record SpendTalentCommand(string NodeId) : GameCommand;
 public sealed record RespecCommand : GameCommand;
 
 /// <summary>
-/// 🔒 `14` §2.3 <c>LEVEL_PET</c> — level a beast. <b>Pets and mounts</b>: `07` §3.1 mirrors mounts
-/// on pets, so one command covers both.
+/// 🔒 `14` §2.3 <c>LEVEL_PET</c> — level a beast. <b>Pets and mounts</b>: `07` §3.1a is the section
+/// that actually says <em>"Mounts mirror pets"</em> (`14` §2.3's own citation of §3.1 points at the
+/// mounts overview), so one command covers both.
 /// </summary>
 /// <remarks>
 /// The dispatch row names <b>M4-07</b> (pets), which is the task that makes the command writable;
@@ -164,7 +189,21 @@ public sealed record AscendPetCommand(string BeastId) : GameCommand;
 /// `14` §16.2 reason.
 /// </param>
 /// <param name="PetId">The pet to equip. <see langword="null"/> <b>unequips the slot</b>.</param>
-public sealed record EquipPetCommand(int SlotIndex, string? PetId) : GameCommand;
+public sealed record EquipPetCommand(int SlotIndex, string? PetId) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(SlotIndex)} = {SlotIndex}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(PetId)} = {PetId}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>EQUIP_MOUNT</c> — the single mount slot, unlocked at Legend Level 20 (`07` §3).
@@ -173,32 +212,61 @@ public sealed record EquipPetCommand(int SlotIndex, string? PetId) : GameCommand
 public sealed record EquipMountCommand(string? MountId) : GameCommand;
 
 /// <summary>
-/// 🔒 `14` §2.3 <c>CLAIM_QUEST</c> — collect a completed daily quest (`10` §4, `19` B).
+/// 🔒 `14` §2.3 <c>CLAIM_QUEST</c> — collect a completed daily quest (`10` §6, `19` B).
 /// </summary>
 /// <param name="QuestSlot">The slot's position in the player's daily slate.</param>
-public sealed record ClaimQuestCommand(int QuestSlot) : GameCommand;
+public sealed record ClaimQuestCommand(int QuestSlot) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(QuestSlot)} = {QuestSlot}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>REROLL_QUEST</c> ⚄ — redraw one quest. 1 free per day (`19` B), and the
 /// replacement is drawn from <b>this command's</b> seed.
 /// </summary>
 /// <param name="QuestSlot">The slot to redraw.</param>
-public sealed record RerollQuestCommand(int QuestSlot) : GameCommand;
+public sealed record RerollQuestCommand(int QuestSlot) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(QuestSlot)} = {QuestSlot}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>CLAIM_AD_REWARD</c> — granted against the server-side S2S callback record
 /// (`12` §3.3), never against the client's word.
 /// </summary>
 /// <param name="PlacementId">
-/// One of `12` §5's 29 rewarded placements, as <c>data/ads.json</c> keys them. Typed by
-/// <b>M15-03</b>, which authors the cap engine over that file.
+/// One of `12` §4's 29 rewarded placements (13 in-run + 16 meta), as
+/// <c>game-data/tuning/ads.json</c> keys them. ⚠️ This is the <b>one</b> payload id whose value set
+/// could be typed today — that file is <c>"_status": "transcribed"</c> and carries all 29 — and it
+/// is deliberately not; see <see cref="CommandPayload"/>. Typed by <b>M15-03</b>, which authors the
+/// cap engine over that file and the S2S callback record the grant is checked against.
 /// </param>
 public sealed record ClaimAdRewardCommand(string PlacementId) : GameCommand;
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>CLAIM_CALENDAR</c> — claim the currently open day of the 28-day login calendar
-/// (`19` G). It carries no day number: `10` §5's calendar is pause-not-skip, so which day is open
-/// is server state and naming one on the wire would be a second, disagreeing source for it.
+/// (`19` G). It carries no day number: `19` G's calendar is <b>pause-not-skip</b>, so which day is
+/// open is server state and naming one on the wire would be a second, disagreeing source for it.
 /// </summary>
 public sealed record ClaimCalendarCommand : GameCommand;
 
@@ -220,7 +288,7 @@ public sealed record ClaimInboxCommand : GameCommand
     /// which authors the message store and <c>IMessageRepository</c>.
     /// </param>
     public ClaimInboxCommand(IReadOnlyList<string>? messageIds = null) =>
-        MessageIds = CommandPayload.CopyOptional(messageIds);
+        MessageIds = CommandPayload.CopyOptional(messageIds, nameof(messageIds));
 
     /// <summary>The messages to claim, or <see langword="null"/> for everything claimable.</summary>
     public IReadOnlyList<string>? MessageIds { get; }
@@ -237,7 +305,21 @@ public sealed record ClaimInboxCommand : GameCommand
         other is not null && CommandPayload.SameIds(MessageIds, other.MessageIds);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => CommandPayload.HashIds(MessageIds);
+    /// <remarks>See <see cref="SalvageCommand.GetHashCode"/> for why the contract is in the hash.</remarks>
+    public override int GetHashCode() =>
+        HashCode.Combine(EqualityContract, CommandPayload.HashIds(MessageIds));
+
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(MessageIds)} = {CommandPayload.Text(MessageIds)}");
+
+        return true;
+    }
 }
 
 /// <summary>
@@ -282,9 +364,11 @@ public sealed record ReforgeItemCommand(string ItemId) : GameCommand;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>The wishlist rides the command and persists on the item</b> (`14` §2.3), and `24` §6.2
-/// resets the M2 mercy counter when it changes — which is why the wishlist is a payload field
-/// rather than a separate command: the retune and the wishlist change are one atomic intent.
+/// 🔒 <b>The wishlist rides the command and persists on the item, and the M2 mercy counter resets
+/// when it changes</b> — both sentences are `14` §2.3's own note on this row, not `24` §6.2's,
+/// which specifies the locks, the wishlist and the mercy counter but not their lifecycle. That is
+/// why the wishlist is a payload field rather than a separate command: the retune and the wishlist
+/// change are one atomic intent.
 /// </para>
 /// <para>
 /// ⚠️ `14` §2.3 writes <c>[≤3]</c> on both lists. The bound is <b>authored</b> and is recorded
@@ -298,8 +382,9 @@ public sealed record RetuneItemCommand : GameCommand
     /// <summary>Retunes an item under the given locks and wishlist.</summary>
     /// <param name="itemId">The gear instance to retune. Typed by <b>M4-03</b>.</param>
     /// <param name="lockedAffixIds">
-    /// The affixes to keep — `14` §2.3's <c>[≤3]</c>. `08` §3.1's <c>AFX_*</c> ids; typed by
-    /// <b>M4-03</b>, which authors the 14 affixes.
+    /// The affixes to keep — `14` §2.3's <c>[≤3]</c>, corroborated by `24` §6.2's "up to 3 affix
+    /// IDs". The 14 affixes are `08` §3.1 and their <c>AFX_*</c> ids are `08` §7's schema; typed by
+    /// <b>M4-03</b>.
     /// </param>
     /// <param name="wishlistAffixIds">The wanted affixes — also <c>[≤3]</c>.</param>
     /// <exception cref="ArgumentNullException">Either list is null.</exception>
@@ -330,10 +415,30 @@ public sealed record RetuneItemCommand : GameCommand
         CommandPayload.SameIds(WishlistAffixIds, other.WishlistAffixIds);
 
     /// <inheritdoc/>
+    /// <remarks>See <see cref="SalvageCommand.GetHashCode"/> for why the contract is in the hash.</remarks>
     public override int GetHashCode() => HashCode.Combine(
+        EqualityContract,
         ItemId,
         CommandPayload.HashIds(LockedAffixIds),
         CommandPayload.HashIds(WishlistAffixIds));
+
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ItemId)} = {ItemId}");
+        builder.Append(
+            CultureInfo.InvariantCulture,
+            $", {nameof(LockedAffixIds)} = {CommandPayload.Text(LockedAffixIds)}");
+        builder.Append(
+            CultureInfo.InvariantCulture,
+            $", {nameof(WishlistAffixIds)} = {CommandPayload.Text(WishlistAffixIds)}");
+
+        return true;
+    }
 }
 
 /// <summary>
@@ -341,19 +446,47 @@ public sealed record RetuneItemCommand : GameCommand
 /// (`09` §2.1).
 /// </summary>
 /// <param name="PresetSlot">
-/// The slot to write. ⚠️ <b>No bound.</b> `16` <b>O11</b> explicitly defers the preset count to the
-/// M9 kickoff — <em>"3 free is a guess; raise, never gate further"</em> — so a range here would be
-/// invention rather than transcription (steering <b>S6</b>).
+/// The slot to write. ⚠️ <b>No bound.</b> `16` <b>O11</b> leaves the preset count open —
+/// <em>"3 free slots is a guess. Raise the allowance if telemetry shows players capped; never gate
+/// it further"</em>, due <em>"after first playtest"</em> — and the tracker routes the ruling to the
+/// <b>M9 kickoff</b>. A range here would be invention rather than transcription (steering <b>S6</b>).
 /// </param>
 /// <param name="Name">The player's name for the preset.</param>
-public sealed record SavePresetCommand(int PresetSlot, string Name) : GameCommand;
+public sealed record SavePresetCommand(int PresetSlot, string Name) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(PresetSlot)} = {PresetSlot}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Name)} = {Name}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>APPLY_PRESET</c> — load a preset. <b>Never mid-run</b>, which is a rule over
 /// state rather than payload and belongs to M4-10.
 /// </summary>
 /// <param name="PresetSlot">The slot to load. Unbounded, for the reason <see cref="SavePresetCommand"/> records.</param>
-public sealed record ApplyPresetCommand(int PresetSlot) : GameCommand;
+public sealed record ApplyPresetCommand(int PresetSlot) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(PresetSlot)} = {PresetSlot}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>SHOP_PURCHASE</c> — buy from the <b>meta</b> shop (`10` §5).
@@ -366,7 +499,21 @@ public sealed record ApplyPresetCommand(int PresetSlot) : GameCommand;
 /// </remarks>
 /// <param name="OfferId">The shop offer. Typed by <b>M4-09</b>, which authors the shop model.</param>
 /// <param name="Quantity">How many. An unbounded count: `10` §5 caps stock per offer, not per command.</param>
-public sealed record ShopPurchaseCommand(string OfferId, int Quantity) : GameCommand;
+public sealed record ShopPurchaseCommand(string OfferId, int Quantity) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(OfferId)} = {OfferId}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Quantity)} = {Quantity}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>OPEN_CHEST</c> ⚄ — open a chest off the shelf. <b>Pity and Focus are read at

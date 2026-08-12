@@ -33,9 +33,9 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   ("a renamed or deleted project must take its exemption with it"): an entry whose
 ///   <see cref="Gap.Subject"/> appears in no transcription is deferring something no specification
 ///   asks for. It can never be <i>satisfied</i>, only deleted by hand — which is the state this
-///   register replaces. It is also what holds <b>M1-02</b> to the promise below: transcribe
-///   `14` §2.3's command inventory into <see cref="Surfaces"/>, do not just add entries to
-///   <see cref="Deferred"/>.</item>
+///   register replaces. It is what held <b>M1-02</b> to transcribing `14` §2.3's command inventory
+///   into <see cref="Surfaces"/> rather than only adding entries to <see cref="Deferred"/>; see the
+///   note below for what that task discharged and what it deliberately did not.</item>
 ///   <item><b>Vacuous.</b> Both sets have floors, and both predicates are proven to distinguish a
 ///   type that exists from one that does not — see <c>GapRegisterTests</c>. A register whose
 ///   subject set can silently become empty is steering <b>S3</b>'s failure mode, and the three
@@ -56,14 +56,25 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// give every <c>CommandDispatch.Deferred</c> row an entry in <see cref="Deferred"/>.
 /// </para>
 /// <para>
-/// The transcription is below — <b>and all forty-nine subjects are authored</b>, which is the point:
-/// M1-02 declared every row of the registry, so `14` §2.3 has nothing left to defer. The
-/// per-command entries were <b>not</b> written, deliberately. An entry needs a
-/// <see cref="Gap.WaitsFor"/>, and forty-eight of them would be forty-eight <c>Core</c> type names
-/// invented on behalf of milestones that have not chosen them — the same move this file's own
-/// <see cref="Surfaces"/> remarks refuse for the five <c>Player</c>-contents types M4-05 owns
-/// ("naming five types five unwritten milestones have not chosen is the invention S6 forbids,
-/// dressed as bookkeeping"). What each deferred command <em>does</em> carry is its owning task, on
+/// The transcription is below — <b>and all forty-nine subjects are authored</b>. What that
+/// discharges is `14` §2.3's <b>inventory</b>: M1-02 declared every row of the registry, so the
+/// table's <em>first</em> column has nothing left to defer. ⚠️ Its <b>payload</b> column does — some
+/// twenty fields whose value sets belong to M2-15, M3-10, M4-02, M4-03, M4-06, M4-09, M5-08, M12
+/// and M15-03 are carried as <c>int</c>/<c>string</c> today — and that deferral is written up in
+/// <c>SlayIdleRepeat.Core.Commands.CommandPayload</c>, with the two entries below that already
+/// expire on the right commits (<c>Inventory</c>/M4-03 and <c>ContainerShelf</c>/M4-02) naming the
+/// payloads they cover.
+/// </para>
+/// <para>
+/// 🔒 <b>The per-command entries were not written, and that is forced rather than chosen.</b>
+/// <see cref="Expired"/>'s second arm fires on <c>IsPresentInCore(gap.Subject)</c> — so
+/// <c>Gap("RollDiceCommand", …)</c> would fail the build <em>on the commit that added it</em>,
+/// because M1-02 authored the command. A per-command entry is unrepresentable in this register.
+/// (The softer argument holds as well: forty-nine <see cref="Gap.WaitsFor"/> names invented on
+/// behalf of milestones that have not chosen them is the same move this file's own
+/// <see cref="Surfaces"/> remarks refuse for the five <c>Player</c>-contents types M4-05 owns —
+/// "naming five types five unwritten milestones have not chosen is the invention S6 forbids,
+/// dressed as bookkeeping".) What each deferred command <em>does</em> carry is its owning task, on
 /// its dispatch row, beside its wire name and its <c>CommandKind</c> — the one place all three are
 /// declared, and the one place a reader looking at the command finds it.
 /// </para>
@@ -154,6 +165,12 @@ internal static class GapRegister
         // None of them has an element type yet, and one of them has no decided content at all.
 
         new("Inventory", "M4-03", "GearInstance",
+            "🔒 M1-02 ALSO HANGS SIX COMMAND PAYLOADS ON THIS ENTRY. 14 §2.3's payload column names " +
+            "gear instance ids and a gear SLOT that no type expresses today, so EquipCommand, " +
+            "EnhanceCommand, SalvageCommand, SetFocusCommand, ReforgeItemCommand and " +
+            "RetuneItemCommand carry them as text. The commit that declares GearInstance retypes " +
+            "those six in the same change — otherwise M4-03's vocabulary and the wire's are two " +
+            "vocabularies for one concept, which is 30 §11.6's failure mode one layer in. " +
             "30 §4 lists 'inventory, gear instances' among Player's contents, and 08 §5 caps it at 400 " +
             "slots. Neither can be stored before the thing being stored exists: GearInstance carries " +
             "quality, chapterOrigin, a mercy counter, affixes and a lock (08 §2-3), and every one of " +
@@ -162,6 +179,10 @@ internal static class GapRegister
             "the shelf and the slots are the same missing type."),
 
         new("ContainerShelf", "M4-02", "ContainerClass",
+            "🔒 M1-02 ALSO HANGS THREE COMMAND PAYLOADS ON THIS ENTRY: OpenChestCommand, " +
+            "OpenEggCommand and OpenCrateCommand each carry a containerId as text, because the thing " +
+            "being addressed does not exist. The commit that declares ContainerClass retypes those " +
+            "three in the same change. " +
             "30 §4 lists 'unopened containers (24 §4.0)' on Player, and 24 §4.0 is explicit that chests, " +
             "Pet Eggs and Mount Crates are STORED OBJECTS rather than instant grants, on an uncapped " +
             "shelf. What is missing is the class vocabulary — CHEST_STANDARD / CHEST_PREMIUM / " +

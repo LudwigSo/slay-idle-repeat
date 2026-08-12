@@ -20,10 +20,14 @@ namespace SlayIdleRepeat.Core.Tests;
 /// <c>Meta</c> row.
 /// </para>
 /// <para>
-/// 🔒 <b>Those sweeps take their subject set from the dispatch table's <c>CommandKind</c>, never
-/// from <see cref="CommandSeedPin.SeedBearingMetaCommands"/></b>, and the separation is what stops
-/// them agreeing with themselves: a rule that asked the classifier's own list which commands draw
-/// would pass over any list whatsoever, including one holding <c>ROLL_DICE</c>.
+/// 🔒 <b>Every sweep takes its subject set from the dispatch table's <c>CommandKind</c>, and the
+/// separation is what stops it agreeing with itself.</b> The first draft of the meta sweep did not:
+/// it asked <see cref="CommandSeedPin.Violations"/> which meta rows draw and compared the answer to
+/// the list <c>Violations</c> consults, so both sides had one source and the rule held over any
+/// list at all — a review proved it by adding <c>"EQUIP"</c> to the nine and watching it stay green.
+/// It is now written as the <b>complement</b>: the 21 meta rows the document does not mark, driven
+/// two-armed. The nine are reached only through the identity pin and the kind cross-check, which are
+/// assertions <em>about</em> that list rather than assertions driven by it.
 /// </para>
 /// <para>
 /// <see cref="DrawsNothing"/> is kept as the stand-in for "a name outside the nine" in the
@@ -296,35 +300,90 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §8.1 — the other half over the real table: of the 30 meta rows, <b>exactly the nine
-    /// marked ⚄ require a seed</b> and the other 21 must be handed <c>null</c>.
+    /// 🔒 `14` §2.3's meta table has 30 rows and marks <b>nine</b> of them ⚄. This is the other
+    /// twenty-one: every meta command the document does <em>not</em> mark must be handed
+    /// <c>null</c>, and a seed on one is a violation.
     /// </summary>
     /// <remarks>
-    /// The nine come from `14` §2.3's ⚄ marks, transcribed in
-    /// <see cref="CommandSeedPin.SeedBearingMetaCommands"/> and pinned by
-    /// <see cref="The_seed_bearing_set_is_the_nine_the_command_vocabulary_freezes"/>; the thirty come
-    /// from the dispatch table. Two independent sources, so a name moved between them fails here
-    /// rather than agreeing with itself.
+    /// <para>
+    /// 🔒 <b>Written as the complement, and that is the whole point — the obvious form of this rule
+    /// cannot fail.</b> The first version asked <see cref="CommandSeedPin.Violations"/> which meta
+    /// rows refuse a null seed and compared the answer to
+    /// <see cref="CommandSeedPin.SeedBearingMetaCommands"/>. But <c>Violations</c> decides that by
+    /// asking the very same list, so both sides came from one source and the comparison held over
+    /// <em>any</em> list of registered names. A review proved it: adding <c>"EQUIP"</c> to the nine
+    /// left it green, and only the identity pin fired.
+    /// </para>
+    /// <para>
+    /// The complement has two genuinely independent sources — <c>CommandKind.Meta</c> off the
+    /// dispatch table, minus the nine — and it is driven <b>two-armed</b>, the same shape as
+    /// <see cref="No_run_command_in_the_registry_may_carry_a_CommandSeed"/>: each of the twenty-one
+    /// must be clean with no seed <em>and</em> refused with "must be null" when handed one.
+    /// A meta command that quietly joined the nine drops out of this set and fails the count.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void Exactly_nine_of_the_thirty_meta_commands_draw()
+    public void The_twenty_one_meta_commands_that_do_not_draw_may_not_carry_a_CommandSeed()
     {
         var metaCommands = WireNamesOfKind(CommandKind.Meta);
 
         metaCommands.Count.ShouldBe(30, "14 §2.3's meta table has 30 rows, under a header that says 29.");
 
-        var drawing = metaCommands
-            .Where(name => CommandSeedPin.Violations(name, GameContexts.WithSeed(null)).Count != 0)
-            .OrderBy(name => name, StringComparer.Ordinal)
+        var quiet = metaCommands
+            .Where(name => !CommandSeedPin.SeedBearingMetaCommands.Contains(name))
             .ToArray();
 
-        drawing.ShouldBe(
-            CommandSeedPin.SeedBearingMetaCommands.OrderBy(n => n, StringComparer.Ordinal),
-            StringComparer.Ordinal,
-            ignoreOrder: false,
-            "the meta rows that refuse a null seed must be exactly the ⚄ nine. A name in the list " +
-            "that is not a registered meta command, or a meta command that quietly joined the nine, " +
-            "shows up here as a set difference rather than as a count that still says nine.");
+        quiet.Length.ShouldBe(
+            21,
+            "30 meta rows minus the 9 marked ⚄. If this is 30 the nine have stopped naming registered " +
+            "commands; if it is 0 the whole meta half has been declared seed-bearing — and either way " +
+            "the sweep below would be quantifying over the wrong set rather than failing.");
+
+        var offenders = new List<string>();
+
+        foreach (var name in quiet)
+        {
+            if (CommandSeedPin.Violations(name, GameContexts.WithSeed(null)).Count != 0)
+            {
+                offenders.Add($"'{name}' draws no out-of-run randomness and was refused a null CommandSeed.");
+            }
+
+            var withSeed = CommandSeedPin.Violations(name, GameContexts.WithSeed(AnySeed));
+
+            if (withSeed.Count != 1 || !withSeed[0].Contains("must be null", StringComparison.Ordinal))
+            {
+                offenders.Add(
+                    $"'{name}' draws no out-of-run randomness and a CommandSeed handed to it was not " +
+                    $"refused with 'must be null'. Got: [{string.Join(" | ", withSeed)}]");
+            }
+        }
+
+        offenders.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// 🔒 The count that closes the arithmetic: <b>19 run + 30 meta = 49</b>, and the nine ⚄ rows are
+    /// all inside the meta half.
+    /// </summary>
+    /// <remarks>
+    /// Stated separately from the two sweeps because it is the one assertion that would notice a row
+    /// vanishing from the table altogether — both sweeps quantify over what the table <em>has</em>.
+    /// </remarks>
+    [Fact]
+    public void The_two_kinds_partition_the_whole_registry()
+    {
+        var run = WireNamesOfKind(CommandKind.Run);
+        var meta = WireNamesOfKind(CommandKind.Meta);
+
+        run.Count.ShouldBe(19);
+        meta.Count.ShouldBe(30);
+        (run.Count + meta.Count).ShouldBe(
+            SlayIdleRepeat.Core.GameRules.CommandTypesByWireName.Count,
+            "every registered row is one kind or the other — CommandKind has no third member and no zero.");
+
+        CommandSeedPin.SeedBearingMetaCommands
+            .Where(name => !meta.Contains(name, StringComparer.Ordinal))
+            .ShouldBeEmpty("every ⚄ row of 14 §2.3 is in its meta table.");
     }
 
     /// <summary>
@@ -376,10 +435,12 @@ public sealed class CommandSeedPinTests
     /// now, and it is what catches a typo in the nine or a rename on the other side.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The <c>declared.Count == 0</c> arm is what made it vacuous, and it is <b>kept</b> rather
-    /// than deleted — with its own floor beneath it. Deleting the arm would turn "the vocabulary is
-    /// gone" into nine indistinguishable "no type declares this" complaints; keeping it without the
-    /// floor would let an emptied namespace pass. The floor says which failure it is.
+    /// ⚠️ The M1-07 version carried a <c>declared.Count == 0</c> arm so an empty subject set produced
+    /// no offenders — the vacuity it was written with, on purpose. That arm is <b>gone</b>, not
+    /// merely bypassed: the floor below is what now distinguishes "the vocabulary is gone" (a count
+    /// of 0, reported as itself) from "one of the nine is misspelled" (a named offender). Leaving a
+    /// dead branch under a floor that makes it unreachable would be a second answer to a question
+    /// with one.
     /// </remarks>
     [Fact]
     public void Every_seed_bearing_command_name_names_a_real_command_type()
@@ -397,17 +458,15 @@ public sealed class CommandSeedPinTests
             "selector has gone quiet — the vacuity this rule used to have on purpose, and must never " +
             "have again — and if it is anything else, a command has lost its declaration or its row.");
 
-        var offenders = declared.Count == 0
-            ? Array.Empty<string>()
-            : CommandSeedPin.SeedBearingMetaCommands
-                .Where(name => !declared.Contains(name))
-                .OrderBy(name => name, StringComparer.Ordinal)
-                .Select(name =>
-                    $"'{name}' is declared seed-bearing but no type under {CommandSeedPin.CommandsNamespace} " +
-                    $"declares it. Declared: [{string.Join(", ", declared.OrderBy(n => n, StringComparer.Ordinal))}]. " +
-                    "Either this list has a typo, or the dispatch row for that command declares a " +
-                    $"different wire name — fix the disagreement, do not delete the rule. {CommandSeedPin.Consequence}")
-                .ToArray();
+        var offenders = CommandSeedPin.SeedBearingMetaCommands
+            .Where(name => !declared.Contains(name))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .Select(name =>
+                $"'{name}' is declared seed-bearing but no type under {CommandSeedPin.CommandsNamespace} " +
+                $"declares it. Declared: [{string.Join(", ", declared.OrderBy(n => n, StringComparer.Ordinal))}]. " +
+                "Either this list has a typo, or the dispatch row for that command declares a " +
+                $"different wire name — fix the disagreement, do not delete the rule. {CommandSeedPin.Consequence}")
+            .ToArray();
 
         offenders.ShouldBeEmpty();
     }

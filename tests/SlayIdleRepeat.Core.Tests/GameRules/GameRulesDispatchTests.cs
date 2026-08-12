@@ -12,10 +12,13 @@ namespace SlayIdleRepeat.Core.Tests;
 /// </summary>
 /// <remarks>
 /// The rules here are driven through <c>GameRules.Execute</c> over tables built in the test, for the
-/// reason <c>GapRegister.Expired(entries)</c> takes its entries as a parameter: the real table is
-/// empty until M1-02 lands the 49 commands, so every rule stated over it would hold vacuously and
-/// report success forever (steering <b>S3</b>). <c>Apply</c> itself is exercised too, against the
-/// real table, for the one thing that is true of it today.
+/// reason <c>GapRegister.Expired(entries)</c> takes its entries as a parameter: the shapes they need
+/// must <b>never</b> be committed to <c>Core</c> — a handler that hand-writes an RNG counter, a
+/// duplicate registration, an undefined <c>CommandKind</c>. ⚠️ M1-02 filling the real table with 49
+/// rows did not change that: every row is <c>Deferred</c>, so the production table still holds no
+/// handler at all and every handler-shaped rule stated over it would report success forever
+/// (steering <b>S3</b>). What did change is that <c>Apply</c> over the real table is no longer a
+/// one-assertion affair — <c>Commands.CommandVocabularyTests</c> drives all forty-nine through it.
 /// </remarks>
 public sealed class GameRulesDispatchTests
 {
@@ -48,13 +51,16 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 `30` §2.1 <b>P3</b>, on the real façade: <c>Apply</c> over the production table — empty
-    /// until M1-02 — refuses rather than throws.
+    /// 🔒 `30` §2.1 <b>P3</b>, on the real façade: <c>Apply</c> over the production table refuses a
+    /// command <b>no row names</b> rather than throwing.
     /// </summary>
     /// <remarks>
-    /// The one assertion about <c>Apply</c> that is meaningful before the vocabulary exists, and it
-    /// is worth having: it proves the public entry point delegates to the same body the rest of this
-    /// file drives, rather than being a second implementation.
+    /// It proves the public entry point delegates to the same body the rest of this file drives
+    /// rather than being a second implementation. ⚠️ The command is a <em>fixture</em> and stays one
+    /// now that the table has 49 real rows: this is the arm
+    /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c> keeps unreachable in
+    /// production, so the only way to exercise it is with a command type deliberately outside
+    /// `14` §2.3.
     /// </remarks>
     [Fact]
     public void Apply_over_the_real_table_refuses_a_command_no_row_names()

@@ -71,7 +71,8 @@ namespace SlayIdleRepeat.Core;
 /// make "no seed" unrepresentable and force the host to invent one for the run commands that must
 /// not have one — and <c>0</c> is a legitimate seed, not an absence. The pairing rule — which
 /// commands carry a seed — is pinned by <c>CommandSeedPinTests</c> in
-/// <c>SlayIdleRepeat.Core.Tests</c>, live from the day M1-02 declares the command vocabulary.
+/// <c>SlayIdleRepeat.Core.Tests</c>, and has been live over all 49 rows of `14` §2.3 since M1-02:
+/// every <c>CommandKind.Run</c> row is refused a seed, and exactly the nine ⚄ meta rows require one.
 /// </para>
 /// </param>
 /// <param name="Content">The loaded, validated, version-stamped content this command reads.</param>

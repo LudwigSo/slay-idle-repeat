@@ -107,11 +107,15 @@ public static class GameRules
     /// system behind the command — read off <c>IMPLEMENTATION_TRACKER.md</c>'s task rows rather than
     /// inferred, because a wrong owner is a deferral that expires at the wrong time (steering
     /// <b>S4</b>). The owner lives <em>here</em>, on the row, rather than in a mirrored
-    /// <c>GapRegister</c> entry per command: the register's own remarks refuse to name a
-    /// not-yet-chosen type "as bookkeeping", and forty-eight <c>WaitsFor</c> names for systems whose
-    /// milestones have not chosen them would be exactly that. What <c>GapRegister</c> carries for
-    /// this task is the thing it can decide — the `14` §2.3 <b>inventory</b>, transcribed into
-    /// <c>Surfaces</c>, which fails the build if a row of the registry ever stops being declared.
+    /// <c>GapRegister</c> entry per command — which is not a preference but a mechanical fact:
+    /// <c>GapRegister.Expired</c> fires on a <c>Gap</c> whose <c>Subject</c> already exists in
+    /// <c>Core</c>, and the subject would be the command type this very row registers, so the entry
+    /// would fail the build the moment it was written. (The softer argument holds as well: forty-nine
+    /// <c>WaitsFor</c> names for systems whose milestones have not chosen them is what the register's
+    /// own remarks call "the invention S6 forbids, dressed as bookkeeping".) What <c>GapRegister</c>
+    /// carries for this task is the thing it can decide — the `14` §2.3 <b>inventory</b>, transcribed
+    /// into <c>Surfaces</c>, which fails the build if a row of the registry ever stops being
+    /// declared. `14` §2.3's <b>payload</b> column is deferred separately, in <c>CommandPayload</c>.
     /// </para>
     /// </remarks>
     private static readonly CommandDispatch Dispatch = new CommandDispatch()
@@ -194,10 +198,22 @@ public static class GameRules
     /// handler and kind, so the three cannot drift apart.
     /// </para>
     /// <para>
-    /// ⚠️ <c>internal</c> until something outside <c>Core</c> needs it. Today's consumer is
-    /// <c>SlayIdleRepeat.Core.Tests.CommandSeedPin</c>, which the `30` §11.3 <c>InternalsVisibleTo</c>
-    /// grant already reaches; M5-03's wire envelope is the first caller that will need it public,
-    /// and it should read this rather than declare a second table (`30` §11.6).
+    /// ⚠️ <c>internal</c> until something outside <c>Core</c> needs it. Today's consumers are
+    /// <c>SlayIdleRepeat.Core.Tests.CommandSeedPin</c> and <c>CommandVocabularyTests</c>, which the
+    /// `30` §11.3 <c>InternalsVisibleTo</c> grant already reaches; M5-03's wire envelope is the first
+    /// caller that will need it public, and it should read this rather than declare a second table
+    /// (`30` §11.6).
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M5-03 will need three members, not this one</b> — named here so that task does not
+    /// discover it halfway through and declare a second table anyway. `14` §2.3 splits the endpoints
+    /// (<c>/run/{runId}/command</c> against <c>/player/command</c>) on the <see cref="CommandKind"/>,
+    /// which this dictionary does not carry: it is reachable only through
+    /// <see cref="RegistrationFor"/> → <c>CommandRegistration</c>, and all three are
+    /// <c>internal</c>. Making them public is a pure accessibility edit — no signature exposes a
+    /// type that would have to become public with them — but it is three edits and one ruling, not
+    /// one edit. ⚠️ <c>START_RUN</c> is the exception in both directions and M5-03 owns it: a
+    /// <c>CommandKind.Run</c> row that arrives on the <em>player</em> endpoint.
     /// </para>
     /// </remarks>
     internal static IReadOnlyDictionary<string, Type> CommandTypesByWireName => Dispatch.TypesByWireName;
@@ -234,9 +250,12 @@ public static class GameRules
     /// <c>SnapshotFieldOrderPin.Violations(...)</c> are</b>: the domain suite has to drive these
     /// rules against shapes that must <b>never</b> be committed to <c>Core</c> — a handler that
     /// hand-writes an RNG counter, a handler that stamps its own <c>Sequence</c>, a command whose
-    /// system does not exist. Against the real table, which is empty until M1-02 lands the
-    /// vocabulary, every one of those rules would be asserted over nothing and would report success
-    /// forever (steering <b>S3</b>).
+    /// system does not exist. ⚠️ M1-02 filled the real table with 49 rows and <b>none of that
+    /// changed</b>: every one of those rows is <c>Deferred</c>, so the production table still holds
+    /// <em>no handler at all</em>, and every handler-shaped rule stated over it would be asserted
+    /// over nothing and would report success forever (steering <b>S3</b>). The third shape —
+    /// "a command whose system does not exist" — is the one the real table now has, 49 times, and
+    /// <c>Commands.CommandVocabularyTests</c> drives it there rather than here.
     /// </para>
     /// <para>
     /// ⚠️ It is <c>internal</c> and it is not a second entry point. `30` §11.2's <em>"the only public

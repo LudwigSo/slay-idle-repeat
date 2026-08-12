@@ -66,8 +66,9 @@ public sealed class GameContextTests
     /// </summary>
     /// <remarks>
     /// The pairing rule itself — which commands carry a seed — is pinned by
-    /// <see cref="CommandSeedPinTests"/>; this is the half of it that can be asserted before
-    /// M1-02 declares a single command type.
+    /// <see cref="CommandSeedPinTests"/> over all 49 rows of `14` §2.3 since M1-02. This is the half
+    /// that is about the <em>type</em> rather than the vocabulary, and it is the one that would still
+    /// fail if the nullability were ever collapsed to a sentinel.
     /// </remarks>
     [Fact]
     public void The_CommandSeed_is_nullable_because_run_commands_carry_none()

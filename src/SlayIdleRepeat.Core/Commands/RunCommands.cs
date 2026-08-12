@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Commands;
@@ -29,15 +31,32 @@ namespace SlayIdleRepeat.Core.Commands;
 /// </para>
 /// <para>
 /// The pair is exactly <c>SeedDerivation.RunSeed</c>'s middle two arguments, which is why
-/// <paramref name="ChapterId"/> is an <see cref="int"/>: `02` §1 runs chapters from 1 and
-/// <c>chapter.schema.json</c> sets <c>"minimum": 1</c>, so the seam that hashes it already takes
-/// one. No upper bound is transcribed — <c>content/chapters/</c> is empty until M3-14 — and none is
-/// invented.
+/// <paramref name="ChapterId"/> is an <see cref="int"/>: `02` §2 writes <em>"Chapter (1–8, unlocked
+/// linearly)"</em> and <c>chapter.schema.json</c> sets <c>"minimum": 1</c>, so the seam that hashes
+/// it already takes one. ⚠️ The upper bound is <b>not</b> transcribed here even though `02` §2 gives
+/// one: `10` §7 gates which chapters exist per tier, <c>content/chapters/</c> is empty until M3-14,
+/// and a hard 8 in a wire command would refuse a chapter before the content that adds a ninth could
+/// ship. The floor of 1 lives on <c>SeedDerivation.RunSeed</c>, which is where hashing a chapter
+/// that names no chapter would actually do damage.
 /// </para>
 /// </remarks>
-/// <param name="ChapterId">`02` §1's chapter number, from 1.</param>
+/// <param name="ChapterId">`02` §2's chapter number — <c>"Chapter (1–8, unlocked linearly)"</c>.</param>
 /// <param name="Tier">`02` §2's <c>tierId</c>, the difficulty the run is played on.</param>
-public sealed record StartRunCommand(int ChapterId, DifficultyTier Tier) : GameCommand;
+public sealed record StartRunCommand(int ChapterId, DifficultyTier Tier) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ChapterId)} = {ChapterId}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Tier)} = {Tier}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>ROLL_DICE</c> — roll. The server answers with the face, the movement and the
@@ -59,7 +78,20 @@ public sealed record UseRerollCommand : GameCommand;
 /// identity: the pause hands the client the branches on offer, and M3-02's movement engine owns
 /// what a branch resolves to.
 /// </param>
-public sealed record ChooseForkCommand(int BranchIndex) : GameCommand;
+public sealed record ChooseForkCommand(int BranchIndex) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(BranchIndex)} = {BranchIndex}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>RESOLVE_TILE</c> — acknowledge or advance the pending tile resolution
@@ -71,15 +103,29 @@ public sealed record ResolveTileCommand : GameCommand;
 /// 🔒 `14` §2.3 <c>PICK_PERK</c> — take one of the three drafted options (`06` §1).
 /// </summary>
 /// <param name="OptionIndex">The chosen option's position in the server-issued draft.</param>
-public sealed record PickPerkCommand(int OptionIndex) : GameCommand;
+public sealed record PickPerkCommand(int OptionIndex) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(OptionIndex)} = {OptionIndex}");
+
+        return true;
+    }
+}
 
 /// <summary>
-/// 🔒 `14` §2.3 <c>REROLL_DRAFT</c> — redraw the perk draft (`06` §2's reroll economy).
+/// 🔒 `14` §2.3 <c>REROLL_DRAFT</c> — redraw the perk draft (`06` §1's reroll economy).
 /// </summary>
 public sealed record RerollDraftCommand : GameCommand;
 
 /// <summary>
-/// 🔒 `14` §2.3 <c>SKIP_DRAFT</c> — take none of the offered perks (`06` §2's skip economy).
+/// 🔒 `14` §2.3 <c>SKIP_DRAFT</c> — take none of the offered perks. `06` §1: skipping is allowed
+/// and pays 60 Gold plus a free reroll.
 /// </summary>
 public sealed record SkipDraftCommand : GameCommand;
 
@@ -94,7 +140,20 @@ public sealed record SkipDraftCommand : GameCommand;
 /// player's wallet on the meta shop of `10` §5. Two shops, two currencies, two lifetimes.
 /// </remarks>
 /// <param name="ShopSlotIndex">The slot's position among `03` §7's four.</param>
-public sealed record ShopBuyCommand(int ShopSlotIndex) : GameCommand;
+public sealed record ShopBuyCommand(int ShopSlotIndex) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ShopSlotIndex)} = {ShopSlotIndex}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>SHOP_REFRESH</c> — restock the in-run shop (`03` §7's refresh economy).
@@ -105,7 +164,20 @@ public sealed record ShopRefreshCommand : GameCommand;
 /// 🔒 `14` §2.3 <c>EVENT_CHOOSE</c> — take one outcome of an event card (`03` §5, `19` A).
 /// </summary>
 /// <param name="ChoiceIndex">The chosen outcome's position in the server-issued card.</param>
-public sealed record EventChooseCommand(int ChoiceIndex) : GameCommand;
+public sealed record EventChooseCommand(int ChoiceIndex) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ChoiceIndex)} = {ChoiceIndex}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>MINIGAME_SUBMIT</c> — assert a minigame outcome. `03` §6.2 makes this a
@@ -124,13 +196,41 @@ public sealed record EventChooseCommand(int ChoiceIndex) : GameCommand;
 /// </remarks>
 /// <param name="MinigameId">`03` §6's <c>MG_*</c> identifier. Typed by M3-10.</param>
 /// <param name="Result">The claimed outcome tier of `03` §6.1's table for that minigame.</param>
-public sealed record MinigameSubmitCommand(string MinigameId, int Result) : GameCommand;
+public sealed record MinigameSubmitCommand(string MinigameId, int Result) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(MinigameId)} = {MinigameId}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Result)} = {Result}");
+
+        return true;
+    }
+}
 
 /// <summary>
-/// 🔒 `14` §2.3 <c>CAMPFIRE_CHOOSE</c> — take one of the campfire's options (`03` §7a).
+/// 🔒 `14` §2.3 <c>CAMPFIRE_CHOOSE</c> — take one of the campfire's options (`03` §2's
+/// <c>TILE_CAMPFIRE</c> row).
 /// </summary>
 /// <param name="ChoiceIndex">The chosen option's position in the server-issued list.</param>
-public sealed record CampfireChooseCommand(int ChoiceIndex) : GameCommand;
+public sealed record CampfireChooseCommand(int ChoiceIndex) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ChoiceIndex)} = {ChoiceIndex}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>START_BATTLE</c> — enter the fight. The server answers with the
@@ -182,9 +282,11 @@ public sealed record EndRunCommand : GameCommand;
 /// 🔒 `14` §2.3 <c>ABANDON_RUN</c> — leave the run without completing it.
 /// </summary>
 /// <remarks>
-/// Registered separately from <see cref="EndRunCommand"/> because the two produce different
-/// payouts: `02` §5's completion multipliers and first-clear bonuses are <c>END_RUN</c>'s, and an
-/// abandoned run forfeits them. One command with a flag would have made the difference a payload
-/// value rather than a wire name, and `14` §2.3 lists two rows.
+/// Registered separately from <see cref="EndRunCommand"/> because the two pay differently: `02`
+/// §5.2's <c>CompletionMultiplier</c> table gives <b>Abandon = 0.10, and no gear drops are
+/// kept</b> — so an abandoned run is not a run that forfeits its multiplier, it is a run with a
+/// different one — and `02` §5.3's first-clear bonuses need the boss down. One command with a flag
+/// would have made that difference a payload value rather than a wire name, and `14` §2.3 lists two
+/// rows.
 /// </remarks>
 public sealed record AbandonRunCommand : GameCommand;

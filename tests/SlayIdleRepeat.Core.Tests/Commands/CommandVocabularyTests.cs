@@ -193,9 +193,9 @@ public sealed class CommandVocabularyTests
 
         Registry.Count.ShouldBe(
             49,
-            "the two directions above are set comparisons, and a set comparison cannot see a wire " +
-            "name registered twice under two types — CommandDispatch refuses that at type " +
-            "initialisation, and this is the assertion that would notice if it stopped.");
+            "19 + 30. The two set comparisons above are floored by the transcription's own literal " +
+            "counts; this is the same floor on the OTHER side, so an emptied registry fails here " +
+            "rather than making 'nothing unlisted' trivially true.");
     }
 
     /// <summary>
@@ -227,6 +227,13 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Every_row_is_registered_under_the_kind_its_table_gives_it()
     {
+        // 🔒 The floor, inline rather than borrowed from a sibling test (steering S3). Misclassified
+        // yield-breaks on a name the registry lacks — correctly, since the set comparison reports
+        // that — so an emptied registry would make this loop produce no offenders at all.
+        RunCommandWireNames.Length.ShouldBe(19);
+        MetaCommandWireNames.Length.ShouldBe(30);
+        Registry.Count.ShouldBe(49, "an emptied registry makes the sweep below silent, not red.");
+
         var offenders = new List<string>();
 
         foreach (var name in RunCommandWireNames)
@@ -239,7 +246,9 @@ public sealed class CommandVocabularyTests
             offenders.AddRange(Misclassified(name, CommandKind.Meta));
         }
 
-        offenders.ShouldBeEmpty();
+        offenders.ShouldBeEmpty(
+            "the kind decides whether Apply opens a RunRngScope and whether the run's 14 §16.3 TTL " +
+            "moves, so it is correctness rather than bookkeeping.");
     }
 
     /// <summary>
@@ -293,12 +302,16 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Every_registered_type_is_a_public_sealed_command_in_the_commands_namespace()
     {
+        Registry.Count.ShouldBe(49, "an emptied registry makes the sweep below quantify over nothing.");
+
         var offenders = Registry
             .OrderBy(row => row.Key, StringComparer.Ordinal)
             .SelectMany(row => Malformed(row.Key, row.Value))
             .ToArray();
 
-        offenders.ShouldBeEmpty();
+        offenders.ShouldBeEmpty(
+            "30 §11.2 makes the command hierarchy the wire protocol as well as the input vocabulary, " +
+            "and 30 §11.4's namespace list is closed.");
     }
 
     /// <summary>
@@ -352,30 +365,94 @@ public sealed class CommandVocabularyTests
     /// <remarks>
     /// <para>
     /// This is the end-to-end half of <c>Every_command_type_is_handled_by_Apply</c>. That rule reads
-    /// metadata and says a dispatch row <em>names</em> each type; this drives each type through
-    /// <c>GameRules.Apply</c> and says the row actually resolves — a row registered under a type the
-    /// runtime never produces would satisfy the IL scan and fail here.
+    /// metadata and says a dispatch row <em>names</em> each type; this builds each type and hands it
+    /// to <c>GameRules.Apply</c>, so the row is resolved at runtime rather than only in IL.
     /// </para>
     /// <para>
     /// The slice carries a run, which is legal for both kinds: a run command needs one, and a meta
     /// command is dispatched perfectly happily with one (a player can open the shop without leaving).
     /// </para>
+    /// <para>
+    /// 🔒 <b>It branches on <c>IsHandled</c> rather than asserting every row is deferred.</b> All 49
+    /// are today; M1-09 makes <c>BEGIN_SESSION</c> the first that is not, and a rule that hard-coded
+    /// "all deferred" would go red on that commit and invite a weakening edit instead of a one-line
+    /// one — the same reason
+    /// <see cref="Every_row_is_handled_or_names_the_task_that_will_handle_it"/> is written the way it
+    /// is. The floor below is what keeps the deferred arm from silently becoming empty.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_command_in_the_vocabulary_is_applied_and_refused_rather_than_thrown()
     {
-        var applied = 0;
+        var deferred = 0;
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {
+            if (RegistrationFor(name).IsHandled)
+            {
+                // A handled command's behaviour is its own handler's suite to pin, not this rule's.
+                continue;
+            }
+
             var result = SlayIdleRepeat.Core.GameRules.Apply(Worlds.InARun(), Build(type), Worlds.Context);
 
             result.Accepted.ShouldBeFalse($"'{name}' has no handler yet, so it cannot be accepted.");
             result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE, $"'{name}' is deferred.");
-            applied++;
+            deferred++;
         }
 
-        applied.ShouldBe(49, "every row is driven, or this rule is quantifying over less than the vocabulary.");
+        deferred.ShouldBe(
+            49,
+            "every row of 14 §2.3 is deferred on this commit, so all 49 are driven here. When M1-09 " +
+            "lands the BEGIN_SESSION handler this becomes 48 — lower it by exactly the number of rows " +
+            "that became Handled, and never to a number the loop cannot reach.");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §4.1 — the <b>behavioural</b> half of the kind: every <c>CommandKind.Run</c> row
+    /// refuses a slice with no run, and every <c>CommandKind.Meta</c> row is content with one.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Every_row_is_registered_under_the_kind_its_table_gives_it"/> reads the kind off the
+    /// registration and compares it to a transcription — metadata against metadata. This is the only
+    /// rule where the kind of all forty-nine rows is <em>observed</em>: a run command misfiled as
+    /// <c>Meta</c> reaches a handler here instead of the loading-defect guard, and a meta command
+    /// misfiled as <c>Run</c> becomes unsendable outside a run, which is how a player would find it.
+    /// </remarks>
+    [Fact]
+    public void Outside_a_run_every_run_command_is_a_loading_defect_and_every_meta_command_is_not()
+    {
+        var runRows = 0;
+        var metaRows = 0;
+
+        foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
+        {
+            var command = Build(type);
+
+            if (RegistrationFor(name).Kind == CommandKind.Run)
+            {
+                Should.Throw<InvalidOperationException>(
+                        () => SlayIdleRepeat.Core.GameRules.Apply(Worlds.OutsideARun(), command, Worlds.Context),
+                        $"'{name}' is a run command and a slice with no run is a LOADING defect (30 §4.1), " +
+                        "not a rejection.")
+                    .Message.ShouldContain($"'{name}'", Case.Sensitive);
+
+                runRows++;
+                continue;
+            }
+
+            SlayIdleRepeat.Core.GameRules
+                .Apply(Worlds.OutsideARun(), command, Worlds.Context)
+                .Rejection
+                .ShouldBe(
+                    RejectionReason.ILLEGAL_STATE,
+                    $"'{name}' is a meta command and must be sendable outside a run.");
+
+            metaRows++;
+        }
+
+        runRows.ShouldBe(19, "14 §2.3's run table has 19 rows.");
+        metaRows.ShouldBe(30, "14 §2.3's meta table has 30 rows.");
     }
 
     /// <summary>
@@ -405,10 +482,13 @@ public sealed class CommandVocabularyTests
     /// silently win. Driven against two of the real forty-nine rather than fixtures.
     /// </summary>
     /// <remarks>
-    /// M1-06 proved the guard against fixture types. This proves it against the shape it would
-    /// actually take: a second row for a name the registry already carries, added by a task that did
-    /// not read the table first. The refusal names <b>both</b> claimants, so the reader does not have
-    /// to grep for the other one.
+    /// ⚠️ <b>The general uniqueness guard is <c>GameRulesDispatchTests</c>'s</b>
+    /// (<c>One_command_type_and_one_wire_name_each</c>,
+    /// <c>A_refused_registration_leaves_the_table_untouched</c>) and this does not restate it — the
+    /// production table's uniqueness is structural, a <c>Dictionary.Add</c>. What is only asserted
+    /// here is that the refusal names <b>both</b> claimants, over two real rows of `14` §2.3, so a
+    /// reader who hits it does not have to grep for the other one. That is also the mutation this
+    /// task used to prove the guard bites against the real vocabulary rather than against fixtures.
     /// </remarks>
     [Fact]
     public void Two_commands_cannot_both_claim_SHOP_BUY()
@@ -462,6 +542,115 @@ public sealed class CommandVocabularyTests
             "14 §2.3 makes omitted and empty mean the same thing to the RULE, and they are still two " +
             "different things the client sent. Collapsing them here would make the command lie about " +
             "the request 14 §16.3 replays an outcome for.");
+
+        // 🔒 ORDINAL. Measured: switching CommandPayload.SameIds to OrdinalIgnoreCase left the whole
+        // suite green without this line — while the same suite pins ordinality deliberately for the
+        // wire names and for the seed-bearing nine. These are wire identifiers too: a culture- or
+        // case-insensitive comparison makes two commands equal on one host and unequal on another.
+        new SalvageCommand(new[] { "AFX_PEN" }).ShouldNotBe(
+            new SalvageCommand(new[] { "afx_pen" }),
+            "payload ids compare ordinally, like every other 14 §2.3 identifier in this repository.");
+    }
+
+    /// <summary>
+    /// 🔒 `14` §16.3 — the equality that matters is the one reached through the <b>base</b> type,
+    /// because that is how an idempotency cache will hold these: <c>Dictionary&lt;GameCommand, …&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// The rules above route through <c>IEquatable&lt;T&gt;</c> on the concrete type and prove
+    /// nothing about <c>Equals(object?)</c>, <c>==</c>, or a <c>GameCommand</c>-typed comparison.
+    /// The compiler is <em>supposed</em> to emit
+    /// <c>public sealed override bool Equals(GameCommand? other) =&gt; Equals(other as TSelf)</c> on
+    /// each sealed record, so the hand-written method is reached — but a hand-written
+    /// <c>Equals</c> beside compiler-synthesized plumbing is exactly the arrangement worth checking
+    /// rather than assuming, and a dictionary round-trip exercises the base-typed path,
+    /// <c>Equals(object?)</c> and <c>GetHashCode</c> in one assertion.
+    /// </remarks>
+    [Fact]
+    public void A_list_carrying_command_survives_a_base_typed_dictionary_round_trip()
+    {
+        var cache = new Dictionary<GameCommand, string>
+        {
+            [new SalvageCommand(new[] { "a", "b" })] = "outcome",
+            [new ClaimInboxCommand()] = "claim-all",
+            [new RetuneItemCommand("i", new[] { "x" }, Array.Empty<string>())] = "retune",
+        };
+
+        cache[new SalvageCommand(new List<string> { "a", "b" })].ShouldBe("outcome");
+        cache[new ClaimInboxCommand()].ShouldBe("claim-all");
+        cache[new RetuneItemCommand("i", new[] { "x" }, Array.Empty<string>())].ShouldBe("retune");
+
+        cache.ContainsKey(new SalvageCommand(new[] { "b", "a" })).ShouldBeFalse();
+
+        // 🔒 The EqualityContract term in the hand-written GetHashCode. Without it these two hash
+        // identically — legal, since Equals still tells them apart, but it buckets two different
+        // commands together in the very cache 14 §16.3's replay will be.
+        new SalvageCommand(Array.Empty<string>()).GetHashCode()
+            .ShouldNotBe(new ClaimInboxCommand(Array.Empty<string>()).GetHashCode());
+
+        ((GameCommand)new SalvageCommand(new[] { "a" }))
+            .Equals(new SalvageCommand(new[] { "a" })).ShouldBeTrue();
+
+        (new SalvageCommand(new[] { "a" }) == new SalvageCommand(new[] { "a" })).ShouldBeTrue();
+        (new SalvageCommand(new[] { "a" }) != new SalvageCommand(new[] { "z" })).ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// 🔒 `14` §8.2 — a command renders identically under every culture, including one whose
+    /// negative sign is not <c>-</c>.
+    /// </summary>
+    /// <remarks>
+    /// The behavioural half of
+    /// <c>AmbientApiTests.Every_command_with_a_culture_sensitive_member_declares_an_invariant_PrintMembers</c>,
+    /// which proves only that the hook is <em>declared</em>. Modelled on
+    /// <c>Events.CurrencyChangedTests.ToString_renders_identically_under_any_culture</c> and using
+    /// <c>sv-SE</c> for the reason M1-06 recorded: German renders a negative integer with an ordinary
+    /// hyphen, so a <c>de-DE</c> test would prove nothing.
+    /// </remarks>
+    [Fact]
+    public void A_command_renders_identically_under_any_culture()
+    {
+        var swedish = new System.Globalization.CultureInfo("sv-SE");
+
+        (-1).ToString(swedish).ShouldNotBe(
+            (-1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "this assertion is only meaningful if the runtime actually has a Swedish culture. Under " +
+            "globalization-invariant mode new CultureInfo(\"sv-SE\") silently returns the invariant " +
+            "culture and the comparison below would hold over nothing.");
+
+        var fork = new ChooseForkCommand(-1);
+
+        Render(fork, swedish).ShouldBe(Render(fork, System.Globalization.CultureInfo.InvariantCulture));
+
+        Render(fork, System.Globalization.CultureInfo.InvariantCulture)
+            .ShouldContain("BranchIndex = -1", Case.Sensitive);
+
+        Render(fork, swedish).ShouldNotContain(
+            "−", Case.Sensitive,
+            "U+2212 MINUS SIGN is what sv-SE renders a negative integer with. If it appears here the " +
+            "hand-written PrintMembers is gone and the synthesized one is back.");
+
+        // 🔒 And the list payloads, which without a PrintMembers render the WRAPPER's type name —
+        // ReadOnlyCollection`1[System.String] — and none of the ids a rejection diagnostic wants.
+        new SalvageCommand(new[] { "a", "b" }).ToString()
+            .ShouldContain("ItemIds = [a, b]", Case.Sensitive);
+
+        new ClaimInboxCommand().ToString().ShouldContain("MessageIds = null", Case.Sensitive);
+    }
+
+    private static string Render(GameCommand command, System.Globalization.CultureInfo culture)
+    {
+        var previous = System.Globalization.CultureInfo.CurrentCulture;
+
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+            return command.ToString();
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = previous;
+        }
     }
 
     /// <summary>
@@ -481,32 +670,90 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 A list payload is <b>copied</b> on the way in, so a caller cannot rewrite the command after
-    /// it was built — and the copy does not cast back to the array behind it.
+    /// 🔒 <b>Every</b> list payload is copied on the way in, so a caller cannot rewrite the command
+    /// after it was built — and the copy does not cast back to the array behind it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The same hole M1-05 closed on the aggregates: a bare <c>string[]</c> handed out through an
     /// <c>IReadOnlyList&lt;string&gt;</c> casts straight back. A command whose contents can change
     /// after construction is a command whose `14` §16.3 idempotency key describes something other
     /// than what was applied.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>All four properties, not one.</b> The first version of this rule exercised only
+    /// <c>SalvageCommand.ItemIds</c>, and a review measured what that left uncovered: dropping the
+    /// copy from <c>RetuneItemCommand</c>'s two lists <em>and</em> from
+    /// <c>ClaimInboxCommand.MessageIds</c> kept the whole Core suite green. The sweep is over a
+    /// literal list of the four so a fifth list payload is a deliberate addition here.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void A_list_payload_is_copied_and_cannot_be_written_through()
+    public void Every_list_payload_is_copied_and_cannot_be_written_through()
     {
-        var callers = new[] { "a", "b" };
-        var command = new SalvageCommand(callers);
+        var probes = new (string Name, Func<string[], IReadOnlyList<string>> Build)[]
+        {
+            (nameof(SalvageCommand.ItemIds), ids => new SalvageCommand(ids).ItemIds),
+            (nameof(RetuneItemCommand.LockedAffixIds),
+                ids => new RetuneItemCommand("i", ids, Array.Empty<string>()).LockedAffixIds),
+            (nameof(RetuneItemCommand.WishlistAffixIds),
+                ids => new RetuneItemCommand("i", Array.Empty<string>(), ids).WishlistAffixIds),
+            (nameof(ClaimInboxCommand.MessageIds), ids => new ClaimInboxCommand(ids).MessageIds!),
+        };
 
-        callers[0] = "MUTATED";
+        probes.Length.ShouldBe(4, "14 §2.3 gives SALVAGE, RETUNE_ITEM (twice) and CLAIM_INBOX a list payload.");
 
-        command.ItemIds[0].ShouldBe("a");
+        foreach (var (name, build) in probes)
+        {
+            var callers = new[] { "a", "b" };
+            var stored = build(callers);
 
-        command.ItemIds.ShouldNotBeAssignableTo<string[]>(
-            "a bare array behind an IReadOnlyList<string> casts straight back to string[] — the hole " +
-            "M1-05 closed on the aggregates, one indirection out.");
+            callers[0] = "MUTATED";
 
-        // ⚠️ ReadOnlyCollection<T> DOES implement IList<T>, so the cast is available and the refusal
-        // has to be the setter's rather than the type system's. Asserted, not assumed.
-        Should.Throw<NotSupportedException>(() => ((IList<string>)command.ItemIds)[0] = "MUTATED");
+            stored[0].ShouldBe("a", $"{name} handed back the caller's own array.");
+
+            stored.ShouldNotBeAssignableTo<string[]>(
+                $"{name}: a bare array behind an IReadOnlyList<string> casts straight back to " +
+                "string[] — the hole M1-05 closed on the aggregates, one indirection out.");
+
+            // ⚠️ ReadOnlyCollection<T> DOES implement IList<T>, so the cast is available and the
+            // refusal has to be the setter's rather than the type system's. Asserted, not assumed.
+            Should.Throw<NotSupportedException>(() => ((IList<string>)stored)[0] = "MUTATED");
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The list properties are <b>get-only</b>, never <c>init</c> — the one thing that stops a
+    /// <c>with</c> expression handing the command the caller's own array and bypassing the copy.
+    /// </summary>
+    /// <remarks>
+    /// The defence is a compile-time affordance, so nothing runtime can catch its removal: a review
+    /// measured that changing <c>{ get; }</c> to <c>{ get; init; }</c> on
+    /// <c>SalvageCommand.ItemIds</c> left the entire suite green. This is the reflection pin that
+    /// closes it. (The same shape M1-03 recorded for <c>CurrencyChanged.Reason</c>: an <c>init</c> is
+    /// assignable through <c>with</c>, and that assignment does not re-run the constructor.)
+    /// </remarks>
+    [Fact]
+    public void A_list_payload_has_no_setter_so_with_cannot_bypass_the_copy()
+    {
+        var properties = new[]
+        {
+            typeof(SalvageCommand).GetProperty(nameof(SalvageCommand.ItemIds)),
+            typeof(RetuneItemCommand).GetProperty(nameof(RetuneItemCommand.LockedAffixIds)),
+            typeof(RetuneItemCommand).GetProperty(nameof(RetuneItemCommand.WishlistAffixIds)),
+            typeof(ClaimInboxCommand).GetProperty(nameof(ClaimInboxCommand.MessageIds)),
+        };
+
+        properties.ShouldAllBe(p => p != null);
+        properties.Length.ShouldBe(4, "the four list payloads of 14 §2.3.");
+
+        foreach (var property in properties)
+        {
+            property!.SetMethod.ShouldBeNull(
+                $"{property.DeclaringType!.Name}.{property.Name} has a setter. An init accessor is " +
+                "assignable through `with`, which would hand the command the caller's own array and " +
+                "bypass CommandPayload.Copy — the defence this property's remarks claim.");
+        }
     }
 
     /// <summary>A required list payload is a caller defect when it is null, and says which parameter.</summary>
@@ -525,8 +772,18 @@ public sealed class CommandVocabularyTests
 
     // ------------------------------------------------------------------------------------ helpers
 
+    /// <summary>
+    /// A milestone <b>task</b> id: <c>M3-15</c>, <c>M12-04</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Stricter than <c>GapRegister</c>'s, which also accepts a bare milestone (<c>M14</c>)
+    /// because a deferral may legitimately name one before the milestone has task rows. A dispatch
+    /// row may not: every one of the 49 owners is a row in <c>IMPLEMENTATION_TRACKER.md</c>, and the
+    /// failure message below says so — a pattern that accepted <c>M4</c> would contradict its own
+    /// complaint.
+    /// </remarks>
     private static readonly System.Text.RegularExpressions.Regex TaskId =
-        new(@"^M\d{1,2}(-\d{2})?$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        new(@"^M\d{1,2}-\d{2}$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>The two transcribed halves as one ordinal set.</summary>
     private static HashSet<string> Transcribed() =>
@@ -597,11 +854,23 @@ public sealed class CommandVocabularyTests
     /// </remarks>
     private static GameCommand Build(Type commandType)
     {
-        var constructor = commandType
-            .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
-            .OrderByDescending(c => c.GetParameters().Length)
-            .First();
+        // 🔒 Single, not First. A sealed record's copy constructor is private, so BindingFlags.Public
+        // already excludes it and every one of the 49 has exactly one public constructor today. An
+        // OrderByDescending(...).First() would silently pick between two if a command ever gained a
+        // convenience overload — an unstable tie-break inside a rule that drives the whole
+        // vocabulary — and an empty sequence would surface as a bare InvalidOperationException.
+        var constructors = commandType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 
+        if (constructors.Length != 1)
+        {
+            throw new InvalidOperationException(
+                $"{commandType.Name} declares {constructors.Length} public constructors. A command is a " +
+                "value carrying exactly 14 §2.3's parameters for it, and this builder drives all 49 " +
+                "through the one door each of them has. If a second is genuinely wanted, choose here " +
+                "deliberately rather than letting a tie-break pick.");
+        }
+
+        var constructor = constructors[0];
         var arguments = constructor.GetParameters().Select(Sample).ToArray();
 
         return (GameCommand)constructor.Invoke(arguments);

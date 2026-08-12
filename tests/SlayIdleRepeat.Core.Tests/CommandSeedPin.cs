@@ -27,6 +27,17 @@ namespace SlayIdleRepeat.Core.Tests;
 /// names the registry carries — the nineteen run rows in particular, which must all be handed
 /// <c>null</c> and none of which this file's own list has ever seen.
 /// </para>
+/// <para>
+/// ⚠️ <b>Carried forward from the M1-07 tripwire M1-02 deleted, because it is the one instruction on
+/// that tripwire M1-02 did not discharge — and it must not vanish with the assertion it was written
+/// on.</b> The tripwire said: <em>"wire <see cref="Violations"/> into the command-construction path
+/// so the invariant is asserted per command rather than only over the nine names"</em>. M1-02 wired
+/// it over the forty-nine <b>wire names</b> in the dispatch table. What is still <b>not</b> asserted
+/// is the invariant where a <see cref="GameContext"/> is actually paired with a command: nothing
+/// checks, when <c>Apply</c> runs, that <em>this</em> context's seed matches <em>this</em> command's
+/// classification. <b>Owner: M1-09</b>, which authors the first handler and the
+/// <c>CommandSeed</c>-driven draw seam and is therefore the first task with a real pairing to check.
+/// </para>
 /// </remarks>
 internal static class CommandSeedPin
 {
@@ -46,8 +57,11 @@ internal static class CommandSeedPin
     /// <c>BEGIN_SESSION</c>'s draw is the day's quest slate and Daily shop block (`30` §2.3);
     /// <c>SPIN_WHEEL</c>, the three container opens and the two item rerolls are `30` §3's
     /// "wheel spins, container opens"; <c>START_DUEL</c> is the PvP ghost draw (`11` §6).
-    /// <b>The 19 run-command names are deliberately not enumerated here</b> — they are M1-02's to
-    /// author, and writing a plausible list would be inventing vocabulary.
+    /// <b>The 19 run-command names are deliberately not enumerated here</b>, and that has outlived
+    /// its original reason (they existed nowhere when this was written). It still holds, for a
+    /// better one: the sweeps read the run half off the dispatch table's <c>CommandKind</c>, so
+    /// transcribing it here as well would give those rules a second source and let the two agree
+    /// with each other instead of with the registry.
     /// </remarks>
     internal static IReadOnlySet<string> SeedBearingMetaCommands { get; } =
         new HashSet<string>(StringComparer.Ordinal)
