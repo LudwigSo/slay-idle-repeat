@@ -232,6 +232,9 @@ internal sealed class RecordingPhases : IBossPhases
     /// <summary>Every call, as <c>"hook:actor@tick"</c>.</summary>
     internal List<string> Calls { get; } = new();
 
+    /// <summary>Every slot-2a call, as <c>"2a:actor@tick"</c> — M2-12's telegraph pass.</summary>
+    internal List<string> Ticks { get; } = new();
+
     /// <summary>The tick the phase block was registered on — its R8 anchor.</summary>
     internal int? AnchoredAt { get; private set; }
 
@@ -240,6 +243,13 @@ internal sealed class RecordingPhases : IBossPhases
 
     /// <inheritdoc />
     public void EnterInitialPhase(BattleActor actor, int tick) => Calls.Add($"enter1:{actor.Id}@{tick}");
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Recorded separately from <see cref="Calls"/>: it fires once per actor on every tick, so
+    /// folding it in would bury the two hooks this double exists to observe.
+    /// </remarks>
+    public void AdvanceTick(BattleActor actor, int tick) => Ticks.Add($"2a:{actor.Id}@{tick}");
 
     /// <inheritdoc />
     public void AfterHpDecrease(BattleActor actor, int tick)

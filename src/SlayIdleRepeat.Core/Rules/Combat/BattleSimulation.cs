@@ -28,6 +28,7 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// for tick in 0..MaxTicks-1
 ///   1   status timers advance; DoT/HoT cadence boundaries apply    → IStatusTimeline (M2-10)
 ///   2   statuses whose duration reached 0 expire                   → IStatusTimeline (M2-10)
+///   2a  boss telegraphs — `17` §1's 1.0–1.5 s wind-up             → IBossPhases     (M2-12)
 ///   3   PERIODIC triggers fire — the ONLY PERIODIC path            → TriggerRegistry.PeriodicDue
 ///   4   basic attacks in fixed initiative order                    → IAttackPipeline (M2-09)
 ///   5   pet ability cooldowns advance                              → IPetAbilities
@@ -198,6 +199,22 @@ internal sealed class BattleSimulation
             for (var i = 0; i < _actors.Count; i++)
             {
                 _seams.Timeline.ExpireDue(_actors[i], Tick);
+            }
+
+            // ── 2a · boss telegraphs — `17` §1's 1.0-1.5 s wind-up (M2-12) ──────────────────
+            //
+            // 🔒 Not one of `05` §3.1's eight slots, and added deliberately rather than folded into
+            // one: a wind-up is emitted AHEAD of the firing it announces, so nothing that happens at
+            // the firing can raise it, and `05` §3.1 makes no per-tick call into IBossPhases at all.
+            // It sits before slot 3 because slot 3 is what advances a PERIODIC's schedule, and the
+            // pass reads TriggerInstance.NextFiringTick. NoBossPhases.AdvanceTick is a no-op, so a
+            // fight with no boss logs — and hashes — exactly as it did before this slot existed.
+            //
+            // Bounded before the walk for RunPeriodics' reason: the roster can grow mid-tick.
+            var standing = _actors.Count;
+            for (var i = 0; i < standing; i++)
+            {
+                _seams.Phases.AdvanceTick(_actors[i], Tick);
             }
 
             // ── 3 · PERIODIC triggers, actor order then effect-id order ──────────────────────
@@ -1216,21 +1233,13 @@ internal sealed class BattleSimulation
             }
         }
 
-        // 🔴 `18` §10.1 E6 — RANDOM_OUTCOME's winner has nowhere to land yet: firing the chosen
-        //    effect by id needs the boss engine's own effect lookup, which M2-12's boss-engine phase
-        //    brings (with the IBossOutcomes seam and the BattleSeams member that carries it). That
-        //    phase replaces this throw; a no-op here would make the Dicelord roll and do nothing,
-        //    which the balance harness would read as a content problem (the EffectOpSeams.Strict
-        //    doctrine, one layer up).
+        // 🔒 `18` §10.1 E6 — RANDOM_OUTCOME's winner, routed to the seam that knows what an effect
+        //    id IS. R17 forbids `Rules/Effects/Ops/` naming a `Rules.Combat.Bosses` type, so the op
+        //    validates and draws (exactly one WeightedPick) and this carries the id across. The
+        //    strict default is NoBossOutcomes, which throws naming M2-12/M2-13 — the seam is only
+        //    reached because authored content rolled.
         public void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId) =>
-            throw new EffectContextException(
-                sourceEffectId,
-                $"RANDOM_OUTCOME picked '{chosenEffectId}' and the boss engine that fires it is not " +
-                "wired — M2-12's IBossOutcomes seam is what resolves an outcome id into an effect",
-                "`18` §10.1 E6 hands the seam ONE effect id per roll (R19: outcomes are referenced, " +
-                "never embedded), and resolving it needs the boss script's own effect table. M2-12's " +
-                "boss-engine phase supplies it; firing nothing would make 17 §9's Roll of Fate a d6 " +
-                "with no faces.");
+            _battle._seams.Outcomes.Resolve(Actor(holder), chosenEffectId, sourceEffectId);
 
         public void ClearSummons(IEffectActorView owner, string sourceEffectId)
         {
