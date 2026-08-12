@@ -651,6 +651,36 @@ internal static class GapRegister
         {
             "LoginCalendarRewards",
         }),
+
+        // 🔒 M1-11, `30` §6 — THE HARNESS. Both subjects are AUTHORED, so like `14` §2.3's registry
+        // above this entry has no Deferred companion and earns its place entirely in the OTHER
+        // direction: delete InMemoryGame or VirtualClock, move either out of Core/Testing/, or
+        // rename one, and the undeclared check fails naming it.
+        //
+        // ⚠️ That direction is worth more here than almost anywhere else in this array, because of
+        // what these two types hold up. The_whole_game_is_playable_from_Core_alone is stated over
+        // InMemoryGame, and until M1-11 added a presence arm it reported success when the type was
+        // ABSENT — the state it was in from M0-08. This entry and SubjectSetFloorTests' InMemoryGame
+        // row are the second and third mechanisms over that same fact, on the pattern this file's
+        // `14` §2.3 entry records, because a rule whose whole point is "the game is playable from
+        // Core alone" going quiet is the most expensive silence in the repository.
+        //
+        // ⚠️ THE SCOPE OF THE TRANSCRIPTION, stated exactly, because "§6 names two types" is not
+        // true and an earlier draft of this comment said it. §6's code block and table also name
+        // ContentSnapshot, PlayerId, Player, DomainEvent and GearGranted — all real types, none of
+        // them under Core/Testing/. A SpecifiedSurface pins ONE namespace, so this entry transcribes
+        // the two types §6 puts THERE; the others are anchored by their own namespaces'
+        // transcriptions (30 §4.1's WorldSlice row for Player, 30 §7's for DomainEvent and
+        // GearGranted) or are simply authored. What §6 names that is NOT type-shaped at all — "a
+        // Dictionary<PlayerId, Player>" as a storage choice, "a fixed seed", "every DomainEvent
+        // accumulated and queryable" — are MEMBERS, and IsAuthoredUnder can only decide a type
+        // simple name; those are held by InMemoryGameTests instead, the same limit the Player- and
+        // Run-contents rows above record for themselves.
+        new("30 §6 (the in-memory harness)", Domain.TestingNamespace, new[]
+        {
+            "InMemoryGame",
+            "VirtualClock",
+        }),
     };
 
     /// <summary>A milestone task id: <c>M14</c>, or <c>M3-04</c>.</summary>

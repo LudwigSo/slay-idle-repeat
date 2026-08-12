@@ -336,6 +336,40 @@ public sealed class GapRegisterTests
             "the dropped boundary is deferred by nobody.");
 
         catchUpBoundaries.Namespace.ShouldBe(Domain.ModelNamespace);
+
+        // 🔒 M1-11. The floor under `30` §6's transcription, on the same pattern and for the same
+        // reason: a literal, never the transcription's own Count.
+        //
+        // ⚠️ THIS ONE GUARDS THE MOST EXPENSIVE SILENCE IN THE REPOSITORY, which is why it is here
+        // as well as in SubjectSetFloorTests and — since M1-11 — inside the rule itself.
+        // DomainPurityTests.The_whole_game_is_playable_from_Core_alone reported success when
+        // InMemoryGame was ABSENT for the whole of M0-08..M1-11; that rule now has a presence arm,
+        // and this transcription is the second mechanism over the same fact. Trimming it would
+        // remove one of the two things that demand the harness exist, with Expired silent (neither
+        // name is deferred), Unanchored silent (no entry dangles) and the whole suite green.
+        var harness = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("30 §6", StringComparison.Ordinal));
+
+        harness.Subjects.Count.ShouldBe(
+            2,
+            "30 §6's table names exactly two types — InMemoryGame and VirtualClock — and both are " +
+            "authored, so this entry works only in the undeclared direction. If it shrinks, deleting " +
+            "the harness stops being a build failure and 30 §9's load-bearing rule goes back to " +
+            "passing over nothing.");
+
+        harness.Namespace.ShouldBe(Domain.TestingNamespace);
+
+        // 🔒 And the shape check, for the reason the `14` §2.3 list carries one: the count and the
+        // undeclared direction are both satisfied by ANY two types authored under Core/Testing/, so
+        // a name could leave this list by being swapped for a helper that happened to land there.
+        // These two are named by IDENTITY (steering S3) because they are not interchangeable —
+        // The_whole_game_is_playable_from_Core_alone keys on the first by name, through
+        // Domain.InMemoryGameType.
+        harness.Subjects.ShouldBe(
+            new[] { Domain.InMemoryGameType, "VirtualClock" },
+            ignoreOrder: true,
+            "30 §6 names these two and no others; a count-only floor is satisfied by whatever pair " +
+            "replaced them.");
     }
 
     /// <summary>

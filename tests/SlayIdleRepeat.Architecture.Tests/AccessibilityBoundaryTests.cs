@@ -18,6 +18,16 @@ public sealed class AccessibilityBoundaryTests
     /// method or public constructor on any type under `Core/Model/`. The persistence DTOs
     /// under `Model/Snapshots/` are exempt by `30` §11.3 — an adapter must be able to build
     /// a `PlayerSnapshot` to call `Rehydrate`.
+    /// <para>
+    /// ⚠️ <b>`Core/Testing/` is the second documented exemption, and it is outside this rule's
+    /// subject set rather than exempted by it</b> — written down here because the rule's name is
+    /// wider than its scope. `30` §6's `InMemoryGame` ships in the production assembly with public
+    /// `CreatePlayer`, `Send` and `Clock.Advance`, all of which change state; that is exactly what
+    /// §6 asks for, since the harness IS the sanctioned public driver. What keeps it honest is not
+    /// this rule but `Core_internal_layering_holds`' `Testing` row (it may not name `Rules` or
+    /// `Handlers`) plus the harness declaring no door onto an aggregate's `internal` mutators — see
+    /// `InMemoryGame.State`'s own remarks for the one route that remains open.
+    /// </para>
     /// </summary>
     [Fact]
     public void Apply_is_the_only_public_mutation()
@@ -112,11 +122,20 @@ public sealed class AccessibilityBoundaryTests
     }
 
     /// <summary>
-    /// `30` §11.4 — the internal layering holds: Handlers ▶ Rules ▶ Model ▶ Content ▶
-    /// Primitives. `Rules` never references `Handlers`; `Model` never references `Rules`.
-    /// `Rng` is pure arithmetic (`14` §8.1) and sits below `Model` with `Content`. `Commands`
-    /// sits above `Rng`/`Content`/`Primitives` and below `Handlers`. `Primitives`, `Content`,
-    /// `Rng`, `Events`, `Commands` and `Model` never reach up into the `SlayIdleRepeat.Core` root.
+    /// `30` §11.4 — the internal layering holds: Handlers ▶ Rules ▶ Model ▶ Content ▶ Primitives.
+    /// `Rules` never references `Handlers`; `Model` never references `Rules`. `Rng` is pure
+    /// arithmetic (`14` §8.1) and sits below `Model` with `Content`. `Commands` sits above
+    /// `Rng`/`Content`/`Primitives` and below `Handlers`. `Primitives`, `Content`, `Rng`, `Events`,
+    /// `Commands` and `Model` never reach up into the `SlayIdleRepeat.Core` root.
+    /// <para>
+    /// ⚠️ **`Testing` sits above `Handlers`, and that position is an inference rather than a
+    /// quotation.** `30` §11.4's chain is written `Handlers ▶ Rules ▶ Model ▶ Content ▶ Primitives`
+    /// and omits `Testing` exactly as it omits `Commands` and `Events`. Its place comes from `30` §6
+    /// (the harness drives the game) and `30` §11.2 (`GameRules.Apply` is the only public mutation),
+    /// which together settle two directions: `Testing` names neither `Rules` nor `Handlers`, and
+    /// nothing beneath it — the `SlayIdleRepeat.Core` root included — names `Testing`. The rows
+    /// themselves record what that does and does not close.
+    /// </para>
     /// </summary>
     [Fact]
     public void Core_internal_layering_holds()
@@ -131,17 +150,26 @@ public sealed class AccessibilityBoundaryTests
             // `Primitives.RunId naming Commands.GameCommand` matched by no row in either direction,
             // exactly the ungoverned region the row was written to close. Measured on this branch:
             // a `GameCommand`-typed member added to a Primitives type passed 58/58 before this.
-            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace }),
-            (Domain.ContentNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace }),
-            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace }),
+            // 🔒 Testing appears in every row below as well as owning one of its own, added by M1-11
+            // on the symmetry M1-06's Commands row established. `30` §11.4 puts Core/Testing/ INSIDE
+            // the production assembly, so the harness is a real layer rather than a test project —
+            // and it sits at the very top, above Handlers: it drives the domain through
+            // GameRules.Apply and every other layer is beneath it. A production type naming the test
+            // harness is therefore a cycle under every reading, which is the settled direction; the
+            // row of its own below is the other half, and the root's own loop after the table is the
+            // third (the root has no Layer row, so it needed a check rather than an entry).
+            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.ContentNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
 
             // ⚠️ Model and Rules deliberately carry NO Commands entry, and that is the open half
             // rather than an oversight. A handler consumes a command and reads the model, so
             // Handlers -> Commands is required; whether a Rules calculator or an aggregate may name
             // one is not settled by any document, and forbidding it on a guess would block a task
             // rather than protect one. The Commands row below forbids the direction that IS settled.
-            (Domain.ModelNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace }),
-            (Domain.RulesNamespace, new[] { Domain.HandlersNamespace }),
+            (Domain.ModelNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.RulesNamespace, new[] { Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.HandlersNamespace, new[] { Domain.TestingNamespace }),
 
             // 🔒 M1-06's first cut at carried-forward item 8. 30 §11.4's chain — "Handlers -> Rules
             // -> Model -> Content -> Primitives" — omits Commands and Events entirely, so both were
@@ -167,7 +195,61 @@ public sealed class AccessibilityBoundaryTests
             // belongs at a kickoff, not a row deleted to make a build green. The binding ruling on
             // the Events half is due at the M4 kickoff, before M4-03 authors GearGranted, and its
             // deliverable is a 30 §11.4 amendment rather than a table edit.
-            (Domain.CommandsNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
+            (Domain.CommandsNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+
+            // 🔒 M1-11. Events gets its FIRST row here, and it is deliberately a row of exactly one
+            // entry. The contested half of the Events question is `Events -> Model` — 30 §7 writes
+            // GearGranted(int, GearInstance, SourceClass, bool) and GearInstance is a Model
+            // aggregate, so a row forbidding it would contradict 30 §7 and block M4-03; that ruling
+            // is still owned by the M4 kickoff and is NOT pre-empted here. `Events -> Testing` is not
+            // contested under any reading: Apply PRODUCES the event list and the harness CONSUMES
+            // Apply, so an event naming InMemoryGame is a cycle. Measured before this row existed: a
+            // `typeof(InMemoryGame)` field added to CurrencyChanged passed 63/63.
+            (Domain.EventsNamespace, new[] { Domain.TestingNamespace }),
+
+            // 🔒 M1-11, `30` §6 + `30` §11.2. Core/Testing/ was an ungoverned region until this
+            // commit — the same shape M1-06 found for Commands and M1-03 for Events, and the same
+            // discipline applies: only the direction the documents SETTLE is written.
+            //
+            // WHAT THIS ROW SAYS: the harness may name the SlayIdleRepeat.Core root (GameRules,
+            // WorldSlice, GameContext, CommandResult — it is above them, which is why Testing is
+            // deliberately NOT in mustNotReachTheRoot below), Model (it builds a Player through
+            // 30 §11.3's Rehydrate), Content, Commands, Events, Rng and Primitives — and may NOT
+            // name Rules or Handlers.
+            //
+            // WHY THAT HALF IS SETTLED. `30` §11.2: "the only public way to change state in this
+            // game is GameRules.Apply", and `30` §6 makes InMemoryGame the artefact that
+            // DEMONSTRATES it. Core/Testing/ lives inside the production assembly, so it can see
+            // every internal in Core — a harness calling BeginSession.Handle or EnergyMath.Grant
+            // would drive the domain behind Apply's back, past the clone (P4), past the catch-up,
+            // past the RNG fold and past the event stamping, and every claim the harness makes about
+            // "the rules decided this" would be a claim about the harness instead. Nothing else
+            // catches that: Handlers_and_Rules_are_internal is about ACCESSIBILITY, and internal is
+            // exactly what those types are TO this namespace.
+            //
+            // 🔴 WHAT THIS ROW DOES NOT CLOSE, and an earlier draft of this comment denied it. The
+            // row permits `Testing -> Model`, and it MUST: 30 §11.3 makes Player.Rehydrate the one
+            // validated construction path and CreatePlayer has to call it. But Player's mutators are
+            // `internal`, and Core/Testing/ is inside the assembly — so a harness calling
+            // player.AccrueEnergy(...), player.MoveCurrency(...) or player.MarkApplied(...) bypasses
+            // Apply just as completely as calling BeginSession.Handle would, and this row does not
+            // see it. What this row closes is the half that is NAMESPACE-DECIDABLE; the rest rests on
+            // InMemoryGame declaring no such door (it declares none — no Restore, no setter, no
+            // internal mutator call) and on review. The one mechanical backstop that does reach it is
+            // DomainPurityTests.A_currency_event_is_never_discarded_at_its_call_site, which sees a
+            // CurrencyChanged dropped by a caller in Testing/ like any other.
+            //
+            // ⚠️ AND A KNOWN TENSION WITH 30 §11.2, which is why the `Rules` half is stated as
+            // settled-for-now rather than settled. §11.2 makes CombatSimulator public precisely
+            // because "the balance harness calls it directly (05 §9)", and 30 §6 makes that balance
+            // harness a thin wrapper over InMemoryGame. Today the two are different things — the
+            // harness is a tools/ project outside Core, so this row cannot reach it — but a future
+            // Core/Testing/ type that wanted CombatSimulator would be doing something 30 §11.2
+            // explicitly sanctions and this row forbids wholesale. OWNER: the M6 kickoff, which is
+            // where 05 §9's harness is built. The fix if it lands is narrow — exempt
+            // Domain.PublicRuleTypes for this layer — and it is written here so it is a decision
+            // rather than a surprise.
+            (Domain.TestingNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace }),
         };
 
         var offenders = new List<string>();
@@ -264,11 +346,62 @@ public sealed class AccessibilityBoundaryTests
             }
         }
 
+        // 🔒 M1-11 — AND THE ROOT ITSELF MUST NOT NAME THE HARNESS. This is the one direction the
+        // table above structurally cannot express: `Testing` was added to every layer's forbidden
+        // list, but the SlayIdleRepeat.Core root has no Layer row (its outbound direction is
+        // legitimate — the root is the top of the chain and reaches down by design), so
+        // `GameRules -> InMemoryGame` was matched by nothing in either direction. That is the
+        // sharpest cycle available in this assembly: InMemoryGame CALLS GameRules.Apply, so a root
+        // type naming the harness closes a loop between the transition function and the thing that
+        // exists to drive it — and it would additionally put a test artefact in the production call
+        // graph of every command. Measured before this check: a `typeof(InMemoryGame)` field added to
+        // GameRules passed 63/63.
+        //
+        // ⚠️ Written as its own loop rather than as a `(CoreNamespace, [TestingNamespace])` row,
+        // because Domain.CoreTypesUnder matches by PREFIX and that row would select every type in
+        // the assembly — including the harness itself, which would then be forbidden from naming its
+        // own namespace. IsCoreRootType is the exact-match predicate the loop above already uses.
+        foreach (var type in Domain.CoreTypes.Where(t => IsCoreRootType(t.FullName)))
+        {
+            offenders.AddRange(
+                Il.ReferencedTypeNames(type)
+                    .Where(r => Il.IsUnder(NamespaceOfReference(r), Domain.TestingNamespace))
+                    .Select(referenced =>
+                        $"{type.FullName} (in the {Domain.CoreNamespace} root) references {referenced}, which " +
+                        $"is in {Domain.TestingNamespace}. 30 §6's harness DRIVES the root — InMemoryGame " +
+                        "calls GameRules.Apply — so a root type naming it closes a cycle between the " +
+                        "transition function and the thing that exists to exercise it, and puts a test " +
+                        "artefact in the production call graph of every command. Testing sits at the TOP of " +
+                        "30 §11.4's chain: it names the root, the root does not name it."));
+        }
+
         ArchRule.Empty(
             offenders,
-            "Core's internal layering holds: Handlers -> Rules -> Model -> Content -> Primitives, Commands " +
-            "names nothing above it, and Primitives, Content, Rng, Events, Commands and Model never reach " +
-            "up into the SlayIdleRepeat.Core root (30 §11.4).");
+            "Core's internal layering holds: Testing -> Handlers -> Rules -> Model -> Content -> Primitives, " +
+            "Commands names nothing above it, the 30 §6 harness under Testing/ names neither Rules nor " +
+            "Handlers (it drives the domain through GameRules.Apply alone) and nothing beneath it — root " +
+            "included — names the harness, and Primitives, Content, Rng, Events, Commands and Model never " +
+            "reach up into the SlayIdleRepeat.Core root (30 §11.4, 30 §6, 30 §11.2).");
+    }
+
+    /// <summary>
+    /// The namespace part of a Cecil type name — <c>SlayIdleRepeat.Core.Testing</c> for
+    /// <c>SlayIdleRepeat.Core.Testing.InMemoryGame</c> and for its nested
+    /// <c>…InMemoryGame/PlayerSession</c>.
+    /// </summary>
+    /// <remarks>
+    /// A nested type is spelled <c>Namespace.Outer/Nested</c>, so the outer name is taken first and
+    /// the namespace is what precedes its last dot. Written out rather than done with a
+    /// <c>StartsWith(ns + ".")</c> because that would match a future
+    /// <c>SlayIdleRepeat.Core.TestingSupport</c> as well, which is the prefix trap
+    /// <c>Domain.IsPermittedCoreNamespace</c> documents.
+    /// </remarks>
+    private static string NamespaceOfReference(string typeFullName)
+    {
+        var outer = typeFullName.Split('/')[0];
+        var lastDot = outer.LastIndexOf('.');
+
+        return lastDot < 0 ? string.Empty : outer[..lastDot];
     }
 
     /// <summary>
@@ -331,13 +464,27 @@ public sealed class AccessibilityBoundaryTests
     /// `Handlers`, `Testing`, or the `SlayIdleRepeat.Core` root that holds `GameRules`.
     /// </summary>
     /// <remarks>
-    /// <c>Core_internal_layering_holds</c> works from a fixed five-row table of forbidden
-    /// pairs, so a type under a namespace that appears in no row is matched by nothing at
-    /// all — not permitted, not forbidden, simply ungoverned, with the layering rule still
-    /// green. (This is the hole M0-07 reasoned about when it placed
-    /// <c>CanonicalStateWriter</c> under <c>Model/Snapshots/</c>; the judgement was right and
-    /// the hole stayed open.) Vacuously true today, which is the point: it costs nothing now
-    /// and makes the next <c>Core/Foo/</c> a build failure rather than a silent new region.
+    /// <para>
+    /// <c>Core_internal_layering_holds</c> works from a fixed table of forbidden pairs, so a
+    /// type under a namespace that appears in no row is matched by nothing at all — not
+    /// permitted, not forbidden, simply ungoverned, with the layering rule still green. (This
+    /// is the hole M0-07 reasoned about when it placed <c>CanonicalStateWriter</c> under
+    /// <c>Model/Snapshots/</c>; the judgement was right and the hole stayed open.) Naming the
+    /// permitted set instead makes the next <c>Core/Foo/</c> a build failure rather than a
+    /// silent new region.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Two facts in the sentence above have been corrected rather than left to rot</b>
+    /// (steering <b>S4</b>'s known limit, which this milestone keeps hitting). The table is not
+    /// <b>five</b> rows — M1-06 added the <c>Commands</c> row and M1-11 the <c>Events</c> and
+    /// <c>Testing</c> rows — and the count is deliberately <em>not</em> restated as a number here,
+    /// because a number in prose beside the thing it counts is a number that goes stale silently.
+    /// Read the table. And this rule is no longer <b>vacuously true</b>:
+    /// it was, while <c>Core</c> held no types, and it has quantified over real ones since
+    /// M0-06. <c>Core/Testing/</c> is the newest region it governs, and it is the sharpest case
+    /// the closed list has had — a directory named <em>Testing</em> inside the <em>production</em>
+    /// assembly (`30` §11.4), holding `30` §6's harness, whose every reference ships.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_Core_type_lives_under_a_documented_namespace()
