@@ -305,9 +305,12 @@ public sealed class AccessibilityBoundaryTests
               .Where(t => (t.IsPublic || t.IsNestedPublic) && !Domain.IsCompilerGenerated(t));
 
     /// <summary>An <c>init</c> accessor is a construction-time setter, not a mutation surface.</summary>
-    private static bool IsInitOnly(MethodDefinition setter) =>
-        setter.ReturnType is RequiredModifierType modifier &&
-        modifier.ModifierType.FullName == "System.Runtime.CompilerServices.IsExternalInit";
+    /// <remarks>
+    /// Delegates to <see cref="Il.IsInitOnlySetter"/> rather than repeating the modifier check:
+    /// <c>DomainPurityTests</c> asks the same question of the same metadata, and two spellings of
+    /// it would eventually disagree about a record (steering S4).
+    /// </remarks>
+    private static bool IsInitOnly(MethodDefinition setter) => Il.IsInitOnlySetter(setter);
 
     /// <summary>
     /// A public method that writes an instance or static field of the type it is declared

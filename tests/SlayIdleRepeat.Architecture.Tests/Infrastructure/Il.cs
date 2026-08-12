@@ -39,6 +39,23 @@ internal static class Il
     /// <summary>Every method, constructor and accessor declared on a type.</summary>
     internal static IEnumerable<MethodDefinition> AllMethods(TypeDefinition type) => type.Methods;
 
+    /// <summary>
+    /// True for an <c>init</c> accessor — a setter the language will only let a caller invoke
+    /// while an object is being constructed.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Detected by the <c>IsExternalInit</c> required modifier on the setter's return type,
+    /// which is the only place <c>init</c> exists in metadata. One definition for the repository
+    /// (steering S4): <c>AccessibilityBoundaryTests</c> asks the question to decide whether a
+    /// public setter is a mutation surface, and <c>DomainPurityTests</c> asks it to decide whether
+    /// a write to a currency field is construction. Two spellings of "is this an init accessor?"
+    /// would eventually disagree, and one of the two rules would then be wrong about a record.
+    /// </remarks>
+    internal static bool IsInitOnlySetter(MethodDefinition method) =>
+        method.IsSetter &&
+        method.ReturnType is RequiredModifierType modifier &&
+        modifier.ModifierType.FullName == "System.Runtime.CompilerServices.IsExternalInit";
+
     /// <summary>The IL instructions of a method, or nothing when it has no body (abstract, extern, interface).</summary>
     internal static IEnumerable<Instruction> Instructions(MethodDefinition method) =>
         method.HasBody ? method.Body.Instructions : Enumerable.Empty<Instruction>();

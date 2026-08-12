@@ -97,6 +97,29 @@ internal static class UnsupportedSnapshots
         public int RevivesUsed { get; init; }
     }
 
+    /// <summary>
+    /// 🔴 A positional record carrying a public <b>field</b> outside its primary constructor — the
+    /// same defect as <see cref="WithPropertyOutsideTheConstructor"/> through a door M0-07 left
+    /// open.
+    /// </summary>
+    /// <remarks>
+    /// <c>CanonicalProperties</c> compared <c>GetProperties()</c> against the parameter list and
+    /// never looked at <c>GetFields()</c>, so this shape — <c>public int RevivesUsed;</c>, one
+    /// keyword-pair away from the record above and the first thing a hand-written DTO reaches for —
+    /// was accepted as a canonical record and its field contributed <b>zero bytes</b>.
+    /// <c>{ RevivesUsed = 0 }</c> and <c>{ RevivesUsed = 99 }</c> shared a <c>stateHash</c> while
+    /// record equality correctly reported them different, and the <c>SchemaVersion</c> field-order
+    /// pin never saw the field at all. Latent since M0-07 and harmless only while no snapshot
+    /// record existed; M1-04 authors the first one, so M1-04 closes it.
+    /// </remarks>
+    internal sealed record WithPublicField(int SchemaVersion, int ChapterId)
+    {
+        /// <summary>The public field the writer must refuse rather than silently drop.</summary>
+#pragma warning disable CA1051, SA1401 // A public field is the defect under test.
+        public int RevivesUsed;
+#pragma warning restore CA1051, SA1401
+    }
+
     /// <summary>A record that contains itself, so a naive descent never terminates.</summary>
     internal sealed record SelfReferencing(int Depth, SelfReferencing? Next);
 

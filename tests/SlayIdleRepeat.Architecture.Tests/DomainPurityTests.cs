@@ -300,6 +300,95 @@ public sealed class DomainPurityTests
     }
 
     /// <summary>
+    /// 🔒 `30` §7 / `30` §9 — the teeth of the <c>init</c>-accessor clause in
+    /// <see cref="IsRehydrationOrConstruction"/>. It must cover a record's compiler-generated
+    /// <c>init</c> setter and <b>nothing else</b>, or M1-04's wallet has just bought every
+    /// currency mutation in the game an exemption.
+    /// </summary>
+    /// <remarks>
+    /// The negative half is the point, and it is driven against real IL: an author-written method
+    /// that writes a currency field is still caught, and so is an ordinary <c>set</c> accessor —
+    /// which is what stops "make it an ordinary property" from being the workaround.
+    /// </remarks>
+    [Fact]
+    public void The_construction_exemption_covers_a_records_init_accessor_and_nothing_else()
+    {
+        var snapshotLike = Il.AllTypes(OwnModule.Value)
+            .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures.SnapshotLike), StringComparison.Ordinal));
+
+        var init = snapshotLike.Methods.Single(m => m.Name.Equals("set_Wallet", StringComparison.Ordinal));
+
+        Assert.True(
+            Il.IsInitOnlySetter(init),
+            "a positional record's component compiles to an init accessor. If this is false the " +
+            "detection is looking for the wrong metadata and the clause below exempts nothing.");
+
+        Assert.True(
+            IsRehydrationOrConstruction(init),
+            "a record's compiler-generated init accessor is construction: C# admits a call to one " +
+            "only while an object is being built. Without this, PlayerSnapshot's own wallet " +
+            "component fails Every_currency_mutation_emits_CurrencyChanged.");
+
+        Assert.False(
+            IsRehydrationOrConstruction(Fixture(nameof(CurrencyEmissionFixtures.MutatesWithoutEmitting))),
+            "an ordinary method that writes a currency field is NOT construction. If this is true " +
+            "the rule is exempting the very shape it exists to catch.");
+
+        var ordinary = snapshotLike.Methods.Single(m => m.Name.Equals("set_Loose", StringComparison.Ordinal));
+
+        Assert.False(
+            Il.IsInitOnlySetter(ordinary),
+            "an ordinary `set` accessor is not an init accessor. If this is true, turning an init " +
+            "into a settable property is a free exemption.");
+
+        Assert.False(
+            IsRehydrationOrConstruction(ordinary),
+            "…and it is therefore not construction either.");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.4 — the teeth of <see cref="Domain.IsCompilerGenerated(TypeDefinition)"/>
+    /// walking out to its outermost declaring type.
+    /// </summary>
+    /// <remarks>
+    /// The compiler marks <c>&lt;PrivateImplementationDetails&gt;</c> and does not mark the
+    /// <c>__StaticArrayInitTypeSize=N</c> types nested in it, so before the walk the first
+    /// <c>Core</c> static array initialiser made
+    /// <c>Every_Core_type_lives_under_a_documented_namespace</c> fail over a type no author wrote.
+    /// Driven against this assembly's own metadata, which has the same shape for the same reason.
+    /// </remarks>
+    [Fact]
+    public void The_compiler_generated_predicate_reaches_a_type_nested_in_a_generated_one()
+    {
+        // Driven against SlayIdleRepeat.Core itself, which is where the shape actually occurs:
+        // Player.WalletCurrencies compiles to a static array initialiser, and that is what emits
+        // <PrivateImplementationDetails> and the __StaticArrayInitTypeSize=N nested inside it.
+        var details = Domain.CoreTypes
+            .SingleOrDefault(t => t.Name.Equals("<PrivateImplementationDetails>", StringComparison.Ordinal));
+
+        Assert.NotNull(details);
+        Assert.NotEmpty(details!.NestedTypes);
+        Assert.True(Domain.IsCompilerGenerated(details!), "the container itself carries the attribute");
+
+        foreach (var nested in details!.NestedTypes)
+        {
+            Assert.False(
+                Domain.IsCompilerGenerated((ICustomAttributeProvider)nested),
+                $"{nested.Name} does NOT carry [CompilerGenerated] itself — that is the whole reason " +
+                "the predicate has to walk outwards. If this ever becomes true the walk is untested.");
+
+            Assert.True(
+                Domain.IsCompilerGenerated(nested),
+                $"{nested.Name} is nested inside a compiler-generated type, so no author wrote it " +
+                "and no author can move it out of namespace ''.");
+        }
+
+        Assert.False(
+            Domain.IsCompilerGenerated(Require(Domain.CurrencyChangedEvent)),
+            "an author-written type is not compiler-generated, walk or no walk.");
+    }
+
+    /// <summary>
     /// 🔒 `30` §9 — the load-bearing test. `InMemoryGame`'s assembly closure is exactly
     /// { `SlayIdleRepeat.Core`, `System.*` }: the whole game is playable from `Core` alone,
     /// with no Application, no ports, no fakes, no adapters (`30` §6).
@@ -430,8 +519,39 @@ public sealed class DomainPurityTests
         }
     }
 
+    /// <summary>
+    /// Construction and rehydration, which rebuild state rather than move currency (`30` §11.3).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The <c>init</c>-accessor clause, and why it is not a widening of the rule.</b> A
+    /// positional record compiles each component to a compiler-generated <c>init</c> setter, and
+    /// M1-04's <c>PlayerSnapshot</c> carries the wallet as
+    /// <c>IReadOnlyDictionary&lt;CurrencyId, long&gt;</c> — so <c>set_Wallet</c> writes a
+    /// currency-carrying field, is not a constructor, and is not named <c>Rehydrate</c>. The rule
+    /// fired on it the moment the first snapshot record existed, exactly as
+    /// <c>SubjectSetFloorTests</c> predicted it would for <c>CurrencyChanged.set_Id</c>.
+    /// </para>
+    /// <para>
+    /// It is <b>construction</b> by the language's own definition: C# permits a call to an
+    /// <c>init</c> accessor only while an object is being constructed — a constructor, an object
+    /// initialiser, or a <c>with</c> expression, all of which produce a <i>new</i> instance rather
+    /// than moving a balance. So this clause says the same thing <c>method.IsConstructor</c>
+    /// already says, about the other half of how a record is built. `30` §11.3's DTOs are the
+    /// documented exemption in <c>Apply_is_the_only_public_mutation</c> for the same reason.
+    /// </para>
+    /// <para>
+    /// ⚠️ Kept as narrow as the metadata allows: <b>compiler-generated</b> and <b><c>init</c>-only</b>,
+    /// both. An author-written <c>init</c> body, or an ordinary <c>set</c>, is not exempt — and
+    /// neither is any method that merely happens to write a currency field. Proven by
+    /// <see cref="The_construction_exemption_covers_a_records_init_accessor_and_nothing_else"/>,
+    /// and the rule is proven still live on real production code by removing the emission from
+    /// <c>Player.MoveBalance</c>, which turns the build red naming that method and that field.
+    /// </para>
+    /// </remarks>
     private static bool IsRehydrationOrConstruction(MethodDefinition method) =>
         method.IsConstructor ||
+        (Domain.IsCompilerGenerated(method) && Il.IsInitOnlySetter(method)) ||
         method.Name.Equals("Rehydrate", StringComparison.Ordinal) ||
         method.Name.Equals("FromSnapshot", StringComparison.Ordinal);
 
@@ -545,5 +665,34 @@ public sealed class DomainPurityTests
         /// non-public, so it is outside every real subject set in the repository.
         /// </summary>
         internal sealed record DerivesButIsMisplaced(int Sequence) : DomainEvent(Sequence);
+
+        /// <summary>
+        /// Writes a currency-carrying field from an ordinary method and emits nothing — the shape
+        /// <see cref="IsRehydrationOrConstruction"/>'s new <c>init</c> clause must NOT exempt.
+        /// </summary>
+        /// <remarks>
+        /// It lives here rather than in `Core` because it is a violation, and a violation is never
+        /// committed to the domain to prove a rule works. The field is named for the wallet so
+        /// <c>CurrencyFields()</c> recognises it by both halves of its predicate.
+        /// </remarks>
+        internal static void MutatesWithoutEmitting() => Loose.WalletBalance = 1;
+
+        /// <summary>The static currency field <see cref="MutatesWithoutEmitting"/> writes.</summary>
+        internal static class Loose
+        {
+            /// <summary>A balance, in a field the rule's predicate recognises.</summary>
+            internal static long WalletBalance { get; set; }
+        }
+
+        /// <summary>
+        /// A positional record shaped like <c>PlayerSnapshot</c> — a compiler-generated <c>init</c>
+        /// accessor over a <c>CurrencyId</c>-keyed map — beside an ordinary settable property, so
+        /// the exemption can be shown to cover the first and not the second.
+        /// </summary>
+        internal sealed record SnapshotLike(IReadOnlyDictionary<CurrencyId, long> Wallet)
+        {
+            /// <summary>An ordinary <c>set</c> accessor: not an init, and therefore not construction.</summary>
+            internal long Loose { get; set; }
+        }
     }
 }
