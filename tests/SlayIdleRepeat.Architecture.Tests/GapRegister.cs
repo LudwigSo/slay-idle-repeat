@@ -350,6 +350,29 @@ internal static class GapRegister
             "first fixes the seed's consumption order for the other, and taking them in one change is " +
             "the cheaper reading. This entry also needs a 14 §8.1 stream row that does not exist."),
 
+        // ---------------------------------------------------------------- M1-09, 19 Part G
+        //
+        // 19 G authors the 28-day login calendar in two halves, and M1-09 built exactly one of them.
+        // BUILT: the ADVANCEMENT RULE — Player.LoginCalendarDay + LoginCalendarDayClaimed, advanced by
+        // Handlers/BeginSession at most once per game day and only on a claimed day, wrapping on
+        // LoginCalendarTuning.CycleDays. Not deferred below, because it exists.
+        // DEFERRED: the PAYOUT, which is the entry that follows.
+
+        new("LoginCalendarRewards", "M4-09", "ContainerClass",
+            "19 G's 28 reward rows. M1-09 advances the calendar's POINTER and never pays out — 30 §2.3 " +
+            "is explicit that 'claims stay explicit commands' and 19 G puts the payout on " +
+            "CLAIM_CALENDAR, whose dispatch row is Deferred to M4-09. The rows are authored as 📐 " +
+            "tunables in currencies.json#/loginCalendar/days and are read by NOTHING today: " +
+            "LoginCalendarTuning reads cycleDays and deliberately leaves the table alone, which is a " +
+            "deferral rather than an oversight and needs something to expire it. Keyed on " +
+            "ContainerClass — the SAME predicate as ContainerShelf, deliberately, for the reason " +
+            "PendingFork shares Board's: three of the 28 rows are containers (day 7 and 21 Pet Eggs, " +
+            "day 14 and 28 CHEST_PREMIUM chests, 24 §3), so the table genuinely cannot be paid before " +
+            "that vocabulary exists, and pointing this at a different type to make the register look " +
+            "more granular would buy silence with a predicate that does not describe the reason. " +
+            "⚠️ Day 26 is 'Full Energy refill' and day 5/12/19 are flat Energy, both of which M1-10's " +
+            "EnergyMath can already pay — but a table that can pay four of its rows is not a table."),
+
         new("EventWindow", "M13-01", "EventDefinition",
             "30 §2.3 lists 'event-window state' among the boundaries catch-up rolls forward, and 26 §4 " +
             "authors the windows themselves — start, end, membership, the per-event feature flag and " +
@@ -391,6 +414,21 @@ internal static class GapRegister
     /// not chosen is the invention S6 forbids, dressed as bookkeeping. <b>M4-05 owns closing
     /// this</b>: it is the first task that touches enough of `30` §4's row (inventory capacity) to
     /// know what those types are called.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>M1-09 added persisted <c>Player</c> state that `30` §4's row does not enumerate, and
+    /// that is a doc contradiction carried forward (steering S16) rather than a transcription
+    /// error.</b> `19` Part G's login calendar is now two fields on the aggregate —
+    /// <c>LoginCalendarDay</c> and <c>LoginCalendarDayClaimed</c> — and §4's contents row does not
+    /// mention a calendar at all, because §4 was written against `30`'s own inventory and the calendar
+    /// is `19`'s. So the arithmetic above ("eighteen things … ten genuinely absent") is no longer the
+    /// whole aggregate, and the honest statement is that <b>aggregate state can arrive from a document
+    /// other than `30` §4</b>. Two ways to settle it and both are a ruling, not an edit: amend §4's
+    /// row to name the calendar, or amend §4 to say the row is `30`'s contribution rather than the
+    /// closed list. <b>OWNER: M4-05</b>, which already owns closing the five-type gap above and is the
+    /// first task that has to make this arithmetic exact; it will otherwise find the row no longer
+    /// matches the aggregate and have no ruling to apply. Nothing here can decide it, which is why it
+    /// is written where the next reader of the arithmetic will be standing.
     /// </para>
     /// <para>
     /// ⚠️ <b>The third entry is a transcription of a fragment too, and the arithmetic is stated so a
@@ -585,6 +623,33 @@ internal static class GapRegister
             "QuestSlate",
             "DailyShopStock",
             "EventWindow",
+        }),
+
+        // 🔒 M1-09, `19` PART G — and this is a FRAGMENT, with the arithmetic written out for the
+        // reason the two aggregate-contents rows above are fragments: most of what Part G enumerates
+        // is a RULE rather than a type name.
+        //
+        // BUILT (M1-09, and therefore not deferred):
+        //   · the ADVANCEMENT rule — "at BEGIN_SESSION, not by date; at most once per game day, and
+        //     only when the currently open day has been claimed; a missed or unclaimed day pauses the
+        //     calendar" — Player.LoginCalendarDay + Player.LoginCalendarDayClaimed, advanced by
+        //     Handlers/BeginSession through Player.AdvanceLoginCalendar.
+        //   · the CYCLE — "after day 28 it restarts at day 1" — LoginCalendarTuning.DayAfter over
+        //     currencies.json#/loginCalendar/cycleDays.
+        //
+        // RULED OUT OF THIS TASK, with an owner rather than ruled off:
+        //   · CLAIMING. 30 §2.3: "claims stay explicit commands". It is CLAIM_CALENDAR's, whose
+        //     DISPATCH ROW carries the deferral (M4-09) — a per-command entry here is unrepresentable,
+        //     because Expired's second arm fires on a Subject that Core already declares and M1-02
+        //     authored ClaimCalendarCommand.
+        //   · SCALING (chapterScalar) and the LUCK CLASSES (EGG_PET / CHEST_PREMIUM / CHEST_STANDARD)
+        //     ride the reward rows and are deferred inside LoginCalendarRewards rather than beside
+        //     it, the same way the armed Escape Rope flag is deferred inside HeldConsumables.
+        //
+        // GENUINELY ABSENT AND TYPE-SHAPED — the reward table, and only that.
+        new("19 G (the 28-day login calendar — the payout half)", Domain.ModelNamespace, new[]
+        {
+            "LoginCalendarRewards",
         }),
     };
 

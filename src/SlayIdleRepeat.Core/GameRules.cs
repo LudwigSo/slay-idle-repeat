@@ -5,6 +5,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Handlers;
 using SlayIdleRepeat.Core.Model;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Economy;
@@ -362,6 +363,21 @@ public static class GameRules
         // about what catch-up may touch, not about where this line sits.
         var committedPositions = working.Run?.RngStreamPositions;
 
+        // 🔒 THE WHOLE RUN, not only its counters, and only for a META command. M1-09's architecture
+        // review found the hole the instant Core/Handlers/ had an occupant: a CommandKind.Meta
+        // command is dispatched perfectly happily with a run in the slice, HandlerInput.Run hands it
+        // that run, and FoldRngPositions guards ONLY the 14 §8.1 stream positions — so Gold, HP,
+        // Position and the per-run ad uses were writable by a handler that has no business in the run
+        // at all, and Apply would return the mutated run with 14 §16.3's TTL deliberately NOT
+        // stamped (see MarkApplied). A shop visit could have quietly moved a run's Gold and left the
+        // run looking untouched since its last real command.
+        //
+        // ⚠️ A snapshot rather than a reference: Run is a class with internal mutators, so holding
+        // the aggregate would compare it against itself. RunSnapshot is a record, so this is one
+        // ToSnapshot() and one value comparison — measured against the two full round trips Clone
+        // already pays per command, and only on the meta commands that carry a run at all.
+        var untouchedRun = registration.Kind == CommandKind.Meta ? working.Run?.ToSnapshot() : null;
+
         var handled = registration.IsHandled
             ? registration.Handler!(command, new HandlerInput(working, context, rng))
 
@@ -389,7 +405,17 @@ public static class GameRules
             return CommandResult.Reject(handled.Rejection!.Value, state);
         }
 
+        // 🔒 THE ORDER IS DELIBERATE AND IT IS A STEERING-S2 DECISION. A meta handler that
+        // hand-wrote a stream position trips BOTH checks — a position is part of the run's snapshot —
+        // and the two messages send the reader to different places: one says "draw through
+        // HandlerInput.Rng and write nothing", the other says "this command has no business in the
+        // run at all". The narrower diagnosis is the more useful one, so it runs first. Measured:
+        // putting the ownership check first turned
+        // GameRulesRngTests.A_meta_handler_that_hand_writes_a_stream_position_is_a_defect_too red,
+        // which is exactly the "several rules can produce this, pin WHICH one fired" shape S2 is
+        // about — the test was right and the ordering was wrong.
         FoldRngPositions(committedPositions, working.Run, rng, registration);
+        RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
         return CommandResult.Accept(working, Stamp(Combine(caughtUp, handled.Events)));
@@ -658,6 +684,61 @@ public static class GameRules
         // 4 · Plus expiry — NOTHING, and that is a ruling. See the remarks.
         // 5 · the Run — NOTHING, deliberately. See the remarks.
         return events;
+    }
+
+    /// <summary>
+    /// 🔒 A <c>CommandKind.Meta</c> command may <b>read</b> the run it was handed and may not
+    /// <b>write</b> it — at all, not merely its `14` §8.1 counters.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Why this is separate from <see cref="FoldRngPositions"/> rather than folded into it.</b>
+    /// That check answers "did the handler hand-write a stream position", which is a determinism
+    /// question and applies to <em>both</em> kinds. This one answers "did a command that is not part
+    /// of this run change it", which is an <b>ownership</b> question and applies to meta commands
+    /// only. Before M1-09 the hole was unreachable — the production table held no handler — and the
+    /// two questions could look like one. They are not: a run command legitimately writes Gold, HP
+    /// and position on every turn.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The consequence it closes, stated so the cost is judged against something.</b>
+    /// <see cref="MarkApplied"/> deliberately does <em>not</em> stamp the run on a meta command —
+    /// that asymmetry is why M1-05 put a second <c>LastAppliedAtUtc</c> on <c>Run</c>, so a player
+    /// cannot hold a run open by opening the shop. A meta handler that wrote the run would therefore
+    /// produce a run whose state had changed and whose `14` §16.3 timestamp said nothing had
+    /// happened, and the next reader would have no way to tell which command did it.
+    /// </para>
+    /// <para>
+    /// ⚠️ A <b>defect</b> rather than a rejection, exactly as the hand-written-position case is: a
+    /// <c>RejectionReason</c> would hand the player a polite "no" and leave the corrupted run in
+    /// place.
+    /// </para>
+    /// </remarks>
+    /// <param name="untouched">
+    /// The run's snapshot as it stood before the handler, or <c>null</c> for a run command (which may
+    /// write) or a slice with no run (which has nothing to write).
+    /// </param>
+    /// <param name="working">The run the handler was given, or <c>null</c> when the slice carries none.</param>
+    /// <param name="registration">The dispatch row, for the message.</param>
+    private static void RequireRunUntouched(
+        RunSnapshot? untouched, Run? working, CommandRegistration registration)
+    {
+        if (untouched is null || working is null || untouched == working.ToSnapshot())
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "The handler for '" + registration.WireName + "' is a CommandKind.Meta command and it " +
+            "WROTE THE RUN it was handed. 14 §2.3 splits the registry 19 run / 30 meta, and a meta " +
+            "command acts OUTSIDE a run: it is dispatched with one in the slice because a player can " +
+            "open the shop without leaving, and HandlerInput.Run hands it that run to READ. Writing " +
+            "it is an ownership defect, and a silent one — Apply deliberately does not stamp " +
+            "Run.LastAppliedAtUtc for a meta command (M1-05's second timestamp exists so a meta " +
+            "command cannot keep a run alive), so the run would come back changed while its own " +
+            "14 §16.3 timestamp said nothing had happened to it, and no later reader could tell which " +
+            "command did it. If the command genuinely acts inside the run, its dispatch row is " +
+            "classified CommandKind.Meta and should not be.");
     }
 
     /// <summary>

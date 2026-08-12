@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Tests.Model;
 using SlayIdleRepeat.TestSupport;
@@ -227,6 +228,126 @@ public sealed class BeginSessionDrawSeamTests
             "30 §3 puts out-of-run draws on GameContext.CommandSeed with NO persisted counter. A meta " +
             "command that moved a run stream would consume a draw the run can never see again, and " +
             "the run would replay differently for the rest of its life with nothing going red.");
+    }
+
+    /// <summary>
+    /// 🔒 A <c>CommandKind.Meta</c> handler that writes the run <b>at all</b> is a defect — not only
+    /// one that moves its `14` §8.1 counters.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Found by M1-09's architecture review, and it is the "what can a future handler do that
+    /// nothing would catch" question answered.</b> Until <c>Core/Handlers/</c> had an occupant the
+    /// hole was unreachable, and <c>FoldRngPositions</c> guards <em>only</em> the stream positions —
+    /// its own message says a meta command "may READ the run it was handed mid-run and must never
+    /// move its counters", which left Gold, HP, Position and the per-run ad uses writable. Worse
+    /// silently: <c>MarkApplied</c> deliberately does not stamp <c>Run.LastAppliedAtUtc</c> for a meta
+    /// command, so the run would have come back changed while its own `14` §16.3 timestamp said
+    /// nothing had happened to it.
+    /// </para>
+    /// <para>
+    /// ⚠️ Driven through the <c>internal</c> <c>GameRules.Execute</c> door with a fixture handler,
+    /// because the shape must <b>never</b> be committed to the production table — the same
+    /// construction <c>GameRulesRngTests</c> uses for the hand-written-position case, and the reason
+    /// <c>Execute</c> takes its table as a parameter at all.
+    /// </para>
+    /// <para>
+    /// 🔒 The message is pinned, not just the type (steering <b>S2</b>): a meta handler that wrote a
+    /// stream position trips the <em>other</em> guard, and the two send a reader to different files.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_meta_handler_that_writes_the_run_is_a_defect()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => GameRules.Execute(
+            Worlds.MetaTable((_, input) =>
+            {
+                // Not a counter — run Gold, which nothing else was watching.
+                input.Run.MoveCurrency(CurrencyId.GOLD, 500, "a_meta_command_had_no_business_here");
+                return HandlerResult.Accept();
+            }),
+            Worlds.InARun(),
+            new Worlds.MetaFixtureCommand(),
+            Worlds.Context));
+
+        thrown.Message.ShouldMatchWildcard("*CommandKind.Meta*WROTE THE RUN*");
+        thrown.Message.ShouldContain(
+            "ownership defect",
+            Case.Sensitive,
+            "…and it is named as an OWNERSHIP defect rather than a determinism one, because the " +
+            "hand-written-position guard already owns the determinism half and the fixes differ.");
+    }
+
+    /// <summary>
+    /// 🔒 …and a meta handler that only <b>reads</b> the run is fine, so the guard above is not
+    /// "a meta command may not be handed a run".
+    /// </summary>
+    /// <remarks>
+    /// The negative case, and it is load-bearing: `14` §2.3 dispatches meta commands with a run in
+    /// the slice on purpose — a player can open the shop without leaving — and a guard that refused
+    /// the <em>read</em> would make <c>HandlerInput.Run</c> unusable for the thing it exists for.
+    /// </remarks>
+    [Fact]
+    public void A_meta_handler_that_only_reads_the_run_is_fine()
+    {
+        long seenGold = -1;
+
+        var result = GameRules.Execute(
+            Worlds.MetaTable((_, input) =>
+            {
+                seenGold = input.Run.Gold;
+                return HandlerResult.Accept();
+            }),
+            Worlds.InARun(),
+            new Worlds.MetaFixtureCommand(),
+            Worlds.Context);
+
+        result.Accepted.ShouldBeTrue();
+        seenGold.ShouldBeGreaterThanOrEqualTo(0, "the handler really did read the run.");
+    }
+
+    /// <summary>
+    /// 🔒 A <c>CommandKind.Run</c> handler that reaches for the <b>meta</b> draw regime is a defect.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 The mirror of <c>HandlerInput.Rng</c>'s guard, and the second hole M1-09's architecture
+    /// review found. A run handler drawing from <c>GameContext.CommandSeed</c> would open streams at
+    /// index 0 with <b>no persisted counter</b>, and nothing else in the repository would notice:
+    /// <c>FoldRngPositions</c> looks for a <em>moved</em> position and would see none, and
+    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c> is satisfied because the
+    /// construction happens inside <c>Core/Rng/</c>. The run would replay differently for the rest of
+    /// its life with every suite green — the exact failure `14` §8.1's counter model exists to make
+    /// impossible.
+    /// </para>
+    /// <para>
+    /// ⚠️ The fixture context carries a seed, so the refusal below is about the <b>kind</b> and not
+    /// about a missing seed. Those are opposite defects with opposite fixes (steering <b>S2</b>) and
+    /// the messages are pinned apart.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_run_handler_that_reaches_for_the_meta_regime_is_a_defect()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => GameRules.Execute(
+            // ⚠️ The command parameter is named rather than discarded: `_` would bind the discard to
+            // the parameter, and `_ = input.MetaDraws` would then be an assignment to it.
+            Worlds.RunTable((Worlds.RunFixtureCommand command, HandlerInput input) =>
+            {
+                _ = command;
+                _ = input.MetaDraws;
+                return HandlerResult.Accept();
+            }),
+            Worlds.InARun(),
+            new Worlds.RunFixtureCommand(),
+            Worlds.Drawing(BeginSessions.Seed)));
+
+        thrown.Message.ShouldMatchWildcard("*CommandKind.Run*EXCLUSIVE*HandlerInput.Rng*");
+        thrown.Message.ShouldNotContain(
+            "MISWIRED COMPOSITION ROOT",
+            Case.Sensitive,
+            "this is a handler in the wrong regime, not a host that forgot the seed — the context " +
+            "here HAS one. Two defects, two fixes, two messages.");
     }
 
     /// <summary>

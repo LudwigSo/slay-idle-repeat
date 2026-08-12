@@ -244,6 +244,17 @@ public sealed class DomainPurityTests
     /// only stop callers <em>outside</em> the assembly; every caller this rule is about is inside it.
     /// </para>
     /// <para>
+    /// 🔒 <b>M1-09 landed the SECOND sanctioned construction site and the floor grew with it.</b>
+    /// <c>MetaDrawScope</c> is `14` §8.1's meta regime — <c>Hash64(CommandSeed, s, i)</c> from
+    /// <c>i = 0</c> with no persisted counter — and it is the <em>only</em> site of that regime. Both
+    /// names are asserted, because a floor naming one of two sanctioned sites is satisfied while the
+    /// other stops constructing anything at all, which is the <c>Run::_wallet</c> argument this file
+    /// makes about itself one rule up. ⚠️ The summary above still says "a handler draws through the
+    /// <c>RunRngScope</c> <c>Apply</c> hands it" — true of a <c>CommandKind.Run</c> handler and only
+    /// of one; a meta handler draws through <c>HandlerInput.MetaDraws</c>, which folds nothing back
+    /// because there is nothing to fold.
+    /// </para>
+    /// <para>
     /// 🔒 <b>The floor, pinned by identity</b> (steering S3). The subject set is "construction sites
     /// in <c>Core</c>", which becomes empty the moment the scope stops constructing one — at which
     /// point the rule would report success forever over a domain that had lost its only sanctioned
@@ -259,9 +270,17 @@ public sealed class DomainPurityTests
             .Where(ConstructsADeterministicRng)
             .ToArray();
 
+        // 🔒 BOTH sanctioned sites, by identity (steering S3). RunRngScope is 14 §8.1's run regime and
+        // MetaDrawScope is its meta one; a floor naming only the first stays satisfied while the
+        // second stops constructing anything at all, which is precisely the argument this file makes
+        // about Run::_wallet one rule up. Asserted separately so a failure names which one went.
         Assert.Contains(
             sites,
             m => m.DeclaringType.Name.Equals(Domain.RunRngScopeType, StringComparison.Ordinal));
+
+        Assert.Contains(
+            sites,
+            m => m.DeclaringType.Name.Equals(Domain.MetaDrawScopeType, StringComparison.Ordinal));
 
         var offenders = sites
             .Where(m => !Il.IsUnder(Il.NamespaceOf(m.DeclaringType), Domain.RngNamespace))

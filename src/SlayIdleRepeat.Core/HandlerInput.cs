@@ -125,12 +125,28 @@ internal sealed class HandlerInput
     /// answer the <em>same</em> scope: a fresh one per read would restart every stream at draw 0, and
     /// a handler that drew twice would get the same value twice with nothing to show for it.
     /// </para>
+    /// <para>
+    /// 🔒 <b>A <c>CommandKind.Run</c> command is refused outright, and that guard is the mirror of
+    /// <see cref="Rng"/>'s.</b> The two regimes are exclusive: a run command's draws are
+    /// <c>Hash64(runSeed, s, i)</c> off the run's <b>persisted</b> counters, which <c>Apply</c> folds
+    /// back, and `30` §3 forbids it a <c>CommandSeed</c> at all. A run handler that reached this
+    /// property would open streams at index 0 with <em>no persisted counter</em> — and nothing else
+    /// would notice: <c>GameRules.FoldRngPositions</c> compares positions to catch a
+    /// <em>hand-written</em> one and would see none moved, and
+    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c> is satisfied because the
+    /// construction is inside <c>Core/Rng/</c>. The run would then replay differently for the rest of
+    /// its life, exactly as if the handler had opened its own stream. ⚠️ Found by M1-09's
+    /// architecture review: this door did not exist before <c>Core/Handlers/</c> had an occupant, and
+    /// <c>CommandSeedPinTests</c> pins the <em>host</em> side of the pairing only — it says nothing
+    /// about a consumer.
+    /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// This command's <c>GameContext</c> carries no <c>CommandSeed</c>.
+    /// This is a <c>CommandKind.Run</c> command, or its <c>GameContext</c> carries no
+    /// <c>CommandSeed</c>.
     /// </exception>
     internal MetaDrawScope MetaDraws =>
-        _metaDraws ??= new MetaDrawScope(Context.CommandSeed ?? throw new InvalidOperationException(
+        _metaDraws ??= new MetaDrawScope(RequireMetaRegime() ?? throw new InvalidOperationException(
             "This command's GameContext carries no CommandSeed, so it cannot draw. 14 §8.1 and 30 §3 " +
             "run TWO regimes and this is the META one: an out-of-run draw is " +
             "Hash64(GameContext.CommandSeed, stream, i) from i = 0 with no persisted counter, and the " +
@@ -141,6 +157,32 @@ internal sealed class HandlerInput
             "a legitimate seed and not an absence. This is a MISWIRED COMPOSITION ROOT, not a player " +
             "asking for something they cannot have: fix the host that built the context. If the " +
             "command genuinely draws nothing, it should not be reading this."));
+
+    /// <summary>
+    /// 🔒 The <c>CommandSeed</c>, having established that this command is in the <b>meta</b> regime
+    /// at all — or <c>null</c> when there is no seed, which the caller turns into its own refusal.
+    /// </summary>
+    /// <remarks>
+    /// The two failures carry distinct messages on purpose (steering <b>S2</b>): "a run command
+    /// reached for the meta regime" and "a meta draw was handed no seed" are opposite defects with
+    /// opposite fixes — one is a handler in the wrong regime, the other a host that forgot the seed —
+    /// and a single message would send whoever hit it to the wrong file.
+    /// </remarks>
+    private ulong? RequireMetaRegime() =>
+        _rng is null
+            ? Context.CommandSeed
+            : throw new InvalidOperationException(
+                "This is a CommandKind.Run command and it may not draw from GameContext.CommandSeed. " +
+                "14 §8.1 runs TWO regimes and they are EXCLUSIVE: a run draw is " +
+                "Hash64(runSeed, stream, i) off the Run aggregate's committed seed and its PERSISTED " +
+                "per-stream counters, which Apply folds back so the counter always equals the number " +
+                "of draws taken. The meta regime has no counter at all — so drawing here would " +
+                "consume indices nothing records, Apply would fold the RunRngScope's unchanged " +
+                "positions back, and the run would replay differently for the rest of its life with " +
+                "nothing going red. 30 §3 additionally gives a run command NO CommandSeed, so this " +
+                "would draw from a seed the host is forbidden to send. Draw through HandlerInput.Rng. " +
+                "If the command genuinely acts outside a run, its dispatch row is classified " +
+                "CommandKind.Run and should not be.");
 }
 
 /// <summary>

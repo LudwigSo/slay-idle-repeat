@@ -82,6 +82,15 @@ internal static class Domain
     internal const string RunRngScopeType = "RunRngScope";
 
     /// <summary>
+    /// 🔒 The <b>second</b> sanctioned <c>DeterministicRng</c> construction site — `14` §8.1's meta
+    /// regime, landed by M1-09. Named for the same reason <see cref="RunRngScopeType"/> is: it is an
+    /// IDENTITY floor under <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c>, and a
+    /// count-only floor would stay satisfied by <c>RunRngScope</c> alone while the meta regime
+    /// stopped opening streams entirely.
+    /// </summary>
+    internal const string MetaDrawScopeType = "MetaDrawScope";
+
+    /// <summary>
     /// The two <c>Rules</c> types <c>30</c> §11.2 documents as public, each with a named
     /// external consumer: the client's local battle simulation (<c>14</c> §2.4) and the
     /// Hero screen's power readout (<c>29</c> §1).
