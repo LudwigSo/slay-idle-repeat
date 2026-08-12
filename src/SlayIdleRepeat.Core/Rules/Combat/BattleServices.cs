@@ -129,9 +129,12 @@ internal sealed class BattleServices
     /// <param name="amount">The authored ward, before the pool and per-source clips.</param>
     /// <param name="sourceCapPct">`18` §2.2's per-instance ceiling, or <c>null</c> where none is authored.</param>
     /// <param name="sourceEffectId">The `18` §8 id the segment carries.</param>
-    /// <param name="expiresAtTick">The tick the segment's timer runs out on.</param>
+    /// <param name="expiresAtTick">
+    /// The tick the segment's timer runs out on, or <c>null</c> for a segment with none — which is
+    /// every `05` §4.2 <c>SHIELD</c>, because <c>IAttackPipeline.GrantWard</c> carries no duration.
+    /// </param>
     internal void GrantWard(
-        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int expiresAtTick) =>
+        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int? expiresAtTick) =>
         _simulation.GrantWard(target, amount, sourceCapPct, sourceEffectId, expiresAtTick);
 
     /// <summary>

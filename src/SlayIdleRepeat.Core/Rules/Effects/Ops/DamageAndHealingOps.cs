@@ -142,6 +142,19 @@ internal static class DamageAndHealingOps
     /// </remarks>
     internal static double Shield(EffectDefinition effect, EffectOpContext context)
     {
+        // 🔴 M2-09 — `effect.Duration` IS DROPPED HERE, and the ward is permanent for the fight.
+        //
+        // `IAttackPipeline.GrantWard` carries no duration: M2-03 declared it that way, and M2-09
+        // deliberately did NOT widen it, because M2-10, M2-12 and M2-14 are all coding against the
+        // signature. `05` §4.1's segments do support `expiresAt?`, and the expiring form is reachable
+        // through `BattleServices.GrantWard` — but that is a BATTLE-layer route and this op layer
+        // holds only an EffectOpSeams, so an authored `SHIELD` cannot reach it.
+        //
+        // ⚠️ Consequence, stated where somebody debugging a shield that never ends will grep: a
+        // `SHIELD` with `duration: {seconds: 8}` grants a ward that lasts the whole fight. No shipped
+        // content authors one today, and ShieldDurationExpiryTests fails the day one does.
+        // Closing it needs `18` §6's duration bookkeeping, which is M2-06's evaluator driven by
+        // M2-10's slot-2 sweep; whoever wires that owns widening the seam.
         var total = 0.0;
         foreach (var target in OpTargets.Resolve(effect, context))
         {

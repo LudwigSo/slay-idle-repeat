@@ -63,11 +63,25 @@ internal sealed class CombatFlowState
     private readonly List<AttackMultiplierCharge> _attackMultipliers = new();
     private readonly List<DeathSave> _armedSaves = new();
     private readonly List<(double Multiplier, string SourceEffectId)> _damageTakenMultipliers = new();
-    private readonly List<(double Fraction, string SourceEffectId)> _thorns = new();
+    private readonly List<(double Fraction, string SourceEffectId, long Order)> _thorns = new();
     private readonly Dictionary<StatId, double> _percentBuckets = new();
     private readonly Dictionary<string, int> _saveFirings = new(StringComparer.Ordinal);
 
     private int _forcedCritCharges;
+
+    /// <summary>
+    /// 🔒 The total-order tie-break for <see cref="ThornsBonus"/> — a monotonic counter, on
+    /// <c>WardPool.WardSegment.GrantOrder</c>'s precedent and for its reason.
+    /// </summary>
+    /// <remarks>
+    /// <c>List{T}.Sort</c> is <b>unstable</b>, and one actor can hold two live <c>REFLECT</c>s under
+    /// the same authored effect id with different <c>valueScale</c>-derived fractions (`18` §3
+    /// allows two copies of one effect). `05` §1.1 re-rounds at every accumulation point and
+    /// floating-point addition is not associative, so an id-only comparison would let the sort's
+    /// internal choice decide the fourth decimal place — a `14` §8.2 divergence that reproduces only
+    /// sometimes.
+    /// </remarks>
+    private long _nextAdditionOrder;
 
     /// <summary>`18` §2.4's <c>FORCE_CRIT_NEXT</c> — how many further attacks always crit.</summary>
     internal int ForcedCritCharges => _forcedCritCharges;
@@ -233,7 +247,7 @@ internal sealed class CombatFlowState
     /// copy of `18` §6 here is what steering S6 forbids.
     /// </remarks>
     internal void AddThorns(double fraction, string sourceEffectId) =>
-        _thorns.Add((fraction, sourceEffectId));
+        _thorns.Add((fraction, sourceEffectId, _nextAdditionOrder++));
 
     /// <summary>
     /// 🔒 `05` §4 step 10's <c>defender.THORN</c> contribution from live <c>REFLECT</c>s — a
@@ -253,11 +267,17 @@ internal sealed class CombatFlowState
             return 0.0;
         }
 
+        // 🔒 Ordinal effect id, then addition order — a TOTAL order. See _nextAdditionOrder for why
+        // the second key is not optional.
         _thorns.Sort(static (left, right) =>
-            EffectOrder.IdComparer.Compare(left.SourceEffectId, right.SourceEffectId));
+        {
+            var byEffect = EffectOrder.IdComparer.Compare(left.SourceEffectId, right.SourceEffectId);
+
+            return byEffect != 0 ? byEffect : left.Order.CompareTo(right.Order);
+        });
 
         var total = 0.0;
-        foreach (var (fraction, _) in _thorns)
+        foreach (var (fraction, _, _) in _thorns)
         {
             total = StatRounding.Round(total + fraction);
         }

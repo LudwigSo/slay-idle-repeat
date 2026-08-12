@@ -854,7 +854,13 @@ internal sealed class BattleSimulation
 
         var dropped = actor.Wards.ExpireDue(Tick);
 
-        foreach (var segment in dropped)
+        // 🔒 TWO different orders, and they are not the same rule. `05` §4.1 orders ABSORPTION by
+        // soonest expiry then grant order, which is what WardPool returns; `05` §3.1 slot 2 orders
+        // EXPIRY EMISSION — "statuses whose duration reached 0 expire, in ascending effect-id
+        // order" — and `05` §5 lists WARD among the statuses. Two segments from different effects
+        // expiring on one tick would otherwise land in the log in an order `05` §3.1 does not
+        // authorise, and the log is inside LogHash, which `11` §6 recomputes server-side.
+        foreach (var segment in dropped.OrderBy(s => s.SourceEffectId, EffectOrder.IdComparer))
         {
             // 🔒 StatusExpired, and NEVER WardBroken. `05` §4.1: "segment expiry silently removes
             // its remainder (StatusExpired), and does not fire WardBroken" — the distinction
@@ -867,23 +873,37 @@ internal sealed class BattleSimulation
     }
 
     /// <summary>🔒 `05` §4.1's ward grant with an expiry — see <see cref="BattleServices.GrantWard"/>.</summary>
+    /// <remarks>
+    /// 🔒 <b>The pool is written here rather than through <see cref="IAttackPipeline"/>, and that is
+    /// deliberate.</b> An earlier draft delegated to <c>AttackPipeline</c> behind an
+    /// <c>is not AttackPipeline ? throw</c>, which made the one route `18` §6's durations must take
+    /// unusable from the seam composition <c>BattleSeams.Strict</c>'s own remarks recommend
+    /// (<c>Strict with { Statuses = … }</c>) — so every duration-bearing grant in M2-10's suite would
+    /// have thrown. <c>DamageResolutionRuleTests.Only_the_attack_pipeline_absorbs_damage_with_a_ward</c>
+    /// is stated over <c>Absorb</c> and not over <c>Grant</c> for exactly this reason: absorption is
+    /// where a second caller would re-decide `05` §4.1's order and its break, while granting from
+    /// two places is already the shape (`05` §4.2's <c>SHIELD</c> and `18` §6's durations).
+    /// </remarks>
     internal void GrantWard(
-        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int expiresAtTick)
+        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int? expiresAtTick)
     {
         ArgumentNullException.ThrowIfNull(target);
 
-        if (_seams.Attack is not AttackPipeline pipeline)
-        {
-            throw new EffectContextException(
-                sourceEffectId,
-                "it grants a ward with a `18` §6 duration and this fight's IAttackPipeline is not " +
-                $"{nameof(AttackPipeline)}",
-                "`05` §4.1's segments are the pool's, and the pool is written by exactly one engine. " +
-                "A test double that replaced the pipeline has replaced the ward pool with it; grant " +
-                "through that double, or pass a BattleSeams built by BattleSeams.For.");
-        }
+        var granted = target.Wards.Grant(
+            amount,
+            sourceCapPct,
+            sourceEffectId,
+            expiresAtTick,
+            WardCapPct,
 
-        pipeline.GrantWard(target, amount, sourceCapPct, sourceEffectId, expiresAtTick);
+            // 🔒 RE-READ on every grant, never cached. `05` §3.1's SYS_ENRAGE adds a STAT_MULT every
+            // second from 70 s, so a boss's post-step-7 Max HP is not a battle constant.
+            target.PostMultiplierMaxHp);
+
+        // 🔒 `05` §4.1 — Shield on EVERY grant, clipped ones included. `05` §8 makes the log the
+        // replay: a cast the player watched happen must have an event to draw, and a value of 0 is
+        // the information rather than the absence of it.
+        Log.Append(Tick, CombatEventType.Shield, CombatActor.None, target.LogId, granted);
     }
 
     /// <summary>

@@ -113,7 +113,7 @@ public sealed class CombatSimulatorTests
     public void A_fight_with_no_enemies_is_refused() =>
         Should.Throw<ArgumentException>(() => CombatSimulator.Simulate(
             1, StatFixtures.HeroCurve().At(60), 60, Array.Empty<ActorStats>(), 10,
-            StatFixtures.Mitigation().Flat, StatFixtures.Mitigation().PerLevel, StatFixtures.WardCapPct));
+            StatFixtures.CombatCapsSnapshot()));
 
     /// <summary>
     /// 🔒 `05`'s headnote — <em>"a full 60-second fight must simulate in &lt; 5 ms"</em>, asserted over
@@ -224,7 +224,9 @@ public sealed class CombatSimulatorTests
             60,
             new[] { BattleTestBench.Stats(maxHp: 300, atk: 8), BattleTestBench.Stats(maxHp: 200, atk: 6) },
             10,
-            StatFixtures.Mitigation().Flat,
-            StatFixtures.Mitigation().PerLevel,
-            StatFixtures.WardCapPct);
+
+            // 🔒 A `content/combat_caps.json` of the SHIPPED shape — the same fixture
+            // CombatCapsTests reads, so the entry point is exercised over the real pointer set
+            // rather than over three numbers a test chose.
+            StatFixtures.CombatCapsSnapshot());
 }

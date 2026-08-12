@@ -51,8 +51,9 @@ public sealed class DamageResolutionRuleTests
     private const int ScannedMethodFloor = 200;
 
     /// <summary>
-    /// 🔒 `05` §4 step 3 — <c>effDef / (effDef + flat + perLevel × attacker.Level)</c> is computed in
-    /// exactly <b>one</b> method.
+    /// 🔒 `05` §4 step 3 — <c>effDef / (effDef + flat + perLevel × attacker.Level)</c> is computed
+    /// <b>nowhere but</b> the attack pipeline. Its companion floor asserts the other half: that the
+    /// pipeline computes it exactly once, from both data dials.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -65,15 +66,16 @@ public sealed class DamageResolutionRuleTests
     /// </para>
     /// <para>
     /// ⚠️ <b>What it cannot see.</b> A second mitigation computed from dials passed as bare
-    /// <see cref="double"/>s rather than through <c>MitigationConstants</c> — which is exactly
-    /// how <c>CombatSimulator.Simulate</c>'s public overload takes them, and is why that overload
-    /// hands them straight to the record rather than doing arithmetic on them. And a division
-    /// separated from its reads by an intervening call, which the rule counts per method body rather
-    /// than per expression, so it is caught as long as both are in the same method.
+    /// <see cref="double"/>s rather than through <c>MitigationConstants</c> — nothing in the
+    /// repository does that, and <c>CombatSimulator.Simulate</c>'s public overload deliberately takes
+    /// the <c>ContentSnapshot</c> and lets <c>CombatCaps.Read</c> build the record, rather than taking
+    /// two adjacent same-typed doubles a caller could transpose. And a division separated from its
+    /// reads by an intervening call, which the rule counts per method body rather than per
+    /// expression, so it is caught as long as both are in the same method.
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_05_4_mitigation_quotient_is_computed_in_exactly_one_place()
+    public void The_05_4_mitigation_quotient_is_computed_only_in_the_attack_pipeline()
     {
         var offenders = MitigationQuotients()
             .Where(method => !method.DeclaringType.FullName.Equals(PipelineType, StringComparison.Ordinal))
@@ -94,25 +96,72 @@ public sealed class DamageResolutionRuleTests
     /// dial and divides, the mitigation curve is not implemented at all and the rule is green over
     /// nothing.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The floor is on the <em>shape</em> of the formula, not merely on its presence, and that
+    /// is what closes the half-restatement hole.</b> The rule above matches a method reading
+    /// <b>either</b> dial, so `05` §4 step 3 written as
+    /// <c>effDef + dials.Flat + (20.0 * level)</c> — one dial from data, one hard-coded — would keep
+    /// every rule in this file green: the quotient rule exempts the pipeline by name, and
+    /// <see cref="No_production_method_restates_both_05_4_dials_as_literals"/> needs <b>both</b>
+    /// literals in one body. Requiring the exempt method to read <b>both</b> getters is what makes
+    /// that half-restatement red, and it is the shape a real hard-coding would take: nobody
+    /// hard-codes both when one is already in hand.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void The_one_place_the_mitigation_quotient_lives_still_computes_it()
     {
         var inside = MitigationQuotients()
-            .Count(method => method.DeclaringType.FullName.Equals(PipelineType, StringComparison.Ordinal));
+            .Where(method => method.DeclaringType.FullName.Equals(PipelineType, StringComparison.Ordinal))
+            .ToArray();
 
-        if (inside == 0)
+        var offenders = new List<string>();
+
+        if (inside.Length == 0)
         {
-            throw new ArchitectureRuleViolationException(
-                "05 §4 step 3's mitigation curve is still computed in the attack pipeline (23 §6).",
-                new[]
-                {
-                    $"No method on {PipelineType} reads a {DialsType} dial and divides. Either the " +
-                    "pipeline has been renamed — in which case " +
-                    "The_05_4_mitigation_quotient_is_computed_in_exactly_one_place is now reporting " +
-                    "the real formula as an offender — or `05` §4 step 3 has stopped being computed " +
-                    "and every hit in the game is unmitigated.",
-                });
+            offenders.Add(
+                $"No method on {PipelineType} reads a {DialsType} dial and divides. Either the " +
+                "pipeline has been renamed — in which case " +
+                "The_05_4_mitigation_quotient_is_computed_only_in_the_attack_pipeline is now reporting " +
+                "the real formula as an offender — or `05` §4 step 3 has stopped being computed " +
+                "and every hit in the game is unmitigated.");
         }
+
+        // 🔒 EXACTLY one, not at least one (steering S2). Two quotients on the pipeline are two
+        // mitigation curves, which is the thing the rule above claims cannot exist.
+        if (inside.Length > 1)
+        {
+            offenders.Add(
+                $"{inside.Length.ToString(CultureInfo.InvariantCulture)} methods on {PipelineType} " +
+                $"read a {DialsType} dial and divide: " +
+                $"{string.Join(", ", inside.Select(Il.Describe))}. `05` §4 step 3 is one curve.");
+        }
+
+        foreach (var method in inside)
+        {
+            if (!ReadsBothDials(method))
+            {
+                offenders.Add(
+                    $"{Il.Describe(method)} computes `05` §4 step 3 while reading only ONE of the two " +
+                    $"{DialsType} dials. The other one is then a literal in the exempt method — the " +
+                    "one place No_production_method_restates_both_05_4_dials_as_literals cannot see, " +
+                    "because it needs the pair. `05` §4 puts BOTH constants in data.");
+            }
+
+            var instructions = Il.Instructions(method).ToArray();
+            if (instructions.Any(i => IsConstant(i, 120)) || instructions.Any(i => IsConstant(i, 20)))
+            {
+                offenders.Add(
+                    $"{Il.Describe(method)} computes `05` §4 step 3 and carries 120 or 20 as a " +
+                    "literal. It is the one method exempt from the pair rule, so this is the only " +
+                    "place a dial can be hard-coded with everything else green.");
+            }
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "05 §4 step 3's mitigation curve is computed exactly once, from both data dials (23 §6).");
     }
 
     /// <summary>
@@ -227,21 +276,35 @@ public sealed class DamageResolutionRuleTests
     {
         foreach (var method in Il.MethodsWithBodies(ProductionAssemblies.Module(ProductionAssemblies.CoreName)))
         {
-            var instructions = Il.Instructions(method).ToArray();
-
-            var readsADial = instructions.Any(i =>
-                i.OpCode.Code is Code.Call or Code.Callvirt &&
-                i.Operand is MethodReference callee &&
-                callee.DeclaringType.FullName.Equals(DialsType, StringComparison.Ordinal) &&
-                (callee.Name.Equals("get_Flat", StringComparison.Ordinal) ||
-                 callee.Name.Equals("get_PerLevel", StringComparison.Ordinal)));
-
-            if (readsADial && instructions.Any(i => i.OpCode.Code is Code.Div or Code.Div_Un))
+            if (Reads(method, "get_Flat") || Reads(method, "get_PerLevel") || Reads(method, "Deconstruct"))
             {
-                yield return method;
+                if (Il.Instructions(method).Any(i => i.OpCode.Code is Code.Div or Code.Div_Un))
+                {
+                    yield return method;
+                }
             }
         }
     }
+
+    /// <summary>The method reads both dials — the shape `05` §4 step 3's curve must have.</summary>
+    private static bool ReadsBothDials(MethodDefinition method) =>
+        (Reads(method, "get_Flat") && Reads(method, "get_PerLevel")) || Reads(method, "Deconstruct");
+
+    /// <summary>
+    /// The method calls the named member on <see cref="DialsType"/>.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <c>Deconstruct</c> is in the set because a positional record struct offers a second way to
+    /// read both dials that emits <b>no getter call at all</b>:
+    /// <c>var (flat, perLevel) = _services.Mitigation;</c>. Without it, a second quotient written
+    /// that way would be invisible to every rule in this file.
+    /// </remarks>
+    private static bool Reads(MethodDefinition method, string member) =>
+        Il.Instructions(method).Any(i =>
+            i.OpCode.Code is Code.Call or Code.Callvirt &&
+            i.Operand is MethodReference callee &&
+            callee.DeclaringType.FullName.Equals(DialsType, StringComparison.Ordinal) &&
+            callee.Name.Equals(member, StringComparison.Ordinal));
 
     /// <summary>Every method in <c>Core</c> that calls <see cref="WardPoolType"/><c>.Absorb</c>.</summary>
     private static IEnumerable<MethodDefinition> WardAbsorptionCallers()

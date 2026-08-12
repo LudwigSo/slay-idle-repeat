@@ -210,6 +210,18 @@ internal sealed class AttackPipeline : IAttackPipeline
     /// <c>DAMAGE_TAKEN_MULT</c>, floor or wards. HP is reduced directly; the phase check still runs;
     /// no lifesteal or thorns."</em> `05` §4.1's bypass class <b>(a)</b>, and the reason the ward
     /// pool is not consulted here at all rather than consulted with a flag.
+    /// <para>
+    /// 🔴 <b>Its <c>Hit</c> carries no source, and so does
+    /// <see cref="DealMaxHpPctDamage"/>'s — the interface's shape, not a choice.</b>
+    /// <see cref="IAttackPipeline"/> hands these two ops a target and an amount and <em>no
+    /// attacker</em>, so there is nothing to name; <see cref="ReflectDamage"/> is the contrast, where
+    /// the thorns holder is in hand and is named. `05` §8 makes the log the replay, so a boss's
+    /// <c>DAMAGE_TRUE</c> tick (Sporequeen's Rot aura, `17` §8) currently replays as damage from
+    /// nowhere. Closing it means routing the firing holder — <c>BattleSimulation.ResolveFired</c>
+    /// knows it — down to this layer, and belongs with <b>M2-12</b>, the first task with a consumer.
+    /// Recorded rather than guessed at: naming the target as its own attacker would be worse than
+    /// naming none.
+    /// </para>
     /// </remarks>
     public void DealTrueDamage(IEffectActorView target, double amount, string sourceEffectId)
     {
@@ -303,7 +315,10 @@ internal sealed class AttackPipeline : IAttackPipeline
 
         RequireFinite(amount, sourceEffectId, "ward");
 
-        GrantWard(actor, amount, sourceCapPct, sourceEffectId, expiresAtTick: null);
+        // 🔒 Through the battle's one grant routine, which is also `18` §6's route
+        // (BattleServices.GrantWard) — so the pool cap, the per-source cap and the Shield event are
+        // decided in one place no matter which of the two doors the grant came through.
+        _services.GrantWard(actor, amount, sourceCapPct, sourceEffectId, expiresAtTick: null);
     }
 
     /// <inheritdoc />
@@ -357,28 +372,6 @@ internal sealed class AttackPipeline : IAttackPipeline
         var dmg = IncomingDamage(StatRounding.Round(Math.Max(0.0, amount)), receiver);
 
         ApplyToHp(receiver, dmg, absorbedByWards: true, thorned.LogId);
-    }
-
-    /// <summary>
-    /// 🔒 `05` §4.1's grant with an expiry — the form `18` §6's durations need and
-    /// <see cref="IAttackPipeline.GrantWard"/> cannot express. See that method's remarks.
-    /// </summary>
-    internal void GrantWard(
-        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int? expiresAtTick)
-    {
-        var granted = target.Wards.Grant(
-            amount,
-            sourceCapPct,
-            sourceEffectId,
-            expiresAtTick,
-            _services.WardCapPct,
-
-            // 🔒 RE-READ on every grant, never cached. `05` §3.1's SYS_ENRAGE adds a STAT_MULT every
-            // second from 70 s, so a boss's post-step-7 Max HP is not a battle constant.
-            target.PostMultiplierMaxHp);
-
-        _services.Log.Append(
-            _services.Tick, CombatEventType.Shield, CombatActor.None, target.LogId, granted);
     }
 
     /// <summary>
