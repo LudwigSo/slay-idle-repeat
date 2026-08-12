@@ -128,10 +128,6 @@
       "reason": "A decision-log row quoting in-run economy numbers that currencies.json already owns. Closes when M4-09 wires the wallet/shop model and the currencies.json key cites 16, or when the duplicated numbers are struck from the log row. (Was M0-11, a task that has never existed.)",
       "closedBy": "M4-09" },
 
-    { "doc": "17", "section": "10", "kind": "specDebt",
-      "reason": "Boss mechanic tunables. content/bosses/ is authored as DSL data by M2-13 (spec 17 §2-9), which brings bosses.json and its schema with it.",
-      "closedBy": "M2-13" },
-
     { "doc": "19", "section": "", "kind": "specDebt",
       "reason": "Part D's FTUE script (the tutorial-only heal, the fixed shop row). ftue.json is a sequencing file, not economy — and 19 numbers its sections 'PART D / D4.2', which the doc-section join cannot bind to at all. M4-12 authors ftue.json, its structural validator and its schema.",
       "closedBy": "M4-12" },

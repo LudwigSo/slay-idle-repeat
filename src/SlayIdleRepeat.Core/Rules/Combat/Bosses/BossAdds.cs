@@ -11,16 +11,17 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 /// `17` intends (steering S6).
 /// </para>
 /// <para>
-/// 🔴 <b>Where the fraction itself comes from — recorded, because <see cref="BossScript"/> has no
-/// field for it.</b> The fraction is a constructor argument of <see cref="BossSummonSource"/>,
-/// supplied by whoever builds the encounter's seams. It is <b>not</b> on the authoring contract
-/// M2-13 writes against: neither <see cref="BossScript"/> nor <see cref="BossMechanic"/> carries one,
-/// so a boss script cannot state it today and the wiring must. That is a real gap and it is left
-/// absent and greppable rather than filled with a plausible midpoint, which would have the engine
-/// choose a number `17` §1 gives to content. <b>Whoever authors the eight scripts decides where it
-/// belongs</b> — a per-boss field on <see cref="BossScript"/> if one fraction per boss is enough, or
-/// a per-mechanic field on <see cref="BossMechanic"/> if `17` §2's Thornmaw adds and §5's Rimehold
-/// shards want different ones. The band below does not move either way.
+/// 🔴 <b>Where the fraction comes from — M2-12 left this open and M2-13 has closed it: it is
+/// <see cref="BossScript.AddsPowerFraction"/>, a <em>per-boss</em> field.</b> The gap was real —
+/// the fraction was a constructor argument of <see cref="BossSummonSource"/> and nothing on the
+/// authoring contract could state it — and the choice between per-boss and per-mechanic was decided
+/// by `17`'s own fights rather than by taste: every summoning boss summons exactly one archetype,
+/// and three of the five re-summon the <em>same</em> adds (`17` §2, §4, §8), so a per-mechanic
+/// fraction could only ever produce one named add standing at two powers in one fight. The full
+/// argument, and the fact that the number <em>inside</em> the band is authored rather than
+/// transcribed, are on <see cref="BossScript.AddsPowerFraction"/>. The band below did not move.
+/// <see cref="BossSummonSource"/> still takes it as a constructor argument, because the seam is
+/// built per fight and the script is only one of its inputs.
 /// </para>
 /// <para>
 /// <see cref="MaxAlive"/> is the ceiling `18` §2.4's <c>maxAlive</c> key carries on a boss's

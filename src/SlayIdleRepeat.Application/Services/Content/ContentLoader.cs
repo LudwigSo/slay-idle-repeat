@@ -173,7 +173,7 @@ public static class ContentLoader
         // finding with a stack trace naming neither document nor pointer.
         if (issues.Count == 0)
         {
-            issues.AddRange(ContentInvariants.Check(data, bindings, options));
+            issues.AddRange(ContentInvariants.Check(data, bindings, schemas, options));
         }
 
         var ordered = issues

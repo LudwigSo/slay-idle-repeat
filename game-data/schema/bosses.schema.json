@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/bosses.schema.json",
+  "title": "content/bosses/bosses.json",
+  "description": "17 §1.2 and 17 §2-9 — the eight campaign boss scripts and the FTUE mini-boss, as the effect DSL data 17 §11 requires: 'All 8 bosses expressed purely in the effect DSL — zero bespoke boss code.' A script is an id, 17 §1.2's four power coefficients, the script's OWN effect set, and exactly three phase blocks whose mechanics name those effects by id. 🔒 THE EFFECT OBJECTS HERE ARE VALIDATED ELSEWHERE, AND THAT IS DELIBERATE. This schema constrains an embedded effect STRUCTURALLY — that it is an object, that it declares an id and an op, and that both are the right shape — and states nothing about which keys go with which op. It may not: a cross-file $ref is refused by the validator, which resolves same-document pointers only, and a restatement of the op vocabulary is refused by the rule forbidding a second copy of that closed set. So the strict per-op check is a cross-file content rule that walks every embedded effect in this file and validates it against schema/effect.schema.json, which is the one place that partition is written. 14 §6's guarantee is delivered by the pair, not by this file alone.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "secondaryStats", "scripts"],
+
+  "$defs": {
+    "bossId": {
+      "description": "17 §1.2 — a boss script id, and the same id space its effects are authored in. Boss script ids are the nine 17 §1.2 names; an effect id is one the owning script declares, prefixed with that script's own name so a mechanic's origin is readable from the id alone. One shared prefix is what makes the content pipeline's id-space rules see a mechanic reference that resolves nowhere.",
+      "type": "string",
+      "pattern": "^BOSS_[A-Z0-9_]+$"
+    },
+
+    "coefficient": {
+      "description": "17 §1.2 — one cell of a boss's power-to-stats row. 📐 All rows: the balance harness re-tunes them against 17 §1's 35-60 s duration band, which 17 §1.2 names as the arbiter. Rounded to the four decimal places the determinism rule fixes.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "multipleOf": 0.0001
+    },
+
+    "embeddedEffect": {
+      "description": "18 §1 — one authored effect, embedded in the boss script that owns it. 🔒 An effect is NEVER a file and never lives in a registry: it is always embedded in the perk, talent, pet, mount, curse or boss script that owns it, which is why a mechanic reference and a weighted-outcome row alike name a SIBLING of this same script. Only the two keys 18 §1 makes universal are required here, and every other key is admitted without comment — the closed op-to-key partition is schema/effect.schema.json's, applied to this array by the cross-file rule described on this schema's own title. Restating it here would be the second copy of a 44-member closed set that 18 §10's 'add the op to the JSON schema' exists to keep singular.",
+      "type": "object",
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/bossId" },
+        "op": {
+          "description": "18 §2 — which operation the effect performs. Shape only, deliberately: the token set is enumerated in schema/effect.schema.json and nowhere else.",
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        }
+      }
+    },
+
+    "mechanic": {
+      "description": "17 §1.1 — one mechanic inside a phase block: an effect this script declares, named by id, plus the wind-up 17 §1 requires of a damaging one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effectId"],
+      "properties": {
+        "effectId": { "$ref": "#/$defs/bossId" },
+        "telegraphSeconds": {
+          "description": "17 §1 — 'every damaging mechanic has a visible 1.0-1.5 s wind-up ... the player cannot act on it, but they must be able to read what is happening, or the fight feels arbitrary'. Bounded here to the band 17 §1 states; the encounter builder additionally refuses a lead that is not a whole number of the simulation's fixed ticks, and refuses a period that does not exceed it. Absent where the mechanic needs none — an entry burst cannot be foreseen because the entry is HP-driven, and a period at or below the longest lead has nowhere to put one.",
+          "type": "number",
+          "minimum": 1.0,
+          "maximum": 1.5,
+          "multipleOf": 0.05
+        }
+      }
+    },
+
+    "phaseBlock": {
+      "description": "17 §1 — one of the three phase blocks every boss has, 'triggered at 100%, 66% and 33% Max HP'. May carry no mechanics at all: 17 §2's Thornmaw phase 1 is 'basic attacks only. Nothing else', and 17 §1.2's FTUE row is phase 1 only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "mechanics"],
+      "properties": {
+        "phase": {
+          "description": "17 §1 — which block this is. Exactly three per script, numbered 1, 2, 3 in that order; the encounter builder refuses any other shape.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "mechanics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/mechanic" }
+        }
+      }
+    }
+  },
+
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+
+    "secondaryStats": {
+      "description": "17 §1.2 — 'Secondary stats: every boss uses the baseline'. Authored once rather than on nine rows, and handed to the encounter builder as the row each script's four power coefficients then replace. 17 §1.2 is explicit that anything else is 'a phase mechanic in the fight scripts below, never a base stat, so the pre-battle power readout stays honest'.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "crit", "critDamage", "dodge", "lifesteal"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "crit": {
+          "description": "17 §1.2 — the baseline critical-hit chance every boss carries.",
+          "type": "number", "minimum": 0, "maximum": 1, "multipleOf": 0.0001
+        },
+        "critDamage": {
+          "description": "17 §1.2 — the baseline critical multiplier. 🔒 It is what makes the Dicelord's every-6th auto-crit cost a ×2.0 attack multiplier rather than ×3: the forced crit is already paid at ×1.5 by 05 §4's crit step, so 1.5 × 2.0 is 17 §9's ×3 exactly.",
+          "type": "number", "minimum": 0, "multipleOf": 0.0001
+        },
+        "dodge": {
+          "description": "17 §1.2 — the baseline dodge. Zero for every boss.",
+          "type": "number", "minimum": 0, "maximum": 1, "multipleOf": 0.0001
+        },
+        "lifesteal": {
+          "description": "17 §1.2 — the baseline lifesteal. Zero for every boss: Gulgrot's 30% is a phase-3 mechanic in its script, never a base stat.",
+          "type": "number", "minimum": 0, "maximum": 1, "multipleOf": 0.0001
+        }
+      }
+    },
+
+    "scripts": {
+      "description": "17 §1.2 — the nine rows of the coefficient table, one script each: the eight campaign bosses of 17 §2-9 and the FTUE mini-boss.",
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "_doc", "coefficients", "effects", "phases"],
+        "properties": {
+          "id": { "$ref": "#/$defs/bossId" },
+          "_doc": { "type": "string", "minLength": 1 },
+
+          "chapter": {
+            "description": "17 §1.2's Ch column — which chapter's boss node this script is fought at, and therefore which row of 17 §10's reward table the kill pays out. 📐 That table's own numbers are economy rather than boss identity and are NOT re-authored here: the per-chapter Soul Shard rate and the first-clear band live in tuning/currencies.json, and the gear-drop count lives in tuning/drops.json, each authored once. Absent on the FTUE row, whose Ch column 17 §1.2 leaves empty because it is not fought on the campaign board and pays no chapter reward.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+
+          "coefficients": {
+            "description": "17 §1.2 — this boss's power-to-stats row, which replaces the shared archetype row 05 §6.1 gives everything else. The power it is applied to is the boss node's own, with the 2.20 boss multiplier already inside it (05 §6.3); it is never multiplied again.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["hp", "atk", "def", "aspd"],
+            "properties": {
+              "hp": { "$ref": "#/$defs/coefficient" },
+              "atk": { "$ref": "#/$defs/coefficient" },
+              "def": { "$ref": "#/$defs/coefficient" },
+              "aspd": { "$ref": "#/$defs/coefficient" }
+            }
+          },
+
+          "addsPowerFraction": {
+            "description": "17 §1 — 'if a boss summons, adds use standard archetypes at 25-35% of boss power, capped at 3 alive at once'. 🔒 PER BOSS, not per mechanic, and the evidence is 17's own fights: every summoning boss summons exactly ONE archetype, and three of the five re-summon the SAME adds (17 §4 'resummons any dead ones', 17 §2 'summons 2 more', 17 §8 'resummons 1 sporeling'), so a per-mechanic fraction would let one named add exist at two different powers inside one fight. Present on exactly the five scripts that author a summon and absent on the other four. ⚠️ 17 §1 gives a BAND and names no number inside it for any boss, so this is authored rather than transcribed; it is the band's midpoint, identical on all five because 17 distinguishes none of them, and it is the balance harness's to re-tune.",
+            "type": "number",
+            "minimum": 0.25,
+            "maximum": 0.35,
+            "multipleOf": 0.0001
+          },
+
+          "fixedPower": {
+            "description": "17 §1.2 — 'Fixed authored inputs: power = 900' 📐. The FTUE row's only, and the reason it is a row at all: it does not use the campaign power curve. Absent on every campaign boss, whose power comes from its board node.",
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "multipleOf": 0.0001
+          },
+
+          "fixedLevel": {
+            "description": "17 §1.2 — 'Fixed authored inputs: Level = 1' 📐. The FTUE row's only; every campaign boss takes the level its chapter and tier derive.",
+            "type": "integer",
+            "minimum": 1
+          },
+
+          "effects": {
+            "description": "18 §1 — this script's own effect set, embedded. 🔒 It is the ONLY scope a mechanic id or a weighted-outcome row resolves in, and there is no wider one; the encounter builder holds exactly this set at the moment it has to answer and refuses an id the script does not declare. Empty on the FTUE row, which authors no mechanic.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/embeddedEffect" }
+          },
+
+          "phases": {
+            "description": "17 §1 — 'Phases: exactly 3'. The encounter builder refuses a set that is not 1, 2, 3 in order, because a block it can enter and not activate is a boss whose mechanics are silently absent — which the balance harness reads as the boss being weak.",
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/phaseBlock" }
+          }
+        }
+      }
+    }
+  }
+}

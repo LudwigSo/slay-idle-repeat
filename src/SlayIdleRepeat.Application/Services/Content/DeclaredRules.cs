@@ -38,11 +38,185 @@ internal static class DeclaredRules
     private delegate void Rule(IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues);
 
     /// <summary>Runs every declared rule.</summary>
-    internal static void Check(IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
+    /// <param name="documents">Data documents by snapshot-relative path. Schemas excluded.</param>
+    /// <param name="schemas">
+    /// The parsed schema set, which <b>R35</b> needs and no other rule does — an embedded effect is
+    /// validated against <c>schema/effect.schema.json</c>, and that is the one rule here whose
+    /// authority is a schema rather than a second data file.
+    /// </param>
+    /// <param name="issues">Findings are appended here.</param>
+    internal static void Check(
+        IReadOnlyDictionary<string, ContentValue> documents,
+        IReadOnlyDictionary<string, ContentValue> schemas,
+        List<ContentIssue> issues)
     {
         foreach (var rule in Rules)
         {
             rule(documents, issues);
+        }
+
+        EmbeddedEffectsValidateAgainstTheEffectSchema(documents, schemas, issues);
+    }
+
+    /// <summary>
+    /// 🔒 The <c>schema/</c> path of `18` §1's effect vocabulary — <b>R35</b>'s authority.
+    /// </summary>
+    internal const string EffectSchemaPath = "schema/effect.schema.json";
+
+    /// <summary>The member name an owning content type embeds its effect list under (`18` §1).</summary>
+    private const string EffectsMemberName = "effects";
+
+    /// <summary>
+    /// 🔒 Every embedded effect <b>R35</b> has validated so far, as
+    /// <c>path#/pointer</c> — the subject-set floor a test asserts against (steering S3).
+    /// </summary>
+    /// <remarks>
+    /// The rule's subject set is discovered structurally rather than from a list of content types,
+    /// so nothing in the rule itself says how many effects it <em>ought</em> to have seen. Without
+    /// this, a walk that silently matched nothing would pass exactly as loudly as one that validated
+    /// every boss mechanic in the repository — which is the vacuous pass the whole file is written
+    /// against. Populated by running <see cref="Check"/>, on <see cref="References"/>' pattern.
+    /// </remarks>
+    internal static IReadOnlyList<string> ValidatedEmbeddedEffects =>
+        ValidatedEffects.Keys.OrderBy(e => e, StringComparer.Ordinal).ToArray();
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> ValidatedEffects =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 🔒 <b>R35 · `14` §6 / `18` §1</b> — every effect <b>embedded</b> in an owning content file
+    /// validates against <c>schema/effect.schema.json</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ═══ 🔒 <b>WHY THIS IS A CROSS-FILE RULE AND NOT A <c>$ref</c></b> ═══
+    /// </para>
+    /// <para>
+    /// `18` §1's effect shape is a closed <c>oneOf</c> partition of the 44 ops into seventeen
+    /// key-shapes, and it is written in exactly one file. An owning content schema — a boss script's,
+    /// and M3's perk, talent, pet, mount and curse schemas after it — cannot reach it two ways:
+    /// <list type="number">
+    ///   <item><see cref="JsonSchemaValidator"/> resolves <b>same-document</b> pointers only, and
+    ///   refuses a <c>$ref</c> that does not start with <c>#/</c> — <em>"a cross-file <c>$ref</c>
+    ///   would make the schema set a graph nobody can review file by file"</em>. So it cannot
+    ///   <b>reference</b> the partition.</item>
+    ///   <item><c>EffectSchemaTests.No_other_schema_restates_the_effect_vocabulary</c> fails any
+    ///   schema outside that file naming three or more op tokens. So it cannot <b>restate</b>
+    ///   it either.</item>
+    /// </list>
+    /// <para>
+    /// Both constraints are right, and together they leave an embedded effect validated only as
+    /// <em>an object with an id and an op</em> — which would ship a boss mechanic whose op-specific
+    /// keys nobody checked. This rule closes that: it walks the embedded effects and runs the real
+    /// schema over each one, so the partition stays in one file and still governs every effect in
+    /// the repository. `14` §6's guarantee is delivered by the pair.
+    /// </para>
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The subject set is structural, not a list of content types.</b> Any <c>effects</c> array
+    /// whose items are objects declaring an <c>op</c> is one, wherever it sits — so M3's perks and
+    /// talents are covered on the day they land rather than on the day somebody remembers to add
+    /// them here. `18` §1: an effect <em>"is always embedded in the perk, talent, pet, mount, curse
+    /// or boss script that owns it"</em>, and they all spell that list the same way.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>An embedded effect with no effect schema to check it against is a finding, not a
+    /// skip.</b> Every other rule here is vacuous when its documents are absent, because an absent
+    /// document means there is nothing to disagree about. That reading does not transfer: the
+    /// subject is present and it is the <em>authority</em> that is missing, so skipping would report
+    /// success over unvalidated content — the one outcome this rule exists to prevent.
+    /// </para>
+    /// </remarks>
+    private static void EmbeddedEffectsValidateAgainstTheEffectSchema(
+        IReadOnlyDictionary<string, ContentValue> documents,
+        IReadOnlyDictionary<string, ContentValue> schemas,
+        List<ContentIssue> issues)
+    {
+        var embedded = new List<(string Location, ContentValue Effect)>();
+
+        foreach (var (path, root) in documents.OrderBy(d => d.Key, StringComparer.Ordinal))
+        {
+            CollectEmbeddedEffects(root, path, string.Empty, embedded);
+        }
+
+        if (embedded.Count == 0)
+        {
+            return;
+        }
+
+        if (!schemas.TryGetValue(EffectSchemaPath, out var effectSchema))
+        {
+            issues.Add(new ContentIssue(
+                ContentIssueCode.MissingSchema, EffectSchemaPath,
+                $"is absent, and {embedded.Count.ToString(CultureInfo.InvariantCulture)} embedded " +
+                "effect(s) in the content set have nothing to be validated against. 18 §1's op-to-key " +
+                "partition is written in that one file and an owning schema may neither $ref it " +
+                "(same-document pointers only) nor restate it (the duplicate-vocabulary rule), so " +
+                "without it every embedded effect ships unchecked."));
+
+            return;
+        }
+
+        foreach (var (location, effect) in embedded)
+        {
+            ValidatedEffects.TryAdd(location, 0);
+
+            issues.AddRange(JsonSchemaValidator.Validate(effect, effectSchema!, location));
+        }
+    }
+
+    /// <summary>
+    /// Finds every embedded effect: the items of an <c>effects</c> array that are objects declaring
+    /// an <c>op</c>.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Both halves of the test matter.</b> The member name alone would sweep in a pet's
+    /// <c>active.effects</c> wrapper the day one is authored differently, and the <c>op</c> alone
+    /// would reach any object that happens to carry that key. Together they name exactly `18` §1's
+    /// shape, and an item that is <em>almost</em> an effect — an object in an <c>effects</c> array
+    /// with no <c>op</c> — is left to the owning schema's own <c>required</c>, which locates it
+    /// better than this rule could.
+    /// </remarks>
+    private static void CollectEmbeddedEffects(
+        ContentValue value, string documentPath, string pointer, List<(string, ContentValue)> found)
+    {
+        if (value.Kind == ContentValueKind.Array)
+        {
+            for (var i = 0; i < value.Items.Count; i++)
+            {
+                CollectEmbeddedEffects(
+                    value.Items[i], documentPath, $"{pointer}/{i.ToString(CultureInfo.InvariantCulture)}", found);
+            }
+
+            return;
+        }
+
+        if (value.Kind != ContentValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var name in value.MemberNames)
+        {
+            value.TryGetMember(name, out var member);
+
+            if (string.Equals(name, EffectsMemberName, StringComparison.Ordinal) &&
+                member!.Kind == ContentValueKind.Array)
+            {
+                for (var i = 0; i < member.Items.Count; i++)
+                {
+                    var item = member.Items[i];
+
+                    if (item.Kind == ContentValueKind.Object && item.TryGetMember("op", out _))
+                    {
+                        found.Add((
+                            $"{documentPath}#{pointer}/{name}/{i.ToString(CultureInfo.InvariantCulture)}",
+                            item));
+                    }
+                }
+            }
+
+            CollectEmbeddedEffects(member!, documentPath, $"{pointer}/{name}", found);
         }
     }
 

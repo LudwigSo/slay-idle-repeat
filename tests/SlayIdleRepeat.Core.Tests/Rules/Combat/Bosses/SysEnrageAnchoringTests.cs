@@ -166,8 +166,29 @@ public sealed class SysEnrageAnchoringTests
 
         // The script shape M2-13 writes: mechanics are effect ids, and there is no per-boss enrage
         // switch anywhere on it.
-        typeof(BossScript).GetProperties().Select(p => p.Name)
-                          .ShouldBe(new[] { "Id", "Coefficients", "Phases" }, ignoreOrder: true);
+        //
+        // ⚠️ AddsPowerFraction joined this list in M2-13, and it is NOT a counter-example: `17` §1
+        // gives a boss's adds a power band and M2-12 recorded that the authoring contract had no
+        // field to state it in, so the script had to gain one. It is a number `17` hands to content,
+        // which is the opposite of an engine behaviour a boss can opt out of. The membership
+        // assertion below is what keeps the distinction enforceable rather than remembered.
+        var shape = typeof(BossScript).GetProperties().Select(p => p.Name).ToArray();
+
+        shape.ShouldBe(
+            new[] { "Id", "Coefficients", "AddsPowerFraction", "Phases" }, ignoreOrder: true);
+
+        foreach (var builtIn in BossBuiltIns.All)
+        {
+            shape.ShouldNotContain(
+                name => name.Contains(builtIn.Id, StringComparison.OrdinalIgnoreCase),
+                $"a script field named after '{builtIn.Id}' would be the per-boss opt-out `18` exists " +
+                "to prevent — 17 §11 implements it once, for all eight");
+        }
+
+        shape.ShouldNotContain(
+            name => name.Contains("Enrage", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("Immun", StringComparison.OrdinalIgnoreCase),
+            "the same claim in the spelling a future author is likelier to reach for");
     }
 
     // ════════════════════════════════════════════════════ fixtures
