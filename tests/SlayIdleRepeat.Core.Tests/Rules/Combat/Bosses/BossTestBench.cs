@@ -80,7 +80,7 @@ internal static class BossTestBench
     /// <summary>`05` §3's bounds, shortened so a phase test does not run 1800 ticks.</summary>
     /// <param name="maxTicks">How many ticks the fight may run.</param>
     internal static CombatRules Rules(int maxTicks = 200) =>
-        new(maxTicks, OnKillTriggersFire: true, IsPvp: false);
+        new(maxTicks, OnKillTriggersFire: true);
 
     /// <summary>A held effect under the `17` §1 D2 phase-instance spelling.</summary>
     internal static HeldEffect InPhase(string bossId, int phase, EffectDefinition effect) =>
@@ -448,6 +448,15 @@ internal sealed class BossDriver : IStatusTimeline
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// This driver scripts HP directly (see the class remarks) and applies no `05` §5 status, so it
+    /// contributes no `18` §8 stat modifier. Returning M2-10's own empty answer rather than throwing
+    /// keeps the boss suites measuring the phase machine and nothing else.
+    /// </remarks>
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) =>
+        Array.Empty<EffectDefinition>();
+
     private void Sample(int tick)
     {
         foreach (var id in _watched)
@@ -480,8 +489,8 @@ internal sealed class RecordingStatuses : IStatusEngine
 
     /// <inheritdoc />
     public void Apply(
-        IEffectActorView target, string statusId, double potency, EffectDuration? duration,
-        EffectStacking? stacking, string sourceEffectId)
+        IEffectActorView applier, IEffectActorView target, string statusId, double potency,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId)
     {
         Calls.Add($"Apply:{statusId}({sourceEffectId})");
         Applied.Add(sourceEffectId);

@@ -300,6 +300,16 @@ internal class RecordingStatusPipeline : IAttackPipeline
 
         /// <inheritdoc />
         public void AfterHpDecrease(BattleActor actor, int tick) => HpDecreaseCalls++;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// M2-12's per-tick telegraph slot. This fixture counts `05` §3.1's phase check and nothing
+        /// else, so the slot is deliberately a no-op here — a counter would make the status suites
+        /// fail on a boss-engine change that has nothing to do with statuses.
+        /// </remarks>
+        public void AdvanceTick(BattleActor actor, int tick)
+        {
+        }
     }
 
     private void Notify(BattleActor actor)
