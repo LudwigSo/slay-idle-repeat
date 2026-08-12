@@ -522,3 +522,42 @@ given one here: a 44th op would break §11's pinned count, and the ruling belong
 - [ ] Parity test: client and server resolvers agree on 10,000 random build permutations
 
 *(Counts after the `16` A7 batch extension: 43 ops = 41 + `CLEAR_SUMMONS` + `STAT_COPY`; 23 triggers = 21 + `ON_DEATH` + `ON_REVIVE`; 23 conditions = 20 + the three `ATTACKER_IS_*`; 11 targets = 9 + `OTHER_ENEMIES` + `OWNER`; 6 duration scopes = 5 + `PHASE`.)*
+
+### 11.1 Erratum on the last checklist line — the parity test (M2-17)
+
+🔴 **"Client and server resolvers agree" has nothing to compare against, and will not until M7.**
+There is **one** resolver, in one assembly, that both sides load; no client build exists yet. A test
+that ran it twice and compared the answers could not fail.
+
+**Ruling: the line is delivered as a committed-baseline determinism test.** 10 000 seeded random
+build permutations are resolved through §8 and hashed with `CanonicalStateWriter`, against a
+committed table — `tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/`. That is the same
+shape M0-06 (`Hash64`) and M0-07 (`CanonicalStateWriter`) already use, and it catches what this line
+exists to catch: an accidental order-dependence in §8.
+
+⚠️ **It proves stability, not correctness.** M0-06's and M0-07's tables were validated against
+*externally published* vectors; there is no published authority for *build permutation → hash*, so
+this table is self-generated and says so in its own header. Correctness comes from M2-02…M2-07's
+per-op and per-step unit tests.
+
+⚠️ **Real two-runtime parity belongs to M5-12**, on Linux x64 and Android ARM64 — the iOS ARM64 leg
+is authored but gated off with iOS itself (`16` D34).
+
+🔴 **The succession is not yet booked, and this is the record of that.** M5-12's tracker row names
+the cross-platform `LogHash` test and the command-sequence parity test; it does **not** name this
+table, and `ci.yml`'s determinism job is `if: false` until M5-12 turns it on. So nothing today runs
+these hashes on a second runtime, and nothing today obliges M5-12 to. M2-17 may not edit the tracker,
+so the carry-forward went to the conductor instead. Until that row is amended, read every "M5-12
+re-asserts this table" in the test tree as *what should happen*, not as *what is wired*.
+
+🔒 **§10 step 4 now names something.** *"Add the op to the client/server parity test"* means: add the
+token to the emission sets in
+`tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/` (today `EffectVocabularyEmissionSets`),
+whose emitted vocabulary is asserted against this document's catalogues **in both directions** — the
+catalogue being the closed enum, never the emission set itself. All five §10.1 extensions, plus
+§3.1's R11 `chance` and M2-06's three `valueScale` argument keys, are covered there. A 44th op cannot
+be added without either reaching the permutation corpus or turning a test red.
+
+⚠️ Adding, removing or reordering a token **moves every hash in the committed table**, because the
+generator anchors each axis by `list[index % list.Count]`. That is a documented regeneration, not a
+determinism break, and the reviewer says which it was in the table's `review.why`.
