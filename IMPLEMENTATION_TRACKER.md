@@ -374,9 +374,14 @@ after it.
    overlays on a ghosted body, measure alignment against the shared skeleton). Nothing in this run
    depends on it. Owner: the M8-04 generation session.
 3. **O8 — ✅ RULED: procedural in-engine VFX.** Doc `15` §G's recommendation is formally accepted.
-   **All 32 E19 sprite sheets are cut from the manifest (975 → 943)**, retiring one of the three High
-   risks in Part G outright. VFX becomes Godot particle/shader work in M7/M9 rather than an art batch —
-   **carry this into the M7 and M9 kickoffs.** → fold into `16` Part B as **O8 closed**.
+   **All 32 E19 sprite sheets are cut**, retiring one of the three High risks in Part G outright. VFX
+   becomes Godot particle/shader work in M7/M9 rather than an art batch — **carry this into the M7 and
+   M9 kickoffs.** → fold into `16` Part B as **O8 closed**.
+   ⚠️ **Two post-cut totals, and both are correct.** `15` §E1 *claims* 975, giving **943**. M8-09's
+   transcription found **974** actual rows — §E20 says "Counted individually (50)" over a list of
+   **49** — giving **942**. The −1 is `DSC_E20_COUNT`, recorded in the data and **owned by O30 at
+   M11-01**. The kickoff's original "975 → 943" was derived from §E1's claim before the count existed;
+   quote 942 for the transcription and 943 for the doc, never one for the other.
 4. **UI clicks (AI vs CC0) — deferred with M8-07.** Rides with the audio session; blocked identically.
 5. **Art sourcing re-confirmed:** doc `15` §B0's 🔒 Midjourney lock stands for v1. Code-authored vector
    art was considered for the UI/icon register (E8/E14/E15/E16/E17/E20 = 182 assets, where exact square
@@ -386,7 +391,7 @@ after it.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | 🔄 wave 1 · `feature-M8-09-asset-manifest` |
+| M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | 🔍 merged to `milestone/M8` · `feature-M8-09-asset-manifest` — **974 art + 106 audio rows**, 208-test suite, schema-validated at build time. 11 doc discrepancies recorded as data, none reconciled (see below) |
 | M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | ⬜ |
 | M8-01b | **Licence confirmations in writing** — Midjourney §G terms; audio tools not yet licensed | 15 §G, 20 §2.1 | ⛔ **product owner owns this** — a legal act, not an engineering task |
 | M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | ⬜ |
@@ -397,6 +402,35 @@ after it.
 | M8-05 | Chapter-1 batch: 14 tile icons, board pieces, Ch1 enemies (8×2), Thornmaw (4 poses), Greenwood backdrop layers | 15 Part H step 4 | ⛔ **generation** — blocked behind M8-02 |
 | M8-07 | Audio: `mus_home` (defines the palette), core combat SFX, dice SFX, UI SFX; bus structure, ducking (incl. mandatory full duck around ads), polyphony caps | 20 §2, §4–5 | ⛔ **no audio-tool licence** *and* the bus/ducking half is Godot client work that M7-01 has not created yet |
 | M8-08 | Currency, status and misc icon sets | 15 §E14–E15, E20 | ⛔ **generation** — blocked behind M8-02 |
+
+**Carried forward from M8 wave 1** (recorded, not fixed here)
+
+- 🔴 **The asset register is inside the content version stamp — owner: M5-09.** `LocalFileContentSource`
+  enumerates every `*.json` under `game-data/` recursively, so `game-data/assets/` is paired with a
+  schema (good — it is validated, not silently escaping) but also enters `ContentSnapshot` and therefore
+  `ContentHashing.Compute`. Consequences: ~551 KB, **86 % of the shipped non-schema `game-data` payload**,
+  for data no game rule reads; and every edit to a bookkeeping file **moves the content hash** that
+  `14` §6 makes load-bearing for replay and `CONTENT_VERSION_MISMATCH`. `ContentLayout.IsExperiment` is
+  the existing precedent for *validated-and-paired but never snapshotted* — `assets/` wants that third
+  category. 🔒 **Must be resolved before M5-09 ships the content endpoint and the client hash check.**
+  🔒 **Conductor ruling for M8 waves 2–3:** provenance records, pipeline config and placeholder output go
+  **outside `game-data/`** so they never touch the stamp. Not fixed in wave 1 because it needs an M0-09
+  change and S12 forbids an agent patching a mechanism it does not own.
+- **11 doc disagreements are recorded as data, none reconciled → O30 at M11-01.** `DSC_E20_COUNT`
+  (§E20 claims 50 over a 49-item list) · `DSC_DIE_BODY` (§D2's `atlas_dice` counts a die body §E1 does
+  not: 12 vs 11) · `DSC_E4_POSES` (§E4 never names its two poses) · `DSC_STINGER_LENGTH` (`20` §1 caps
+  stingers at 1.2 s; `sfx_victory` is 1.5 s) · `DSC_DUCKING_SET` (`20` §1 names 2 ducking triggers,
+  §5 names 4) · plus `DSC_TILE_ATLAS`, `DSC_UNASSIGNED_ATLASES`, `DSC_MISSING_SIZES`,
+  `DSC_DIE_VARIANT_SUFFIX`, `DSC_SHARED_DESCRIPTORS`. Each is self-expiring (**S4**): the record fails
+  the build once the doc and the transcription agree, so a fixed doc cannot leave a stale exception behind.
+- **`atlas_vfx` (`15` §D2) has 32 members and 0 uncut** — no contents after the O8 ruling. Drop the atlas
+  at O30/M11-01.
+- **84 rows are `derived: true`**, from exactly two sections: E9 (64 — 8 decor props × 8 biomes, a prose
+  list with no ids) and E17 (20 — card frames, dividers/ribbons/banners, toast chrome). Everything doc
+  `15` delegates elsewhere (E11→`08` §1, E12/E13→`22` Parts A/B) is individually authored, not derived.
+- **`SubjectSetFloorTests`' comment is stale** — it says "26 under `src/` + 3 under `tools/`"; there are
+  now 4 tool projects. It is a *floor*, so it passes; the file belongs to **M1-12**, which is in flight,
+  so wave 1 correctly left it alone (**S12**). Owner: M1-12.
 
 ---
 
