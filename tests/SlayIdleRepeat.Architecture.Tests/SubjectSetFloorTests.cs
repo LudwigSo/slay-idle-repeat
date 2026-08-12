@@ -73,6 +73,27 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
+        // 🔴 M2-13 registered this one against ITSELF, which is the use this register was built for.
+        // M2-13 authored content/bosses/bosses.json and, to prove the shipped scripts satisfy
+        // BossEncounterBuilder's eight authoring rules, gave SlayIdleRepeat.Core.Tests a
+        // System.Text.Json reader (AuthoredBossScripts) plus an EmbeddedResource reaching into
+        // game-data/. That INVERTS the convention EnemyFixtures and StatFixtures both state — this
+        // suite has no JSON reader, so a shipped file is restated as a fixture here and its
+        // transcription asserted in SlayIdleRepeat.Application.Tests instead.
+        //
+        // The proper home is a Core reader on EnemyCatalogue's and StatusCatalogue's precedent, and
+        // M2-16a needs it regardless: its balance harness must build a boss encounter from that file
+        // and tools/BalanceHarness is pinned to Core with no package references, so it can reach
+        // neither the test reader nor the Application pipeline.
+        //
+        // 🔒 The entry is here rather than in a comment because THIS FILE FAILS THE DAY THE TYPE
+        // ARRIVES. That failure is the reminder that AuthoredBossScripts and its EmbeddedResource are
+        // to be DELETED in the same commit, not kept alongside as a second mapping of one file into
+        // one set of types.
+        new("BossCatalogue", SubjectKind.CoreType, "M2-16a",
+            "AuthoredBossScriptTests and AuthoredBossFightTests, which read the shipped bosses.json " +
+            "through the test-side AuthoredBossScripts reader until this type replaces it"),
+
         // 🔒 CombatSimulator's entry lived here and was DELETED by M2-08, which is the mechanism
         // working exactly as this file's remarks describe. The entry recorded an unresolved
         // contradiction — `05` §7 declares CombatEvent, CombatEventType and SimulationResult public

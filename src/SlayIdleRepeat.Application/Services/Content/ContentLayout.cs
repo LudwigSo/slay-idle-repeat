@@ -71,6 +71,22 @@ public static class ContentLayout
 
             // 26 §2 — one live-ops event package per file. Authored by M13-06.
             [ContentDirectory + "liveops_events/"] = SchemaDirectory + "event" + SchemaSuffix,
+
+            // 🔴 The two directories that already hold content, added late — and the reason they were
+            // easy to forget is worth stating. Both aggregate their type into ONE file named after
+            // its own directory, so the stem rule answered correctly without an entry and nothing
+            // failed loudly. The remarks above promise that a content directory with no entry here
+            // "still fails loudly the day its first file lands"; for a single-document type named
+            // after its directory, that promise is simply not kept, and the gap is invisible until a
+            // SECOND file arrives — content/bosses/BOSS_THORNMAW.json would resolve to
+            // schema/BOSS_THORNMAW.schema.json and report a missing schema for a type that has one.
+            // Naming them here costs two lines and makes the declared table match the tree.
+
+            // 05 §6-6.2 — the archetype rows, biome statuses and elite assignments. Authored by M2-11.
+            [ContentDirectory + "enemies/"] = SchemaDirectory + "enemies" + SchemaSuffix,
+
+            // 17 §1.2 / §2-9 — the eight boss scripts and the FTUE row. Authored by M2-13.
+            [ContentDirectory + "bosses/"] = SchemaDirectory + "bosses" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

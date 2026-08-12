@@ -1,0 +1,889 @@
+{
+  "$schema": "../../schema/bosses.schema.json",
+  "_doc": "17 §1.2 and §2-9 — the eight campaign bosses and the FTUE mini-boss, authored as DSL data. 17 §11: 'All 8 bosses expressed purely in the effect DSL — zero bespoke boss code.' Every script is a BossScript the boss encounter builder consumes: an id, 17 §1.2's four coefficients, the script's own effect set, and exactly three phase blocks whose mechanics NAME those effects by id. 🔒 An effect is EMBEDDED here rather than referenced across files — there is no effect registry — so a mechanic's effectId and a RANDOM_OUTCOME row alike name a SIBLING declared by this same script. The embedded effect objects are validated against schema/effect.schema.json by a cross-file content rule, because this schema may neither $ref it (same-document pointers only) nor restate its op vocabulary. ⚠️ The three engine built-ins SYS_ENRAGE, SYS_PHASE3_IMMUNE_STUN and SYS_PHASE3_IMMUNE_FREEZE are attached to every boss by the encounter builder and are deliberately NOT authored here; a script that named one is refused (A3). 🔒 maxAlive is the standing add count the boss's OWN section states, not 17 §1's 3 everywhere: §1's 'capped at 3 alive at once' is a CEILING the builder enforces (A5), and a summon authored at 3 tops the field up to 3 whatever the fight says. §2 writes '(max 3 alive)' in so many words and §6 states no standing count at all, so Thornmaw and Rimehold carry 3; §4's 'summons 2 skeletons ... resummons any dead ones', §7's 'summons 2 WARDEN drones' and §8's 'summons 2 sporelings ... resummons 1' each put TWO adds on the field and never authorise a third, so those carry 2.",
+  "_status": "transcribed",
+
+  "secondaryStats": {
+    "_doc": "17 §1.2 — 'every boss uses the baseline'. Authored once rather than repeated on nine rows, and handed to the encounter builder as the row whose four power coefficients each script then replaces. 17 §1.2 is explicit that anything else — Gulgrot's 30% lifesteal, the Dicelord's every-6th auto-crit — 'is a phase mechanic in the fight scripts below, never a base stat, so the pre-battle power readout stays honest'. The remaining baseline entries 17 §1.2 lists (BLOCK, PEN, DMG%/DR%/THORN 0, HEAL% 1.0) are not enemy statline members and are deliberately absent rather than authored as zeroes nothing reads.",
+    "crit": 0.05,
+    "critDamage": 0.5,
+    "dodge": 0.0,
+    "lifesteal": 0.0
+  },
+
+  "scripts": [
+    {
+      "id": "BOSS_THORNMAW",
+      "chapter": 1,
+      "_doc": "17 §2 — the teaching boss. Phase 1 carries NO mechanics: 17 §2 is 'basic attacks only, ASPD 0.7. Nothing else', and 17 §1.2 states that the 0.7 is this row's aspd coefficient and 'not a phase aura'. 17 §2's failure mode to avoid — 'Root stacking with itself. It must refresh, not stack' — is the NONE + refreshOnReapply stacking on the Root, which is 18 §6's BLEED idiom.",
+      "coefficients": { "hp": 2.4, "atk": 0.8, "def": 0.8, "aspd": 0.7 },
+      "addsPowerFraction": 0.3,
+      "effects": [
+        {
+          "id": "BOSS_THORNMAW_P2_ROOT",
+          "op": "STAT_ADD_PCT",
+          "stat": "ASPD",
+          "value": -0.4,
+          "trigger": { "kind": "PERIODIC", "interval": 8.0 },
+          "target": "ALL_ENEMIES",
+          "duration": { "seconds": 3.0, "scope": "BATTLE" },
+          "stacking": { "mode": "NONE", "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_THORNMAW_P3_BLOOM",
+          "op": "SUMMON",
+          "archetype": "SWARM",
+          "value": 2,
+          "maxAlive": 3,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 }
+        },
+        {
+          "id": "BOSS_THORNMAW_P3_REGROWTH",
+          "op": "SUMMON",
+          "archetype": "SWARM",
+          "value": 2,
+          "maxAlive": 3,
+          "trigger": { "kind": "PERIODIC", "interval": 12.0 }
+        },
+        {
+          "id": "BOSS_THORNMAW_P3_RAGE",
+          "op": "APPLY_STATUS",
+          "statusId": "RAGE",
+          "value": 0.3,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        }
+      ],
+      "phases": [
+        { "phase": 1, "mechanics": [] },
+        { "phase": 2, "mechanics": [{ "effectId": "BOSS_THORNMAW_P2_ROOT", "telegraphSeconds": 1.2 }] },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_THORNMAW_P3_BLOOM" },
+            { "effectId": "BOSS_THORNMAW_P3_REGROWTH" },
+            { "effectId": "BOSS_THORNMAW_P3_RAGE" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_GULGROT",
+      "chapter": 2,
+      "_doc": "17 §3 — sustain check. 🔒 The 30% lifesteal is a phase-3 mechanic and not a base stat, exactly as 17 §1.2 requires. ⚠️ 'Applies 2 POISON stacks' is authored as TWO sibling effects: the DSL carries a per-application potency and duration (18 §1/§6) and no stack COUNT key, so N stacks is N applications — 18 §7.4's PK_UNBREAKABLE and §9.1's CP_GLASS_HEART are the precedent for one design being two effects. The 1.2 s wind-up 17 §3 authors sits on the first of the pair only, so the pair emits one telegraph for one green cloud. ⚠️ Croak's on-hit POISON is named in phase 1 ONLY, and Cindermaw's on-hit BURN — the identical shape — is named in all three. The difference is not an oversight: a phase entry deactivates the block being left, and 17 §5's phase 2 'refreshes all BURN stacks', which is meaningless with nothing still applying them. 17 §3's phases 2 and 3 carry their own poison sources (Belch, Spit) and depend on no phase-1 applier, so Croak ends with Croak, exactly as the section reads.",
+      "coefficients": { "hp": 2.5, "atk": 0.85, "def": 0.7, "aspd": 0.75 },
+      "effects": [
+        {
+          "id": "BOSS_GULGROT_P1_CROAK_POISON",
+          "op": "APPLY_STATUS",
+          "statusId": "POISON",
+          "value": 0.02,
+          "trigger": { "kind": "ON_HIT" },
+          "target": "CURRENT_TARGET",
+          "duration": { "seconds": 4.0, "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 3, "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_GULGROT_P2_BOG_AIR",
+          "op": "STAT_ADD_PCT",
+          "stat": "HEAL_PCT",
+          "value": -0.35,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 },
+          "target": "ALL_ENEMIES",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_GULGROT_P2_BELCH_FIRST",
+          "op": "APPLY_STATUS",
+          "statusId": "POISON",
+          "value": 0.02,
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 },
+          "target": "ALL_ENEMIES",
+          "duration": { "seconds": 4.0, "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 3, "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_GULGROT_P2_BELCH_SECOND",
+          "op": "APPLY_STATUS",
+          "statusId": "POISON",
+          "value": 0.02,
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 },
+          "target": "ALL_ENEMIES",
+          "duration": { "seconds": 4.0, "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 3, "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_GULGROT_P3_GORGE_LIFESTEAL",
+          "op": "STAT_ADD_PCT",
+          "stat": "LIFESTEAL",
+          "value": 0.3,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_GULGROT_P3_SPIT",
+          "op": "DAMAGE",
+          "value": 1.2,
+          "trigger": { "kind": "ON_HIT_TAKEN", "cooldown": 6.0 },
+          "target": "CURRENT_TARGET"
+        },
+        {
+          "id": "BOSS_GULGROT_P3_SPIT_POISON",
+          "op": "APPLY_STATUS",
+          "statusId": "POISON",
+          "value": 0.02,
+          "trigger": { "kind": "ON_HIT_TAKEN", "cooldown": 6.0 },
+          "target": "CURRENT_TARGET",
+          "duration": { "seconds": 4.0, "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 3, "refreshOnReapply": true }
+        }
+      ],
+      "phases": [
+        { "phase": 1, "mechanics": [{ "effectId": "BOSS_GULGROT_P1_CROAK_POISON" }] },
+        {
+          "phase": 2,
+          "mechanics": [
+            { "effectId": "BOSS_GULGROT_P2_BOG_AIR" },
+            { "effectId": "BOSS_GULGROT_P2_BELCH_FIRST", "telegraphSeconds": 1.2 },
+            { "effectId": "BOSS_GULGROT_P2_BELCH_SECOND" }
+          ]
+        },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_GULGROT_P3_GORGE_LIFESTEAL" },
+            { "effectId": "BOSS_GULGROT_P3_SPIT" },
+            { "effectId": "BOSS_GULGROT_P3_SPIT_POISON" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_OSSUARY_KING",
+      "chapter": 3,
+      "_doc": "17 §4 — burst windows. Rise Again is R9's ruling written out: 17 §1.1's ON_HP_THRESHOLD IS 18 §3's ON_LOW_HP, so the 1% trigger is {kind: ON_LOW_HP, threshold: 0.01, once: true} and there is no 24th trigger. It is authored as four effects on that one trigger because the DSL carries one op per effect and 17 §4 asks for four things at once — return to 25% HP, ATK +40%, ASPD +25%, and every add cleared. ⚠️ Ossify carries no wind-up: 17 §4 names a sound cue and no seconds, and SHIELD is not one of the three damaging ops, so T3 does not require one and none is invented.",
+      "coefficients": { "hp": 2.1, "atk": 0.9, "def": 1.0, "aspd": 0.8 },
+      "addsPowerFraction": 0.3,
+      "effects": [
+        {
+          "id": "BOSS_OSSUARY_KING_P1_COURT",
+          "op": "SUMMON",
+          "archetype": "GRUNT",
+          "value": 2,
+          "maxAlive": 2,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 1 }
+        },
+        {
+          "id": "BOSS_OSSUARY_KING_P1_RECALL",
+          "op": "SUMMON",
+          "archetype": "GRUNT",
+          "value": 2,
+          "maxAlive": 2,
+          "trigger": { "kind": "PERIODIC", "interval": 15.0 }
+        },
+        {
+          "id": "BOSS_OSSUARY_KING_P2_OSSIFY_WARD",
+          "op": "SHIELD",
+          "value": 0.2,
+          "valueMode": "SELF_MAXHP_PCT",
+          "trigger": { "kind": "PERIODIC", "interval": 14.0 },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_OSSUARY_KING_P2_OSSIFY_DR",
+          "op": "STAT_ADD_PCT",
+          "stat": "DR_PCT",
+          "value": 0.3,
+          "trigger": { "kind": "PERIODIC", "interval": 14.0 },
+          "target": "SELF",
+          "duration": { "seconds": 6.0, "scope": "BATTLE", "until": "WARD_BROKEN" }
+        },
+        {
+          "id": "BOSS_OSSUARY_KING_P3_RISE_AGAIN",
+          "op": "REVIVE",
+          "value": 0.25,
+          "trigger": { "kind": "ON_LOW_HP", "threshold": 0.01, "once": true },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_OSSUARY_KING_P3_RISEN_ATK",
+          "op": "STAT_ADD_PCT",
+          "stat": "ATK",
+          "value": 0.4,
+          "trigger": { "kind": "ON_LOW_HP", "threshold": 0.01, "once": true },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_OSSUARY_KING_P3_RISEN_ASPD",
+          "op": "STAT_ADD_PCT",
+          "stat": "ASPD",
+          "value": 0.25,
+          "trigger": { "kind": "ON_LOW_HP", "threshold": 0.01, "once": true },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_OSSUARY_KING_P3_CLEAR_COURT",
+          "op": "CLEAR_SUMMONS",
+          "trigger": { "kind": "ON_LOW_HP", "threshold": 0.01, "once": true },
+          "target": "SELF"
+        }
+      ],
+      "phases": [
+        {
+          "phase": 1,
+          "mechanics": [
+            { "effectId": "BOSS_OSSUARY_KING_P1_COURT" },
+            { "effectId": "BOSS_OSSUARY_KING_P1_RECALL" }
+          ]
+        },
+        {
+          "phase": 2,
+          "mechanics": [
+            { "effectId": "BOSS_OSSUARY_KING_P2_OSSIFY_WARD" },
+            { "effectId": "BOSS_OSSUARY_KING_P2_OSSIFY_DR" }
+          ]
+        },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_OSSUARY_KING_P3_RISE_AGAIN" },
+            { "effectId": "BOSS_OSSUARY_KING_P3_RISEN_ATK" },
+            { "effectId": "BOSS_OSSUARY_KING_P3_RISEN_ASPD" },
+            { "effectId": "BOSS_OSSUARY_KING_P3_CLEAR_COURT" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_CINDERMAW",
+      "chapter": 4,
+      "_doc": "17 §5 — the first real DPS check. ⚠️ Smoulder's on-hit BURN is listed in ALL THREE phase blocks, and that is an authoring decision rather than a transcription: a phase entry DEACTIVATES the block being left, so a mechanic named only in phase 1 stops when phase 2 begins — and 17 §5's phase 2 'refreshes all BURN stacks', which is meaningless if nothing is still applying them. Naming it in each block is the reading that makes both of 17 §5's sentences true. Recorded as an erratum on 17 §5, which does not restate the on-hit BURN per phase.",
+      "coefficients": { "hp": 2.4, "atk": 1.05, "def": 1.1, "aspd": 0.75 },
+      "effects": [
+        {
+          "id": "BOSS_CINDERMAW_SMOULDER_BURN",
+          "op": "APPLY_STATUS",
+          "statusId": "BURN",
+          "value": 0.08,
+          "trigger": { "kind": "ON_HIT" },
+          "target": "CURRENT_TARGET",
+          "duration": { "seconds": 3.0, "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 5, "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_CINDERMAW_P2_MAGMA_VENT",
+          "op": "DAMAGE",
+          "value": 1.8,
+          "trigger": { "kind": "PERIODIC", "interval": 9.0 },
+          "target": "CURRENT_TARGET"
+        },
+        {
+          "id": "BOSS_CINDERMAW_P2_VENT_REFRESH",
+          "op": "EXTEND_STATUS",
+          "statusId": "BURN",
+          "trigger": { "kind": "PERIODIC", "interval": 9.0 },
+          "target": "CURRENT_TARGET",
+          "duration": { "seconds": 3.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_CINDERMAW_P2_ERUPTION_DR",
+          "op": "STAT_ADD_PCT",
+          "stat": "DR_PCT",
+          "value": 0.2,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_CINDERMAW_P3_MAGMA_VENT",
+          "op": "DAMAGE",
+          "value": 1.8,
+          "trigger": { "kind": "PERIODIC", "interval": 7.0 },
+          "target": "CURRENT_TARGET"
+        },
+        {
+          "id": "BOSS_CINDERMAW_P3_VENT_REFRESH",
+          "op": "EXTEND_STATUS",
+          "statusId": "BURN",
+          "trigger": { "kind": "PERIODIC", "interval": 7.0 },
+          "target": "CURRENT_TARGET",
+          "duration": { "seconds": 3.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_CINDERMAW_P3_OVERHEAT_ATK",
+          "op": "STAT_ADD_PCT",
+          "stat": "ATK",
+          "value": 0.6,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_CINDERMAW_P3_OVERHEAT_DEF",
+          "op": "STAT_ADD_PCT",
+          "stat": "DEF",
+          "value": -0.4,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        }
+      ],
+      "phases": [
+        { "phase": 1, "mechanics": [{ "effectId": "BOSS_CINDERMAW_SMOULDER_BURN" }] },
+        {
+          "phase": 2,
+          "mechanics": [
+            { "effectId": "BOSS_CINDERMAW_SMOULDER_BURN" },
+            { "effectId": "BOSS_CINDERMAW_P2_MAGMA_VENT", "telegraphSeconds": 1.3 },
+            { "effectId": "BOSS_CINDERMAW_P2_VENT_REFRESH" },
+            { "effectId": "BOSS_CINDERMAW_P2_ERUPTION_DR" }
+          ]
+        },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_CINDERMAW_SMOULDER_BURN" },
+            { "effectId": "BOSS_CINDERMAW_P3_MAGMA_VENT", "telegraphSeconds": 1.3 },
+            { "effectId": "BOSS_CINDERMAW_P3_VENT_REFRESH" },
+            { "effectId": "BOSS_CINDERMAW_P3_OVERHEAT_ATK" },
+            { "effectId": "BOSS_CINDERMAW_P3_OVERHEAT_DEF" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_RIMEHOLD",
+      "chapter": 5,
+      "_doc": "17 §6 — attack-speed disruption. 🔒 The Core is a STATE FLAG and not a second actor, per 17 §6's own ruling and the M2 kickoff: DAMAGE_TAKEN_MULT ×1.6 on the boss for the duration of phase 2, and no targeting logic changes. ⚠️ Shatterback's FREEZE authors no stacking: 05 §5 fixes no stack count for FREEZE and M2-11 recorded that hole, so it is left absent and greppable rather than filled here.",
+      "coefficients": { "hp": 2.8, "atk": 0.95, "def": 1.3, "aspd": 0.6 },
+      "addsPowerFraction": 0.3,
+      "effects": [
+        {
+          "id": "BOSS_RIMEHOLD_P1_CHILL",
+          "op": "STAT_ADD_PCT",
+          "stat": "ASPD",
+          "value": -0.25,
+          "trigger": { "kind": "PERIODIC", "interval": 12.0 },
+          "target": "ALL_ENEMIES",
+          "duration": { "seconds": 4.0, "scope": "BATTLE" },
+          "stacking": { "mode": "NONE", "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_RIMEHOLD_P2_GLACIAL_ARMOUR",
+          "op": "STAT_ADD_PCT",
+          "stat": "DEF",
+          "value": 0.6,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_RIMEHOLD_P2_SHATTERBACK",
+          "op": "REFLECT",
+          "value": 0.25,
+          "trigger": { "kind": "ON_HIT_TAKEN", "cooldown": 10.0 },
+          "target": "ATTACKER"
+        },
+        {
+          "id": "BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE",
+          "op": "APPLY_STATUS",
+          "statusId": "FREEZE",
+          "trigger": { "kind": "ON_HIT_TAKEN", "cooldown": 10.0 },
+          "target": "ATTACKER",
+          "duration": { "seconds": 1.5, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_RIMEHOLD_P2_CORE_EXPOSED",
+          "op": "DAMAGE_TAKEN_MULT",
+          "value": 1.6,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_RIMEHOLD_P3_COLLAPSE",
+          "op": "DAMAGE",
+          "value": 2.2,
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 },
+          "target": "CURRENT_TARGET"
+        },
+        {
+          "id": "BOSS_RIMEHOLD_P3_ICE_SHARDS",
+          "op": "SUMMON",
+          "archetype": "SWARM",
+          "value": 2,
+          "maxAlive": 3,
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 }
+        },
+        {
+          "id": "BOSS_RIMEHOLD_P3_AVALANCHE_ASPD",
+          "op": "STAT_ADD_PCT",
+          "stat": "ASPD",
+          "value": 0.4,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        }
+      ],
+      "phases": [
+        { "phase": 1, "mechanics": [{ "effectId": "BOSS_RIMEHOLD_P1_CHILL" }] },
+        {
+          "phase": 2,
+          "mechanics": [
+            { "effectId": "BOSS_RIMEHOLD_P2_GLACIAL_ARMOUR" },
+            { "effectId": "BOSS_RIMEHOLD_P2_SHATTERBACK" },
+            { "effectId": "BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE" },
+            { "effectId": "BOSS_RIMEHOLD_P2_CORE_EXPOSED" }
+          ]
+        },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_RIMEHOLD_P3_COLLAPSE", "telegraphSeconds": 1.5 },
+            { "effectId": "BOSS_RIMEHOLD_P3_ICE_SHARDS" },
+            { "effectId": "BOSS_RIMEHOLD_P3_AVALANCHE_ASPD" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_COGITATOR_PRIME",
+      "chapter": 6,
+      "_doc": "17 §7 — the timer fight. Escalation is authored in every phase block because a phase entry deactivates the block being left: phase 1 and phase 2 each carry a +2% step every 5 s, and phase 3's Overclock carries the +4% step 17 §7 doubles it to. The STACKS are BATTLE-scoped and MULTIPLICATIVE, which is what 17 §7's 'compounding, and never resets for the whole fight' means — the accumulated multiplier survives every transition even though the periodic that grants it is re-anchored at each entry (R8). Under R1 the value IS the multiplier, so 1.02 is +2%. ⚠️ Piston Slam's 'ignores 40% DEF' is NOT authored: the DSL gives penetration only as the PEN stat, and a phase-3 PEN aura would apply to every autoattack as well, which 17 §7 does not say. Left unexpressed and recorded rather than approximated.",
+      "coefficients": { "hp": 2.2, "atk": 0.9, "def": 0.85, "aspd": 1.0 },
+      "addsPowerFraction": 0.3,
+      "effects": [
+        {
+          "id": "BOSS_COGITATOR_PRIME_P1_ESCALATION_ATK",
+          "op": "STAT_MULT",
+          "stat": "ATK",
+          "value": 1.02,
+          "trigger": { "kind": "PERIODIC", "interval": 5.0 },
+          "target": "SELF",
+          "duration": { "scope": "BATTLE" },
+          "stacking": { "mode": "MULTIPLICATIVE" }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P1_ESCALATION_ASPD",
+          "op": "STAT_MULT",
+          "stat": "ASPD",
+          "value": 1.02,
+          "trigger": { "kind": "PERIODIC", "interval": 5.0 },
+          "target": "SELF",
+          "duration": { "scope": "BATTLE" },
+          "stacking": { "mode": "MULTIPLICATIVE" }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P2_ESCALATION_ATK",
+          "op": "STAT_MULT",
+          "stat": "ATK",
+          "value": 1.02,
+          "trigger": { "kind": "PERIODIC", "interval": 5.0 },
+          "target": "SELF",
+          "duration": { "scope": "BATTLE" },
+          "stacking": { "mode": "MULTIPLICATIVE" }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P2_ESCALATION_ASPD",
+          "op": "STAT_MULT",
+          "stat": "ASPD",
+          "value": 1.02,
+          "trigger": { "kind": "PERIODIC", "interval": 5.0 },
+          "target": "SELF",
+          "duration": { "scope": "BATTLE" },
+          "stacking": { "mode": "MULTIPLICATIVE" }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P2_COUNTERMEASURES",
+          "op": "SUMMON",
+          "archetype": "WARDEN",
+          "value": 2,
+          "maxAlive": 2,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P2_RECALIBRATE",
+          "op": "STAT_COPY",
+          "stat": "HIGHEST_PCT_BONUS",
+          "value": 0.5,
+          "trigger": { "kind": "PERIODIC", "interval": 16.0 },
+          "target": "CURRENT_TARGET",
+          "duration": { "seconds": 10.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ATK",
+          "op": "STAT_MULT",
+          "stat": "ATK",
+          "value": 1.04,
+          "trigger": { "kind": "PERIODIC", "interval": 5.0 },
+          "target": "SELF",
+          "duration": { "scope": "BATTLE" },
+          "stacking": { "mode": "MULTIPLICATIVE" }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ASPD",
+          "op": "STAT_MULT",
+          "stat": "ASPD",
+          "value": 1.04,
+          "trigger": { "kind": "PERIODIC", "interval": 5.0 },
+          "target": "SELF",
+          "duration": { "scope": "BATTLE" },
+          "stacking": { "mode": "MULTIPLICATIVE" }
+        },
+        {
+          "id": "BOSS_COGITATOR_PRIME_P3_PISTON_SLAM",
+          "op": "DAMAGE",
+          "value": 2.0,
+          "trigger": { "kind": "PERIODIC", "interval": 8.0 },
+          "target": "CURRENT_TARGET"
+        }
+      ],
+      "phases": [
+        {
+          "phase": 1,
+          "mechanics": [
+            { "effectId": "BOSS_COGITATOR_PRIME_P1_ESCALATION_ATK" },
+            { "effectId": "BOSS_COGITATOR_PRIME_P1_ESCALATION_ASPD" }
+          ]
+        },
+        {
+          "phase": 2,
+          "mechanics": [
+            { "effectId": "BOSS_COGITATOR_PRIME_P2_ESCALATION_ATK" },
+            { "effectId": "BOSS_COGITATOR_PRIME_P2_ESCALATION_ASPD" },
+            { "effectId": "BOSS_COGITATOR_PRIME_P2_COUNTERMEASURES" },
+            { "effectId": "BOSS_COGITATOR_PRIME_P2_RECALIBRATE" }
+          ]
+        },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ATK" },
+            { "effectId": "BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ASPD" },
+            { "effectId": "BOSS_COGITATOR_PRIME_P3_PISTON_SLAM", "telegraphSeconds": 1.5 }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_SPOREQUEEN_VELL",
+      "chapter": 7,
+      "_doc": "17 §8 — anti-healing and debuff stacking. 🔒 NO enrage exemption, decided at the M2 kickoff: the phase-3 Rot drain is a ~66 s soft timer that lands before the universal 70 s enrage, and 17 §8's request to 'verify these do not interact confusingly' is the balance harness's assertion, not an engine change. 🔒 Rot is DAMAGE_TRUE and NOT DAMAGE_MAXHP_PCT: 17 §8 writes 'true damage ... unmitigable', and 05 §4.1's ward bypass list names this very aura — 'DAMAGE_TRUE and effects marked true damage (Sporequeen's Rot aura — 17 §8)' — while putting DAMAGE_MAXHP_PCT in the same sentence's 'everything else is absorbed' clause, where DR% applies too. Authored the other way, a DR or ward build would simply switch the phase-3 soft timer off. It needs no wind-up: a 1 s period has nowhere to put a 1.0-1.5 s one, which is T3's structural exemption. The sporelings' own SPORE application is the CASTER archetype's chapter-7 biome status and is authored in content/enemies/, not here. ⚠️ 17 §8's 'the boss heals 4% of its Max HP each time a sporeling dies' is NOT authored, and the blocker is the ENGINE rather than the DSL: 18 §3's ON_DEATH row and 18 §5's OWNER row both name this mechanic as their worked example, so the vocabulary was extended FOR it — but the effect has to sit on the sporeling, and BossSummonSource.Spawn builds a summon's ActorPlan with no Effects at all. Recorded here rather than approximated by putting it on the boss, where ON_DEATH would fire on the boss's own death.",
+      "coefficients": { "hp": 2.5, "atk": 0.9, "def": 0.75, "aspd": 0.9 },
+      "addsPowerFraction": 0.3,
+      "effects": [
+        {
+          "id": "BOSS_SPOREQUEEN_VELL_P1_POLLINATION",
+          "op": "APPLY_STATUS",
+          "statusId": "SPORE",
+          "value": -0.12,
+          "trigger": { "kind": "PERIODIC", "interval": 6.0 },
+          "target": "ALL_ENEMIES",
+          "duration": { "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 4 }
+        },
+        {
+          "id": "BOSS_SPOREQUEEN_VELL_P2_BLOOM_COURT",
+          "op": "SUMMON",
+          "archetype": "CASTER",
+          "value": 2,
+          "maxAlive": 2,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 2 }
+        },
+        {
+          "id": "BOSS_SPOREQUEEN_VELL_P2_BURST_CAP",
+          "op": "DAMAGE",
+          "value": 1.5,
+          "trigger": { "kind": "PERIODIC", "interval": 12.0 },
+          "target": "ALL_ENEMIES"
+        },
+        {
+          "id": "BOSS_SPOREQUEEN_VELL_P2_BURST_CAP_POISON_FIRST",
+          "op": "APPLY_STATUS",
+          "statusId": "POISON",
+          "value": 0.02,
+          "trigger": { "kind": "PERIODIC", "interval": 12.0 },
+          "target": "ALL_ENEMIES",
+          "duration": { "seconds": 4.0, "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 3, "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_SPOREQUEEN_VELL_P2_BURST_CAP_POISON_SECOND",
+          "op": "APPLY_STATUS",
+          "statusId": "POISON",
+          "value": 0.02,
+          "trigger": { "kind": "PERIODIC", "interval": 12.0 },
+          "target": "ALL_ENEMIES",
+          "duration": { "seconds": 4.0, "scope": "BATTLE" },
+          "stacking": { "mode": "ADDITIVE", "maxStacks": 3, "refreshOnReapply": true }
+        },
+        {
+          "id": "BOSS_SPOREQUEEN_VELL_P3_ROT",
+          "op": "DAMAGE_TRUE",
+          "value": 0.015,
+          "valueMode": "TARGET_MAXHP_PCT",
+          "trigger": { "kind": "PERIODIC", "interval": 1.0 },
+          "target": "ALL_ENEMIES"
+        },
+        {
+          "id": "BOSS_SPOREQUEEN_VELL_P3_REGROW",
+          "op": "SUMMON",
+          "archetype": "CASTER",
+          "value": 1,
+          "maxAlive": 2,
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 }
+        }
+      ],
+      "phases": [
+        { "phase": 1, "mechanics": [{ "effectId": "BOSS_SPOREQUEEN_VELL_P1_POLLINATION" }] },
+        {
+          "phase": 2,
+          "mechanics": [
+            { "effectId": "BOSS_SPOREQUEEN_VELL_P2_BLOOM_COURT" },
+            { "effectId": "BOSS_SPOREQUEEN_VELL_P2_BURST_CAP", "telegraphSeconds": 1.5 },
+            { "effectId": "BOSS_SPOREQUEEN_VELL_P2_BURST_CAP_POISON_FIRST" },
+            { "effectId": "BOSS_SPOREQUEEN_VELL_P2_BURST_CAP_POISON_SECOND" }
+          ]
+        },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_SPOREQUEEN_VELL_P3_ROT" },
+            { "effectId": "BOSS_SPOREQUEEN_VELL_P3_REGROW" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_DICELORD",
+      "chapter": 8,
+      "_doc": "17 §9 — the finale, and the only fight that touches the dice system. 🔒 Phase 2's outcome table is the M2 kickoff's decision on 17 §9's flagged ambiguity: 1-4 boss buff, 5-6 both buff, the hero-favourable outcome simply removed — weights 4/2 against phase 1's 2/2/2. 🔒 The every-6th auto-crit is R21: FORCE_CRIT_NEXT makes it a crit, which 17 §1.2's fixed CDMG 0.50 already pays at ×1.5, and ATTACK_MULT_NEXT ×2.0 carries the rest, so 1.5 × 2.0 is exactly the ×3 17 §9 asks for. Both carry charges: 1, the key M2-03 added under R6 for precisely this. 🔒 Scramble picks its face the same way the boss picks everything else: a RANDOM_OUTCOME over six siblings, one per face, at equal weight. 18 §7.9 offers PLAYER_CHOICE or a fixed 1-6 index and 17 §9's face is neither — but the 44th op IS a uniform draw over sibling effects, so 'one of the hero's six die faces' needs no new key. Authoring MODIFY_DIE_FACE with no faceIndex instead would hand the run controller a face change naming no face. ⚠️ One half of 17 §9 is genuinely not authorable and is recorded rather than approximated: '5-6: both gain ASPD +30%' has no 18 §5 target naming both sides at once, and RANDOM_OUTCOME fires exactly one effect, so the 5-6 row buffs the roller only. Closing it needs a twelfth target or a nested outcome, which is 18 §10's route and not content's.",
+      "coefficients": { "hp": 2.6, "atk": 1.0, "def": 0.95, "aspd": 0.9 },
+      "effects": [
+        {
+          "id": "BOSS_DICELORD_P1_ROLL_OF_FATE",
+          "op": "RANDOM_OUTCOME",
+          "outcomes": [
+            { "effectId": "BOSS_DICELORD_P1_FATE_BOSS_ATK", "weight": 2 },
+            { "effectId": "BOSS_DICELORD_P1_FATE_HERO_ATK", "weight": 2 },
+            { "effectId": "BOSS_DICELORD_P1_FATE_BOTH_ASPD", "weight": 2 }
+          ],
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_DICELORD_P1_FATE_BOSS_ATK",
+          "op": "STAT_ADD_PCT",
+          "stat": "ATK",
+          "value": 0.25,
+          "target": "SELF",
+          "duration": { "seconds": 8.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_DICELORD_P1_FATE_HERO_ATK",
+          "op": "STAT_ADD_PCT",
+          "stat": "ATK",
+          "value": 0.25,
+          "target": "ALL_ENEMIES",
+          "duration": { "seconds": 8.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_DICELORD_P1_FATE_BOTH_ASPD",
+          "op": "STAT_ADD_PCT",
+          "stat": "ASPD",
+          "value": 0.3,
+          "target": "SELF",
+          "duration": { "seconds": 8.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_LOADED_DICE",
+          "op": "RANDOM_OUTCOME",
+          "outcomes": [
+            { "effectId": "BOSS_DICELORD_P2_FATE_BOSS_ATK", "weight": 4 },
+            { "effectId": "BOSS_DICELORD_P2_FATE_BOTH_ASPD", "weight": 2 }
+          ],
+          "trigger": { "kind": "PERIODIC", "interval": 10.0 },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_DICELORD_P2_FATE_BOSS_ATK",
+          "op": "STAT_ADD_PCT",
+          "stat": "ATK",
+          "value": 0.25,
+          "target": "SELF",
+          "duration": { "seconds": 8.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_FATE_BOTH_ASPD",
+          "op": "STAT_ADD_PCT",
+          "stat": "ASPD",
+          "value": 0.3,
+          "target": "SELF",
+          "duration": { "seconds": 8.0, "scope": "BATTLE" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE",
+          "op": "RANDOM_OUTCOME",
+          "outcomes": [
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F1", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F2", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F3", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F4", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F5", "weight": 1 },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F6", "weight": 1 }
+          ],
+          "trigger": { "kind": "PERIODIC", "interval": 14.0 },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F1",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 1,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F2",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 2,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F3",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 3,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F4",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 4,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F5",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 5,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P2_SCRAMBLE_F6",
+          "op": "MODIFY_DIE_FACE",
+          "faceIndex": 6,
+          "newFace": { "kind": "Void" },
+          "target": "RUN",
+          "duration": { "scope": "RUN" }
+        },
+        {
+          "id": "BOSS_DICELORD_P3_HOUSE_WARD",
+          "op": "SHIELD",
+          "value": 0.25,
+          "valueMode": "SELF_MAXHP_PCT",
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_DICELORD_P3_HOUSE_THORNS",
+          "op": "STAT_ADD_PCT",
+          "stat": "THORNS",
+          "value": 0.3,
+          "trigger": { "kind": "ON_PHASE_ENTER", "phase": 3 },
+          "target": "SELF",
+          "duration": { "scope": "PHASE" }
+        },
+        {
+          "id": "BOSS_DICELORD_P3_ALL_IN",
+          "op": "DAMAGE",
+          "value": 3.0,
+          "trigger": { "kind": "PERIODIC", "interval": 8.0 },
+          "target": "CURRENT_TARGET"
+        },
+        {
+          "id": "BOSS_DICELORD_P3_LOADED_CRIT",
+          "op": "FORCE_CRIT_NEXT",
+          "charges": 1,
+          "trigger": { "kind": "ON_ATTACK", "everyNth": 6 },
+          "target": "SELF"
+        },
+        {
+          "id": "BOSS_DICELORD_P3_LOADED_CRIT_MULT",
+          "op": "ATTACK_MULT_NEXT",
+          "charges": 1,
+          "value": 2.0,
+          "trigger": { "kind": "ON_ATTACK", "everyNth": 6 },
+          "target": "SELF"
+        }
+      ],
+      "phases": [
+        {
+          "phase": 1,
+          "mechanics": [
+            { "effectId": "BOSS_DICELORD_P1_ROLL_OF_FATE" },
+            { "effectId": "BOSS_DICELORD_P1_FATE_BOSS_ATK" },
+            { "effectId": "BOSS_DICELORD_P1_FATE_HERO_ATK" },
+            { "effectId": "BOSS_DICELORD_P1_FATE_BOTH_ASPD" }
+          ]
+        },
+        {
+          "phase": 2,
+          "mechanics": [
+            { "effectId": "BOSS_DICELORD_P2_LOADED_DICE" },
+            { "effectId": "BOSS_DICELORD_P2_FATE_BOSS_ATK" },
+            { "effectId": "BOSS_DICELORD_P2_FATE_BOTH_ASPD" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F1" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F2" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F3" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F4" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F5" },
+            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F6" }
+          ]
+        },
+        {
+          "phase": 3,
+          "mechanics": [
+            { "effectId": "BOSS_DICELORD_P3_HOUSE_WARD" },
+            { "effectId": "BOSS_DICELORD_P3_HOUSE_THORNS" },
+            { "effectId": "BOSS_DICELORD_P3_ALL_IN", "telegraphSeconds": 1.5 },
+            { "effectId": "BOSS_DICELORD_P3_LOADED_CRIT" },
+            { "effectId": "BOSS_DICELORD_P3_LOADED_CRIT_MULT" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "BOSS_FTUE",
+      "_doc": "17 §1.2 — the FTUE beat-7 mini-boss, and 🔒 'this row is the single statblock authority', referenced by ftue.json (M4-12's, not authored here). It carries NO chapter, because 17 §1.2's Ch column is empty for it, and it does not use EnemyPower(i): its power and level are the fixed authored inputs on this row. 🔒 'Phase 1 only' — so all three blocks exist, because 17 §1 gives every boss exactly three and the encounter builder refuses anything else (A1), and all three are EMPTY. That is not a shortcut: 17 §1.2 matches it to the O36 default skin, which is Thornmaw phase 1 — and 17 §2's Thornmaw phase 1 is 'basic attacks only. Nothing else', the one phase block in this file that is legitimately empty for a campaign boss too. The coefficients mirror Thornmaw's row exactly.",
+      "coefficients": { "hp": 2.4, "atk": 0.8, "def": 0.8, "aspd": 0.7 },
+      "fixedPower": 900,
+      "fixedLevel": 1,
+      "effects": [],
+      "phases": [
+        { "phase": 1, "mechanics": [] },
+        { "phase": 2, "mechanics": [] },
+        { "phase": 3, "mechanics": [] }
+      ]
+    }
+  ]
+}

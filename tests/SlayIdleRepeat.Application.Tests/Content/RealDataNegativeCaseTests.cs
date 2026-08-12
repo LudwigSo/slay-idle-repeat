@@ -510,6 +510,15 @@ public sealed class RealDataNegativeCaseTests
     // M2-10 — the third hole outside tuning/. 05 §5 says RAGE decays over D s and states no curve;
     // see the remarks on the total above.
     [InlineData("content/statuses.json", 1)]
+
+    // M2-13 — the eight boss scripts and the FTUE row, and NO hole, which is worth a line rather
+    // than a silence. Where 17 authorises nothing, the boss data omits the key instead of writing
+    // null: a boss that does not summon carries no adds fraction, a mechanic that needs no wind-up
+    // carries no telegraphSeconds, and the FTUE row alone carries the two fixed inputs. The two
+    // holes 17 §7 and §8 really do leave — Piston Slam's DEF penetration and the sporeling-death
+    // heal — are mechanics the DSL cannot express at all, so there is no key to write null INTO;
+    // they are recorded in the affected scripts' own _doc.
+    [InlineData("content/bosses/bosses.json", 0)]
     public void Each_shipped_file_carries_exactly_the_unauthorised_holes_it_is_recorded_as_carrying(
         string documentPath, int expected)
     {

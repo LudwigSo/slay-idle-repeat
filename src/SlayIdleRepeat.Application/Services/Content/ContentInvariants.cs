@@ -39,25 +39,54 @@ public static partial class ContentInvariants
     /// </remarks>
     public static IReadOnlyList<string> DeclaredRuleReferences => DeclaredRules.References;
 
-    /// <summary>Every cross-file rule, over the merged, schema-valid document set.</summary>
+    /// <summary>
+    /// 🔒 Every embedded effect <b>R35</b> has validated against <c>schema/effect.schema.json</c>, as
+    /// <c>path#/pointer</c> — the subject-set floor a test asserts against (steering S3).
+    /// </summary>
+    /// <remarks>
+    /// R35's subjects are discovered structurally rather than from a list of content types, so the
+    /// rule itself cannot say how many effects it ought to have seen; a walk that matched nothing
+    /// would pass exactly as loudly as one that validated every boss mechanic in the repository.
+    /// Exposed here for the same reason <see cref="DeclaredRuleReferences"/> is.
+    /// </remarks>
+    public static IReadOnlyList<string> ValidatedEmbeddedEffects => DeclaredRules.ValidatedEmbeddedEffects;
+
+    /// <summary>🔒 `18` §1's effect vocabulary — the schema <b>R35</b> validates against.</summary>
+    public static string EffectSchemaPath => DeclaredRules.EffectSchemaPath;
+
+    /// <summary>
+    /// Every cross-file rule, over the merged, schema-valid document set and the schema set the
+    /// vocabulary rules read.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The two shorter overloads this class used to carry are gone, deliberately.</b> They took
+    /// no schema set, so the only thing they could do with <c>DeclaredRules</c>' <b>R35</b> was hand
+    /// it an empty one — which makes R35 manufacture a <c>MissingSchema</c> finding for content that
+    /// is perfectly valid. That is the right answer to <em>"validate these effects against nothing"</em>
+    /// and a trap for the first caller who reaches for the short form because it looked convenient.
+    /// Nothing called them; the loader has always passed its schemas. One overload, one meaning.
+    /// </remarks>
     /// <param name="documents">Data documents by snapshot-relative path. Schemas excluded.</param>
     /// <param name="patternBindings">
     /// Where each schema <c>pattern</c> governed a string, per document — the trace the reference
     /// rules are derived from.
     /// </param>
-    public static IReadOnlyList<ContentIssue> Check(
-        IReadOnlyDictionary<string, ContentValue> documents,
-        IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings) =>
-        Check(documents, patternBindings, ContentLoadOptions.Canonical);
-
-    /// <summary>Every cross-file rule, plus the ship gates when <paramref name="options"/> asks.</summary>
+    /// <param name="schemas">
+    /// The parsed schema set. Only <c>DeclaredRules</c>' <b>R35</b> reads it, and only for
+    /// <c>schema/effect.schema.json</c>: an effect is embedded in the content that owns it, so the
+    /// one file that states `18` §1's op-to-key partition has to be applied to those embedded copies
+    /// from here — an owning schema can neither <c>$ref</c> it nor restate it.
+    /// </param>
+    /// <param name="options">Which gates to run.</param>
     public static IReadOnlyList<ContentIssue> Check(
         IReadOnlyDictionary<string, ContentValue> documents,
         IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings,
+        IReadOnlyDictionary<string, ContentValue> schemas,
         ContentLoadOptions options)
     {
         ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(patternBindings);
+        ArgumentNullException.ThrowIfNull(schemas);
         ArgumentNullException.ThrowIfNull(options);
 
         var issues = new List<ContentIssue>();
@@ -67,7 +96,7 @@ public static partial class ContentInvariants
         CheckIcons(documents, issues);
         CheckLocaleParity(documents, issues);
         CheckLocaleKeyReferences(documents, issues);
-        DeclaredRules.Check(documents, issues);
+        DeclaredRules.Check(documents, schemas, issues);
 
         if (options.ShippingBuild)
         {

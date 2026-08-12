@@ -98,6 +98,43 @@ internal sealed record BossScript
     public required BossCoefficients Coefficients { get; init; }
 
     /// <summary>
+    /// 🔒 `17` §1's <em>"adds use standard archetypes from `05` §6.1 at 25–35% of boss power"</em> —
+    /// the fraction this boss's summons are derived at, or <c>null</c> where it authors none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>M2-12 left the question open and M2-13 answers it: the fraction is <em>per boss</em>,
+    /// not per mechanic.</b> <see cref="BossAdds"/> recorded both candidates and the evidence that
+    /// decides between them is `17`'s own eight fights:
+    /// </para>
+    /// <list type="number">
+    ///   <item><b>Every summoning boss summons exactly one archetype.</b> `17` §2's Thornmaw spawns
+    ///   <c>SWARM</c> and only <c>SWARM</c>, §4's Ossuary King <c>GRUNT</c>, §6's Rimehold
+    ///   <c>SWARM</c>, §7's Cogitator <c>WARDEN</c>, §8's Sporequeen <c>CASTER</c>. Not one boss
+    ///   mixes two, so there is no fight in which two summons of one boss <em>should</em> differ.</item>
+    ///   <item><b>Three of the five re-summon the <em>same</em> adds.</b> §2's <em>"summons 2
+    ///   more"</em>, §4's <em>"resummons any dead ones"</em> and §8's <em>"resummons 1
+    ///   sporeling"</em> are all top-ups of the bodies an earlier mechanic put on the field. A
+    ///   per-mechanic fraction would let one named add stand on the field at two different powers
+    ///   inside one fight, which is a defect rather than a degree of freedom nobody asked for.</item>
+    /// </list>
+    /// <para>
+    /// ⚠️ <b>The number inside the band is authored, not transcribed, and this is the record of
+    /// that.</b> `17` §1 gives 25–35% and names no value for any boss; the content authors one
+    /// (the band's midpoint, identical on all five, because `17` distinguishes none of them) and
+    /// `05` §9's balance harness is what re-tunes it. <see cref="BossSummonSource"/> still refuses a
+    /// fraction outside the band, so the band remains the engine's and the choice remains content's.
+    /// </para>
+    /// <para>
+    /// 🔒 <c>null</c> where the boss authors no <c>SUMMON</c> — `17` §3's Gulgrot, §5's Cindermaw,
+    /// §9's the Dicelord and the FTUE row. An adds fraction on a boss with no adds is data nothing
+    /// reads, and a plausible-looking one is exactly the hole the null convention exists to keep
+    /// greppable.
+    /// </para>
+    /// </remarks>
+    public double? AddsPowerFraction { get; init; }
+
+    /// <summary>
     /// 🔒 Exactly <see cref="PhaseCount"/> blocks, numbered <c>1</c>, <c>2</c>, <c>3</c>, in that
     /// order. <see cref="BossEncounterBuilder"/> refuses anything else.
     /// </summary>
