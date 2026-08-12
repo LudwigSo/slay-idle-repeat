@@ -52,6 +52,28 @@ public sealed class PlayerWalletTests
             .ShouldBe(new[] { CurrencyId.GOLD, CurrencyId.ENERGY }, ignoreOrder: true);
     }
 
+    /// <summary>
+    /// 🔒 …and the list itself cannot be rewritten through the reference it hands out. A bare array
+    /// behind an <see cref="IReadOnlyList{T}"/> casts straight back to <c>CurrencyId[]</c>, so a
+    /// caller could redefine what a wallet <b>is</b>, process-wide.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <c>Apply_is_the_only_public_mutation</c> would not see it: that rule inspects setters,
+    /// public fields, constructors and mutating methods, not exposed collections. The two sibling
+    /// assertions in this file cover the same hole for <c>Wallet</c> and the counter maps.
+    /// </remarks>
+    [Fact]
+    public void The_wallet_currency_list_cannot_be_rewritten_through_its_reference()
+    {
+        (Core.Model.Player.WalletCurrencies as CurrencyId[]).ShouldBeNull(
+            "a bare array behind IReadOnlyList<T> is a public mutation path in disguise");
+
+        Should.Throw<NotSupportedException>(
+            () => ((IList<CurrencyId>)Core.Model.Player.WalletCurrencies)[0] = CurrencyId.GOLD);
+
+        Core.Model.Player.WalletCurrencies[0].ShouldBe(CurrencyId.CROWNS);
+    }
+
     /// <summary>A credit moves the balance and produces the `30` §7 event that attributes it.</summary>
     [Fact]
     public void A_credit_moves_the_balance_and_emits_CurrencyChanged()
@@ -89,7 +111,10 @@ public sealed class PlayerWalletTests
     {
         var moved = Player().MoveCurrency(CurrencyId.HONOR, 5, "pvp_duel_win");
 
-        moved.Sequence.ShouldBe(Core.Model.Player.UnstampedSequence);
+        moved.Sequence.ShouldBe(
+            0,
+            "DomainEvent's ordinal is assigned by GameRules.Apply; asserting against the constant " +
+            "the producer emits would hold for whatever value that constant took.");
 
         // …and Apply can stamp it, because every component but Reason stays a positional `init`.
         (moved with { Sequence = 3 }).Sequence.ShouldBe(3);

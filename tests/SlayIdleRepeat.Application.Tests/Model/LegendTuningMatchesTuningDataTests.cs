@@ -104,10 +104,15 @@ public sealed class LegendTuningMatchesTuningDataTests
         var block = LegendLevelBlock();
 
         Read(block, "xpCoefficient").GetDecimal().ShouldBe(120m, "07 §1.1 — Level 2 needs 120 XP.");
-        Read(block, "xpExponent").GetDecimal().ShouldBe(
-            1.05m,
-            "07 §1.1 / 21 §12 — the sweep target. M1-04 does not read it: the Player aggregate holds " +
-            "the level RANGE as an invariant and computes no curve.");
+        // ⚠️ Asserted as a RANGE, not as 1.05. 21 §12 calls this "the highest-suspicion number in
+        // the whole economy — sweep it first", and progression.json authors its own sweep bounds
+        // beside it. Pinning the exact value would turn the first balance sweep red inside a file
+        // about the Player aggregate's Legend Level invariant, which reads nothing here.
+        var sweep = Read(block, "xpExponentSweepRange");
+        var exponent = Read(block, "xpExponent").GetDecimal();
+
+        exponent.ShouldBeGreaterThanOrEqualTo(Read(sweep, "min").GetDecimal());
+        exponent.ShouldBeLessThanOrEqualTo(Read(sweep, "max").GetDecimal());
         Read(block, "talentPointsPerLevel").GetInt32().ShouldBe(
             1, "09 §2 — one Talent Point per level. M4-10 grants them; M1-04 stores neither.");
     }
@@ -115,7 +120,7 @@ public sealed class LegendTuningMatchesTuningDataTests
     private static JsonElement Read(JsonElement parent, string member)
     {
         parent.TryGetProperty(member, out var value).ShouldBeTrue(
-            $"{ProgressionDocument}#/legendLevel/{member} is gone. The Player aggregate's " +
+            $"{ProgressionDocument}#/legendLevel/…/{member} is gone. The Player aggregate's " +
             "invariant or its pin reads it; the data moved — fix the reader, do not delete the case.");
 
         return value;

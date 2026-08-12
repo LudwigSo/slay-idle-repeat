@@ -58,6 +58,7 @@
           "DisplayName:System.String",
           "LegendLevel:System.Int32",
           "LegendXp:System.Int64",
+          "RunsStarted:System.Int64",
           "Wallet{key}:SlayIdleRepeat.Core.Primitives.CurrencyId",
           "Wallet{value}:System.Int64",
           "Energy.Energy:System.Int32",

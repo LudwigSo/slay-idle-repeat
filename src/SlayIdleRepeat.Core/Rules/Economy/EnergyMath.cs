@@ -60,17 +60,21 @@ internal static class EnergyMath
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
+    /// <remarks>
+    /// 🔒 <b>The formula itself lives on <see cref="EnergyTuning"/></b>, and that placement is
+    /// forced rather than tidy. M1-04's <c>Player</c> aggregate holds `30` §11.5's <em>"Energy
+    /// never exceeds max + reserve"</em> as an invariant, and `30` §11.4 forbids <c>Model</c> from
+    /// referencing <c>Rules</c> — so the aggregate cannot call this method to learn the maximum it
+    /// is required to enforce. It first transcribed the arithmetic a second time; <c>Content/</c>
+    /// sits beneath both <c>Model</c> and <c>Rules</c>, so moving the derivation there gives the
+    /// two callers one number instead of two that agree until they do not. This method stays as
+    /// the name the energy math is written in terms of.
+    /// </remarks>
     internal static int MaxEnergy(EnergyTuning tuning, int legendLevel)
     {
         ArgumentNullException.ThrowIfNull(tuning);
-        RequireLegendLevel(legendLevel);
 
-        // 64-bit, because both operands are authored numbers: a per-level increment of a few
-        // million at Legend Level 200 would silently wrap in 32-bit and hand back a small or
-        // negative Max Energy, which every rule below would then treat as the truth.
-        var grown = tuning.BaseMax + ((long)tuning.PerLegendLevel * (legendLevel - 1));
-
-        return (int)Math.Min(grown, tuning.MaxCap);
+        return tuning.MaxEnergyAt(legendLevel);
     }
 
     /// <summary>
@@ -82,16 +86,15 @@ internal static class EnergyMath
     /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
+    /// <remarks>
+    /// Derived on <see cref="EnergyTuning"/> for the reason <see cref="MaxEnergy"/> documents: the
+    /// <c>Player</c> aggregate needs the same number and may not reference <c>Rules</c>.
+    /// </remarks>
     internal static int ReserveCapacity(EnergyTuning tuning, int legendLevel)
     {
-        // Explicit, though MaxEnergy below would also catch it: without this the type is null-safe
-        // only because C# evaluates the call before the tuning.ReserveMultipleOfMax read, which is
-        // a guarantee a reordering silently removes.
         ArgumentNullException.ThrowIfNull(tuning);
 
-        var capacity = (long)MaxEnergy(tuning, legendLevel) * tuning.ReserveMultipleOfMax;
-
-        return (int)Math.Min(capacity, int.MaxValue);
+        return tuning.ReserveCapacityAt(legendLevel);
     }
 
     /// <summary>
@@ -324,17 +327,15 @@ internal static class EnergyMath
         return new EnergyBanks((int)(banks.Energy + intoBar), (int)(banks.Reserve + intoReserve));
     }
 
-    private static void RequireLegendLevel(int legendLevel)
-    {
-        if (legendLevel < 1)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(legendLevel),
-                legendLevel,
-                "A Legend Level starts at 1 — 07 §1.1 runs it from 1 to 200, and the range itself " +
-                "is the Player aggregate's invariant to hold (30 §11.5). MaxEnergy counts levels " +
-                "GAINED, so anything below 1 subtracts from the base 120 that 10 §3 authors for a " +
-                "starting player. Zero is not a player state and is refused with the rest.");
-        }
-    }
+    /// <summary>
+    /// Fails fast on a Legend Level the derivations have no meaning for, before the entry point
+    /// does anything else.
+    /// </summary>
+    /// <remarks>
+    /// Delegates to <see cref="EnergyTuning.RequireLegendLevel"/> rather than restating the
+    /// message: <see cref="EnergyTuning.MaxEnergyAt"/> would raise the same guard a few lines
+    /// later, and two copies of one refusal are two copies that drift.
+    /// </remarks>
+    private static void RequireLegendLevel(int legendLevel) =>
+        EnergyTuning.RequireLegendLevel(legendLevel);
 }

@@ -387,18 +387,26 @@ public sealed class CanonicalStateWriterTests
     /// <b>public field</b> makes different must never share a <c>stateHash</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Record equality does <b>not</b> see this field — the synthesized <c>Equals</c> compares
-    /// the primary-constructor components only — so this is strictly worse than the property case
-    /// above, where equality at least disagreed with the hash. Here the language and the hash
-    /// <i>agree</i> that two materially different players are the same, and nothing anywhere would
-    /// have said so. That is why the assertion is on the refusal rather than on the two hashes
-    /// differing: there is no encoding of this shape that could be correct.
+    /// ⚠️ <b>Measured, not assumed:</b> Roslyn's synthesized record <c>Equals</c> compares every
+    /// <i>instance field</i> of the type, not only the primary-constructor components — so equality
+    /// <b>does</b> see this field, and the divergence is exactly the property case's. The first
+    /// draft of this test asserted the opposite on a plausible reading of "the field list is the
+    /// parameter list" and went red, which is the reading being corrected here. The assertion is on
+    /// the refusal rather than on the two hashes differing because there is no encoding of this
+    /// shape that could be correct: the field is in no parameter list, so it has no position.
     /// </remarks>
     [Fact]
     public void HashMetaCommandState_refuses_a_public_field_record_equality_can_see()
     {
         var quiet = new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 0 };
         var busy = new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 99 };
+
+        busy.ShouldNotBe(
+            quiet,
+            "Roslyn's synthesized record Equals compares every INSTANCE FIELD of the type, not only " +
+            "the primary-constructor components — so a public field is visible to equality even " +
+            "though it is in no parameter list. That is precisely the divergence: the language " +
+            "calls these two records different and the encoder would call them the same.");
 
         var hashQuiet = () => CanonicalStateWriter.HashMetaCommandState(quiet);
         var hashBusy = () => CanonicalStateWriter.HashMetaCommandState(busy);

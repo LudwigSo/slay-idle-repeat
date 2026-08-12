@@ -118,6 +118,87 @@ internal sealed class EnergyTuning
     internal int ReserveMultipleOfMax { get; }
 
     /// <summary>
+    /// 🔒 `10` §3 — Max Energy at a Legend Level: the base plus the per-level increment, stopped at
+    /// the cap. 120 (+2 per Legend Level, cap 200) as shipped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why the derivation lives here and not only in <c>EnergyMath</c>.</b> Two callers need
+    /// it and they are in layers that cannot see each other: <c>EnergyMath</c> (<c>Rules/</c>)
+    /// computes grants and accruals with it, and the <c>Player</c> aggregate (<c>Model/</c>) holds
+    /// `30` §11.5's <em>"Energy never exceeds max + reserve"</em> as an invariant — and `30` §11.4
+    /// forbids <c>Model</c> from referencing <c>Rules</c>. <c>Content/</c> is beneath <b>both</b>,
+    /// so it is the one home where the formula can exist once. M1-04 first transcribed it a second
+    /// time onto the aggregate; that was two numbers that could drift, kept together only by a
+    /// test, and this is the fix.
+    /// </para>
+    /// <para>
+    /// It is a <b>definition type deriving a value from its own authored fields</b>, which is not
+    /// the computation `30` §11.5 keeps off the aggregate: no state, no player, no rule — the same
+    /// thing <see cref="RegenInterval"/> already does by turning authored minutes into a span.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The increment counts levels <em>gained</em>, so it is <c>(legendLevel − 1)</c>.</b>
+    /// `07` §1.1 starts a player at Legend Level <b>1</b> and <c>progression.json#/legendLevel/min</c>
+    /// is 1, so Level 1 is where the authored base of 120 belongs. Four numbers in `10` §3/§3.2
+    /// agree and are exact under this reading and off by a hair under <c>× legendLevel</c>: the
+    /// headline "120 (+2 per Legend Level)"; "full refill time 8 hours from empty" (120 ÷ 15/hr);
+    /// "runs on a full tank: 6" (120 ÷ 20); and §3.2's budget line "120 (start)". The visible
+    /// consequence: the 200 cap is first reached at Legend Level <b>41</b>, not 40.
+    /// </para>
+    /// </remarks>
+    /// <param name="legendLevel">
+    /// The player's Legend Level. `07` §1.1 runs it 1..200 and the aggregate holds that range
+    /// (`30` §11.5); anything below 1 has no meaning for the formula and is refused.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is below 1.</exception>
+    internal int MaxEnergyAt(int legendLevel)
+    {
+        RequireLegendLevel(legendLevel);
+
+        // 64-bit, because both operands are authored numbers: a per-level increment of a few
+        // million at Legend Level 200 would silently wrap in 32-bit and hand back a small or
+        // negative Max Energy, which every rule below would then treat as the truth.
+        var grown = BaseMax + ((long)PerLegendLevel * (legendLevel - 1));
+
+        return (int)Math.Min(grown, MaxCap);
+    }
+
+    /// <summary>
+    /// 🔒 `28` C2 — the Energy Reserve's capacity: <b>1× Max Energy</b> as shipped, and therefore a
+    /// function of the player's <em>current</em> Max Energy rather than of the 200 cap. At Legend
+    /// Level 1 it is 120, not 200.
+    /// </summary>
+    /// <param name="legendLevel">The player's Legend Level. Never below 1.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is below 1.</exception>
+    internal int ReserveCapacityAt(int legendLevel) =>
+        (int)Math.Min((long)MaxEnergyAt(legendLevel) * ReserveMultipleOfMax, int.MaxValue);
+
+    /// <summary>
+    /// The Legend Level guard every derivation over this tuning shares.
+    /// </summary>
+    /// <remarks>
+    /// Zero is not a player state and is refused with the rest: <see cref="MaxEnergyAt"/> counts
+    /// levels <b>gained</b>, so anything below 1 subtracts from the base 120 that `10` §3 authors
+    /// for a starting player. <c>internal</c> so <c>EnergyMath</c>'s entry points can fail fast on
+    /// it before doing other work, rather than restating the message and letting the two copies
+    /// drift.
+    /// </remarks>
+    internal static void RequireLegendLevel(int legendLevel)
+    {
+        if (legendLevel < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(legendLevel),
+                legendLevel,
+                "A Legend Level starts at 1 — 07 §1.1 runs it from 1 to 200, and the range itself " +
+                "is the Player aggregate's invariant to hold (30 §11.5). Max Energy counts levels " +
+                "GAINED, so anything below 1 subtracts from the base 120 that 10 §3 authors for a " +
+                "starting player. Zero is not a player state and is refused with the rest.");
+        }
+    }
+
+    /// <summary>
     /// Reads the energy block. Throws rather than defaulting on anything missing, unauthorised,
     /// mistyped or nonsensical.
     /// </summary>

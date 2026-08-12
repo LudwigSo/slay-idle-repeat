@@ -22,6 +22,16 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// </param>
 /// <param name="LegendLevel">The player's Legend Level. `07` §1.1 runs it 1..200.</param>
 /// <param name="LegendXp">Lifetime Legend XP. Never negative.</param>
+/// <param name="RunsStarted">
+/// 🔒 `02` §2's <c>runCounter</c> — <em>"the player's lifetime runs-started counter, incremented by
+/// every <c>START_RUN</c>"</em>, and the fourth argument of
+/// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>. Never
+/// negative, never reset. It is player-scoped and lifetime, so neither period-cleared counter map
+/// could hold it, and the <c>Run</c> aggregate could not either — it has to exist before the run
+/// does and outlive it. M1-05 cannot write <c>START_RUN</c> without it, and it is authored rather
+/// than guessed, so it ships in v1 instead of costing a <c>SchemaVersion</c> bump on the very next
+/// task.
+/// </param>
 /// <param name="Wallet">
 /// 🔒 The <b>six</b> player-scoped wallet currencies of `10` §1 — <c>CROWNS</c>,
 /// <c>SOUL_SHARDS</c>, <c>ENHANCE_STONES</c>, <c>MERGE_DUST</c>, <c>BEAST_FEED</c>, <c>HONOR</c> —
@@ -88,16 +98,24 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// the seam refuses it instead.
 /// </para>
 /// <para>
-/// ⚠️ <b>The counter dictionaries are open, and their emptiness is the honest state today.</b>
-/// `30` §2.3 names five things the daily reset clears — quest expiry, the wheel's free spin, ad
-/// caps, dungeon entries and daily-shop stock — and <b>none of those systems exists</b>: quests and
-/// the wheel are M4-09's, ad caps are `12`'s, dungeon entries are M10's. Freezing a closed enum of
-/// counter keys now would invent the vocabulary M4-09 and M10 are the ones placed to name (S6), so
-/// what M1-04 ships is the <em>mechanism</em> — a reset boundary and a key→count map that a system
-/// registers its own counter in on first use. The key is a bare <c>string</c> and not a wrapper id
-/// for a mechanical reason: <c>CanonicalStateWriter.KeyOrderFor</c> defines an ascending order for
-/// strings and numeric ids <b>only</b>, so an <c>IReadOnlyDictionary&lt;CounterKey, long&gt;</c>
-/// would have no canonical encoding at all.
+/// ⚠️ <b>The counter mechanism is for <em>caps and counts</em>, and it does not cover all five of
+/// `30` §2.3's daily resets.</b> A period anchor plus an open key→count map is the right seam for
+/// <b>ad caps</b>, <b>dungeon entries</b>, <b>the wheel's free spin</b> and the count-shaped flags
+/// M1-08 needs ("has today's <c>BEGIN_SESSION</c> run", "was the daily free refill paid") — none of
+/// those systems exists yet (M4-09, M10, `12`), and freezing a closed enum of counter keys now
+/// would invent the vocabulary they are the ones placed to name (S6). It does <b>not</b> cover the
+/// other two: `30` §2.3's <b>quest expiry</b> persists the day's three drawn quests (`19` B) and
+/// <b>daily-shop stock</b> the day's six-offer block (`10` §5.1). Those are drawn <em>slates</em> —
+/// ordered lists of content ids with per-entry progress — and a <c>key → long</c> map could only
+/// encode them by abusing keys as a set, which would put content ids into the <c>stateHash</c> key
+/// space through the back door. <b>M4-09 and M10 will each add a real field here and bump
+/// <see cref="SnapshotSchema.SchemaVersion"/>;</b> that cost is named rather than discovered.
+/// </para>
+/// <para>
+/// The counter key is a bare <c>string</c> and not a wrapper id for a mechanical reason:
+/// <c>CanonicalStateWriter.KeyOrderFor</c> defines an ascending order for strings and numeric ids
+/// <b>only</b>, so an <c>IReadOnlyDictionary&lt;CounterKey, long&gt;</c> would have no canonical
+/// encoding at all.
 /// </para>
 /// <para>
 /// 🔒 <b>There is no entitlement field, and that is a ruling rather than an omission.</b> `30` §4
@@ -132,6 +150,7 @@ public sealed record PlayerSnapshot(
     string DisplayName,
     int LegendLevel,
     long LegendXp,
+    long RunsStarted,
     IReadOnlyDictionary<CurrencyId, long> Wallet,
     EnergyBanks Energy,
     DateTimeOffset EnergyAnchorUtc,

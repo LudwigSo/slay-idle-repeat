@@ -189,21 +189,31 @@ public sealed class DomainPurityTests
     }
 
     /// <summary>
-    /// `30` §9 / §7 — every currency mutation emits `CurrencyChanged`. IL scan: a write
+    /// 🔒 `30` §9 / §7 — every currency mutation emits `CurrencyChanged`. IL scan: a write
     /// to a currency-carrying field may only happen inside a method that also emits the
     /// event. Construction and rehydration are exempt — they rebuild state rather than
-    /// move currency (`30` §11.3). Vacuous until M1-04 adds the first field a currency is
-    /// <b>held</b> in — see <see cref="CurrencyFields"/> for why an event does not count.
+    /// move currency (`30` §11.3).
     /// </summary>
+    /// <remarks>
+    /// <b>LIVE since M1-04</b>, which declared `Player._wallet` — the first field a currency is
+    /// <b>held</b> in (see <see cref="CurrencyFields"/> for why an event does not count). It was
+    /// written in M0-08 against a subject set that did not exist yet and passed vacuously until
+    /// that commit.
+    /// </remarks>
     [Fact]
     public void Every_currency_mutation_emits_CurrencyChanged()
     {
         var currencyFields = CurrencyFields().ToHashSet(StringComparer.Ordinal);
-        if (currencyFields.Count == 0)
-        {
-            ArchRule.Empty(Array.Empty<string>(), CurrencyRule);
-            return;
-        }
+
+        // 🔒 The floor, not a sentinel (steering S3). This used to be `if (count == 0) { pass; }`,
+        // which was right while the set was genuinely empty and became the rule's own blind spot
+        // the moment it was not: a change to Il.Flatten, to the Core/Events/ exclusion or to
+        // _wallet's declared type would empty the set again and this rule would report success
+        // forever, with nothing else in the repository noticing.
+        Assert.NotEmpty(currencyFields);
+        Assert.Contains(
+            currencyFields,
+            name => name.Contains("Player::_wallet", StringComparison.Ordinal));
 
         var offenders = new List<string>();
 
@@ -236,11 +246,12 @@ public sealed class DomainPurityTests
     /// being emptied by something other than what the remark claims (steering S3).
     /// </summary>
     /// <remarks>
-    /// The exclusion is the only reason <c>CurrencyFields()</c> is empty today. An
-    /// <c>IsDomainEvent</c> that answered <c>true</c> for everything would empty the set
-    /// permanently — including on the day M1-04 lands the first wallet — and
-    /// <c>Every_currency_mutation_emits_CurrencyChanged</c> would short-circuit forever with its
-    /// `count == 0` sentinel looking exactly as it does now.
+    /// The exclusion kept <c>CurrencyFields()</c> genuinely empty from M1-03 until M1-04 landed
+    /// <c>Player._wallet</c>. It still matters now that the rule is live, for the opposite reason:
+    /// an <c>IsDomainEvent</c> that answered <c>true</c> for everything would empty the set again —
+    /// and while the empty case used to pass through a `count == 0` sentinel, it now trips the
+    /// floor in <c>Every_currency_mutation_emits_CurrencyChanged</c> instead, so this teeth-check
+    /// is what says <b>which</b> half broke.
     /// </remarks>
     [Fact]
     public void The_event_exclusion_recognises_the_hierarchy_and_nothing_else()
@@ -344,6 +355,29 @@ public sealed class DomainPurityTests
         Assert.False(
             IsRehydrationOrConstruction(ordinary),
             "…and it is therefore not construction either.");
+
+        // 🔒 The clause is a CONJUNCTION — [CompilerGenerated] *and* init-only — and this is the
+        // only probe that pins the first half. Without it, deleting `Domain.IsCompilerGenerated(
+        // method) &&` from IsRehydrationOrConstruction leaves every test in the repository green:
+        // set_Loose is refused by the init-only half and MutatesWithoutEmitting is not a setter at
+        // all, so nothing would notice that a HAND-WRITTEN init body had just been exempted.
+        var handWritten = Il.AllTypes(OwnModule.Value)
+            .Single(t => t.Name.Equals(nameof(CurrencyEmissionFixtures.HandWrittenInit), StringComparison.Ordinal))
+            .Methods.Single(m => m.Name.Equals("set_WalletBalance", StringComparison.Ordinal));
+
+        Assert.True(
+            Il.IsInitOnlySetter(handWritten),
+            "a hand-written `init` accessor carries the same IsExternalInit modifier as a record's.");
+
+        Assert.False(
+            Domain.IsCompilerGenerated(handWritten),
+            "…and it is NOT compiler-generated, which is the whole distinction the conjunction draws.");
+
+        Assert.False(
+            IsRehydrationOrConstruction(handWritten),
+            "an author-written init body can run arbitrary code while writing a currency field, so " +
+            "it is not the mechanical component-assignment a record's synthesized init is. If this " +
+            "is true, `init` has become a keyword that buys an exemption from 30 §7.");
     }
 
     /// <summary>
@@ -464,11 +498,11 @@ public sealed class DomainPurityTests
     /// 🔒 <b>The `30` §7 event hierarchy is excluded, and that exclusion is load-bearing.</b>
     /// A `DomainEvent` is the *emission* of a currency movement, never the place one is
     /// held. Without this skip, M1-03's `CurrencyChanged(int, CurrencyId Id, long, string)`
-    /// alone made this set non-empty — which does not wake the rule up, it just takes away
-    /// the `count == 0` sentinel that is the only visible signal the rule is still asleep.
-    /// That is steering S3's failure mode arriving through the front door: the set stays
-    /// meaningfully empty until M1-04 puts a currency on the `Player` aggregate, and it
-    /// must keep *saying* so.
+    /// alone made this set non-empty — which would not have woken the rule up, it would just
+    /// have taken away the `count == 0` sentinel that was then the only visible signal the
+    /// rule was still asleep. The set stayed meaningfully empty until M1-04 put a currency
+    /// on the `Player` aggregate; from that commit the sentinel is a FLOOR instead, and the
+    /// skip is what stops an event's backing field from being mistaken for a wallet.
     /// </para>
     /// <para>
     /// ⚠️ <b>Not "because constructors are exempt".</b> Measured, not assumed: with the skip
@@ -668,12 +702,15 @@ public sealed class DomainPurityTests
 
         /// <summary>
         /// Writes a currency-carrying field from an ordinary method and emits nothing — the shape
-        /// <see cref="IsRehydrationOrConstruction"/>'s new <c>init</c> clause must NOT exempt.
+        /// <see cref="IsRehydrationOrConstruction"/>'s <c>init</c> clause must NOT exempt.
         /// </summary>
         /// <remarks>
         /// It lives here rather than in `Core` because it is a violation, and a violation is never
-        /// committed to the domain to prove a rule works. The field is named for the wallet so
-        /// <c>CurrencyFields()</c> recognises it by both halves of its predicate.
+        /// committed to the domain to prove a rule works. ⚠️ It is <b>not</b> in
+        /// <c>CurrencyFields()</c>'s subject set and does not claim to be — that set is scoped to
+        /// <c>Domain.CoreTypes</c> and skips static fields, and this is a static field in the test
+        /// assembly. What it drives is the <b>predicate</b>: <c>IsRehydrationOrConstruction</c>
+        /// must answer <c>false</c> for an ordinary method that writes one.
         /// </remarks>
         internal static void MutatesWithoutEmitting() => Loose.WalletBalance = 1;
 
@@ -693,6 +730,29 @@ public sealed class DomainPurityTests
         {
             /// <summary>An ordinary <c>set</c> accessor: not an init, and therefore not construction.</summary>
             internal long Loose { get; set; }
+        }
+
+        /// <summary>
+        /// 🔒 A <b>hand-written</b> <c>init</c> accessor over a currency-carrying field — the half
+        /// of the exemption's conjunction that only this fixture can pin.
+        /// </summary>
+        /// <remarks>
+        /// It carries the same <c>IsExternalInit</c> modifier a record's synthesized accessor does,
+        /// so the init-only half of the check cannot tell the two apart; only
+        /// <c>[CompilerGenerated]</c> can. An author-written body may run arbitrary code while
+        /// writing the field, which is why it is not the mechanical component-assignment the
+        /// exemption is for.
+        /// </remarks>
+        internal sealed class HandWrittenInit
+        {
+            private long _walletBalance;
+
+            /// <summary>A balance behind an author-written init accessor.</summary>
+            internal long WalletBalance
+            {
+                get => _walletBalance;
+                init => _walletBalance = value;
+            }
         }
     }
 }

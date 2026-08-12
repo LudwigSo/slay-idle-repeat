@@ -146,11 +146,14 @@ public sealed class PlayerEnergyTests
     {
         var tuning = Tuning;
         var disagreements = new List<string>();
+        var probed = 0;
 
         for (var level = ProgressionDocuments.ShippedLegendLevelMin;
              level <= ProgressionDocuments.ShippedLegendLevelMax;
              level++)
         {
+            probed++;
+
             var expected = EnergyMath.MaxEnergy(tuning, level);
             var reserve = EnergyMath.ReserveCapacity(tuning, level);
             var player = At(level, new EnergyBanks(0, 0));
@@ -180,8 +183,15 @@ public sealed class PlayerEnergyTests
         }
 
         disagreements.ShouldBeEmpty(
-            "Model may not reference Rules (30 §11.4), so EnergyMath.MaxEnergy and the aggregate's " +
-            "own ceiling are two transcriptions of 10 §3. This is what keeps them one number.");
+            "Model may not reference Rules (30 §11.4), so the aggregate cannot call EnergyMath to " +
+            "learn the ceiling it must hold. Both read EnergyTuning.MaxEnergyAt; this is what keeps " +
+            "that true rather than assumed.");
+
+        // 🔒 A floor on the loop itself: if the two authored bounds ever cross or collapse, the body
+        // runs zero times and the emptiness above is vacuous — S3 inside a test.
+        probed.ShouldBe(
+            ProgressionDocuments.ShippedLegendLevelMax - ProgressionDocuments.ShippedLegendLevelMin + 1,
+            "every authored Legend Level must actually be probed");
     }
 
     /// <summary>
@@ -247,33 +257,62 @@ public sealed class PlayerEnergyTests
     }
 
     /// <summary>
-    /// The regeneration anchor advances by the span a rule accrued — recorded assumption <b>A1</b>:
-    /// <c>wholeUnits × interval</c>, never to the instant asked about.
+    /// 🔒 An accrual writes the banks and moves the anchor in <b>one</b> call — recorded assumption
+    /// <b>A1</b>: <c>wholeUnits × interval</c>, never to the instant asked about.
     /// </summary>
     [Fact]
-    public void The_energy_anchor_advances_by_the_span_the_rule_accrued()
+    public void An_accrual_writes_the_banks_and_moves_the_anchor_together()
     {
         var player = At(1, new EnergyBanks(0, 0));
         var before = player.EnergyAnchorUtc;
 
         var accrued = EnergyMath.Accrue(Tuning, 1, player.Energy, TimeSpan.FromMinutes(10));
-        player.AdvanceEnergyAnchor(accrued.AnchorAdvance);
+        var moved = player.AccrueEnergy(accrued.Banks, accrued.AnchorAdvance, Tuning, "energy_regen");
 
-        // Two whole 4-minute units in ten minutes: the anchor moves 8 minutes and the remaining
-        // two survive to the next command, which is the whole point of A1.
+        // Two whole 4-minute units in ten minutes: two Energy, the anchor moves 8 minutes, and the
+        // remaining two survive to the next command — which is the whole point of A1.
         accrued.AnchorAdvance.ShouldBe(TimeSpan.FromMinutes(8));
+        player.Energy.ShouldBe(new EnergyBanks(2, 0));
         player.EnergyAnchorUtc.ShouldBe(before.AddMinutes(8));
+        moved.Id.ShouldBe(CurrencyId.ENERGY);
+        moved.Delta.ShouldBe(2);
+    }
+
+    /// <summary>
+    /// 🔒 There is <b>no</b> way to move the anchor without writing the banks it accrued. Two
+    /// internal mutators would each be individually legal, and a caller that wrote the banks and
+    /// forgot the anchor would re-grant the same span on every later command — unbounded Energy
+    /// that no aggregate-level invariant could see.
+    /// </summary>
+    [Fact]
+    public void The_anchor_is_unreachable_except_through_an_accrual()
+    {
+        typeof(Core.Model.Player)
+            .GetMethods(System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.NonPublic)
+            .Where(m => !m.IsPrivate)
+            .Select(m => m.Name)
+            .ShouldNotContain(
+                "AdvanceEnergyAnchor",
+                "the anchor and the banks are one fact; exposing the anchor on its own is what " +
+                "makes re-granting a span representable.");
     }
 
     /// <summary>The anchor only moves forwards; a negative advance would pay the same span twice.</summary>
     [Fact]
-    public void The_energy_anchor_cannot_move_backwards()
+    public void An_accrual_with_a_negative_anchor_advance_is_refused()
     {
         var player = At(1, new EnergyBanks(0, 0));
 
         Should.Throw<ArgumentOutOfRangeException>(
-                  () => player.AdvanceEnergyAnchor(TimeSpan.FromSeconds(-1)))
+                  () => player.AccrueEnergy(
+                      new EnergyBanks(5, 0), TimeSpan.FromSeconds(-1), Tuning, "energy_regen"))
               .Message.ShouldMatchWildcard("*only moves forwards*");
+
+        player.Energy.ShouldBe(
+            new EnergyBanks(0, 0),
+            "the anchor is checked before the banks are written, so a refused accrual changes nothing");
     }
 
     /// <summary>A zero advance is legal and leaves the anchor alone — less than one interval passed.</summary>
@@ -283,7 +322,7 @@ public sealed class PlayerEnergyTests
         var player = At(1, new EnergyBanks(0, 0));
         var before = player.EnergyAnchorUtc;
 
-        player.AdvanceEnergyAnchor(TimeSpan.Zero);
+        player.AccrueEnergy(player.Energy, TimeSpan.Zero, Tuning, "energy_regen");
 
         player.EnergyAnchorUtc.ShouldBe(before);
     }

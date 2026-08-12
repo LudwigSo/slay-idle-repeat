@@ -184,15 +184,25 @@ internal static class GapRegister
     /// `30` §4's <c>Player</c> row enumerates eighteen things — <i>"Profile, Legend Level, all 8
     /// currencies, inventory, unopened containers, gear instances, pets, mounts, talents, presets,
     /// unlocks, FTUE progress, Energy + Reserve, all pity counters, Feats and Renown, daily/weekly
-    /// counters, ad caps, entitlement"</i> — and most of them are not type names at all, so a
-    /// verbatim transcription would report <c>Profile</c> and <c>Legend Level</c> as undeclared
-    /// forever. Transcribing the whole row properly would also demand a <see cref="Deferred"/>
-    /// entry, with an owning task, for pets, mounts, talents, presets, unlocks and ad caps — six
-    /// owners no milestone plan assigns yet, and inventing them is precisely what S6 forbids. So
-    /// M1-04 transcribes the four items it deliberately did not build, and the limit is stated
-    /// here rather than hidden behind a citation that claims more than it covers. <b>Whoever
-    /// completes the row owns closing this</b>: M4-05 (inventory capacity) is the first task that
-    /// touches enough of it to be placed to.
+    /// counters, ad caps, entitlement"</i> — and this mechanism cannot hold the whole row. It
+    /// matches a <b>type simple name</b> against a <c>Core</c> namespace, and most of those items
+    /// are not type names: <c>Profile</c>, <c>Legend Level</c> and <c>daily/weekly counters</c> are
+    /// <em>built</em>, as fields of <c>Player</c> rather than as types called that, so a verbatim
+    /// transcription would report them undeclared forever. Two more are built and would read the
+    /// same way: <c>FTUE progress</c> (<c>Player.FtueBeat</c> + <c>FtueCompletedAtUtc</c>, `19` D7)
+    /// and <c>Energy + Reserve</c> (<c>Player.Energy</c>, `28` C). <c>ad caps</c> is built too — it
+    /// is the daily counter mechanism, which exists precisely for it. And <c>entitlement</c> is
+    /// <b>ruled off</b> the aggregate entirely (`30` §3 and `12` §2.1 put it on the session), so it
+    /// is neither built here nor deferred.
+    /// </para>
+    /// <para>
+    /// What is left genuinely absent and genuinely type-shaped is <b>ten</b>: the four below, plus
+    /// pets (M4-07), mounts (M4-08), talents (M4-06), presets and unlocks (M4-10). Those five are
+    /// <em>not</em> transcribed here and that is the honest limit of this entry — each would need a
+    /// <see cref="Gap.WaitsFor"/> type name, and naming five types five unwritten milestones have
+    /// not chosen is the invention S6 forbids, dressed as bookkeeping. <b>M4-05 owns closing
+    /// this</b>: it is the first task that touches enough of `30` §4's row (inventory capacity) to
+    /// know what those types are called.
     /// </para>
     /// </remarks>
     internal static readonly SpecifiedSurface[] Surfaces =

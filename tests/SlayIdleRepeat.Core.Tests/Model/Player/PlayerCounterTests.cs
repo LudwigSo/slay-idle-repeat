@@ -264,19 +264,43 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// Resetting to the boundary already in force is legal and idempotent — `30` §2.3's catch-up
-    /// runs on <b>every</b> command, so most calls cross no boundary at all.
+    /// 🔒 Resetting to the boundary <b>already in force</b> is a no-op, not a clear.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ This is the sharpest correctness case in the mechanism. `30` §2.3 runs lazy catch-up as
+    /// the first step of <em>every</em> command, so M1-08 calls this on every command a player
+    /// sends. Clearing on equality would wipe the day's ad caps, dungeon entries and quest progress
+    /// several times an hour — handing back every cap the player had already spent, which is
+    /// exactly what the monotonic guard's own message says must never happen.
+    /// </remarks>
+    [Fact]
+    public void Resetting_to_the_boundary_already_in_force_keeps_the_counts()
+    {
+        var player = Player();
+        player.CountDaily("ad_caps", 2);
+        player.CountWeekly("guild_quest_contributions", 3);
+
+        player.ResetDailyCounters(PlayerSnapshots.Wednesday);
+        player.ResetWeeklyCounters(PlayerSnapshots.Monday);
+
+        player.DailyCount("ad_caps").ShouldBe(2, "the game day has not turned over");
+        player.WeeklyCount("guild_quest_contributions").ShouldBe(3, "the game week has not turned over");
+        player.DailyPeriodStartUtc.ShouldBe(PlayerSnapshots.Wednesday);
+        player.WeeklyPeriodStartUtc.ShouldBe(PlayerSnapshots.Monday);
+    }
+
+    /// <summary>
+    /// …and a boundary that <b>has</b> moved does clear, so the no-op above is not "never resets".
     /// </summary>
     [Fact]
-    public void Resetting_to_the_current_boundary_is_idempotent()
+    public void A_boundary_that_has_moved_does_clear()
     {
         var player = Player();
         player.CountDaily("ad_caps", 2);
 
-        player.ResetDailyCounters(PlayerSnapshots.Wednesday);
+        player.ResetDailyCounters(PlayerSnapshots.Wednesday.AddDays(1));
 
-        player.DailyCounters.ShouldBeEmpty();
-        player.DailyPeriodStartUtc.ShouldBe(PlayerSnapshots.Wednesday);
+        player.DailyCount("ad_caps").ShouldBe(0);
     }
 
     /// <summary>The exposed counter maps are read-only views, not the aggregate's own dictionaries.</summary>

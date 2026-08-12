@@ -21,6 +21,7 @@ public sealed class PlayerSnapshotTests
         displayName: "Ludwig",
         legendLevel: 41,
         legendXp: 987_654,
+        runsStarted: 613,
         wallet: PlayerSnapshots.Wallet(
             (CurrencyId.CROWNS, 1_200),
             (CurrencyId.SOUL_SHARDS, 30),
@@ -52,6 +53,7 @@ public sealed class PlayerSnapshotTests
         round.DisplayName.ShouldBe(Populated.DisplayName);
         round.LegendLevel.ShouldBe(Populated.LegendLevel);
         round.LegendXp.ShouldBe(Populated.LegendXp);
+        round.RunsStarted.ShouldBe(Populated.RunsStarted);
         round.Wallet.ShouldBe(Populated.Wallet);
         round.Energy.ShouldBe(Populated.Energy);
         round.EnergyAnchorUtc.ShouldBe(Populated.EnergyAnchorUtc);
@@ -140,6 +142,7 @@ public sealed class PlayerSnapshotTests
             (nameof(PlayerSnapshot.DisplayName), v, PlayerSnapshots.With(displayName: "Someone Else")),
             (nameof(PlayerSnapshot.LegendLevel), v, PlayerSnapshots.With(legendLevel: 2)),
             (nameof(PlayerSnapshot.LegendXp), v, PlayerSnapshots.With(legendXp: 1)),
+            (nameof(PlayerSnapshot.RunsStarted), v, PlayerSnapshots.With(runsStarted: 1)),
             (nameof(PlayerSnapshot.Wallet), v, PlayerSnapshots.With(wallet: PlayerSnapshots.Wallet((CurrencyId.CROWNS, 1)))),
             ("Energy.Energy", v, PlayerSnapshots.With(energy: new EnergyBanks(1, 0))),
             ("Energy.Reserve", v, PlayerSnapshots.With(energy: new EnergyBanks(0, 1))),

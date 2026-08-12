@@ -248,6 +248,43 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
+    /// 🔒 `02` §2's <c>runCounter</c> — the lifetime runs-started counter — is never negative, and
+    /// <c>BeginRun</c> advances it and answers the value the run is seeded with.
+    /// </summary>
+    /// <remarks>
+    /// It is on <c>Player</c> and nowhere else: <c>runSeed = Hash64(playerId, chapterId, tierId,
+    /// utcUnixSeconds, runCounter)</c> needs it before the <c>Run</c> exists and after it ends, and
+    /// a period-cleared counter map would reset it. M1-05 cannot write <c>START_RUN</c> without it.
+    /// </remarks>
+    [Fact]
+    public void The_lifetime_runs_started_counter_advances_and_is_never_negative()
+    {
+        var negative = Core.Model.Player.Rehydrate(PlayerSnapshots.With(runsStarted: -1), Content);
+        negative.IsFailure.ShouldBeTrue();
+        negative.Error.ShouldContain("RunsStarted is -1", Case.Sensitive);
+
+        var player = Core.Model.Player.Rehydrate(PlayerSnapshots.With(runsStarted: 41), Content).Value;
+
+        player.RunsStarted.ShouldBe(41);
+        player.BeginRun().ShouldBe(42, "the value returned is the counter AFTER the increment");
+        player.RunsStarted.ShouldBe(42);
+        player.ToSnapshot().RunsStarted.ShouldBe(42);
+    }
+
+    /// <summary>The counter refuses to wrap: `02` §2 feeds it into <c>runSeed</c>.</summary>
+    [Fact]
+    public void The_lifetime_runs_started_counter_refuses_to_wrap()
+    {
+        var player = Core.Model.Player
+            .Rehydrate(PlayerSnapshots.With(runsStarted: long.MaxValue), Content).Value;
+
+        Should.Throw<InvalidOperationException>(() => player.BeginRun())
+              .Message.ShouldMatchWildcard("*re-seeding runs*");
+
+        player.RunsStarted.ShouldBe(long.MaxValue);
+    }
+
+    /// <summary>
     /// ⚠️ A <b>content</b> defect throws rather than failing. A corrupt row is one player's
     /// problem and belongs in a <c>Result</c>; a data set with no authored Legend Level range is
     /// every player's problem and belongs at the composition root that loaded it.
