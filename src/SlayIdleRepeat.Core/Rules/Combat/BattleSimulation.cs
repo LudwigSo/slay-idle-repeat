@@ -314,8 +314,17 @@ internal sealed class BattleSimulation
     /// <para>
     /// 🔒 <b>The two documents ask for the same sequence and it is written once.</b> §3.1 step 0b
     /// names the hero side first; §3.3 names the attacker's side first, and a duel's attacker
-    /// <em>is</em> the hero side (<c>CombatActor</c>, <c>BattleSide</c>). <see cref="ActingOrder"/> is
-    /// the one caller that turns this into a duel rule.
+    /// <em>is</em> the hero side (<c>CombatActor</c>, <c>BattleSide</c>). They will not drift, because
+    /// they are one document.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Three callers, and only two of them are §3.1 step 0b.</b> <see cref="PreTick"/>'s
+    /// <c>ON_BATTLE_START</c> sweep is the quoted rule; <see cref="ActingOrder"/> is `05` §3.3's duel
+    /// initiative, which is the same sequence for the reason above. The third — <see cref="Run"/>'s
+    /// <c>ON_BATTLE_END</c> sweep — is <b>neither</b>: no document orders it, and it takes this order
+    /// because a battle's closing sweep matching its opening one is the least surprising choice. It
+    /// therefore inherits the duel's side-first sequence too. Stated because it is a ruling, not a
+    /// quotation.
     /// </para>
     /// </remarks>
     private IEnumerable<BattleActor> BattleStartOrder() =>
@@ -356,6 +365,28 @@ internal sealed class BattleSimulation
     /// 🔒 <b>Gated on <see cref="CombatRules.IsPvp"/> and on nothing else.</b> A second flag saying
     /// "order by side" would be a second statement of "is this a duel"; `18` §4's <c>IS_PVP</c> is
     /// already that fact, and <c>CombatRules</c>' own remarks refuse the duplicate.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>SCOPE: slots 4 and 5, and NOT slots 1, 2 or 3 — a boundary, not an omission.</b> `05`
+    /// §3.3's row is titled <em>Initiative</em> and enumerates what it reorders: <em>"hero, then pet
+    /// abilities"</em>. Those are slot 4 and slot 5 exactly. It says nothing about status timers
+    /// (slot 1), expiries (slot 2) or <c>PERIODIC</c>s (slot 3), which keep `05` §3.1's actor order in
+    /// a duel as in a fight. ⚠️ <b>The consequence is real and is recorded rather than smoothed
+    /// over:</b> on a roster whose indices are not side-grouped, slot 3 fires the defender's
+    /// <c>PERIODIC</c>s first while slot 4 swings the attacker first — and slot 3 draws, so that is
+    /// visible in <c>LogHash</c>. Extending the order to the other three slots is a one-line change —
+    /// route their walks through this method — and it is deliberately <b>not</b> made here, because
+    /// `05` §3.3 does not authorise it and inventing the extension would be a rule the document did
+    /// not write (steering S6).
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The alternative that was considered and not taken:</b> making this unconditional, since
+    /// <c>_actors</c> is already built in index order and side-then-index differs from it only on an
+    /// ill-formed roster — so `05` §3.1's own <em>"Hero, then enemies by index"</em> arguably reads as
+    /// side-first too. It was rejected as the wrong risk to take here: it would change PvE ordering on
+    /// exactly the rosters nothing else in the repository constrains, and PvE ordering is inside
+    /// <c>LogHash</c> and inside the committed reference vectors. Taking the PvE half needs its own
+    /// task and its own re-baseline; the duel half is this one's and does not touch them.
     /// </para>
     /// </remarks>
     private IEnumerable<BattleActor> ActingOrder() =>
@@ -596,11 +627,18 @@ internal sealed class BattleSimulation
     /// </remarks>
     private void RunPetAbilities()
     {
-        _petOrder ??= Acting(a => a.Kind == EffectActorKind.PET);
+        // 🔴 Materialised into a LOCAL before the walk, and the field is never re-read inside it.
+        // A pet ability can resolve a SUMMON (`18` §2.4), AdmitSummon nulls this cache, and a loop
+        // whose bound is `_petOrder.Count` would then dereference null on its next iteration. Slot 4
+        // is immune only by the accident of `foreach (… in InitiativeOrder())` evaluating the call
+        // once; this slot indexes, so it has to hold the list itself. Unreachable today — the default
+        // IPetAbilities is a no-op — which is exactly what would have made it a crash in a fight
+        // rather than a wiring error on the day the hero/pet milestone lands one.
+        var pets = _petOrder ??= Acting(a => a.Kind == EffectActorKind.PET);
 
-        for (var i = 0; i < _petOrder.Count; i++)
+        for (var i = 0; i < pets.Count; i++)
         {
-            _seams.Pets.Advance(_petOrder[i], Tick);
+            _seams.Pets.Advance(pets[i], Tick);
         }
     }
 
@@ -952,6 +990,16 @@ internal sealed class BattleSimulation
     /// would fire differently on two architectures — and `11` §6 re-runs the duel server-side, so a
     /// tie that broke one way on the client and the other on the server is a discarded honest result.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>A MUTUAL death is an attacker loss, in a duel too, and that is errata.</b> The downed-hero
+    /// arm runs first, so two heroes reaching 0 HP on the same tick — reachable through thorns on the
+    /// killing blow, a DoT landing on both in slot 1, or an <c>ON_DEATH</c> — ends as a defeat whatever
+    /// <see cref="CombatRules.ExactTieWinner"/> says. Nothing authors it: `05` §3.3 says only <em>"the
+    /// only death in a duel ends the fight"</em> without saying whose, and `11` §4.3's tie rule is
+    /// scoped to the <b>timeout</b>. It is the one path where §3.3's <em>"slight attacker edge"</em>
+    /// reverses, so it is recorded rather than left to be rediscovered — and it is <b>not</b> treated
+    /// as a 0.0/0.0 tie, because a fight that ended in deaths did not reach the timeout at all.
+    /// </para>
     /// </remarks>
     private bool Outcome()
     {
@@ -968,7 +1016,12 @@ internal sealed class BattleSimulation
         var hero = SideHpFraction(BattleSide.HERO);
         var enemies = SideHpFraction(BattleSide.ENEMY);
 
-        if (Rules.ExactTieWinner is { } underdog && hero.Equals(enemies))
+        // 🔒 `==` and deliberately not `double.Equals`, which differs from it at exactly one value:
+        // Equals answers TRUE for NaN against NaN and would hand out a tie win, where `==` denies it.
+        // NaN cannot reach here — ActorStats refuses an unrounded value and SetCurrentHp refuses NaN
+        // outright — so this is the spelling whose failure mode points the safe way if that ever
+        // stops being true.
+        if (Rules.ExactTieWinner is { } underdog && hero == enemies)
         {
             return underdog == BattleSide.HERO;
         }

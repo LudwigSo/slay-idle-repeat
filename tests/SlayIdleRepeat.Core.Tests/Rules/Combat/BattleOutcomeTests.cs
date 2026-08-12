@@ -130,8 +130,15 @@ public sealed class BattleOutcomeTests
         CombatRules.PvE.IsPvp.ShouldBeFalse();
         CombatRules.PvE.HorizonSeconds.ShouldBe(90.0);
 
-        var duel = new CombatRules(MaxTicks: 1200, OnKillTriggersFire: false, IsPvp: true);
+        // ⚠️ Built through the factory since M2-14: `11` §4.3's tie rule is not optional in a duel, so
+        // CombatRules.Validated now refuses an IsPvp fight that names no ExactTieWinner. The hand-rolled
+        // three-argument shape this line used to carry is exactly the silently-ruleless duel that
+        // invariant exists to stop. See PvpDuelTests for the tie rule itself.
+        var duel = CombatRules.Duel(pvpMaxFightSeconds: 60.0, lowerRatedSide: BattleSide.ENEMY);
 
+        duel.MaxTicks.ShouldBe(1200);
+        duel.OnKillTriggersFire.ShouldBeFalse();
+        duel.IsPvp.ShouldBeTrue();
         duel.HorizonSeconds.ShouldBe(60.0);
         Should.NotThrow(() => duel.Validated());
     }
