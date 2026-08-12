@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Ops;
 
@@ -54,10 +55,18 @@ internal sealed record BattleSeams(
     IBossOutcomes Outcomes)
 {
     /// <summary>
-    /// 🔒 The seam set M2-08 ships: the damage engine, the status engine, the status timeline, the
-    /// boss phases and the summon roster all absent, each stated so that the absence is loud where
-    /// content asks for it and silent where the loop merely walks past.
+    /// 🔒 The seam set M2-08 shipped: <b>every</b> engine absent, the damage pipeline included. Kept
+    /// as the base a test builds a partial engine on top of (<c>Strict with { … }</c>), and as the
+    /// one way to observe M2-03's refusals from inside a fight.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>No longer what a battle gets by default.</b> `05` §4 landed in M2-09, so
+    /// <see cref="BattlePlan.Seams"/> defaults to <see cref="For"/> — a plan that took this set
+    /// would refuse the first swing of every fight. The distinction is kept rather than collapsed
+    /// because <c>UnwiredAttackPipeline</c> is still <c>EffectOpSeams.Strict</c>'s default for op
+    /// resolution <em>outside</em> a battle, where there is no <see cref="BattleServices"/> to build
+    /// a real pipeline from.
+    /// </remarks>
     internal static BattleSeams Strict { get; } = new(
         UnwiredAttackPipeline.Instance,
         UnwiredStatusEngine.Instance,
@@ -66,6 +75,24 @@ internal sealed record BattleSeams(
         NoSummons.Instance,
         NoPetAbilities.Instance,
         NoBossOutcomes.Instance);
+
+    /// <summary>
+    /// 🔒 The seam set a fight gets by default: `05` §4's damage pipeline <b>wired</b>, and the four
+    /// engines M2-10 and M2-12 own still refusing where content asks and walking past where the loop
+    /// merely steps.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is a factory rather than a singleton for <see cref="BattleServices"/>' stated reason:
+    /// <see cref="AttackPipeline"/> writes <c>Hit</c>/<c>Miss</c>/<c>Crit</c> into <em>this</em>
+    /// fight's log, draws from <em>this</em> fight's stream and routes <em>this</em> fight's phase
+    /// check, none of which exists until the battle does. A static instance would be one setter away
+    /// from pointing at the previous battle's log.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The battle's log, draw stream, roster, dials and HP routing.</param>
+    internal static BattleSeams For(BattleServices services) =>
+        Strict with { Attack = new AttackPipeline(services) };
 }
 
 /// <summary>
@@ -133,6 +160,37 @@ internal interface IStatusTimeline
     /// <c>STATUS_STACKS</c> and <c>HAS_STATUS</c>.
     /// </summary>
     int StacksOn(BattleActor actor, string statusId);
+
+    /// <summary>
+    /// 🔒 `18` §8 step 1 — the <b>active</b> stat modifiers this actor's live `05` §5 statuses
+    /// contribute to its aggregation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>The fourth member, added by M2-10, and the wiring contract above is why it had to be.</b>
+    /// That contract lists three calls and says <em>"nothing else about statuses is the loop's"</em> —
+    /// which is true of the tick <em>order</em>, and this is not a slot. It is `18` §8: half of
+    /// §5's twelve are stat modifiers (<c>FREEZE</c> −50% ASPD, <c>WEAKEN</c> −X% ATK,
+    /// <c>SUNDER</c> −X% DEF, <c>SPORE</c> −X% healing received, <c>RAGE</c> +X% ATK, <c>HASTE</c>
+    /// +X% ASPD) and a status that never reaches the aggregation does nothing at all.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Why it could not go anywhere else.</b> <c>BattleSimulation.RefreshStats</c> aggregates
+    /// an actor's <b>untriggered standing</b> effects plus `18` §2.4's <c>STAT_COPY</c> percent
+    /// buckets, and records in its own comment that the other half of `18` §8 step 1 — <em>"a
+    /// triggered effect that has fired and whose duration has not ended"</em> — is not wired on that
+    /// branch. A live status is exactly one of those. The <c>STAT_COPY</c> buckets on
+    /// <c>CombatFlowState</c> were the near alternative and are the wrong home twice over: they carry
+    /// no duration, so nothing would ever expire a <c>FREEZE</c>, and R13 scopes them to
+    /// <c>STAT_COPY</c>, whose <c>HIGHEST_PCT_BONUS</c> reading would start seeing debuffs.
+    /// </para>
+    /// <para>
+    /// Returns synthetic <c>STAT_ADD_PCT</c> definitions under ids no authored effect can take, on
+    /// the precedent <c>RefreshStats</c> already set for the <c>STAT_COPY</c> buckets. Empty for an
+    /// actor carrying no stat-modifying status, which is every actor in every fight until one lands.
+    /// </para>
+    /// </remarks>
+    IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor);
 }
 
 /// <summary>
@@ -355,6 +413,9 @@ internal sealed class NoStatusTimeline : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
 /// <summary>

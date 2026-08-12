@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Tests.Rules.Effects;
@@ -217,4 +218,7 @@ internal sealed class NoStatusTimelineDouble : IStatusTimeline
     public bool CanAct(BattleActor actor) => true;
 
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }

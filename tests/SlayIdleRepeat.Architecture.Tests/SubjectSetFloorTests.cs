@@ -315,6 +315,64 @@ public sealed class SubjectSetFloorTests
             "'perks (in draft order)'. 06's 98 perks are M3-07's. ⚠️ '(in draft order)' is R5's " +
             "COLLECTION order; the application order is EffectResolutionOrder's, and is total"),
 
+        // ── M2-14 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Not a rule subject — a DEFERRAL, recorded here so it expires by itself (steering S4), on
+        // the precedent of the `RunController` and `LuckService` entries above.
+        //
+        // `11` §4.3 is 🔒: "on an exact tie, the LOWER-RATED player wins." M2-14 implements it, and
+        // the simulator takes it as one bit — CombatRules.Duel's `lowerRatedSide` — because rating is
+        // `11` §5's and `30` §11.1 keeps Elo out of the tick loop. What M2-14 deliberately does NOT
+        // build is the thing that decides that bit: `11` §4's duel flow, its candidate selection and
+        // its server-issued seed are M12's, and no ghost, ladder or rating type exists yet
+        // (GhostSnapshot is still Pending above).
+        //
+        // ⚠️ Whoever lands the duel flow inherits an obligation, and it is not obvious from the call
+        // site: `lowerRatedSide` is a LogHash INPUT. The outcome reaches ON_BATTLE_END's HeroWon, and
+        // those firings append to the log before it is hashed (`18` §9.2's win-only PET_DICEBEAST
+        // grant is the authored example) — so `11` §6 compares a hash that this bit moved. It
+        // therefore needs `11` §6's duelSeed discipline exactly: SERVER-ISSUED, fixed once at duel
+        // start, travelling with the seed. A rating re-read at re-run time, or an attacker rating
+        // that moved between the client's fetch and the server's, discards an HONEST duel and
+        // increments the player's cheat flag — the anti-cheat firing on the anti-cheat.
+        // CombatRules.Duel's own remarks carry the full contract, because a note addressed to M12 is
+        // worthless in a test file M12 will never open.
+        //
+        // ⚠️ THE NAME IS AN INFERENCE, recorded as one on the RunController entry's precedent, and it
+        // is `11`'s own title noun ("Ghost Duel") PascalCased. If M12 picks another, RENAME this entry
+        // rather than delete it: the subject being tracked is "something decides which duellist is the
+        // underdog and issues it with the seed", not the string.
+        new("GhostDuel", SubjectKind.CoreType, "M12 — 11 §4's duel flow",
+            "SlayIdleRepeat.Core.Rules.Combat.CombatRules.Duel's lowerRatedSide — 11 §4.3's exact-tie " +
+            "underdog bias, which M2-14 implements and nothing yet decides. See the note above this " +
+            "entry: the bit is inside LogHash, so it needs 11 §6's server-issued duelSeed discipline " +
+            "or an honest duel is discarded as tampering"),
+
+        // ── M2-10 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Two DEFERRALS, not rule subjects — recorded in the one register the repo has so that each
+        // expires by itself (steering S4), on the precedent of the `Tier` and `RunController` entries
+        // above.
+        //
+        // 1. `05` §5 says RAGE is "+X% ATK, DECAYS OVER D s" and states no curve — not linear, not
+        //    stepped, not exponential — and no boss script, perk row or on-hit row in the content set
+        //    authors one either. Steering S6 forbids inventing it, so RAGE ships holding its full
+        //    potency for its duration (the only shape `18` §6 can express) and the missing decay is
+        //    an authored null at content/statuses.json#/statuses/8/decayCurve, counted by
+        //    RealDataNegativeCaseTests' hole guard and refused by name by
+        //    StatusDefinition.RequireDecayCurve.
+        //
+        // ⚠️ THE NAME IS AN INFERENCE, recorded as one. `05` §5 writes no noun for the curve, so the
+        // entry is keyed on the type a milestone would have to add to express one. If the milestone
+        // that rules on it picks another name, RENAME this entry rather than delete it: the subject
+        // being tracked is "something gives RAGE its decay", not the string. The inbound path is in
+        // PRODUCTION code — StatusDefinition.RequireDecayCurve's remarks name this entry — because a
+        // note addressed to a future milestone is worthless in a test file it will never open.
+        new("StatusDecayCurve", SubjectKind.CoreType, "unassigned — whoever rules on 05 §5's RAGE",
+            "SlayIdleRepeat.Core.Rules.Combat.Status.StatusDefinition.DecayCurve, which is null " +
+            "because 05 §5 states that RAGE decays and states no curve for the decay"),
+
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -509,6 +567,70 @@ public sealed class SubjectSetFloorTests
             "the single reader of content/enemies/enemies.json — 05 §6's derivation constants, level " +
             "table, archetype rows, on-hit tables, elite modifiers and identities and chapter pools " +
             "all enter Core through it, and EnemiesDataTests asserts the document it names"),
+
+        // ── M2-10 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 Tracked SEPARATELY from Domain.CombatRulesNamespace, for that entry's own stated reason:
+        // StatusCatalogueRuleTests keys on "SlayIdleRepeat.Core.Rules.Combat.Status", which Domain
+        // declares no constant for, so the inventory sweep at the foot of
+        // Every_rule_subject_is_present_or_declared_pending cannot reach it — that sweep walks
+        // Domain.PermittedCoreNamespaces, and the sub-namespaces are not in it.
+        //
+        // Without this entry: rename Core/Rules/Combat/Status/ and all three rules in that file
+        // report success over an empty set, while the CombatRulesNamespace entry above stays
+        // satisfied by BattleSimulation and friends (it is a PREFIX match). `05` §5 would then be
+        // free to become a switch statement again with nothing going red. The namespace constant is
+        // restated in the rule file rather than added to Domain.cs because M1-12 holds that file
+        // (steering S12), and that file's own pin keeps the restatement honest.
+        new(StatusCatalogueRuleTests.StatusNamespace, SubjectKind.CoreNamespace, "M2-10",
+            "StatusCatalogueRuleTests.No_status_id_is_named_in_code_outside_the_catalogue, " +
+            "Each_exempted_type_names_only_the_one_status_its_document_rules_on, " +
+            "The_rules_subject_set_is_the_one_they_were_written_against"),
+
+        // 🔒 The catalogue, tracked by NAME as well as by namespace — the precedent is EnemyCatalogue
+        // and TriggerCatalogue, and the reason is theirs. The count floor in the rule file is stated
+        // over the namespace, so moving StatusCatalogue one directory up would leave it satisfied by
+        // the cadence, the stun window and the instance types while nothing read
+        // content/statuses.json at all, and every behaviour test went on passing over a fixture. It
+        // is also the type whose own rows carry `05` §5's twelve-status floor.
+        new("StatusCatalogue", SubjectKind.CoreType, "M2-10",
+            "the single reader of content/statuses.json — 05 §5's twelve statuses, their types, " +
+            "their units, the five stacking rules the section states, FREEZE's literal potency, " +
+            "STUN's cap and immunity window and BLEED's 📐 missing-HP term all enter Core through " +
+            "it, and StatusCatalogueTests states the twelve-row floor over its own rows"),
+
+        // ── M2-09 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 The three names DamageResolutionRuleTests keys on by hard-coded FULL name, and every one
+        // of them can go silent through a rename with the whole suite green. Its rules are stated as
+        // "no method outside X does Y", so a rename that empties the *subject* side reports success
+        // over nothing — which is exactly this file's subject.
+        //
+        //   MitigationConstants — the rule looks for `get_Flat`/`get_PerLevel` on this type. Rename
+        //                         it, or replace the record with two loose doubles on BattlePlan, and
+        //                         The_05_4_mitigation_quotient_is_computed_in_exactly_one_place
+        //                         quantifies over nothing while `05` §4's two most important balance
+        //                         dials go unwatched. The floor case beside it fires on that, which is
+        //                         why the pair exists — but the floor cannot say WHICH name went away.
+        //   AttackPipeline      — the exemption arm of both the mitigation rule and the ward rule.
+        //                         A vacuous exemption makes a rule stricter rather than silent, so it
+        //                         would report the real formula as an offender; that is loud, and the
+        //                         entry is here so the diff that renames it also reads why.
+        //   WardPool            — Only_the_attack_pipeline_absorbs_damage_with_a_ward looks for calls
+        //                         to `WardPool.Absorb`. Rename or inline the pool and the rule is
+        //                         green over an empty set with `05` §4.1's four rules — the ceiling,
+        //                         the absorption order, the per-source cap and the
+        //                         WardBroken-versus-expiry distinction `18` §6's `until: WARD_BROKEN`
+        //                         is built on — restated wherever the absorption went.
+        new("MitigationConstants", SubjectKind.CoreType, "M2-07",
+            "DamageResolutionRuleTests.The_05_4_mitigation_quotient_is_computed_in_exactly_one_place " +
+            "and its floor — 05 §4's two 📐 dials, mirrored in data against tuning/power_model.json"),
+        new("AttackPipeline", SubjectKind.CoreType, "M2-09",
+            "DamageResolutionRuleTests — the exemption arm of both the mitigation rule and the ward " +
+            "absorption rule; 05 §4's ten-step pipeline"),
+        new("WardPool", SubjectKind.CoreType, "M2-09",
+            "DamageResolutionRuleTests.Only_the_attack_pipeline_absorbs_damage_with_a_ward — 05 §4.1's " +
+            "one absorb pool per actor"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

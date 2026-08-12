@@ -212,8 +212,8 @@ internal sealed class OpTestBench
     private sealed class RecordingStatusEngine(OpTestBench bench) : IStatusEngine
     {
         public void Apply(
-            IEffectActorView target, string statusId, double potency, EffectDuration? duration,
-            EffectStacking? stacking, string sourceEffectId) =>
+            IEffectActorView applier, IEffectActorView target, string statusId, double potency,
+            EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
             bench.Record($"{nameof(Apply)}:{statusId}", target.Id, potency, sourceEffectId, duration, stacking);
 
         public void Remove(IEffectActorView target, string statusId, string sourceEffectId) =>

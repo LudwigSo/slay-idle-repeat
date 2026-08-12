@@ -189,9 +189,25 @@ internal interface IAttackPipeline
 internal interface IStatusEngine
 {
     /// <summary>`18` §2.3 — <c>APPLY_STATUS</c>. <paramref name="potency"/> is the status's own X.</summary>
+    /// <param name="applier">
+    /// 🔒 The actor whose effect fired — <c>EffectOpContext.Holder</c>, <em>"the source of every op's
+    /// number"</em>. Widened by <b>M2-10</b>, because two of `05` §5's units are stated against it and
+    /// cannot be resolved without it: <c>BURN</c> is <em>"X% of <b>attacker</b> ATK per second"</em>
+    /// and <c>BLEED</c> is <em>"set at application as X% of the <b>applier's</b> ATK"</em>. The
+    /// applier can be dead by the time a cadence tick lands, which is why `05` §3.1 fixes the potency
+    /// at application — so the number has to be resolvable here or not at all.
+    /// `STATUS_POWER_PCT`, which §2.3 scopes to <em>"statuses <b>this actor applies</b>"</em>, is
+    /// read off the same actor for the same reason.
+    /// </param>
+    /// <param name="target">The actor receiving the status.</param>
+    /// <param name="statusId">One of `05` §5's twelve.</param>
+    /// <param name="potency">The status's X, after `18` §1.1's <c>valueScale</c>.</param>
+    /// <param name="duration">The application's D (`18` §6), or <c>null</c>.</param>
+    /// <param name="stacking">The effect's own `18` §6 block, or <c>null</c> to take `05` §5's.</param>
+    /// <param name="sourceEffectId">The `18` §8 id, for `05` §3.1's ascending-effect-id orderings.</param>
     void Apply(
-        IEffectActorView target, string statusId, double potency, EffectDuration? duration,
-        EffectStacking? stacking, string sourceEffectId);
+        IEffectActorView applier, IEffectActorView target, string statusId, double potency,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId);
 
     /// <summary>`18` §2.3 — <c>REMOVE_STATUS</c>, the <c>statusId</c> form.</summary>
     void Remove(IEffectActorView target, string statusId, string sourceEffectId);
@@ -479,8 +495,8 @@ internal sealed class UnwiredStatusEngine : IStatusEngine
 
     /// <inheritdoc />
     public void Apply(
-        IEffectActorView target, string statusId, double potency, EffectDuration? duration,
-        EffectStacking? stacking, string sourceEffectId) =>
+        IEffectActorView applier, IEffectActorView target, string statusId, double potency,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
         throw Unwired(sourceEffectId, nameof(Apply));
 
     /// <inheritdoc />

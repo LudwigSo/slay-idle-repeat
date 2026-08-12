@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
@@ -64,22 +65,62 @@ public static class CombatSimulator
     /// 🔒 `05` §6.0 — <em>"all enemies, Elites, Guardians and bosses in a <c>(chapter, tier)</c> share
     /// this level"</em>, which is why one value covers the whole side.
     /// </param>
+    /// <param name="content">
+    /// 🔒 The loaded, schema-validated content snapshot. `05` §1's simulator constants are 📐 and live
+    /// in <c>content/combat_caps.json</c>; this is how they reach it. See the remarks.
+    /// </param>
     /// <exception cref="ArgumentException">The roster is empty or breaks a <c>BattlePlan</c> rule.</exception>
+    /// <exception cref="MissingContentException"><c>combat_caps.json</c> is absent or missing a pointer.</exception>
+    /// <exception cref="UnauthorisedTunableException">A constant is <c>null</c> in the data.</exception>
     /// <remarks>
+    /// <para>
     /// A fight with no authored effects and no boss: every actor swings its basic attack on `05`
     /// §3.1's schedule until one side is cleared or the 90 s timeout decides it on remaining HP
     /// fraction. That is what `05` §1's three-argument signature can express, and it is what the
     /// balance harness's standard dummy (`05` §9, `29` §2.5) is.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Why the snapshot, rather than the constants themselves.</b> `05` §4 says of the
+    /// mitigation pair <em>"the two most important balance dials in the game. Expose them in
+    /// data"</em>, `05` §4.1 puts <c>wardCapPct</c> in the same document and `05` §1.1 puts the six
+    /// caps there too. This method is <c>static</c>, so it cannot hold the document — but it can be
+    /// handed one, and <c>CombatCaps.Read</c> already knows every pointer. The three alternatives are
+    /// each worse in a specific way: writing the numbers here would be a third copy of a pair the
+    /// content build already mirrors against <c>tuning/power_model.json</c>; defaulting them is
+    /// steering S6's forbidden hole (a zeroed mitigation pair mitigates <b>100%</b> of every hit and
+    /// a zero <c>wardCapPct</c> deletes every shield in the game, both silently); and taking them as
+    /// three bare <see cref="double"/>s puts two adjacent same-typed parameters in a public signature
+    /// where transposing 120 and 20 compiles, throws nothing, and yields a plausible game `05` §9's
+    /// A10 assertion would grade as content being mistuned. It also grows by one parameter per future
+    /// 📐 dial — `11` §4.3's <c>pvpMaxFightSeconds</c> is in this very document and is M2-14's.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It widens no public <em>type</em>.</b> <see cref="ContentSnapshot"/> is already public
+    /// (`30` §11.2's content boundary) and lives under <c>Content/</c>, which
+    /// <c>AccessibilityBoundaryTests.Handlers_and_Rules_are_internal</c> does not govern — so R16's
+    /// enumerated six-name closure (<c>Domain.PublicRuleTypes</c>) is untouched. The precedent for
+    /// exceeding `05` §1's literal <c>Simulate(seed, heroSnapshot, enemySnapshot)</c> is M2-08's own:
+    /// it already carried <c>heroLevel</c> and <c>enemyLevel</c>, added for `05` §4's
+    /// <c>20 × attacker.Level</c> term — the very expression these dials complete. Recorded as errata
+    /// against `05` §1.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The caps are the document's too, since M2-09.</b> This overload passed
+    /// <c>StatCaps.None</c> while it had no way to read them; it does now, so `18` §8 step 9 applies
+    /// `05` §1's six ceilings to a public fight as the document says it should.
+    /// </para>
     /// </remarks>
     public static SimulationResult Simulate(
         ulong battleSeed,
         ActorStats hero,
         int heroLevel,
         IReadOnlyList<ActorStats> enemies,
-        int enemyLevel)
+        int enemyLevel,
+        ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(enemies);
+        ArgumentNullException.ThrowIfNull(content);
 
         if (enemies.Count == 0)
         {
@@ -121,11 +162,17 @@ public static class CombatSimulator
             });
         }
 
+        // 🔒 One read of content/combat_caps.json, through the one type that knows its pointers.
+        // CombatCaps refuses an absent pointer and a null value rather than defaulting either.
+        var caps = CombatCaps.Read(content);
+
         return Simulate(new BattlePlan
         {
             BattleSeed = battleSeed,
             Actors = actors,
-            Caps = StatCaps.None,
+            Caps = caps.Caps,
+            Mitigation = caps.Mitigation,
+            WardCapPct = caps.WardCapPct,
             RunCounters = new RunTriggerCounters(),
         });
     }

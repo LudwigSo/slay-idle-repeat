@@ -344,7 +344,7 @@ public sealed class TriggerWiringTests
                     Phases = phases,
                 };
             },
-            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(MaxTicks: 40, OnKillTriggersFire: true)));
 
         phases.ShouldNotBeNull();
 
@@ -379,6 +379,8 @@ public sealed class TriggerWiringTests
             {
                 BattleSeed = 7,
                 Caps = SlayIdleRepeat.Core.Tests.Rules.Stats.StatFixtures.Caps(),
+                Mitigation = SlayIdleRepeat.Core.Tests.Rules.Stats.StatFixtures.Mitigation(),
+                WardCapPct = SlayIdleRepeat.Core.Tests.Rules.Stats.StatFixtures.WardCapPct,
                 RunCounters = counters,
                 Actors = new[]
                 {
@@ -454,6 +456,9 @@ internal sealed class MaxHpRebaseAtTick : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
 /// <summary>A status engine that records the tick each application landed on.</summary>
@@ -470,8 +475,8 @@ internal sealed class TickCapturingStatusEngine : IStatusEngine
 
     /// <inheritdoc />
     public void Apply(
-        IEffectActorView target, string statusId, double potency, EffectDuration? duration,
-        EffectStacking? stacking, string sourceEffectId) =>
+        IEffectActorView applier, IEffectActorView target, string statusId, double potency,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
         _ticks.Add(_services.Tick);
 
     /// <inheritdoc />

@@ -1,0 +1,90 @@
+{
+  "$schema": "../schema/statuses.schema.json",
+  "_doc": "05 §5 — the twelve status effects, transcribed. Every number here is one 05 §5 states and nothing else is: the stack ceilings it fixes for five of the twelve, the two constants it writes as literals rather than as X (FREEZE's −50% ASPD and STUN's 1.5 s / 3 s window), and BLEED's missing-HP scaling term, which is the one 📐 TUNABLE the section carries. The per-application X and D of every status are the authoring effect's value and duration (18 §1, §6) and are deliberately NOT here — they belong to the perk, boss mechanic or on-hit row that applies the status, not to the status. 🔒 It sits under content/ rather than tuning/: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are combat balance constants rather than economy dials the economy simulator sweeps — the same ruling combat_caps.json and enemies.json already record. ⚠️ The DoT/HoT cadence itself (20 ticks) is NOT authored here: 05 §3.1 states it in ticks of 05 §3's 20 Hz clock, which already exists in code as CombatLog.TicksPerSecond, and a second copy in data would be two numbers that must agree with nothing making them.",
+  "_status": "transcribed",
+
+  "bleedMissingHpScaling": 1.0,
+
+  "stun": {
+    "_doc": "05 §5 — STUN is the one status whose limits the section states as literals: 'Max 1.5 s per application, with a 3 s immunity window after.' 05 §5 then says outright that 'Stun immunity is mandatory. Without it, stun-locking becomes the only viable build.' Both numbers are therefore the rule and not a tuning preference, and they are authored here so the rule is one place rather than two constants in the engine.",
+    "maxSecondsPerApplication": 1.5,
+    "immunityWindowSeconds": 3.0
+  },
+
+  "statuses": [
+    {
+      "id": "BURN",
+      "type": "DOT",
+      "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
+      "stacking": { "mode": "ADDITIVE", "maxStacks": 5 }
+    },
+    {
+      "id": "POISON",
+      "type": "DOT",
+      "potencyBasis": "TARGET_MAX_HP_PCT_PER_SECOND",
+      "stacking": { "mode": "ADDITIVE", "maxStacks": 3 }
+    },
+    {
+      "id": "BLEED",
+      "type": "DOT",
+      "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
+      "scalesWithTargetMissingHp": true,
+      "stacking": { "mode": "NONE", "refreshOnReapply": true }
+    },
+    {
+      "id": "FREEZE",
+      "type": "DEBUFF",
+      "potencyBasis": "TARGET_STAT_PCT",
+      "stat": "ASPD",
+      "fixedPotency": -0.5
+    },
+    {
+      "id": "STUN",
+      "type": "DEBUFF",
+      "potencyBasis": "NONE"
+    },
+    {
+      "id": "WEAKEN",
+      "type": "DEBUFF",
+      "potencyBasis": "TARGET_STAT_PCT",
+      "stat": "ATK"
+    },
+    {
+      "id": "SUNDER",
+      "type": "DEBUFF",
+      "potencyBasis": "TARGET_STAT_PCT",
+      "stat": "DEF",
+      "stacking": { "mode": "ADDITIVE", "maxStacks": 5 }
+    },
+    {
+      "id": "SPORE",
+      "type": "DEBUFF",
+      "potencyBasis": "TARGET_STAT_PCT",
+      "stat": "HEAL_PCT",
+      "stacking": { "mode": "ADDITIVE", "maxStacks": 4 }
+    },
+    {
+      "id": "RAGE",
+      "type": "BUFF",
+      "potencyBasis": "TARGET_STAT_PCT",
+      "stat": "ATK",
+      "decayCurve": null
+    },
+    {
+      "id": "WARD",
+      "type": "BUFF",
+      "potencyBasis": "FLAT_HP"
+    },
+    {
+      "id": "HASTE",
+      "type": "BUFF",
+      "potencyBasis": "TARGET_STAT_PCT",
+      "stat": "ASPD"
+    },
+    {
+      "id": "REGEN",
+      "type": "HOT",
+      "potencyBasis": "TARGET_MAX_HP_PCT_PER_SECOND"
+    }
+  ]
+}

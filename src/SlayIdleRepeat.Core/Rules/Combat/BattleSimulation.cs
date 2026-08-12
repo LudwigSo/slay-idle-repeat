@@ -11,6 +11,26 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
 /// <summary>
+/// 🔒 The three `18` §2.2 value-mode bases that exist only <b>inside the moment that fired</b>, as
+/// the tick loop carries them from the event to <see cref="EffectOpContext"/>.
+/// </summary>
+/// <param name="DamageDealt">
+/// `18` §2.2's <c>DAMAGE_DEALT_PCT</c> basis — 🔒 `05` §4 step 8's <em>on-damage basis</em>, the
+/// post-mitigation, post-floor hit <b>before</b> ward absorption, so a leech on an <c>ON_HIT</c>
+/// still reads a fully-warded hit (`05` §4.1).
+/// </param>
+/// <param name="HealAmount">`05` §4.3's <c>healed</c> — <c>HEAL_AMOUNT</c>'s subject in an <c>ON_HEAL</c>.</param>
+/// <param name="OverhealAmount">`05` §4.3's <c>overheal</c> — <c>OVERHEAL_AMOUNT</c>'s subject, likewise.</param>
+/// <remarks>
+/// 🔒 <b>Every member is nullable and none defaults to 0.</b> <c>OpValue</c> throws rather than
+/// reading zero for a mode whose basis the context does not carry (steering S6), and that refusal is
+/// what makes `18` §2.2's <em>"exist only inside <c>ON_HEAL</c> contexts"</em> enforceable at all. A
+/// zero here would turn it into a silent no-op.
+/// </remarks>
+internal readonly record struct EventReadings(
+    double? DamageDealt = null, double? HealAmount = null, double? OverhealAmount = null);
+
+/// <summary>
 /// 🔒 `05` §3.1 — the battle-start pre-tick and the strict eight-step tick loop, for one fight.
 /// </summary>
 /// <remarks>
@@ -109,6 +129,7 @@ internal sealed class BattleSimulation
     private readonly BattleActor _hero;
 
     private List<BattleActor>? _initiative;
+    private List<BattleActor>? _petOrder;
     private int _nextEnemyIndex;
     private int _nextLogId;
     private int _cascadeDepth;
@@ -159,6 +180,12 @@ internal sealed class BattleSimulation
 
     /// <summary>`05` §3 / §3.3's bounds.</summary>
     internal CombatRules Rules => _plan.Rules;
+
+    /// <summary>🔒 `05` §4's two 📐 dials, as the plan was given them (`combat_caps.json`).</summary>
+    internal MitigationConstants Mitigation => _plan.Mitigation;
+
+    /// <summary>🔒 `05` §4.1's 📐 ward pool ceiling, likewise.</summary>
+    internal double WardCapPct => _plan.WardCapPct;
 
     /// <summary>Every actor in `05` §3.1 index order, summons appended.</summary>
     internal IReadOnlyList<BattleActor> Actors => _actors;
@@ -321,16 +348,92 @@ internal sealed class BattleSimulation
 
     /// <summary>
     /// 🔒 `05` §3.1 step 0b's order — <em>"hero side first (hero, then pets in slot order), then
-    /// enemies by index"</em>.
+    /// enemies by index"</em>, which is also `05` §3.3's <em>"the attacker's side acts first"</em>.
     /// </summary>
     /// <remarks>
     /// Stated as a side-then-index sort rather than as the plain index order the rest of the loop
     /// uses, because they are not the same claim: `05` §3.3's duel puts a <em>hero</em> on the enemy
     /// side, and the index order alone would then interleave the two sides' openers by position.
+    /// <para>
+    /// 🔒 <b>The two documents ask for the same sequence and it is written once.</b> §3.1 step 0b
+    /// names the hero side first; §3.3 names the attacker's side first, and a duel's attacker
+    /// <em>is</em> the hero side (<c>CombatActor</c>, <c>BattleSide</c>). They will not drift, because
+    /// they are one document.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Three callers, and only two of them are §3.1 step 0b.</b> <see cref="PreTick"/>'s
+    /// <c>ON_BATTLE_START</c> sweep is the quoted rule; <see cref="ActingOrder"/> is `05` §3.3's duel
+    /// initiative, which is the same sequence for the reason above. The third — <see cref="Run"/>'s
+    /// <c>ON_BATTLE_END</c> sweep — is <b>neither</b>: no document orders it, and it takes this order
+    /// because a battle's closing sweep matching its opening one is the least surprising choice. It
+    /// therefore inherits the duel's side-first sequence too. Stated because it is a ruling, not a
+    /// quotation.
+    /// </para>
     /// </remarks>
     private IEnumerable<BattleActor> BattleStartOrder() =>
         _actors.Where(a => a.Side == BattleSide.HERO).OrderBy(a => a.Index)
             .Concat(_actors.Where(a => a.Side != BattleSide.HERO).OrderBy(a => a.Index));
+
+    /// <summary>
+    /// 🔒 The order the tick loop's two acting slots walk the roster in — `05` §3.1's index order in
+    /// PvE, and `05` §3.3's <em>attacker's side first</em> in a duel.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ═══ 🔒 <b>`05` §3.1 AND `05` §3.3 BOTH HOLD, AND THIS IS WHERE THEY MEET</b> ═══
+    /// </para>
+    /// <para>
+    /// `05` §3.3's row reads <em>"within a tick: the <b>attacker's side acts first</b> (hero, then pet
+    /// abilities), then the defender's side"</em>. Read as a licence to interleave, it would move a
+    /// pet ability (slot 5) in front of a basic attack (slot 4) — overriding `05` §3.1's 🔒 eight-slot
+    /// order with a parenthetical. ⚠️ <b>Errata, recorded rather than resolved:</b> the reading
+    /// implemented is the one that leaves both locked statements true — §3.1 keeps its slots, and §3.3
+    /// orders the <b>sides</b> <em>within</em> each of them. The parenthetical then enumerates what a
+    /// side's acting consists of (its hero's swing, its pets' abilities) rather than fusing the slots.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>On a well-formed duel roster this changes nothing observable, and that is the trap.</b>
+    /// <c>CombatActor</c>'s layout gives the attacker's side indices <c>0..3</c> and the defender's
+    /// side <c>4..7</c>, so side-then-index and plain index order coincide — and slot 4 sees only the
+    /// two heroes, because `05` §3.2 keeps pets out of it entirely. A test written against a
+    /// conventional roster passes identically with this method and without it.
+    /// <c>PvpDuelTests.The_override_is_invisible_on_a_conventionally_indexed_duel</c> pins that
+    /// finding, and the rest of that suite probes on a roster whose indices are deliberately inverted
+    /// — M2-05's technique, which pinned <c>ENEMY_COUNT</c> with a stray actor and
+    /// <c>TARGET_IS_ELITE</c> with a mislabelled ghost for exactly this reason. §3.3 states a rule
+    /// about sides; an implementation that only worked because the indices happened to agree would be
+    /// a coincidence, and one an ill-formed ghost would break in production and nowhere else.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Gated on <see cref="CombatRules.IsPvp"/> and on nothing else.</b> A second flag saying
+    /// "order by side" would be a second statement of "is this a duel"; `18` §4's <c>IS_PVP</c> is
+    /// already that fact, and <c>CombatRules</c>' own remarks refuse the duplicate.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>SCOPE: slots 4 and 5, and NOT slots 1, 2 or 3 — a boundary, not an omission.</b> `05`
+    /// §3.3's row is titled <em>Initiative</em> and enumerates what it reorders: <em>"hero, then pet
+    /// abilities"</em>. Those are slot 4 and slot 5 exactly. It says nothing about status timers
+    /// (slot 1), expiries (slot 2) or <c>PERIODIC</c>s (slot 3), which keep `05` §3.1's actor order in
+    /// a duel as in a fight. ⚠️ <b>The consequence is real and is recorded rather than smoothed
+    /// over:</b> on a roster whose indices are not side-grouped, slot 3 fires the defender's
+    /// <c>PERIODIC</c>s first while slot 4 swings the attacker first — and slot 3 draws, so that is
+    /// visible in <c>LogHash</c>. Extending the order to the other three slots is a one-line change —
+    /// route their walks through this method — and it is deliberately <b>not</b> made here, because
+    /// `05` §3.3 does not authorise it and inventing the extension would be a rule the document did
+    /// not write (steering S6).
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The alternative that was considered and not taken:</b> making this unconditional, since
+    /// <c>_actors</c> is already built in index order and side-then-index differs from it only on an
+    /// ill-formed roster — so `05` §3.1's own <em>"Hero, then enemies by index"</em> arguably reads as
+    /// side-first too. It was rejected as the wrong risk to take here: it would change PvE ordering on
+    /// exactly the rosters nothing else in the repository constrains, and PvE ordering is inside
+    /// <c>LogHash</c> and inside the committed reference vectors. Taking the PvE half needs its own
+    /// task and its own re-baseline; the duel half is this one's and does not touch them.
+    /// </para>
+    /// </remarks>
+    private IEnumerable<BattleActor> ActingOrder() =>
+        Rules.IsPvp ? BattleStartOrder() : _actors.OrderBy(a => a.Index);
 
     // ══════════════════════════════════════════════════════════════════ the eight slots
 
@@ -434,10 +537,11 @@ internal sealed class BattleSimulation
     /// nondeterminism."</em>
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>This is the one method `05` §3.3 replaces, and M2-14 owns the replacement.</b> A duel's
-    /// rule is <em>"within a tick: the <b>attacker's side acts first</b> (hero, then pet abilities),
-    /// then the defender's side"</em> — a different sequence over the same roster, not a different
-    /// rule about cooldowns or targets. Nothing else in slot 4 needs to change.
+    /// 🔒 <b>In a duel the sequence is <see cref="ActingOrder"/>'s</b> — `05` §3.3's <em>"within a
+    /// tick: the <b>attacker's side acts first</b> … then the defender's side"</em>. It is a different
+    /// sequence over the same roster, not a different rule about cooldowns or targets, so nothing
+    /// else in slot 4 changes. Read that method before touching this one: on a conventionally indexed
+    /// duel the two orders coincide, which is why the claim is probed on an inverted roster.
     /// <para>
     /// Materialised before the walk, deliberately: an attack can kill, summon or revive, and slot 4's
     /// order is <em>fixed</em> — an actor summoned by the third enemy's swing does not act in the same
@@ -445,31 +549,14 @@ internal sealed class BattleSimulation
     /// </para>
     /// <para>
     /// 🔒 <b>Held between ticks, and that is not a cache of a live reading.</b> `05` §3.1 calls the
-    /// order <em>fixed</em>: it is a function of the roster's membership and indices, neither of
+    /// order <em>fixed</em>: it is a function of the roster's membership, sides and indices, none of
     /// which changes except when a summon is admitted — and <see cref="AdmitSummon"/> clears it. A
     /// death does not change it, because the <c>alive</c> test is inside the walk where `05` §3.1
     /// puts it, not in the order. Rebuilding it 1800 times a fight was 5% of `05`'s whole budget.
     /// </para>
     /// </remarks>
-    private List<BattleActor> InitiativeOrder()
-    {
-        if (_initiative is not null)
-        {
-            return _initiative;
-        }
-
-        _initiative = new List<BattleActor>(_actors.Count);
-
-        foreach (var actor in _actors.OrderBy(a => a.Index))
-        {
-            if (actor.Kind != EffectActorKind.PET)
-            {
-                _initiative.Add(actor);
-            }
-        }
-
-        return _initiative;
-    }
+    private List<BattleActor> InitiativeOrder() =>
+        _initiative ??= Acting(a => a.Kind != EffectActorKind.PET);
 
     /// <summary>🔒 `05` §3.2 — who this actor swings at.</summary>
     private BattleActor? SelectTarget(BattleActor attacker) =>
@@ -544,38 +631,81 @@ internal sealed class BattleSimulation
             return true;
         }
 
+        // 🔒 `18` §2.2's DAMAGE_DEALT_PCT basis is `05` §4 step 8's ON-DAMAGE BASIS — the
+        // post-mitigation, post-floor hit BEFORE ward absorption — and not step 9's HpLost. `05`
+        // §4.1: "a lifesteal attacker still heals off a fully-warded hit". A leech on an ON_HIT
+        // reading the post-absorption number would heal nothing off a shielded target, which is the
+        // opposite of what that ruling says.
+        var dealt = new EventReadings(DamageDealt: resolution.Basis);
+
         if (resolution.Blocked)
         {
-            FireTriggers(defender, Occurrence(TriggerKind.ON_BLOCK, defender), attacker, attacker);
+            FireTriggers(defender, Occurrence(TriggerKind.ON_BLOCK, defender), attacker, attacker, dealt);
         }
 
-        FireTriggers(attacker, Occurrence(TriggerKind.ON_HIT, attacker), defender);
+        FireTriggers(attacker, Occurrence(TriggerKind.ON_HIT, attacker), defender, null, dealt);
 
         if (resolution.Crit)
         {
-            FireTriggers(attacker, Occurrence(TriggerKind.ON_CRIT, attacker), defender);
+            FireTriggers(attacker, Occurrence(TriggerKind.ON_CRIT, attacker), defender, null, dealt);
         }
 
-        FireTriggers(defender, Occurrence(TriggerKind.ON_HIT_TAKEN, defender), attacker, attacker);
+        FireTriggers(defender, Occurrence(TriggerKind.ON_HIT_TAKEN, defender), attacker, attacker, dealt);
 
         if (!defender.IsAlive && Rules.OnKillTriggersFire)
         {
-            FireTriggers(attacker, Occurrence(TriggerKind.ON_KILL, attacker), defender);
+            FireTriggers(attacker, Occurrence(TriggerKind.ON_KILL, attacker), defender, null, dealt);
         }
 
         return true;
     }
 
-    /// <summary>🔒 Slot 5 — <em>"pet ability cooldowns advance; ready abilities fire, pets in slot order."</em></summary>
+    /// <summary>
+    /// 🔒 Slot 5 — <em>"pet ability cooldowns advance; ready abilities fire, pets in slot order."</em>
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>In a duel, the attacker's side's pets before the defender's</b> — the other half of `05`
+    /// §3.3's <em>"the attacker's side acts first (hero, then <b>pet abilities</b>)"</em>. See
+    /// <see cref="ActingOrder"/> for why that is a within-slot ordering rather than an interleaving of
+    /// slots 4 and 5, and why it is unobservable on a conventionally indexed roster.
+    /// <para>
+    /// Held between ticks for <see cref="InitiativeOrder"/>'s reason and cleared by the same event: a
+    /// summon is never a pet (`18` §2.4 spawns enemies), so this list is even more stable than slot
+    /// 4's — but it is invalidated alongside it rather than reasoned about separately, because "the
+    /// roster changed" is one fact.
+    /// </para>
+    /// </remarks>
     private void RunPetAbilities()
     {
-        for (var i = 0; i < _actors.Count; i++)
+        // 🔴 Materialised into a LOCAL before the walk, and the field is never re-read inside it.
+        // A pet ability can resolve a SUMMON (`18` §2.4), AdmitSummon nulls this cache, and a loop
+        // whose bound is `_petOrder.Count` would then dereference null on its next iteration. Slot 4
+        // is immune only by the accident of `foreach (… in InitiativeOrder())` evaluating the call
+        // once; this slot indexes, so it has to hold the list itself. Unreachable today — the default
+        // IPetAbilities is a no-op — which is exactly what would have made it a crash in a fight
+        // rather than a wiring error on the day the hero/pet milestone lands one.
+        var pets = _petOrder ??= Acting(a => a.Kind == EffectActorKind.PET);
+
+        for (var i = 0; i < pets.Count; i++)
         {
-            if (_actors[i].Kind == EffectActorKind.PET)
+            _seams.Pets.Advance(pets[i], Tick);
+        }
+    }
+
+    /// <summary>The roster in <see cref="ActingOrder"/>, narrowed to the actors one slot walks.</summary>
+    private List<BattleActor> Acting(Func<BattleActor, bool> included)
+    {
+        var order = new List<BattleActor>(_actors.Count);
+
+        foreach (var actor in ActingOrder())
+        {
+            if (included(actor))
             {
-                _seams.Pets.Advance(_actors[i], Tick);
+                order.Add(actor);
             }
         }
+
+        return order;
     }
 
     /// <summary>
@@ -649,7 +779,8 @@ internal sealed class BattleSimulation
         BattleActor holder,
         in TriggerOccurrence occurrence,
         BattleActor? target = null,
-        BattleActor? attacker = null)
+        BattleActor? attacker = null,
+        EventReadings readings = default)
     {
         if (holder.Instances.Count == 0)
         {
@@ -673,7 +804,7 @@ internal sealed class BattleSimulation
 
             if (Triggers.Evaluate(held.Id, occurrence, Rng) == TriggerOutcome.FIRES)
             {
-                ResolveFired(holder, Triggers[held.Id].Effect, occurrence, target, attacker);
+                ResolveFired(holder, Triggers[held.Id].Effect, occurrence, target, attacker, readings);
             }
         }
     }
@@ -687,7 +818,8 @@ internal sealed class BattleSimulation
         EffectDefinition effect,
         in TriggerOccurrence occurrence,
         BattleActor? target,
-        BattleActor? attacker)
+        BattleActor? attacker,
+        EventReadings readings = default)
     {
         if (_cascadeDepth >= MaxCascadeDepth)
         {
@@ -719,6 +851,9 @@ internal sealed class BattleSimulation
             {
                 Evaluation = ContextFor(holder, target, attacker),
                 Seams = OpSeamsFor(holder, target, attacker),
+                DamageDealt = readings.DamageDealt,
+                HealAmount = readings.HealAmount,
+                OverhealAmount = readings.OverhealAmount,
             });
         }
         finally
@@ -804,6 +939,88 @@ internal sealed class BattleSimulation
     }
 
     /// <summary>
+    /// 🔒 `05` §4.3's <c>ON_HEAL</c>, fired after the HP is applied — see
+    /// <see cref="BattleServices.AfterHeal"/>.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Both readings travel to the op layer.</b> `18` §2.2's <c>HEAL_AMOUNT</c> and
+    /// <c>OVERHEAL_AMOUNT</c> throw rather than read zero when the context does not carry them
+    /// (<c>OpValue</c>, steering S6), so a heal that fired the trigger without them would make
+    /// <c>PK_TRANSFUSION</c> an exception rather than a perk.
+    /// </remarks>
+    internal void AfterHeal(BattleActor actor, double healed, double overheal)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        FireTriggers(
+            actor,
+            Occurrence(TriggerKind.ON_HEAL, actor),
+            readings: new EventReadings(HealAmount: healed, OverhealAmount: overheal));
+    }
+
+    /// <summary>
+    /// 🔒 `05` §4.1's ward expiry — see <see cref="BattleServices.ExpireWards"/> for why it is a
+    /// routing here rather than a call M2-10 makes on the pool directly.
+    /// </summary>
+    internal int ExpireWards(BattleActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        var dropped = actor.Wards.ExpireDue(Tick);
+
+        // 🔒 TWO different orders, and they are not the same rule. `05` §4.1 orders ABSORPTION by
+        // soonest expiry then grant order, which is what WardPool returns; `05` §3.1 slot 2 orders
+        // EXPIRY EMISSION — "statuses whose duration reached 0 expire, in ascending effect-id
+        // order" — and `05` §5 lists WARD among the statuses. Two segments from different effects
+        // expiring on one tick would otherwise land in the log in an order `05` §3.1 does not
+        // authorise, and the log is inside LogHash, which `11` §6 recomputes server-side.
+        foreach (var segment in dropped.OrderBy(s => s.SourceEffectId, EffectOrder.IdComparer))
+        {
+            // 🔒 StatusExpired, and NEVER WardBroken. `05` §4.1: "segment expiry silently removes
+            // its remainder (StatusExpired), and does not fire WardBroken" — the distinction
+            // `18` §6's `until: WARD_BROKEN` terminator is built on.
+            Log.Append(
+                Tick, CombatEventType.StatusExpired, CombatActor.None, actor.LogId, segment.Amount);
+        }
+
+        return dropped.Count;
+    }
+
+    /// <summary>🔒 `05` §4.1's ward grant with an expiry — see <see cref="BattleServices.GrantWard"/>.</summary>
+    /// <remarks>
+    /// 🔒 <b>The pool is written here rather than through <see cref="IAttackPipeline"/>, and that is
+    /// deliberate.</b> An earlier draft delegated to <c>AttackPipeline</c> behind an
+    /// <c>is not AttackPipeline ? throw</c>, which made the one route `18` §6's durations must take
+    /// unusable from the seam composition <c>BattleSeams.Strict</c>'s own remarks recommend
+    /// (<c>Strict with { Statuses = … }</c>) — so every duration-bearing grant in M2-10's suite would
+    /// have thrown. <c>DamageResolutionRuleTests.Only_the_attack_pipeline_absorbs_damage_with_a_ward</c>
+    /// is stated over <c>Absorb</c> and not over <c>Grant</c> for exactly this reason: absorption is
+    /// where a second caller would re-decide `05` §4.1's order and its break, while granting from
+    /// two places is already the shape (`05` §4.2's <c>SHIELD</c> and `18` §6's durations).
+    /// </remarks>
+    internal void GrantWard(
+        BattleActor target, double amount, double? sourceCapPct, string sourceEffectId, int? expiresAtTick)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+
+        var granted = target.Wards.Grant(
+            amount,
+            sourceCapPct,
+            sourceEffectId,
+            expiresAtTick,
+            WardCapPct,
+
+            // 🔒 RE-READ on every grant, never cached. `05` §3.1's SYS_ENRAGE adds a STAT_MULT every
+            // second from 70 s, so a boss's post-step-7 Max HP is not a battle constant.
+            target.PostMultiplierMaxHp);
+
+        // 🔒 `05` §4.1 — Shield on EVERY grant, clipped ones included. `05` §8 makes the log the
+        // replay: a cast the player watched happen must have an event to draw, and a value of 0 is
+        // the information rather than the absence of it.
+        Log.Append(Tick, CombatEventType.Shield, CombatActor.None, target.LogId, granted);
+    }
+
+    /// <summary>
     /// 🔒 `05` §3.1's summon entry rule, implemented here because it is the roster's: <em>"summons
     /// enter at the end of the enemy index list with a full attack cooldown (1.0 / ASPD — they never
     /// attack on their spawn tick) and become targetable at the next targeting evaluation."</em>
@@ -831,9 +1048,10 @@ internal sealed class BattleSimulation
         var actor = new BattleActor(admitted, _seams.Timeline);
         _actors.Add(actor);
 
-        // 🔒 The one thing that changes slot 4's fixed order. Cleared here so the summon takes its
-        // place at the end of the enemy index list on the next tick.
+        // 🔒 The one thing that changes slot 4's and slot 5's fixed orders. Cleared here so the summon
+        // takes its place at the end of the enemy index list on the next tick.
         _initiative = null;
+        _petOrder = null;
 
         RefreshStats(actor);
 
@@ -889,11 +1107,35 @@ internal sealed class BattleSimulation
     /// them unkillable, so they have no stake in a war of attrition.
     /// </para>
     /// <para>
-    /// ⚠️ <b>An exact tie is a loss for the hero, and that is errata.</b> `05` §3 authors no tie
-    /// rule for PvE — `11` §4.3 authors one for duels, which is M2-14's. The timeout is a failure to
-    /// clear, and `05` §9 defines <c>ParPower</c> by <em>clear rate</em>: a fight that ran the full
-    /// 90 s without killing anything has not been cleared, so counting it as a clear would inflate
-    /// exactly the number the balance harness calibrates against. Recorded rather than hidden.
+    /// ⚠️ <b>An exact tie is a loss for the hero in PvE, and that is errata.</b> `05` §3 authors no
+    /// tie rule for PvE. The timeout is a failure to clear, and `05` §9 defines <c>ParPower</c> by
+    /// <em>clear rate</em>: a fight that ran the full 90 s without killing anything has not been
+    /// cleared, so counting it as a clear would inflate exactly the number the balance harness
+    /// calibrates against. Recorded rather than hidden.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>A duel does author one, and it goes the other way.</b> `11` §4.3: <em>"On an exact tie,
+    /// the <b>lower-rated</b> player wins (a small underdog bias that prevents stagnation at the
+    /// top)."</em> Which side that is arrives on <see cref="CombatRules.ExactTieWinner"/>, because
+    /// rating is `11` §5's and the simulator has no business holding an Elo number. Absent — every
+    /// PvE fight — the comparison stays strict and the paragraph above holds unchanged.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>"Exact" is exact at `05` §1.1's four decimal places</b>, because that is the precision
+    /// <see cref="SideHpFraction"/> produces and the precision every other combat number is compared
+    /// at. A tie rule that keyed on raw <see cref="double"/> equality would fire on almost nothing and
+    /// would fire differently on two architectures — and `11` §6 re-runs the duel server-side, so a
+    /// tie that broke one way on the client and the other on the server is a discarded honest result.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>A MUTUAL death is an attacker loss, in a duel too, and that is errata.</b> The downed-hero
+    /// arm runs first, so two heroes reaching 0 HP on the same tick — reachable through thorns on the
+    /// killing blow, a DoT landing on both in slot 1, or an <c>ON_DEATH</c> — ends as a defeat whatever
+    /// <see cref="CombatRules.ExactTieWinner"/> says. Nothing authors it: `05` §3.3 says only <em>"the
+    /// only death in a duel ends the fight"</em> without saying whose, and `11` §4.3's tie rule is
+    /// scoped to the <b>timeout</b>. It is the one path where §3.3's <em>"slight attacker edge"</em>
+    /// reverses, so it is recorded rather than left to be rediscovered — and it is <b>not</b> treated
+    /// as a 0.0/0.0 tie, because a fight that ended in deaths did not reach the timeout at all.
     /// </para>
     /// </remarks>
     private bool Outcome()
@@ -908,7 +1150,20 @@ internal sealed class BattleSimulation
             return true;
         }
 
-        return SideHpFraction(BattleSide.HERO) > SideHpFraction(BattleSide.ENEMY);
+        var hero = SideHpFraction(BattleSide.HERO);
+        var enemies = SideHpFraction(BattleSide.ENEMY);
+
+        // 🔒 `==` and deliberately not `double.Equals`, which differs from it at exactly one value:
+        // Equals answers TRUE for NaN against NaN and would hand out a tie win, where `==` denies it.
+        // NaN cannot reach here — ActorStats refuses an unrounded value and SetCurrentHp refuses NaN
+        // outright — so this is the spelling whose failure mode points the safe way if that ever
+        // stops being true.
+        if (Rules.ExactTieWinner is { } underdog && hero == enemies)
+        {
+            return underdog == BattleSide.HERO;
+        }
+
+        return hero > enemies;
     }
 
     private double SideHpFraction(BattleSide side)
@@ -990,9 +1245,17 @@ internal sealed class BattleSimulation
         // fight until a STAT_COPY fires: this method runs for every state-dependent actor on every
         // one of 1800 ticks, and copying a constant list each time was measurable against `05`'s
         // < 5 ms budget.
+        //
+        // ⚠️ ONE PART OF THAT ABSENT HALF IS NOW WIRED, and only one: `05` §5's stat-modifying
+        // statuses, through IStatusTimeline.StatModifiers (M2-10). Six of §5's twelve are stat
+        // modifiers — FREEZE, WEAKEN, SUNDER, SPORE, RAGE, HASTE — and a status that never reached
+        // this aggregation would be a status that does nothing. They arrive in the same synthetic
+        // STAT_ADD_PCT shape as the STAT_COPY buckets and for the same reason. The rest of the
+        // absent half is still absent and still M2-02's.
         IReadOnlyList<EffectDefinition> effects;
+        var statuses = _seams.Timeline.StatModifiers(actor);
 
-        if (actor.Flow.PercentBuckets.Count == 0)
+        if (actor.Flow.PercentBuckets.Count == 0 && statuses.Count == 0)
         {
             effects = actor.StandingEffects;
         }
@@ -1011,6 +1274,11 @@ internal sealed class BattleSimulation
                 });
             }
 
+            for (var i = 0; i < statuses.Count; i++)
+            {
+                withBuckets.Add(statuses[i]);
+            }
+
             effects = withBuckets;
         }
 
@@ -1027,7 +1295,11 @@ internal sealed class BattleSimulation
         // `18` §9.1's CP_GLASS_HEART re-bases Max HP mid-fight, and a boss clipped below 66% must
         // enter phase 2 there rather than on whatever unrelated swing lands next. ON_LOW_HP is a
         // crossing for the same reason.
-        if (actor.SetStats(aggregated.Final))
+        // 🔒 The WHOLE record, not `aggregated.Final` — M2-07's first stated obligation on M2-09.
+        // AggregatedStats' remarks: "a consumer that keeps Final and discards the wrapper caps every
+        // CP_GLASS_HEART ward at 1 HP with nothing going red". And its second: this runs on every
+        // re-aggregation, so `05` §3.1's SYS_ENRAGE moves the ward cap with the boss's Max HP.
+        if (actor.SetStats(aggregated))
         {
             AfterHpDecrease(actor);
         }

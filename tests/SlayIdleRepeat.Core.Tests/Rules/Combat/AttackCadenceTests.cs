@@ -155,7 +155,7 @@ public sealed class AttackCadenceTests
 
                 return BattleSeams.Strict with { Attack = new RecordingAttackPipeline(s, 1.0) };
             },
-            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true)));
 
         services.ShouldNotBeNull();
 
@@ -220,7 +220,7 @@ public sealed class AttackCadenceTests
 
                 return BattleSeams.Strict with { Attack = pipeline };
             },
-            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true, IsPvp: false)));
+            rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true)));
 
         pipeline.ShouldNotBeNull();
         services.ShouldNotBeNull();
@@ -280,7 +280,7 @@ internal sealed class HasteAtTick : IStatusTimeline
     {
         if (tick == _tick && string.Equals(actor.Id, _actorId, StringComparison.Ordinal))
         {
-            actor.SetStats(actor.Stats.With(StatId.ASPD, _aspd));
+            actor.SetStats(actor.Aggregated with { Final = actor.Stats.With(StatId.ASPD, _aspd) });
         }
     }
 
@@ -294,4 +294,7 @@ internal sealed class HasteAtTick : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }

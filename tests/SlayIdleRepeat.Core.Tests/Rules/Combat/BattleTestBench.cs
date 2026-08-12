@@ -81,7 +81,10 @@ internal static class BattleTestBench
             Effects = effects,
         };
 
-    /// <summary>A plan over the given roster, with `05` §3's PvE bounds and the strict seams.</summary>
+    /// <summary>
+    /// A plan over the given roster, with `05` §3's PvE bounds, `05` §4/§4.1's shipped 📐 constants
+    /// and — unless overridden — <see cref="BattleSeams.For"/>'s real `05` §4 pipeline.
+    /// </summary>
     internal static BattlePlan Plan(
         IEnumerable<ActorPlan> actors,
         BattleSeamFactory? seams = null,
@@ -92,9 +95,11 @@ internal static class BattleTestBench
             BattleSeed = battleSeed,
             Actors = actors.ToArray(),
             Caps = StatFixtures.Caps(),
+            Mitigation = StatFixtures.Mitigation(),
+            WardCapPct = StatFixtures.WardCapPct,
             Rules = rules ?? CombatRules.PvE,
             RunCounters = new RunTriggerCounters(),
-            Seams = seams ?? (static _ => BattleSeams.Strict),
+            Seams = seams ?? (static services => BattleSeams.For(services)),
         };
 
     /// <summary>An effect, with everything optional left absent.</summary>
@@ -204,6 +209,9 @@ internal sealed class RecordingTimeline : IStatusTimeline
 
     /// <inheritdoc />
     public int StacksOn(BattleActor actor, string statusId) => 0;
+
+    /// <inheritdoc />
+    public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
 /// <summary>A phase controller that records `05` §3.1's two hooks and can register a phase block.</summary>
