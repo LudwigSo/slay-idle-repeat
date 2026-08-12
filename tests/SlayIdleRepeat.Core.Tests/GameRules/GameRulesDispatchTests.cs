@@ -12,10 +12,13 @@ namespace SlayIdleRepeat.Core.Tests;
 /// </summary>
 /// <remarks>
 /// The rules here are driven through <c>GameRules.Execute</c> over tables built in the test, for the
-/// reason <c>GapRegister.Expired(entries)</c> takes its entries as a parameter: the real table is
-/// empty until M1-02 lands the 49 commands, so every rule stated over it would hold vacuously and
-/// report success forever (steering <b>S3</b>). <c>Apply</c> itself is exercised too, against the
-/// real table, for the one thing that is true of it today.
+/// reason <c>GapRegister.Expired(entries)</c> takes its entries as a parameter: the shapes they need
+/// must <b>never</b> be committed to <c>Core</c> — a handler that hand-writes an RNG counter, a
+/// duplicate registration, an undefined <c>CommandKind</c>. ⚠️ M1-02 filling the real table with 49
+/// rows did not change that: every row is <c>Deferred</c>, so the production table still holds no
+/// handler at all and every handler-shaped rule stated over it would report success forever
+/// (steering <b>S3</b>). What did change is that <c>Apply</c> over the real table is no longer a
+/// one-assertion affair — <c>Commands.CommandVocabularyTests</c> drives all forty-nine through it.
 /// </remarks>
 public sealed class GameRulesDispatchTests
 {
@@ -48,13 +51,16 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 `30` §2.1 <b>P3</b>, on the real façade: <c>Apply</c> over the production table — empty
-    /// until M1-02 — refuses rather than throws.
+    /// 🔒 `30` §2.1 <b>P3</b>, on the real façade: <c>Apply</c> over the production table refuses a
+    /// command <b>no row names</b> rather than throwing.
     /// </summary>
     /// <remarks>
-    /// The one assertion about <c>Apply</c> that is meaningful before the vocabulary exists, and it
-    /// is worth having: it proves the public entry point delegates to the same body the rest of this
-    /// file drives, rather than being a second implementation.
+    /// It proves the public entry point delegates to the same body the rest of this file drives
+    /// rather than being a second implementation. ⚠️ The command is a <em>fixture</em> and stays one
+    /// now that the table has 49 real rows: this is the arm
+    /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c> keeps unreachable in
+    /// production, so the only way to exercise it is with a command type deliberately outside
+    /// `14` §2.3.
     /// </remarks>
     [Fact]
     public void Apply_over_the_real_table_refuses_a_command_no_row_names()
@@ -372,22 +378,34 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 Steering <b>S3</b> — the floor under this whole file: the production table is <b>empty</b>
-    /// today, so every rule above is driven from a table built here rather than from that one.
+    /// 🔒 Steering <b>S3</b> — the floor under this whole file, restated for the table that now
+    /// exists: the production registry carries `14` §2.3's <b>49</b> rows.
     /// </summary>
     /// <remarks>
-    /// <b>When this fails, M1-02 has landed the vocabulary.</b> Confirm every rule in this file
-    /// still holds against the real rows, add the coverage the 49 commands need, and delete this
-    /// tripwire — do not weaken it. It is the assertion that says out loud why <c>Execute</c> takes
-    /// its table as a parameter.
+    /// <para>
+    /// This replaces M1-06's tripwire, which asserted the table was <em>empty</em> and was deleted on
+    /// the commit that made it false. The floor it was standing in for has not gone away: the rules
+    /// above are still driven from tables built in the test, because the shapes they need — a handler
+    /// that hand-writes an RNG counter, a duplicate registration, an undefined <c>CommandKind</c> —
+    /// must never be committed to <c>Core</c>. What has changed is that <c>Apply</c> over the real
+    /// table is no longer a one-assertion affair;
+    /// <c>Commands.CommandVocabularyTests.Every_command_in_the_vocabulary_is_applied_and_refused_rather_than_thrown</c>
+    /// drives all forty-nine through it.
+    /// </para>
+    /// <para>
+    /// The number is a literal rather than the registry's own <c>Count</c> compared to itself, and
+    /// the <b>set</b> behind it — which a count cannot see — is pinned against a hand-transcribed
+    /// list in both directions by <c>CommandVocabularyTests</c>.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_production_dispatch_table_is_still_empty_and_says_so_when_it_is_not()
+    public void The_production_dispatch_table_carries_the_whole_registry()
     {
-        SlayIdleRepeat.Core.GameRules.CommandTypesByWireName.ShouldBeEmpty(
-            "when this fails M1-02 has landed the 49 commands of 14 §2.3. Every rule in this file is " +
-            "driven from a table built in the test precisely because this one was empty; re-read them " +
-            "against the real rows, then delete this tripwire. Never weaken it — an empty subject set " +
-            "reported as success is the failure this assertion exists to prevent.");
+        SlayIdleRepeat.Core.GameRules.CommandTypesByWireName.Count.ShouldBe(
+            49,
+            "14 §2.3's registry is 19 run + 30 meta, and M1-02 registered every row. An empty table " +
+            "would make Apply refuse every command in the game with ILLEGAL_STATE while this suite, " +
+            "which drives its own tables, stayed entirely green — the failure this assertion exists " +
+            "to prevent.");
     }
 }

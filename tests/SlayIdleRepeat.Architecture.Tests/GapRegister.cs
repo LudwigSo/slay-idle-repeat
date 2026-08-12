@@ -33,9 +33,9 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   ("a renamed or deleted project must take its exemption with it"): an entry whose
 ///   <see cref="Gap.Subject"/> appears in no transcription is deferring something no specification
 ///   asks for. It can never be <i>satisfied</i>, only deleted by hand — which is the state this
-///   register replaces. It is also what holds <b>M1-02</b> to the promise below: transcribe
-///   `14` §2.3's command inventory into <see cref="Surfaces"/>, do not just add entries to
-///   <see cref="Deferred"/>.</item>
+///   register replaces. It is what held <b>M1-02</b> to transcribing `14` §2.3's command inventory
+///   into <see cref="Surfaces"/> rather than only adding entries to <see cref="Deferred"/>; see the
+///   note below for what that task discharged and what it deliberately did not.</item>
 ///   <item><b>Vacuous.</b> Both sets have floors, and both predicates are proven to distinguish a
 ///   type that exists from one that does not — see <c>GapRegisterTests</c>. A register whose
 ///   subject set can silently become empty is steering <b>S3</b>'s failure mode, and the three
@@ -49,15 +49,34 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// <see cref="Surfaces"/>; none adds a sibling file.
 /// </para>
 /// <para>
-/// ⚠️ <b>The owner of the command inventory is M1-02, not M1-06 — corrected in M1-06's own
-/// architecture review, which is the kickoff re-read the limit below asks for.</b> M1-06 landed the
-/// abstract <c>GameCommand</c>, the dispatch table and `30` §4.1's <c>WorldSlice</c> row (the
-/// <c>GuildView</c> and <c>GhostSnapshot</c> entries below); it deliberately landed <b>no</b>
-/// command types, because <c>Every_command_type_is_handled_by_Apply</c> fails the build for a
-/// concrete subtype no dispatch row names and the base therefore has to precede the vocabulary. So
-/// the promise about the 49 rows of `14` §2.3 — every <c>CommandDispatch.Deferred</c> row carrying
-/// an entry here, and the inventory transcribed into <see cref="Surfaces"/> — belongs to M1-02, and
-/// naming M1-06 was a reason that went stale on the commit that satisfied the rest of it.
+/// 🔒 <b>M1-02 discharged the `14` §2.3 promise, and it discharged one half of it and refused the
+/// other.</b> M1-06 landed the abstract <c>GameCommand</c>, the dispatch table and `30` §4.1's
+/// <c>WorldSlice</c> row (the <c>GuildView</c> and <c>GhostSnapshot</c> entries below), and wrote
+/// that M1-02 would both transcribe the command inventory into <see cref="Surfaces"/> <em>and</em>
+/// give every <c>CommandDispatch.Deferred</c> row an entry in <see cref="Deferred"/>.
+/// </para>
+/// <para>
+/// The transcription is below — <b>and all forty-nine subjects are authored</b>. What that
+/// discharges is `14` §2.3's <b>inventory</b>: M1-02 declared every row of the registry, so the
+/// table's <em>first</em> column has nothing left to defer. ⚠️ Its <b>payload</b> column does — some
+/// twenty fields whose value sets belong to M2-15, M3-10, M4-02, M4-03, M4-06, M4-09, M5-08, M12
+/// and M15-03 are carried as <c>int</c>/<c>string</c> today — and that deferral is written up in
+/// <c>SlayIdleRepeat.Core.Commands.CommandPayload</c>, with the two entries below that already
+/// expire on the right commits (<c>Inventory</c>/M4-03 and <c>ContainerShelf</c>/M4-02) naming the
+/// payloads they cover.
+/// </para>
+/// <para>
+/// 🔒 <b>The per-command entries were not written, and that is forced rather than chosen.</b>
+/// <see cref="Expired"/>'s second arm fires on <c>IsPresentInCore(gap.Subject)</c> — so
+/// <c>Gap("RollDiceCommand", …)</c> would fail the build <em>on the commit that added it</em>,
+/// because M1-02 authored the command. A per-command entry is unrepresentable in this register.
+/// (The softer argument holds as well: forty-nine <see cref="Gap.WaitsFor"/> names invented on
+/// behalf of milestones that have not chosen them is the same move this file's own
+/// <see cref="Surfaces"/> remarks refuse for the five <c>Player</c>-contents types M4-05 owns —
+/// "naming five types five unwritten milestones have not chosen is the invention S6 forbids,
+/// dressed as bookkeeping".) What each deferred command <em>does</em> carry is its owning task, on
+/// its dispatch row, beside its wire name and its <c>CommandKind</c> — the one place all three are
+/// declared, and the one place a reader looking at the command finds it.
 /// </para>
 /// <para>
 /// It joins three older instances of the same shape, and is modelled on the last of them:
@@ -146,6 +165,12 @@ internal static class GapRegister
         // None of them has an element type yet, and one of them has no decided content at all.
 
         new("Inventory", "M4-03", "GearInstance",
+            "🔒 M1-02 ALSO HANGS SIX COMMAND PAYLOADS ON THIS ENTRY. 14 §2.3's payload column names " +
+            "gear instance ids and a gear SLOT that no type expresses today, so EquipCommand, " +
+            "EnhanceCommand, SalvageCommand, SetFocusCommand, ReforgeItemCommand and " +
+            "RetuneItemCommand carry them as text. The commit that declares GearInstance retypes " +
+            "those six in the same change — otherwise M4-03's vocabulary and the wire's are two " +
+            "vocabularies for one concept, which is 30 §11.6's failure mode one layer in. " +
             "30 §4 lists 'inventory, gear instances' among Player's contents, and 08 §5 caps it at 400 " +
             "slots. Neither can be stored before the thing being stored exists: GearInstance carries " +
             "quality, chapterOrigin, a mercy counter, affixes and a lock (08 §2-3), and every one of " +
@@ -154,6 +179,10 @@ internal static class GapRegister
             "the shelf and the slots are the same missing type."),
 
         new("ContainerShelf", "M4-02", "ContainerClass",
+            "🔒 M1-02 ALSO HANGS THREE COMMAND PAYLOADS ON THIS ENTRY: OpenChestCommand, " +
+            "OpenEggCommand and OpenCrateCommand each carry a containerId as text, because the thing " +
+            "being addressed does not exist. The commit that declares ContainerClass retypes those " +
+            "three in the same change. " +
             "30 §4 lists 'unopened containers (24 §4.0)' on Player, and 24 §4.0 is explicit that chests, " +
             "Pet Eggs and Mount Crates are STORED OBJECTS rather than instant grants, on an uncapped " +
             "shelf. What is missing is the class vocabulary — CHEST_STANDARD / CHEST_PREMIUM / " +
@@ -380,6 +409,84 @@ internal static class GapRegister
             "Run",
             "GuildView",
             "GhostSnapshot",
+        }),
+
+        // 🔒 M1-02, `14` §2.3 — THE CANONICAL COMMAND REGISTRY, transcribed whole.
+        //
+        // 49 rows: 19 run + 30 meta. Counted off the document before the vocabulary was written,
+        // rather than taken from a report (steering S9) — the table's own header says "Meta commands
+        // (29)" and this repository used to say 48, and the M1 kickoff (2026-08-11) recorded BOTH as
+        // miscounts of a correct table. Errata, not a scope change.
+        //
+        // 🔒 THIS IS THE ONE SURFACE IN THIS ARRAY WITH NO Deferred COMPANION, and that is what it
+        // is for. `14` §2.3 says the registry is EXHAUSTIVE — "a command not listed here does not
+        // exist" — so the honest transcription is the whole table, and the honest state of it is
+        // "all forty-nine authored". The entry earns its place in the OTHER direction: delete a
+        // command type, move one out of Core/Commands/, or rename one, and the undeclared check
+        // fails naming the row. Nothing else in the architecture suite watches that —
+        // Every_command_type_is_handled_by_Apply quantifies over the types that EXIST and says
+        // nothing about one that stopped existing.
+        //
+        // ⚠️ The subjects are TYPE names, not `14` §2.3's SCREAMING_SNAKE wire names, because that is
+        // what IsAuthoredUnder can decide; the mapping is the mechanical one (ROLL_DICE ->
+        // RollDiceCommand) and the wire names themselves are pinned against a hand-transcribed
+        // literal list, in both directions, by SlayIdleRepeat.Core.Tests.CommandVocabularyTests.
+        // Two mechanisms over two subject sets: this one watches DECLARATION, that one watches
+        // REGISTRATION, and a command can lose either without losing the other.
+        new("14 §2.3 (the canonical command registry — 19 run + 30 meta)", Domain.CommandsNamespace, new[]
+        {
+            // The 19 run commands, in the table's order.
+            "StartRunCommand",
+            "RollDiceCommand",
+            "UseRerollCommand",
+            "ChooseForkCommand",
+            "ResolveTileCommand",
+            "PickPerkCommand",
+            "RerollDraftCommand",
+            "SkipDraftCommand",
+            "ShopBuyCommand",
+            "ShopRefreshCommand",
+            "EventChooseCommand",
+            "MinigameSubmitCommand",
+            "CampfireChooseCommand",
+            "StartBattleCommand",
+            "ConfirmBattleResultCommand",
+            "ReviveCommand",
+            "UseConsumableCommand",
+            "EndRunCommand",
+            "AbandonRunCommand",
+
+            // The 30 meta commands, in the table's order.
+            "BeginSessionCommand",
+            "SkipFtueCommand",
+            "EquipCommand",
+            "MergeCommand",
+            "EnhanceCommand",
+            "SalvageCommand",
+            "SpendTalentCommand",
+            "RespecCommand",
+            "LevelPetCommand",
+            "AscendPetCommand",
+            "EquipPetCommand",
+            "EquipMountCommand",
+            "ClaimQuestCommand",
+            "RerollQuestCommand",
+            "ClaimAdRewardCommand",
+            "ClaimCalendarCommand",
+            "ClaimInboxCommand",
+            "SpinWheelCommand",
+            "SetFocusCommand",
+            "ReforgeItemCommand",
+            "RetuneItemCommand",
+            "SavePresetCommand",
+            "ApplyPresetCommand",
+            "ShopPurchaseCommand",
+            "OpenChestCommand",
+            "OpenEggCommand",
+            "OpenCrateCommand",
+            "UploadGhostCommand",
+            "StartDuelCommand",
+            "SubmitDuelCommand",
         }),
     };
 

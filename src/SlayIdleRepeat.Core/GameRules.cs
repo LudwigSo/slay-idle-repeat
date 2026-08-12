@@ -48,12 +48,13 @@ namespace SlayIdleRepeat.Core;
 /// the events — and owns no game rule at all. Everything a specific command means is in its handler.
 /// </para>
 /// <para>
-/// ⚠️ <b>The dispatch table is empty in M1-06, and that is the landing order rather than an
-/// oversight.</b> M1-02 declares the 49 concrete commands of `14` §2.3 and adds one row here for
-/// each. <c>Every_command_type_is_handled_by_Apply</c> fails the build for any concrete subtype no
-/// row names, so the base type and the table have to land <b>before</b> the vocabulary: with zero
-/// subtypes the rule quantifies over nothing and stays green, which is exactly why this task is
-/// first.
+/// 🔒 <b>The dispatch table carries all 49 rows of `14` §2.3 from M1-02</b>, and the landing order
+/// is why it could: M1-06 shipped the base type and an empty table, because
+/// <c>Every_command_type_is_handled_by_Apply</c> fails the build for any concrete subtype no row
+/// names — with zero subtypes the rule quantified over nothing and stayed green, so the seam could
+/// precede the vocabulary. From M1-02 that rule is <b>fully loaded</b>: 49 concrete subtypes, 49
+/// rows, and a fiftieth command declared without a row turns the build red on the commit that
+/// declares it.
 /// </para>
 /// </remarks>
 public static class GameRules
@@ -84,8 +85,93 @@ public static class GameRules
     /// it with dispatch plumbing would move the entry — and the two rules keyed on it — a milestone
     /// early, over types that are not handlers.
     /// </para>
+    /// <para>
+    /// 🔒 <b>M1-02 landed the 49 rows and nothing reshaped</b> — one row is one chained call, exactly
+    /// as the sketch above promised. The order is `14` §2.3's own: the 19 run rows in the table's
+    /// order, then the 30 meta rows in theirs, so the registry and the document can be read side by
+    /// side. <c>SlayIdleRepeat.Core.Tests.CommandVocabularyTests</c> pins the resulting <b>set</b>
+    /// against a hand-transcribed literal list in both directions, because 49 <em>wrong</em> names
+    /// also count 49.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b><c>START_RUN</c> is <c>CommandKind.Run</c>, and it is the row worth pausing on.</b>
+    /// `14` §2.3 submits it on the <em>player</em> endpoint, because no <c>runId</c> exists yet — a
+    /// transport fact. The kind is a domain fact: it decides whether <see cref="Apply"/> opens a
+    /// <c>RunRngScope</c> over the run's `14` §8.1 counters and whether the run's `14` §16.3 sliding
+    /// TTL moves. Matching the kind to the endpoint would give the one command that commits
+    /// <c>runSeed</c> no scope at all.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Every row is <c>Deferred</c> today, including <c>BEGIN_SESSION</c></b>, whose handler is
+    /// M1-09's and lands two tasks from here. Each row's owner is the task the tracker gives for the
+    /// system behind the command — read off <c>IMPLEMENTATION_TRACKER.md</c>'s task rows rather than
+    /// inferred, because a wrong owner is a deferral that expires at the wrong time (steering
+    /// <b>S4</b>). The owner lives <em>here</em>, on the row, rather than in a mirrored
+    /// <c>GapRegister</c> entry per command — which is not a preference but a mechanical fact:
+    /// <c>GapRegister.Expired</c> fires on a <c>Gap</c> whose <c>Subject</c> already exists in
+    /// <c>Core</c>, and the subject would be the command type this very row registers, so the entry
+    /// would fail the build the moment it was written. (The softer argument holds as well: forty-nine
+    /// <c>WaitsFor</c> names for systems whose milestones have not chosen them is what the register's
+    /// own remarks call "the invention S6 forbids, dressed as bookkeeping".) What <c>GapRegister</c>
+    /// carries for this task is the thing it can decide — the `14` §2.3 <b>inventory</b>, transcribed
+    /// into <c>Surfaces</c>, which fails the build if a row of the registry ever stops being
+    /// declared. `14` §2.3's <b>payload</b> column is deferred separately, in <c>CommandPayload</c>.
+    /// </para>
     /// </remarks>
-    private static readonly CommandDispatch Dispatch = new();
+    private static readonly CommandDispatch Dispatch = new CommandDispatch()
+
+        // ------------------------------------------------ `14` §2.3 — the 19 RUN commands
+        .Deferred<StartRunCommand>("START_RUN", CommandKind.Run, "M3-15")
+        .Deferred<RollDiceCommand>("ROLL_DICE", CommandKind.Run, "M3-04")
+        .Deferred<UseRerollCommand>("USE_REROLL", CommandKind.Run, "M3-04")
+        .Deferred<ChooseForkCommand>("CHOOSE_FORK", CommandKind.Run, "M3-02")
+        .Deferred<ResolveTileCommand>("RESOLVE_TILE", CommandKind.Run, "M3-03")
+        .Deferred<PickPerkCommand>("PICK_PERK", CommandKind.Run, "M3-06")
+        .Deferred<RerollDraftCommand>("REROLL_DRAFT", CommandKind.Run, "M3-06")
+        .Deferred<SkipDraftCommand>("SKIP_DRAFT", CommandKind.Run, "M3-06")
+        .Deferred<ShopBuyCommand>("SHOP_BUY", CommandKind.Run, "M3-08")
+        .Deferred<ShopRefreshCommand>("SHOP_REFRESH", CommandKind.Run, "M3-08")
+        .Deferred<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, "M3-09")
+        .Deferred<MinigameSubmitCommand>("MINIGAME_SUBMIT", CommandKind.Run, "M3-10")
+        .Deferred<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, "M3-11")
+        .Deferred<StartBattleCommand>("START_BATTLE", CommandKind.Run, "M3-05")
+        .Deferred<ConfirmBattleResultCommand>("CONFIRM_BATTLE_RESULT", CommandKind.Run, "M3-05")
+        .Deferred<ReviveCommand>("REVIVE", CommandKind.Run, "M3-13")
+        .Deferred<UseConsumableCommand>("USE_CONSUMABLE", CommandKind.Run, "M3-08")
+        .Deferred<EndRunCommand>("END_RUN", CommandKind.Run, "M3-13")
+        .Deferred<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, "M3-13")
+
+        // ----------------------------------------------- `14` §2.3 — the 30 META commands
+        .Deferred<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, "M1-09")
+        .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
+        .Deferred<EquipCommand>("EQUIP", CommandKind.Meta, "M4-03")
+        .Deferred<MergeCommand>("MERGE", CommandKind.Meta, "M4-04")
+        .Deferred<EnhanceCommand>("ENHANCE", CommandKind.Meta, "M4-04")
+        .Deferred<SalvageCommand>("SALVAGE", CommandKind.Meta, "M4-04")
+        .Deferred<SpendTalentCommand>("SPEND_TALENT", CommandKind.Meta, "M4-06")
+        .Deferred<RespecCommand>("RESPEC", CommandKind.Meta, "M4-06")
+        .Deferred<LevelPetCommand>("LEVEL_PET", CommandKind.Meta, "M4-07")
+        .Deferred<AscendPetCommand>("ASCEND_PET", CommandKind.Meta, "M4-07")
+        .Deferred<EquipPetCommand>("EQUIP_PET", CommandKind.Meta, "M4-07")
+        .Deferred<EquipMountCommand>("EQUIP_MOUNT", CommandKind.Meta, "M4-08")
+        .Deferred<ClaimQuestCommand>("CLAIM_QUEST", CommandKind.Meta, "M4-09")
+        .Deferred<RerollQuestCommand>("REROLL_QUEST", CommandKind.Meta, "M4-09")
+        .Deferred<ClaimAdRewardCommand>("CLAIM_AD_REWARD", CommandKind.Meta, "M15-03")
+        .Deferred<ClaimCalendarCommand>("CLAIM_CALENDAR", CommandKind.Meta, "M4-09")
+        .Deferred<ClaimInboxCommand>("CLAIM_INBOX", CommandKind.Meta, "M5-08")
+        .Deferred<SpinWheelCommand>("SPIN_WHEEL", CommandKind.Meta, "M4-09")
+        .Deferred<SetFocusCommand>("SET_FOCUS", CommandKind.Meta, "M4-04")
+        .Deferred<ReforgeItemCommand>("REFORGE_ITEM", CommandKind.Meta, "M4-04")
+        .Deferred<RetuneItemCommand>("RETUNE_ITEM", CommandKind.Meta, "M4-04")
+        .Deferred<SavePresetCommand>("SAVE_PRESET", CommandKind.Meta, "M4-10")
+        .Deferred<ApplyPresetCommand>("APPLY_PRESET", CommandKind.Meta, "M4-10")
+        .Deferred<ShopPurchaseCommand>("SHOP_PURCHASE", CommandKind.Meta, "M4-09")
+        .Deferred<OpenChestCommand>("OPEN_CHEST", CommandKind.Meta, "M4-02")
+        .Deferred<OpenEggCommand>("OPEN_EGG", CommandKind.Meta, "M4-02")
+        .Deferred<OpenCrateCommand>("OPEN_CRATE", CommandKind.Meta, "M4-02")
+        .Deferred<UploadGhostCommand>("UPLOAD_GHOST", CommandKind.Meta, "M12-01")
+        .Deferred<StartDuelCommand>("START_DUEL", CommandKind.Meta, "M12-04")
+        .Deferred<SubmitDuelCommand>("SUBMIT_DUEL", CommandKind.Meta, "M12-04");
 
     /// <summary>
     /// The shared empty event list. It is what an accepted command that produced nothing returns, so
@@ -112,10 +198,22 @@ public static class GameRules
     /// handler and kind, so the three cannot drift apart.
     /// </para>
     /// <para>
-    /// ⚠️ <c>internal</c> until something outside <c>Core</c> needs it. Today's consumer is
-    /// <c>SlayIdleRepeat.Core.Tests.CommandSeedPin</c>, which the `30` §11.3 <c>InternalsVisibleTo</c>
-    /// grant already reaches; M5-03's wire envelope is the first caller that will need it public,
-    /// and it should read this rather than declare a second table (`30` §11.6).
+    /// ⚠️ <c>internal</c> until something outside <c>Core</c> needs it. Today's consumers are
+    /// <c>SlayIdleRepeat.Core.Tests.CommandSeedPin</c> and <c>CommandVocabularyTests</c>, which the
+    /// `30` §11.3 <c>InternalsVisibleTo</c> grant already reaches; M5-03's wire envelope is the first
+    /// caller that will need it public, and it should read this rather than declare a second table
+    /// (`30` §11.6).
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M5-03 will need three members, not this one</b> — named here so that task does not
+    /// discover it halfway through and declare a second table anyway. `14` §2.3 splits the endpoints
+    /// (<c>/run/{runId}/command</c> against <c>/player/command</c>) on the <see cref="CommandKind"/>,
+    /// which this dictionary does not carry: it is reachable only through
+    /// <see cref="RegistrationFor"/> → <c>CommandRegistration</c>, and all three are
+    /// <c>internal</c>. Making them public is a pure accessibility edit — no signature exposes a
+    /// type that would have to become public with them — but it is three edits and one ruling, not
+    /// one edit. ⚠️ <c>START_RUN</c> is the exception in both directions and M5-03 owns it: a
+    /// <c>CommandKind.Run</c> row that arrives on the <em>player</em> endpoint.
     /// </para>
     /// </remarks>
     internal static IReadOnlyDictionary<string, Type> CommandTypesByWireName => Dispatch.TypesByWireName;
@@ -152,9 +250,12 @@ public static class GameRules
     /// <c>SnapshotFieldOrderPin.Violations(...)</c> are</b>: the domain suite has to drive these
     /// rules against shapes that must <b>never</b> be committed to <c>Core</c> — a handler that
     /// hand-writes an RNG counter, a handler that stamps its own <c>Sequence</c>, a command whose
-    /// system does not exist. Against the real table, which is empty until M1-02 lands the
-    /// vocabulary, every one of those rules would be asserted over nothing and would report success
-    /// forever (steering <b>S3</b>).
+    /// system does not exist. ⚠️ M1-02 filled the real table with 49 rows and <b>none of that
+    /// changed</b>: every one of those rows is <c>Deferred</c>, so the production table still holds
+    /// <em>no handler at all</em>, and every handler-shaped rule stated over it would be asserted
+    /// over nothing and would report success forever (steering <b>S3</b>). The third shape —
+    /// "a command whose system does not exist" — is the one the real table now has, 49 times, and
+    /// <c>Commands.CommandVocabularyTests</c> drives it there rather than here.
     /// </para>
     /// <para>
     /// ⚠️ It is <c>internal</c> and it is not a second entry point. `30` §11.2's <em>"the only public

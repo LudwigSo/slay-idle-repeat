@@ -149,6 +149,100 @@ public sealed class AmbientApiTests
     }
 
     /// <summary>
+    /// 🔒 `14` §8.2 / `14` §2.3 — the same rule for the <b>other</b> public record hierarchy: a
+    /// command that carries a member whose rendering depends on the culture declares its own
+    /// <c>PrintMembers</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>M1-02, and it is the rule above's blind spot found in the sibling hierarchy.</b> The
+    /// events rule is scoped to <c>Core/Events/</c>; `30` §11.2 makes <c>Core/Commands/</c> the
+    /// other public hierarchy and `14` §2.3 puts it on the wire. Measured on M1-02's first commit,
+    /// before this rule existed: <c>ChooseForkCommand { BranchIndex = -1 }</c> in the container
+    /// renders <c>BranchIndex = −1</c> (U+2212) under <c>sv-SE</c>, through exactly the
+    /// <c>StringBuilder.Append(object)</c> boxing that
+    /// <see cref="Core_and_Application_contain_no_culture_sensitive_formatting"/> cannot see.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Narrower than the events rule, deliberately.</b> Twenty of `14` §2.3's forty-nine
+    /// commands carry no payload at all and a further thirteen carry only <c>string</c>,
+    /// <c>bool</c> or an enum — all of which render identically everywhere — so demanding a
+    /// hand-written renderer of them would be noise a future author deletes. The subject set is
+    /// exactly "commands with a member outside that whitelist", which is decidable from metadata
+    /// and cannot be got wrong by someone adding a <c>decimal</c> later.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The floors, by identity</b> (steering <b>S3</b>). The set is non-empty <em>and</em>
+    /// contains <c>ChooseForkCommand</c>; the whitelist is proven to actually exclude something by
+    /// asserting <c>RespecCommand</c> is <b>not</b> a subject. Without the second, a predicate that
+    /// answered "culture-sensitive" for everything would look like a stricter rule rather than a
+    /// broken one.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_command_with_a_culture_sensitive_member_declares_an_invariant_PrintMembers()
+    {
+        var commands = Domain.CoreTypesUnder(Domain.CommandsNamespace)
+            .Where(t => t.DeclaringType is null && !t.IsAbstract && !Domain.IsCompilerGenerated(t))
+            .ToArray();
+
+        var subjects = commands.Where(HasCultureSensitiveMember).ToArray();
+        var names = subjects.Select(t => t.Name).ToArray();
+
+        Assert.NotEmpty(subjects);
+
+        Assert.Contains(
+            "ChooseForkCommand",
+            names,
+            StringComparer.Ordinal);
+
+        Assert.DoesNotContain(
+            "RespecCommand",
+            names,
+            StringComparer.Ordinal);
+
+        var offenders = subjects
+            .Where(t => !DeclaresAuthoredPrintMembers(t))
+            .Select(t =>
+                $"{t.FullName} carries a member whose ToString() follows the AMBIENT culture and does not " +
+                "declare a PrintMembers, so its own ToString() runs the compiler's — which appends every " +
+                "member through StringBuilder.Append(object). An index of -1 renders as '−1' (U+2212) " +
+                "under sv-SE and '-1' in the container, and " +
+                "Core_and_Application_contain_no_culture_sensitive_formatting cannot see it through the " +
+                "boxing (14 §8.2). 14 §2.3's bounds are transcribed rather than enforced, so an " +
+                "out-of-range index IS constructible and IS what reaches a 14 §16.2 rejection diagnostic. " +
+                "Declare 'protected override bool PrintMembers(StringBuilder)' and append with " +
+                "CultureInfo.InvariantCulture, as the other commands and CurrencyChanged do.");
+
+        ArchRule.Empty(
+            offenders,
+            "Every 14 §2.3 command carrying a culture-sensitive member declares an invariant PrintMembers — " +
+            "a command reads the same on every machine (14 §8.2).");
+    }
+
+    /// <summary>
+    /// Whether a record declares a member that does <b>not</b> render identically under every
+    /// culture.
+    /// </summary>
+    /// <remarks>
+    /// A whitelist rather than a blacklist: <c>string</c> is itself, <c>bool</c> is
+    /// <c>True</c>/<c>False</c>, and an enum renders its member name — everything else is presumed
+    /// culture-sensitive, so a payload that later gains a <c>decimal</c> or a <c>DateTimeOffset</c>
+    /// is a subject without anyone remembering to add it. <c>EqualityContract</c> is the record
+    /// hierarchy's own plumbing and is excluded.
+    /// </remarks>
+    private static bool HasCultureSensitiveMember(Mono.Cecil.TypeDefinition type) =>
+        type.Properties
+            .Where(p => !p.Name.Equals("EqualityContract", StringComparison.Ordinal))
+            .Any(p => !RendersIdentically(p.PropertyType));
+
+    /// <summary>Whether a member of this type renders the same under every culture.</summary>
+    private static bool RendersIdentically(Mono.Cecil.TypeReference type) =>
+        type.FullName.Equals("System.String", StringComparison.Ordinal) ||
+        type.FullName.Equals("System.Boolean", StringComparison.Ordinal) ||
+        (type.Resolve()?.IsEnum ?? false);
+
+    /// <summary>
     /// Whether the author — rather than the compiler — declared this record's <c>PrintMembers</c>.
     /// </summary>
     /// <remarks>

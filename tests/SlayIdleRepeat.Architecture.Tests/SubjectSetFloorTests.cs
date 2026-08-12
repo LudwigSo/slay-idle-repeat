@@ -262,14 +262,27 @@ public sealed class SubjectSetFloorTests
         //    lands first.
         //  · Contracts_never_redeclares_a_domain_type gains its derivation half for commands:
         //    DerivesFrom(t, "GameCommand") could not match anything while no such base existed.
+        //
+        // 🔒 M1-02 — THE SENTENCE ABOVE ABOUT "ZERO CONCRETE SUBTYPES" IS NO LONGER TRUE, and it is
+        // corrected here rather than left to go stale (steering S4's known limit, re-read at this
+        // task's start as that limit asks). `14` §2.3's 49 commands landed with 49 dispatch rows, so
+        // Every_command_type_is_handled_by_Apply is FULLY LOADED for the first time: it quantifies
+        // over 49 concrete subtypes against a dispatch surface of one type. Measured on this branch
+        // — a fiftieth command declared without a row turns the build red naming it, and the literal
+        // output is in the task report (S1). Contracts_never_redeclares_a_domain_type's derivation
+        // half also stops being hypothetical: there are now 49 names it can collide with, and
+        // Contracts declares exactly one type (WireProtocol), checked before the vocabulary landed.
         new("GameRules", SubjectKind.CoreType, "M1-06",
             "AccessibilityBoundaryTests.Apply_is_the_only_public_mutation (the Apply-exists and " +
-            "public-static arms, live from this commit), DomainPurityTests." +
-            "Every_command_type_is_handled_by_Apply (the dispatch surface half)"),
+            "public-static arms, live from M1-06), DomainPurityTests." +
+            "Every_command_type_is_handled_by_Apply (the dispatch surface half — GameRules is the " +
+            "ONLY type on that surface until M1-09 puts the first handler under Core/Handlers/, so " +
+            "renaming it would drop all 49 commands out of the 'dispatched' set at once)"),
 
         new("GameCommand", SubjectKind.CoreType, "M1-06",
-            "DomainPurityTests.Every_command_type_is_handled_by_Apply (the rule no longer " +
-            "short-circuits; it quantifies over 0 concrete subtypes until M1-02), " +
+            "DomainPurityTests.Every_command_type_is_handled_by_Apply (LIVE over 49 concrete " +
+            "subtypes since M1-02; the rule's subject set is DerivesFrom(t, \"GameCommand\"), so " +
+            "renaming the base empties it and every unregistered command becomes invisible), " +
             "AccessibilityBoundaryTests.Contracts_never_redeclares_a_domain_type (the " +
             "DerivesFrom(GameCommand) half)"),
 
@@ -289,9 +302,15 @@ public sealed class SubjectSetFloorTests
         // 30 §11.4 enumerates has to appear in one of these two arrays or its layering row governs
         // nothing. 🔒 Core_internal_layering_holds gained a Commands ROW on this commit — see the
         // note there for what it forbids and why the Events half is still open.
+        // 🔒 M1-02 filled it: 49 commands plus one internal payload helper. The two layering rows
+        // M1-06 added were LIVE-BUT-THIN over a single abstract base with no members; they now
+        // govern 50 types, and the Commands row's "may name Primitives, Content and Rng, may not
+        // name Model, Rules or Handlers" was tested for real by the payload decision — every field
+        // in the vocabulary is an int, a string, a bool or Primitives.DifficultyTier, and no command
+        // names a Model aggregate. M1-06's brief asked to be told if one had to; none does.
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds (the Commands row and the " +
-            "mustNotReachTheRoot row, both added and both live from this commit), " +
+            "mustNotReachTheRoot row, both added in M1-06 and both governing 50 types since M1-02), " +
             "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace"),
     };
 
@@ -304,7 +323,17 @@ public sealed class SubjectSetFloorTests
 
     private const int ProductionProjectFloor = 29;   // 26 under src/ + 3 under tools/
     private const int AdapterFloor = 21;
-    private const int CoreTypeFloor = 26;            // Il.AllTypes over SlayIdleRepeat.Core
+    // 🔒 M1-02 raised this from 26 to 110 (measured: 120 today). It is the one floor in this file
+    // that had gone quiet by standing still: the file's own preamble says these numbers are
+    // "derived from the tree as it stands on this commit", and 26 was M0-08's tree. At 26 the ENTIRE
+    // Core/Commands/ namespace could vanish — 51 types, `14` §2.3's whole wire vocabulary — with
+    // every rule in DomainPurityTests and AccessibilityBoundaryTests quantifying over a smaller set
+    // and this floor still clearing. Raised rather than left for M1-12 because M1-12's task is to
+    // prove the ten rules WOKE UP, and a floor that cannot notice them going back to sleep is the
+    // wrong thing to hand that task. 110 rather than 120: a floor, with room for the handful of
+    // compiler-generated types a refactor moves either way, and low enough that lowering it is still
+    // the deliberate act the comment above describes.
+    private const int CoreTypeFloor = 110;           // Il.AllTypes over SlayIdleRepeat.Core
     private const int PortFloor = 1;                 // IContentSourcePort (M0-09)
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 

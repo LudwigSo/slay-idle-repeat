@@ -154,16 +154,28 @@ public sealed class DomainPurityTests
     /// `30` §9 — every `GameCommand` subtype is handled: no silently unhandled command.
     /// The dispatch surface is `GameRules` plus everything under `Core/Handlers/`
     /// (`30` §11.4, one handler per command); a concrete command no type on that surface
-    /// mentions has no way of being applied. Vacuous until M1 declares `GameCommand`.
+    /// mentions has no way of being applied.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>LIVE over 49 concrete subtypes since M1-02</b>, which landed `14` §2.3's whole registry.
+    /// M0-08 wrote this against a subject set that did not exist; M1-06 landed the base and the
+    /// dispatch table, which made the rule stop short-circuiting while it still quantified over zero
+    /// subtypes; M1-02 filled it. Measured on that branch: a fiftieth command declared without a
+    /// dispatch row fails naming it. The early-return arm below is now the guard for an assembly
+    /// with no command hierarchy at all, not a "not yet" — and the dispatch surface is
+    /// <c>GameRules</c> alone until M1-09 puts the first handler under <c>Core/Handlers/</c>, so
+    /// renaming that one type would drop all 49 commands out of the dispatched set at once.
+    /// </remarks>
     [Fact]
     public void Every_command_type_is_handled_by_Apply()
     {
         var gameCommand = Domain.FindInCore(Domain.GameCommandType);
         if (gameCommand is null)
         {
-            // No command hierarchy yet: the set of unhandled commands is empty, and the
-            // rule holds. It becomes an assertion over 48 commands the day M1 lands.
+            // No command hierarchy AT ALL: the set of unhandled commands is empty and the rule
+            // holds. Unreachable on this repository since M1-06 — GameCommand has existed since
+            // then and 49 concrete subtypes since M1-02 — and kept as the guard for an assembly
+            // that genuinely has none, not as a "not yet".
             ArchRule.Empty(Array.Empty<string>(), UnhandledCommandRule);
             return;
         }

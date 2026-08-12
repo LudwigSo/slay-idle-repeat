@@ -32,10 +32,13 @@ namespace SlayIdleRepeat.Core.Commands;
 ///   command that carried any of them would be a second, unvalidated door into <c>Apply</c>.</item>
 /// </list>
 /// <para>
-/// 🔒 <b>The 49 concrete commands are M1-02's</b>, and the order is forced:
+/// 🔒 <b>The 49 concrete commands landed in M1-02</b>, and the order was forced:
 /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c> fails the build for any
-/// <em>concrete</em> subtype that no type on the dispatch surface names, so the base has to land
-/// before the vocabulary does — with zero subtypes the rule quantifies over nothing and stays green.
+/// <em>concrete</em> subtype that no type on the dispatch surface names, so the base had to land
+/// before the vocabulary did — with zero subtypes the rule quantified over nothing and stayed green.
+/// From M1-02 it is fully loaded, and <c>Commands.GameCommandTests</c> pins the hierarchy at
+/// <b>49</b>: `14` §2.3 is exhaustive, so a fiftieth concrete subtype is a command the wire has no
+/// name for.
 /// </para>
 /// <para>
 /// A <c>record</c>, so equality is by value: `14` §3.2's idempotency replays a stored outcome for a

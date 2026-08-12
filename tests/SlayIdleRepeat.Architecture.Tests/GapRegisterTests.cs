@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
@@ -265,6 +266,116 @@ public sealed class GapRegisterTests
             "un-defer the SchemaVersion bump that entry exists to price.");
 
         runStateMachine.Namespace.ShouldBe(Domain.PrimitivesNamespace);
+
+        // 🔒 M1-02. The floor under `14` §2.3's transcription, and it is the one in this file where
+        // the number is itself contested: the table's own header says "Meta commands (29)" and this
+        // repository used to say 48 commands. The M1 kickoff ruled both to be miscounts of a correct
+        // table, so 49 is a LITERAL here — taken from counting the document's rows, never from the
+        // transcription's own Count, which cannot notice itself being trimmed.
+        //
+        // ⚠️ A count alone would be satisfied by 49 WRONG names, which is why it is not the only
+        // guard: every name in that transcription must resolve to a real type under Core/Commands/
+        // or Undeclared fires, and the wire names those types register under are pinned as a SET, in
+        // both directions, by SlayIdleRepeat.Core.Tests.CommandVocabularyTests.
+        var commandRegistry = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("14 §2.3", StringComparison.Ordinal));
+
+        commandRegistry.Subjects.Count.ShouldBe(
+            49,
+            "14 §2.3's registry is 19 run commands plus 30 meta commands, and it is EXHAUSTIVE — 'a " +
+            "command not listed here does not exist'. A transcription that shrank would stop asking " +
+            "about the rows it dropped, and deleting a command type would then be silent.");
+
+        commandRegistry.Namespace.ShouldBe(Domain.CommandsNamespace);
+
+        commandRegistry.Subjects.Distinct(StringComparer.Ordinal).Count().ShouldBe(
+            49,
+            "a duplicated name would keep the count at 49 while one row went untranscribed.");
+
+        // 🔒 A shape check on the hand-written list, and it is load-bearing rather than tidy.
+        // MEASURED: replacing "AbandonRunCommand" with "CommandPayload" passed 58/58 — the count
+        // held, Distinct held, and Undeclared stayed silent because CommandPayload really is
+        // authored under Core/Commands/. So a row could leave the transcription by being swapped for
+        // one of the two non-command types in that namespace, and deleting the command would then be
+        // invisible. GameCommand is the other. This is a claim about the LIST, not about the code —
+        // it derives nothing from the assembly.
+        commandRegistry.Subjects
+            .Where(s => !s.EndsWith("Command", StringComparison.Ordinal) ||
+                        s.Equals(Domain.GameCommandType, StringComparison.Ordinal))
+            .ShouldBeEmpty(
+                "every subject of 14 §2.3's transcription is a concrete command type, so each name " +
+                "ends in 'Command' and none of them is the abstract base. Core/Commands/ also holds " +
+                "GameCommand and CommandPayload, and either would satisfy the count and the " +
+                "undeclared check while quietly taking a real row's place.");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §6 / `14` §2.3, steering <b>S4</b> — every milestone task a
+    /// <c>CommandDispatch.Deferred</c> row names is a real task row in
+    /// <c>IMPLEMENTATION_TRACKER.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>A dispatch row is a declared exception, and its owner is its only expiry</b> — which is
+    /// what makes it this file's business rather than the domain suite's. M1-02 wrote into
+    /// <c>GameRules</c> that the 49 owners were "read off <c>IMPLEMENTATION_TRACKER.md</c>'s task
+    /// rows rather than inferred, because a wrong owner is a deferral that expires at the wrong
+    /// time". Nothing checked that claim until this rule; a wrong owner is the S4 failure this
+    /// milestone has already hit twice (M0's <c>knownEmpty</c> naming M1-09 for a port suite, and
+    /// eight <c>SubjectSetFloorTests</c> markers naming the wrong task).
+    /// </para>
+    /// <para>
+    /// ⚠️ It reads the <b>raw</b> source rather than <c>SourceText</c>, whose whole job is to blank
+    /// string literals — and the owner <em>is</em> a string literal. It also cannot live in
+    /// <c>SlayIdleRepeat.Core.Tests</c>, which the M1 kickoff keeps hermetic: reading a repository
+    /// file there would be the first crack in "nothing in <c>Core</c> loads from disk". This suite
+    /// already reads the tree.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Both sets are floored by identity</b> (steering S3). A regex that stopped matching would
+    /// empty either side and leave the comparison trivially true, which is the one way this rule
+    /// could go quiet.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_deferred_command_names_a_task_the_tracker_declares()
+    {
+        var dispatch = File.ReadAllText(
+            Path.Combine(RepoLayout.SrcRoot, "SlayIdleRepeat.Core", "GameRules.cs"));
+
+        var owners = Regex.Matches(dispatch, @"\.Deferred<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), ""(?<owner>[^""]+)""\)")
+            .Select(m => (Wire: m.Groups["wire"].Value, Owner: m.Groups["owner"].Value))
+            .ToArray();
+
+        owners.Length.ShouldBe(
+            49,
+            "14 §2.3's registry is 19 run + 30 meta and every row is Deferred today. If this is 0 the " +
+            "pattern has stopped matching the dispatch table and the comparison below holds over " +
+            "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
+            "lower this by exactly that many.");
+
+        var tracker = File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
+
+        var declared = Regex.Matches(tracker, @"^\| (?<id>M\d{1,2}-\d{2}) \|", RegexOptions.Multiline)
+            .Select(m => m.Groups["id"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.NotEmpty(declared);
+        Assert.Contains("M1-02", declared, StringComparer.Ordinal);
+        Assert.Contains("M3-15", declared, StringComparer.Ordinal);
+        Assert.DoesNotContain("M9-99", declared, StringComparer.Ordinal);
+
+        var offenders = owners
+            .Where(row => !declared.Contains(row.Owner))
+            .Select(row =>
+                $"'{row.Wire}' is deferred to '{row.Owner}', which is not a task row in " +
+                "IMPLEMENTATION_TRACKER.md. A deferral whose owner does not exist expires when nobody " +
+                "is looking: the row keeps rejecting with ILLEGAL_STATE and no milestone is on the " +
+                "hook for it. Name the task that actually builds the system behind the command.");
+
+        ArchRule.Empty(
+            offenders,
+            "Every deferred command names a milestone task the tracker declares (steering S4).");
     }
 
     /// <summary>
