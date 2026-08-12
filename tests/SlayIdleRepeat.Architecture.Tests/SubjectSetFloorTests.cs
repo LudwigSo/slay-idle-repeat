@@ -62,8 +62,29 @@ public sealed class SubjectSetFloorTests
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
             "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
 
-        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M1-10",
-            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation"),
+        // 🔒 The accessibility flip M2-15 could not make, parked where it expires by itself.
+        //
+        // `30` §11.2 names CombatSimulator one of the two Rules types that may be public, and
+        // `05` §7 declares its result types — CombatEvent, CombatEventType, SimulationResult —
+        // public alongside it, because `05` §8 has the CLIENT replay the log and `11` §6 has the
+        // PvP backend recompute LogHash over it. C# agrees: a public Simulate returning an
+        // internal SimulationResult does not compile.
+        //
+        // M2-15 authored those three types and left them INTERNAL, because making them public
+        // means appending them to Domain.PublicRuleTypes — and M1-12 was holding Domain.cs. The
+        // types are fully tested through the 30 §11.3 InternalsVisibleTo grant in the meantime,
+        // so nothing is unverified; what is deferred is only the visibility.
+        //
+        // This entry is the expiry. Handlers_and_Rules_are_internal is keyed on
+        // Domain.PublicRuleTypes, which names CombatSimulator and nothing it returns, so whoever
+        // lands the simulator must do BOTH halves in that commit: make the three result types
+        // public, and add them to Domain.PublicRuleTypes. This rule goes red the moment
+        // CombatSimulator exists, which is exactly when that becomes possible and necessary.
+        new("CombatSimulator", SubjectKind.CoreType, "M2-08",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal — see the note above this entry: " +
+            "landing CombatSimulator requires making CombatEvent, CombatEventType and SimulationResult public " +
+            "and adding them to Domain.PublicRuleTypes in the same commit"),
+
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
@@ -95,6 +116,17 @@ public sealed class SubjectSetFloorTests
         // this commit.
         new(Domain.PrimitivesNamespace, SubjectKind.CoreNamespace, "M1-01",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),
+
+        // Moved out of Pending by M2-15, which landed Core/Rules/Combat/ — the combat log format,
+        // `05` §7. Three rules stopped quantifying over nothing on that commit:
+        // Handlers_and_Rules_are_internal, Entitlements_are_unreachable_from_the_rules_and_the_
+        // power_computation, and IsolationTests.Guild_state_is_unreachable_from_the_combat_path,
+        // whose subject set is Domain.CombatRulesNamespace plus every type named *Combat*/*Battle*
+        // and had been empty since M0-08 wrote it.
+        new(Domain.RulesNamespace, SubjectKind.CoreNamespace, "M2-15",
+            "AccessibilityBoundaryTests.Handlers_and_Rules_are_internal, IsolationTests.Entitlements_are_" +
+            "unreachable_from_the_rules_and_the_power_computation, IsolationTests.Guild_state_is_unreachable_" +
+            "from_the_combat_path"),
 
         new(Domain.ContentNamespace, SubjectKind.CoreNamespace, "M0-09",
             "AccessibilityBoundaryTests.Core_internal_layering_holds"),

@@ -240,6 +240,54 @@ public static class CanonicalStateWriter
         return ToWireForm(Fnv1a64(buffer.Written));
     }
 
+    /// <summary>
+    /// 🔒 The <c>LogHash</c> of a <b>battle</b>: FNV-1a 64 over the serialised combat-event list,
+    /// per `05` §7.
+    /// </summary>
+    /// <param name="log">
+    /// The battle's event list — an <see cref="IReadOnlyList{T}"/> of the canonical event record.
+    /// </param>
+    /// <returns>The raw 64-bit hash.</returns>
+    /// <remarks>
+    /// <para>
+    /// The <b>third named mode</b> this class's remarks reserve for M2's battle hash, beside
+    /// <see cref="HashMetaCommandState"/> and <see cref="HashRunCommandState"/> — deliberately a
+    /// mode here rather than a caller in <c>Rules/Combat/</c> assembling bytes and calling
+    /// <see cref="Fnv1a64"/>, because that caller would be the second serialiser §16.6 exists to
+    /// forbid.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The parameter is <see cref="object"/> for the reason the other two modes' are.</b>
+    /// `30` §11.4's internal layering forbids <c>Model</c> from naming anything in <c>Rules</c>, and
+    /// the event type lives in <c>Rules/Combat/</c> (`30` §11.4: <em>"05, 17"</em>). Naming it here
+    /// would invert <c>Handlers ▶ Rules ▶ Model</c>. Nothing is lost: the encoding is driven
+    /// entirely by the closed allowlist, so a list of the wrong shape is refused by
+    /// <see cref="WriteValue"/> exactly as a bad snapshot is — <b>including a list element carrying
+    /// a public field, which the allowlist now refuses rather than hashing as zero bytes</b>.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It returns a bare <see cref="ulong"/>, not the <c>"fnv1a:"</c>-prefixed wire form.</b>
+    /// That is a real asymmetry with the other two modes, and it is `05` §7's: it types
+    /// <c>SimulationResult.LogHash</c> as <c>ulong</c>, and `11` §6 has the PvP backend compare the
+    /// client-reported number against the server-computed one. The prefix's purpose — making an
+    /// algorithm rotation visible to every reader and every log — is not available to a numeric
+    /// field, so a rotation here would have to be caught by the committed reference-vector table
+    /// instead. Recorded rather than silently corrected: the field's type is a cross-milestone wire
+    /// contract.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The log is null.</exception>
+    /// <exception cref="NotSupportedException">Some part of the log has no canonical encoding.</exception>
+    public static ulong HashCombatLog(object log)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+
+        var buffer = new CanonicalBuffer();
+        WriteRoot(buffer, log);
+
+        return Fnv1a64(buffer.Written);
+    }
+
     /// <summary>The canonical bytes of one snapshot, exactly as the hash sees them.</summary>
     /// <remarks>
     /// <c>internal</c> because the public surface of this class is the two hashing modes; a public
@@ -777,6 +825,25 @@ public static class CanonicalStateWriter
             return null;
         }
 
+        // 🔒 And the same question again for FIELDS, which the check above cannot see. A public
+        // instance field is not a primary-constructor parameter and not a property, so it falls
+        // through BOTH loops and contributes ZERO BYTES — the failure mode the property check was
+        // written to close, reached by the other door.
+        //
+        // It is not hypothetical. `05` §7 declares CombatEvent — the record behind the battle
+        // LogHash — as six public FIELDS, and nothing else in this repository would have noticed:
+        // a `record` with one constructor parameter and five public readonly fields satisfies every
+        // check above, hashes only the parameter, and every test written over that hash passes.
+        // AccessibilityBoundaryTests' public-mutable-field rule does not see it either, because a
+        // readonly field is IsInitOnly in IL and that rule exempts them.
+        //
+        // A field's auto-property backing store is private, so this excludes nothing legitimate;
+        // BindingFlags.Instance excludes const and static.
+        if (type.GetFields(BindingFlags.Public | BindingFlags.Instance).Length != 0)
+        {
+            return null;
+        }
+
         return properties;
     }
 
@@ -1010,7 +1077,10 @@ public static class CanonicalStateWriter
         "carrying a public property that is not a primary-constructor parameter is refused for the " +
         "same reason: the field list is the constructor's parameter list, so such a property would " +
         "be hashed as ZERO BYTES — two states differing only in it would share a stateHash, and " +
-        "the SchemaVersion field-order pin would never see it. Move it into the primary constructor.");
+        "the SchemaVersion field-order pin would never see it. Move it into the primary constructor. " +
+        "A public instance FIELD is refused for exactly that reason too, and is the more dangerous " +
+        "shape because it is neither a parameter nor a property and so slips past both checks — " +
+        "`05` §7's CombatEvent is written that way and would hash to nothing.");
 
     /// <summary>Which branch of the closed allowlist a declared type falls into.</summary>
     private enum PlanKind
