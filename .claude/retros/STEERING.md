@@ -8,8 +8,10 @@ Each rule carries a `[M<N>]` provenance tag. Rules that stop earning their place
 
 ## Implementation
 
-**S1 · A test that cannot fail is a defect, not a weak test. [M0]**
+**S1 · A test that cannot fail is a defect, not a weak test. [M0, amended M2]**
 Before claiming a rule, guard or assertion works, **make it fail on purpose**, capture the literal output, revert, and put that output in your report. Untested guards were M0's single largest defect class — they appeared in every suite and survived per-task review.
+🔒 **One passing mutation proves a rule is not *vacuous*. It does not prove it is correctly *scoped*.** Probe every rule with **two different shapes plus a negative control** — something it must ignore. **Never use a `const` as a probe:** the compiler folds it to a literal, so no IL reference exists and the proof passes for the wrong reason.
+M2 shipped **nine** cannot-fail tests and **every one was caught by a second probe, never the first**: an `IsStatic && !IsInitOnly` filter that skipped a `static readonly Dictionary`; a `callvirt set_Item` an IL scan could not see; Cecil resolving a `TypeSpecification` past a wrapped array; a rule stated over a field's *type*, so `int` was immutable and passed; an assertion at the fight's last tick, proving a stun had *ended*; an override that was a no-op on a conventionally indexed roster; `Should.NotThrow` over `Enum.GetValues`, satisfied by one `default` arm; a duplicate-id fixture under introsort's 16-element stability threshold; and a defect invisible at 1.0 ASPD that only appeared at 2.0. Choose probe values that can **discriminate**.
 
 **S2 · Assert the identity, not the symptom. [M0]**
 When several rules can produce the same error code, pin **which rule fired** — the pointer, location or message fragment — not just the code. In M0, deleting the exact schema bound a test's name cited still passed, because a different rule fired elsewhere. Uncapped ad rewards would have shipped green.
@@ -51,8 +53,10 @@ A task that authors data or schemas lands in an **earlier wave** than any task t
 **S12 · Do not patch a component an in-flight agent is scheduled to replace. [M0]**
 Queue the fix until that agent lands, or the two mechanisms will both exist. In M0 the duplicate broke 30 tests.
 
-**S13 · Cap 3 agents in flight; raise it only for provably disjoint footprints, and record why at dispatch. [M0]**
-The cap bounds merge-integration cost, which is near zero when file territories do not overlap. M0 sustained 4 with no collision — but both of M0's real collisions were about *ordering*, which the cap does not address.
+**S13 · Wave by *directory*, not only by dependency. Two tasks in one directory is a serialisation decision. [M0, superseded M2]**
+*(Replaces M0's "cap 3 agents in flight". That was the right instinct — bound merge-integration cost — aimed at the wrong unit: the cost tracks shared **territory**, not agent count.)*
+M2's numbers: the three largest changes of the milestone — **58, 60 and 18 files — merged alone with zero conflicts and zero fixes**. The four that shared `Rules/Combat/` cost **eight hand-resolutions**, six in one merge.
+🔒 **And they were not merge conflicts.** Git merged five of the six cleanly and the result then failed to compile, or compiled and failed an architecture rule: two agents independently consolidated one rule into two different primitives; one made a field derived and broke four sibling call sites; one widened a signature and broke a sibling's fixture; two rules fired correctly on types written in the same wave. **Textual merging succeeds where semantic merging does not — only the compiler and the architecture rules catch the difference.** Before widening a wave, ask what directory each task lands in, not just what it depends on.
 
 **S14 · Never key a tracker edit on a spec reference. [M0]**
 Spec refs are not unique — `14 §1.1` and `14 §14` each appear in two rows, and both times a status landed on an unrelated row. Address rows by task id or line, and re-read the result.
@@ -61,6 +65,11 @@ Spec refs are not unique — `14 §1.1` and `14 §14` each appear in two rows, a
 
 **S15 · Ask which *platforms and surfaces are in scope*, not just how far to verify them. [M0]**
 M0's kickoff asked how deep the iOS spike should go and never asked whether iOS ships. The design set said it did; the product owner did not think so. Five milestones of scope hung on the difference.
+
+**S17 · Before ruling against an apparent gap, check what the repo has already decided about it. [M2]**
+A conductor ruling is pasted into dispatches as *authority*, so a wrong one propagates faster than any agent's mistake and is harder to challenge. S4 makes you re-read declared **exemptions** at each kickoff; nothing makes you re-read committed **classifications**, and that is the gap.
+In M2 I ruled that effects should be referenced by id — taking a real finding and jumping to a solution **without checking that M2-01's committed `ContentLoader.VocabularySchemas` said the opposite in as many words** (*"an effect is never a file"*). It reached two dispatches before an agent challenged it with quotations. It cost nothing **only because the wave order happened to put the engine before the data**.
+Corollary, same root: **your claims about repo state are as unreliable as a number quoted from a report.** Eight of M2's ten S9 catches were against the conductor's own prompts, and **every one was a claim about the repo** — a file's namespace, which task owns a baseline entry, how many sources exist — never a design number, of which ~100 were transcribed correctly. Say *"verify this against the repo; if it disagrees, the repo wins"* and mean it.
 
 **S16 · Carry forward every doc contradiction a milestone surfaces, with a named owner. [M0]**
 Agents reading specs closely find real conflicts (M0 found four). Each needs a ruling at the kickoff of the milestone that implements it — not a note nobody owns.
