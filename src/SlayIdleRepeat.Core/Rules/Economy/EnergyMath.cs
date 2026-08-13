@@ -59,7 +59,7 @@ internal static class EnergyMath
     /// (`30` §11.5); this refuses anything below 1, which the formula has no meaning for.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is below 1.</exception>
     /// <remarks>
     /// 🔒 <b>The formula itself lives on <see cref="EnergyTuning"/></b>, and that placement is
     /// forced rather than tidy. M1-04's <c>Player</c> aggregate holds `30` §11.5's <em>"Energy
@@ -83,9 +83,9 @@ internal static class EnergyMath
     /// Level 0 it is 120, not 200.
     /// </summary>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
-    /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
+    /// <param name="legendLevel">The player's Legend Level. Never below 1.</param>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is below 1.</exception>
     /// <remarks>
     /// Derived on <see cref="EnergyTuning"/> for the reason <see cref="MaxEnergy"/> documents: the
     /// <c>Player</c> aggregate needs the same number and may not reference <c>Rules</c>.
@@ -118,10 +118,10 @@ internal static class EnergyMath
     /// </para>
     /// </remarks>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
-    /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
+    /// <param name="legendLevel">The player's Legend Level. Never below 1.</param>
     /// <param name="banks">The two banks before the accrual.</param>
     /// <param name="sinceAnchor">
-    /// Wall-clock time from the player's stored accrual anchor to now. Never negative.
+    /// Wall-clock time from the player's stored accrual anchor to now. Never below 1.
     /// <para>
     /// 🔒 <b>The negative case is the caller's, and the ruling is recorded here rather than left
     /// implicit.</b> `30` §2.1 P3 requires every command on every state to return a result — an
@@ -168,7 +168,7 @@ internal static class EnergyMath
     /// Reserve, and discards what neither can hold.
     /// </summary>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
-    /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
+    /// <param name="legendLevel">The player's Legend Level. Never below 1.</param>
     /// <param name="banks">The two banks before the grant.</param>
     /// <param name="amount">
     /// How much to grant. Never negative — taking Energy away is a spend, and a spend can be
@@ -240,10 +240,10 @@ internal static class EnergyMath
     /// </para>
     /// </remarks>
     /// <param name="tuning">The energy numbers, read from <c>tuning/progression.json</c>.</param>
-    /// <param name="legendLevel">The player's Legend Level. Never negative.</param>
+    /// <param name="legendLevel">The player's Legend Level. Never below 1.</param>
     /// <param name="banks">The two banks before the refill.</param>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="legendLevel"/> is below 1.</exception>
     internal static EnergyBanks RefillToFull(EnergyTuning tuning, int legendLevel, EnergyBanks banks)
     {
         ArgumentNullException.ThrowIfNull(tuning);
@@ -265,7 +265,7 @@ internal static class EnergyMath
     /// </remarks>
     /// <param name="banks">The two banks before the spend.</param>
     /// <param name="cost">What the action costs. Never negative; zero is a legal no-op.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cost"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cost"/> is below 1.</exception>
     internal static EnergySpend Spend(EnergyBanks banks, int cost)
     {
         if (cost < 0)

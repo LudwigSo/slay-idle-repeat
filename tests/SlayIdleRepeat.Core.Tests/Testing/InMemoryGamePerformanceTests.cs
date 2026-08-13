@@ -163,16 +163,28 @@ public sealed class InMemoryGamePerformanceTests
         ShouldHaveDoneTheWork(GapDrive(1, Commands), Commands, Commands);
         ShouldHaveDoneTheWork(GapDrive(3650, Commands), Commands, Commands);
 
-        var oneDay = Fastest(() => GapDrive(1, Commands));
-        var tenYears = Fastest(() => GapDrive(3650, Commands));
+        // 🔒 INTERLEAVED, not two separate best-of-3 blocks. Each drive is ~18 ms, so a GC pause or
+        // some CPU steal landing inside all three ten-year runs and none of the one-day runs would
+        // produce a red that reproduces nowhere. Alternating them puts both halves through the same
+        // contention, which is the only way a ratio measured on a shared runner means anything.
+        var oneDay = double.MaxValue;
+        var tenYears = double.MaxValue;
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            oneDay = Math.Min(oneDay, Elapsed(() => GapDrive(1, Commands)));
+            tenYears = Math.Min(tenYears, Elapsed(() => GapDrive(3650, Commands)));
+        }
 
         (tenYears / oneDay).ShouldBeLessThan(
-            4.0,
+            10.0,
             $"{Commands} commands each crossing a ONE-DAY gap took {oneDay:F1} ms; the same commands " +
             $"each crossing a TEN-YEAR gap took {tenYears:F1} ms. GameRules.AdvanceTime crosses every " +
             "boundary in one subtraction, so the two are the same work and the ratio is ~1 " +
-            "(measured: 0.95). A per-boundary loop would make this ~3,650 — no runner is that " +
-            "contended, which is why this comparison is worth having where an absolute number is not.");
+            "(measured: 0.95). A per-boundary loop would make this ~3,650, so a bound of ten still " +
+            "leaves two and a half orders of magnitude between 'passes' and 'a loop crept in' — and " +
+            "a test that fails randomly gets disabled by whoever hits it at 3am, which would cost " +
+            "this suite the one clock-based assertion worth having.");
     }
 
     /// <summary>
@@ -304,12 +316,21 @@ public sealed class InMemoryGamePerformanceTests
 
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            var watch = Stopwatch.StartNew();
-            _ = action();
-            watch.Stop();
-            best = Math.Min(best, watch.Elapsed.TotalMilliseconds);
+            best = Math.Min(best, Elapsed(action));
         }
 
         return best;
+    }
+
+    /// <summary>One timed run. Split out of <see cref="Fastest"/> so a caller comparing two
+    /// workloads can <b>interleave</b> their attempts rather than measure them in separate
+    /// blocks — see <c>The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap</c>.</summary>
+    private static double Elapsed(Func<InMemoryGame> action)
+    {
+        var watch = Stopwatch.StartNew();
+        _ = action();
+        watch.Stop();
+
+        return watch.Elapsed.TotalMilliseconds;
     }
 }

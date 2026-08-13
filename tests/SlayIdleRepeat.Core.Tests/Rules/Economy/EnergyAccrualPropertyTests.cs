@@ -198,11 +198,21 @@ public sealed class EnergyAccrualPropertyTests
     /// instant it was asked about. Both halves matter: the first is A1, the second stops the anchor
     /// running into the future and freezing regeneration.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ This one samples <c>elapsed</c> uniformly over forty days — the very sampling its sibling
+    /// was fixed <em>away</em> from, because at 7,200+ units against banks holding 400 the accrual
+    /// saturates and both implementations agree (M1-10 measured 21 failures where there were 1,487).
+    /// That is sound <b>here</b>, because all three offender branches are about the <b>anchor</b>,
+    /// which advances regardless of saturation — but a reader comparing this against the two floored
+    /// properties in this file cannot tell that from the code, so the claim is asserted rather than
+    /// inferred: nearly every case must actually move the anchor, or the sampling has drifted.
+    /// </remarks>
     [Fact]
     public void The_anchor_advances_by_whole_intervals_and_never_past_now()
     {
         var random = new Random(Seed);
         var offenders = new List<string>();
+        var meaningful = 0;
 
         for (var i = 0; i < Cases; i++)
         {
@@ -211,6 +221,11 @@ public sealed class EnergyAccrualPropertyTests
             var advance = EnergyMath
                 .Accrue(Shipped, legendLevel, new EnergyBanks(0, 0), elapsed)
                 .AnchorAdvance;
+
+            if (advance > TimeSpan.Zero)
+            {
+                meaningful++;
+            }
 
             if (advance > elapsed)
             {
@@ -231,6 +246,16 @@ public sealed class EnergyAccrualPropertyTests
         offenders.Take(QuotedFailures).ShouldBeEmpty(
             "the anchor advance is wholeUnits × the regeneration interval: never past now, never a " +
             "fraction of an interval, and never short by a whole one (A1).");
+
+        // 🔒 S3 floor on the sampling itself — the same claim the two floored properties in this file
+        // make. A span shorter than one regeneration interval advances the anchor by zero and every
+        // branch above is trivially satisfied, so a sampler that drifted short would leave this test
+        // green over nothing.
+        meaningful.ShouldBeGreaterThan(
+            Cases * 9 / 10,
+            $"only {meaningful} of {Cases} sampled spans advanced the anchor at all. Every offender " +
+            "branch above is vacuous for a zero advance, so the span sampling has drifted short and " +
+            "this property is asserting over almost nothing.");
     }
 
     /// <summary>

@@ -67,7 +67,14 @@ public sealed class GameRulesCatchUpTests
     /// of <c>CurrencyChanged</c> rows and `21` §8.3 groups <c>income_attribution.csv</c> by exactly
     /// this column.
     /// </summary>
-    private const string RegenReason = "energy_regen";
+    /// <remarks>
+    /// 🔒 Reads <see cref="Harnesses.EnergyRegenReason"/> rather than repeating the literal. The
+    /// suite deliberately keeps <b>one</b> transcription of each published token — see that
+    /// constant's remarks for why a test must not read the production constant — and this was the
+    /// third copy of it (S4: one mechanism per repo, and a token duplicated three ways is the same
+    /// drift one level down).
+    /// </remarks>
+    private const string RegenReason = Harnesses.EnergyRegenReason;
 
     /// <summary>The shipped `10` §3 energy numbers — 120 (+2/level, cap 200), one point per 4 minutes.</summary>
     private static readonly EnergyTuning Shipped = EnergyTuning.Read(ProgressionDocuments.Shipped);

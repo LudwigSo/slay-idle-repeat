@@ -116,7 +116,11 @@ public static class GameRules
     /// <c>START_RUN</c> is sent on, because the run it creates does not exist yet: only
     /// <c>START_RUN</c> can create the <c>Run</c> its own guard demands. Measured rather than
     /// reasoned — applying it to a <c>WorldSlice(player, null)</c> throws, as do the other 18
-    /// <c>CommandKind.Run</c> rows, while all 30 meta rows answer <c>ILLEGAL_STATE</c>. Nothing is
+    /// <c>CommandKind.Run</c> rows, while the <b>29</b> <c>Deferred</c> meta rows answer
+    /// <c>ILLEGAL_STATE</c> — the thirtieth, <c>BEGIN_SESSION</c>, is <c>Handled</c> and accepts,
+    /// which is why this sentence must not say "all 30" (it did until the M1 review; M1-09 swapped
+    /// the row and corrected the paragraph seven lines below but not this one, and M1-12 read the
+    /// stale half). Nothing is
     /// broken while the row is <c>Deferred</c>. No architecture rule is written for it, deliberately:
     /// "this command's precondition is unsatisfiable" is a domain fact no metadata carries, and a
     /// rule naming <c>START_RUN</c> would transcribe M3-15's ruling into the architecture suite
@@ -400,10 +404,25 @@ public static class GameRules
         // run looking untouched since its last real command.
         //
         // ⚠️ A snapshot rather than a reference: Run is a class with internal mutators, so holding
-        // the aggregate would compare it against itself. RunSnapshot is a record, so this is one
-        // ToSnapshot() and one value comparison — measured against the two full round trips Clone
-        // already pays per command, and only on the meta commands that carry a run at all.
-        var untouchedRun = registration.Kind == CommandKind.Meta ? working.Run?.ToSnapshot() : null;
+        // the aggregate would compare it against itself.
+        //
+        // 🔒 And CANONICAL BYTES rather than the record, which is not a refinement — the record
+        // comparison was WRONG. RunSnapshot's AdUses and RngStreamPositions are IReadOnlyDictionary,
+        // which a synthesized record Equals compares BY REFERENCE, while Run.CopyAdUses allocates a
+        // fresh ReadOnlyDictionary whenever the map is non-empty. So two ToSnapshot() calls on an
+        // UNTOUCHED run were unequal the moment it held one ad use, and every accepted meta command
+        // on that slice threw — accusing the handler of writing a run nobody had written. A player
+        // mid-run who has watched a single rewarded ad (12 §4.3 has thirteen in-run placements)
+        // could send no meta command at all. Every suite stayed green because CopyAdUses
+        // short-circuits an EMPTY map to a shared singleton, which is the only case M1's fixtures
+        // build, and because ToSnapshot passes _streamPositions itself — the same object both times.
+        //
+        // 14 §16.6's writer is exactly the "two states differing in anything encode differently"
+        // contract this check needs, and it closes the converse hole too: a handler mutating a map
+        // in place, leaving the reference put, was invisible to the reference comparison.
+        var untouchedRun = registration.Kind == CommandKind.Meta && working.Run is not null
+            ? CanonicalStateWriter.CanonicalBytes(working.Run.ToSnapshot())
+            : null;
 
         var handled = registration.IsHandled
             ? registration.Handler!(command, new HandlerInput(working, context, rng))
@@ -742,15 +761,21 @@ public static class GameRules
     /// </para>
     /// </remarks>
     /// <param name="untouched">
-    /// The run's snapshot as it stood before the handler, or <c>null</c> for a run command (which may
-    /// write) or a slice with no run (which has nothing to write).
+    /// The run's <b>canonical bytes</b> (`14` §16.6) as they stood before the handler, or
+    /// <c>null</c> for a run command (which may write) or a slice with no run (which has nothing to
+    /// write). 🔒 Bytes and not the <c>RunSnapshot</c> record: its two dictionary components compare
+    /// by <b>reference</b> under a synthesized <c>Equals</c>, and <c>ToSnapshot</c> allocates a fresh
+    /// copy of a non-empty <c>AdUses</c> every call — so the record comparison reported a write on
+    /// every untouched run that held one ad use, and reported nothing when a handler mutated a map
+    /// in place. Never compare a snapshot record with <c>==</c>; encode it.
     /// </param>
     /// <param name="working">The run the handler was given, or <c>null</c> when the slice carries none.</param>
     /// <param name="registration">The dispatch row, for the message.</param>
     private static void RequireRunUntouched(
-        RunSnapshot? untouched, Run? working, CommandRegistration registration)
+        byte[]? untouched, Run? working, CommandRegistration registration)
     {
-        if (untouched is null || working is null || untouched == working.ToSnapshot())
+        if (untouched is null || working is null ||
+            untouched.AsSpan().SequenceEqual(CanonicalStateWriter.CanonicalBytes(working.ToSnapshot())))
         {
             return;
         }

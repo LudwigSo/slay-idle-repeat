@@ -75,7 +75,7 @@ internal sealed class LoginCalendarTuning
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="openDay"/> is below 1.</exception>
     internal int DayAfter(int openDay)
     {
-        RequireCalendarDay(openDay);
+        RequireCalendarDay(openDay, nameof(openDay));
 
         return openDay >= CycleDays ? FirstDay : openDay + 1;
     }
@@ -121,12 +121,16 @@ internal sealed class LoginCalendarTuning
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="calendarDay"/> is below 1.</exception>
-    private static void RequireCalendarDay(int calendarDay)
+    private static void RequireCalendarDay(int calendarDay, string parameterName)
     {
         if (calendarDay < FirstDay)
         {
+            // 🔒 The CALLER's parameter name, not this helper's. ParamName is what a host
+            // catches and reports, and "calendarDay" is a name no caller and no public signature
+            // contains — this type's own remarks argue the message shape must match the caller's,
+            // and then did not. Player, Run and IdText all thread the name through for this reason.
             throw new ArgumentOutOfRangeException(
-                nameof(calendarDay),
+                parameterName,
                 calendarDay,
                 "19 G numbers the login calendar from day 1; " + Render(calendarDay) + " is not a " +
                 "day it has. Day 0 is what an uninitialised column reads as, and advancing from it " +

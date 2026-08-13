@@ -49,29 +49,43 @@ public sealed class BeginSessionRefillTests
     }
 
     /// <summary>
-    /// 🔒 The amount is <c>EnergyMath.RefillToFull</c>'s, at every Legend Level — asserted against the
-    /// rule rather than against a transcribed number.
+    /// 🔒 The refill fills the <b>bar</b> to this level's Max Energy and leaves the <b>Reserve</b>
+    /// exactly where it was, on both sides of the cap.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// ⚠️ The Legend Levels span the point Max Energy stops growing (`10` §3's cap of 200, first
     /// reached at level <b>41</b>, not 40 — see <c>EnergyTuning.MaxEnergyAt</c>), so the sweep covers
-    /// both sides of the cap rather than three points on the same slope.
+    /// both sides of the cap rather than three points on the same slope. That boundary is what this
+    /// theory uniquely contributes, which is exactly why the expectation must not be computed by the
+    /// rule under test.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It used to assert against <c>EnergyMath.RefillToFull</c> itself</b>, and that assertion
+    /// could not distinguish the handler <em>calling</em> the rule from the handler restating it
+    /// correctly — and could not fail for any bug living inside <c>RefillToFull</c>. The name said
+    /// "exactly what EnergyMath answers" and the assertion was true of the defect it named (S1, and
+    /// the shape M1-09 measured: a test whose name is right and whose assertion is satisfied by the
+    /// bug). The independent expectation below also keeps the deficit-only cascade under test — a
+    /// refill that topped the Reserve up would move the second component off its input value of 3.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData(1)]
     [InlineData(40)]
     [InlineData(41)]
     [InlineData(200)]
-    public void The_refill_is_exactly_what_EnergyMath_answers(int legendLevel)
+    public void The_refill_fills_the_bar_to_this_levels_max_and_leaves_the_reserve_alone(int legendLevel)
     {
         var before = new EnergyBanks(7, 3);
 
         var result = BeginSessions.Send(BeginSessions.Slice(energy: before, legendLevel: legendLevel));
 
         result.NewState.Player.Energy.ShouldBe(
-            EnergyMath.RefillToFull(BeginSessions.Tuning, legendLevel, before),
-            "30 §11.5 puts computation in Rules/: the handler calls EnergyMath and never restates it. " +
-            "A second transcription is how the free refill and the level-up refill start disagreeing.");
+            new EnergyBanks(BeginSessions.Tuning.MaxEnergyAt(legendLevel), 3),
+            $"'to full' at Legend Level {legendLevel} fills the BAR to this level's Max Energy and " +
+            "leaves the Reserve at the 3 it came in with. 40/41/200 straddle 10 §3's cap of 200, " +
+            "first reached at 41.");
     }
 
     /// <summary>
@@ -186,12 +200,16 @@ public sealed class BeginSessionRefillTests
 
         rows.Length.ShouldBe(2, "one accrual and one refill.");
         rows[0].Reason.ShouldBe(
-            "energy_regen",
+            Harnesses.EnergyRegenReason,
             "the catch-up ran BEFORE the handler and its row is prepended (GameRules.Combine).");
         rows[0].Delta.ShouldBe(10, "ten whole intervals is ten Energy (A1).");
 
+        // 🔒 Harnesses' transcription, NOT BeginSession's own constant. Harnesses explains why the
+        // second copy is the deliberate kind: these tokens are what 21 §8.3's income_attribution.csv
+        // groups by, so a test that read the production constant would keep passing after the token
+        // was renamed under the dashboards' feet. Reading it here defeated that on one of two rows.
         rows[1].Reason.ShouldBe(
-            BeginSession.DailyRefillReason,
+            Harnesses.DailyRefillReason,
             "…and the refill is attributed separately, because 10 §3.2 budgets the two apart.");
         rows[1].Delta.ShouldBe(
             BeginSessions.Tuning.MaxEnergyAt(1) - 10,

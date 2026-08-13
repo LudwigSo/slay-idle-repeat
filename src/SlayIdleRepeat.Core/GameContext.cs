@@ -179,10 +179,16 @@ public sealed record GameContext(
     private static DateTimeOffset RequireUtc(DateTimeOffset nowUtc) =>
         nowUtc.Offset == TimeSpan.Zero
             ? nowUtc
-            : throw new ArgumentException(
+            // 🔒 ArgumentOutOfRangeException, matching Player.RequireZeroOffset,
+            // Run.RequireZeroOffset and VirtualClock.RequireStart — all four guard the identical
+            // condition, and this one alone threw a different type, so a host catching the family
+            // to map "a bad instant crossed the boundary" caught three of the four. It also carries
+            // the offending value, which ArgumentException drops.
+            : throw new ArgumentOutOfRangeException(
+                nameof(NowUtc),
+                nowUtc,
                 "NowUtc carries a non-zero UTC offset. The 05:00 UTC daily resets, event windows " +
                 "and season boundaries read wall-clock components off this value, so a local-offset " +
                 "instant rolls the game day early even though it names the same moment. The " +
-                "composition root passes IClockPort's UTC answer through unchanged (30 §3).",
-                nameof(NowUtc));
+                "composition root passes IClockPort's UTC answer through unchanged (30 §3).");
 }

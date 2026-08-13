@@ -279,6 +279,56 @@ public sealed class BeginSessionDrawSeamTests
     }
 
     /// <summary>
+    /// 🔒 A meta handler that touches nothing is accepted over a run that <b>has watched an ad</b> —
+    /// the case the ownership guard used to reject, accusing a handler that had written nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>The non-empty <c>AdUses</c> is the whole test.</b> The guard compared two
+    /// <c>RunSnapshot</c> records, and a synthesized record <c>Equals</c> compares its
+    /// <c>IReadOnlyDictionary</c> components <b>by reference</b> — while <c>Run.CopyAdUses</c>
+    /// allocates a fresh <c>ReadOnlyDictionary</c> whenever the map is non-empty. So two
+    /// <c>ToSnapshot()</c> calls on an untouched run were unequal the moment it held one ad use, and
+    /// every accepted meta command over that slice threw.
+    /// </para>
+    /// <para>
+    /// A player mid-run who had watched a single rewarded ad — `12` §4.3 has thirteen in-run
+    /// placements — could send no meta command at all: a `30` §2.1 <b>P3</b> violation for a state a
+    /// correctly-wired composition root produces routinely. Every suite stayed green because
+    /// <c>CopyAdUses</c> short-circuits an <em>empty</em> map to a shared singleton, which is the
+    /// only case every other fixture here builds, including
+    /// <c>A_meta_handler_that_only_reads_the_run_is_fine</c> directly below.
+    /// </para>
+    /// <para>
+    /// 🔒 The fix compares `14` §16.6's <b>canonical bytes</b>, which is the one encoding whose
+    /// contract is "two states differing in anything encode differently". Reverting
+    /// <c>GameRules.RequireRunUntouched</c> to <c>untouched == working.ToSnapshot()</c> turns this
+    /// test red and leaves the rest of the suite green.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_meta_command_is_accepted_over_a_run_that_has_watched_an_ad()
+    {
+        var withAnAdWatched = Worlds.InARun(RunSnapshots.With(
+            adUses: RunSnapshots.AdUses((Placement: "AD_REVIVE", Uses: 1L))));
+
+        var result = GameRules.Execute(
+            Worlds.MetaTable((_, _) => HandlerResult.Accept()),
+            withAnAdWatched,
+            new Worlds.MetaFixtureCommand(),
+            Worlds.Context);
+
+        result.Accepted.ShouldBeTrue(
+            "the handler wrote nothing. An untouched run that happens to hold an ad use is not an " +
+            "ownership defect, and refusing it strands every mid-run player who has watched one.");
+
+        result.NewState.Run!.AdUseCount("AD_REVIVE").ShouldBe(
+            1L,
+            "…and the ad use survives the command untouched, so the guard is passing the run " +
+            "through rather than being satisfied by something having reset it.");
+    }
+
+    /// <summary>
     /// 🔒 …and a meta handler that only <b>reads</b> the run is fine, so the guard above is not
     /// "a meta command may not be handed a run".
     /// </summary>
