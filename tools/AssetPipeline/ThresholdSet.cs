@@ -132,9 +132,20 @@ public sealed class ThresholdSet
 {
     /// <summary>Where the shipped register lives, relative to the repository root.</summary>
     /// <remarks>
+    /// <para>
     /// 🔒 <c>assets/</c>, NOT <c>game-data/</c>: <c>LocalFileContentSource</c> enumerates every
     /// <c>*.json</c> under <c>game-data</c> into the <c>ContentSnapshot</c> whose hash M0-09 makes
     /// load-bearing for replay, and a pipeline tuning file has no business moving that stamp.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Nothing under <c>assets/pipeline/</c> may be a <c>.png</c>, <c>.ogg</c> or <c>.wav</c>.</b>
+    /// M8-01a's asset provenance gate walks <c>assets/**</c> recursively as the delivery root and
+    /// demands a provenance record for every file it finds with one of those three extensions. A
+    /// <c>.json</c> tuning register is invisible to it, which is why this file is safe here, but an
+    /// image or a sound dropped beside it would be read as an undocumented delivered asset and fail
+    /// the gate. Image output goes to <c>artifacts/</c> (gitignored), never here — nothing this
+    /// pipeline writes belongs under a delivery root.
+    /// </para>
     /// </remarks>
     public const string ThresholdsPath = "assets/pipeline/thresholds.json";
 

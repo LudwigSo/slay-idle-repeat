@@ -26,7 +26,11 @@ namespace SlayIdleRepeat.AssetPipeline;
 /// </remarks>
 /// <param name="Id">The `15` §D1 asset id.</param>
 /// <param name="Section">The `15` §E-section the row was transcribed from.</param>
-/// <param name="TargetSize">`15` §C delivery size — steps 2 and 5 pad and resample to it.</param>
+/// <param name="TargetSize">
+/// `15` §C <b>delivery</b> size. Step 5 is the only step that resamples to it — step 2 re-frames on
+/// the §C <em>generation</em> canvas the image arrived on and never reads this. See
+/// <see cref="TrimToCanvasStep"/>.
+/// </param>
 /// <param name="Pivot">One of <see cref="Doc15Pivots.All"/>.</param>
 /// <param name="Atlas">`15` §D2 atlas, or null where §D2 assigns none (backgrounds).</param>
 /// <param name="Biome">The biome key where the asset is biome-scoped, else null.</param>

@@ -139,4 +139,19 @@ public sealed record AssetStepResult(
     string Reason,
     IReadOnlyList<StepMeasurement> Measurements,
     IReadOnlyList<DeclaredDeviation> Deviations,
-    byte[]? EncodedPng = null);
+    byte[]? EncodedPng = null)
+{
+    /// <summary>
+    /// Sections of `15` this step found it could not both satisfy, empty for a step that hit none.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Its own member, not folded into <see cref="Deviations"/>.</b> A
+    /// <see cref="DeclaredDeviation"/> says "the doc asked for something this toolchain cannot do";
+    /// a <see cref="DocContradiction"/> says "the doc asks for two things that cannot both be
+    /// true". The second is a defect in `15` and needs a human to rule on it, and burying it in the
+    /// first would send it to whoever maintains the toolchain instead. <see cref="AtlasPackResult"/>
+    /// has carried the two apart since step 7 was written; this is the same shape for steps 1-6, so
+    /// a batch report can enumerate both the same way at either level.
+    /// </remarks>
+    public IReadOnlyList<DocContradiction> Contradictions { get; init; } = [];
+}

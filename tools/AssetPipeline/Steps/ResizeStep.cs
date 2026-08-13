@@ -20,11 +20,26 @@ namespace SlayIdleRepeat.AssetPipeline;
 /// 0.4, see <see cref="Doc15Authorised.SharpenAmount"/>); the radius is not, and lives as
 /// <see cref="ThresholdKeys.ResizeSharpenRadius"/>.
 /// </para>
+/// <para>
+/// ⚠️ <b>§C contradicts itself on aspect ratio and this step says so.</b> `15` §C generates on a
+/// <em>square</em> canvas (1024x1024, 2048 for bosses and backgrounds) and delivers several rows at
+/// a <em>non-square</em> size — mounts at 512x384, battle backdrops at 1080x1440. Neither §B4 nor §C
+/// authorises letterboxing, padding or a crop to reconcile them, so the resample is non-uniform and
+/// the asset is stretched. The result carries <see cref="DeliveryAspectContradictionId"/> naming
+/// both sizes, so the collision reaches the report rather than being resolved in silence by whoever
+/// wrote the resizer.
+/// </para>
 /// </remarks>
 public sealed class ResizeStep : IAssetStep
 {
     /// <summary>The deviation id this step emits for the missing Lanczos resampler.</summary>
     public const string LanczosDeviationId = "DEV_LANCZOS_UNAVAILABLE";
+
+    /// <summary>
+    /// The contradiction id this step emits when `15` §C's square generation canvas has to become a
+    /// non-square §C delivery size.
+    /// </summary>
+    public const string DeliveryAspectContradictionId = "CON_DELIVERY_ASPECT";
 
     /// <summary>The measurement key for the scale factor applied to the width.</summary>
     public const string ScaleMeasurement = "resizeScale";
@@ -56,6 +71,7 @@ public sealed class ResizeStep : IAssetStep
         var sharpened = Sharpen(resampled, Doc15Authorised.SharpenAmount, radius);
 
         var scale = target.Width / (double)input.Image.Width;
+        var source = new PixelSize(input.Image.Width, input.Image.Height);
 
         return new AssetStepResult(
             Number,
@@ -77,7 +93,55 @@ public sealed class ResizeStep : IAssetStep
                     "resampler. A native resampler would mean shelling out to a binary, which this " +
                     "toolchain forbids. Mitchell is not Lanczos: it is less sharp and rings less, so " +
                     "an asset resampled here is marginally softer than `15` §B4 step 5 describes."),
-            ]);
+            ])
+        {
+            Contradictions = AspectContradictions(input.Spec, source, target),
+        };
+    }
+
+    /// <summary>
+    /// §C against §C: the square generation canvas against a non-square delivery size, or nothing
+    /// when the two agree.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Declared, not resolved.</b> `15` authorises no letterbox, no pad and no crop, and
+    /// steering rule S6 forbids inventing one, so this step does the only thing the doc leaves it —
+    /// resamples non-uniformly — and says exactly that. Emitted only when the ratios actually
+    /// differ, unlike <see cref="AtlasPackStep.PageCapContradictionId"/>: the atlas collision is in
+    /// the doc for every atlas, while this one is in the doc only for the rows §C delivers
+    /// off-square, and firing it on a square-to-square resample would drown those rows in noise
+    /// across a 942-asset batch.
+    /// </remarks>
+    /// <param name="spec">The asset's spec, for the id and section the report needs.</param>
+    /// <param name="source">The size the image arrived at — the `15` §C generation canvas.</param>
+    /// <param name="target">The `15` §C delivery size from the manifest.</param>
+    private static IReadOnlyList<DocContradiction> AspectContradictions(
+        AssetSpec spec, PixelSize source, PixelSize target)
+    {
+        // Cross-multiplied, so the comparison is exact integer arithmetic rather than two divisions
+        // that a rounding difference could make agree.
+        if ((long)source.Width * target.Height == (long)source.Height * target.Width)
+        {
+            return [];
+        }
+
+        return
+        [
+            new DocContradiction(
+                DeliveryAspectContradictionId,
+                "15 §C generation canvas",
+                "15 §C delivery size",
+                $"Asset '{spec.Id}' ({spec.Section}) arrived on a {source} canvas and `15` §C " +
+                $"delivers it at {target}, which is a different aspect ratio. §C states both: the " +
+                "generation canvas is square (\"generation 1024×1024, 2048 for bosses and " +
+                "backgrounds\") while the delivery table carries non-square rows — mounts at " +
+                "512×384 and battle backdrops at 1080×1440 are the two that disagree with it most " +
+                "plainly. Neither §B4 nor §C authorises letterboxing, padding or cropping to " +
+                "reconcile them, and steering rule S6 forbids inventing a convention, so this step " +
+                "resampled non-uniformly: the asset is stretched, and it is stretched because no " +
+                "section of `15` says what else to do. A human has to rule on which of the two §C " +
+                "statements gives."),
+        ];
     }
 
     /// <summary>

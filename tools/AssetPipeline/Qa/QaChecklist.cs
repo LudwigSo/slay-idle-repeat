@@ -29,8 +29,7 @@ public sealed class QaChecklist
 {
     /// <summary>The eleven items, wired in `15` Part F order.</summary>
     public QaChecklist()
-    {
-        Items =
+        : this(
         [
             new SilhouetteCheck(),
             new ReadabilityCheck(),
@@ -43,7 +42,21 @@ public sealed class QaChecklist
             new ProportionsCheck(),
             new NamingAndAtlasCheck(),
             new StyleDriftCheck(),
-        ];
+        ])
+    {
+    }
+
+    /// <summary>A checklist over a caller's own eleven items, in `15` Part F order.</summary>
+    /// <remarks>
+    /// 🔒 The seam M8-10 needs to substitute or wrap an item without forking this type, and the
+    /// only way <see cref="Graded"/>'s assumption-A5 guard can be exercised against a check that
+    /// breaks it. The same S3 floor applies: eleven items, numbered 1 to 11, in order.
+    /// </remarks>
+    /// <param name="items">The eleven checks, in `15` Part F order.</param>
+    public QaChecklist(IReadOnlyList<IQaCheck> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        Items = [.. items];
 
         var numbers = Items.Select(item => item.ItemNumber).ToArray();
         if (Items.Count != Doc15PartF.ItemCount
@@ -93,6 +106,47 @@ public sealed class QaChecklist
     {
         ArgumentNullException.ThrowIfNull(subject);
 
-        return new QaBatchResult(subject.Asset.Id, [.. Items.Select(item => item.Evaluate(subject))]);
+        return new QaBatchResult(subject.Asset.Id, [.. Items.Select(item => Graded(item, subject))]);
+    }
+
+    /// <summary>
+    /// Runs one item and enforces assumption A5 on what it returned.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Assumption A5, as structure rather than as five coincidences.</b> A5 says the human
+    /// half of `15` Part F is declared as a named, visible gap and never dressed up as a machine
+    /// verdict. Today the five <see cref="QaClassification.Human"/> items each happen to return
+    /// <see cref="QaVerdict.HumanGapOnly"/> from a single statement, and only a per-item test pins
+    /// it — so an <see cref="IQaCheck"/> M8-10 writes could return <see cref="QaVerdict.Pass"/> from
+    /// a <see cref="QaClassification.Human"/> classification and nothing in this type would object.
+    /// That is the exact failure A5 exists to prevent: a batch accepted by machinery alone.
+    /// </para>
+    /// <para>
+    /// It throws rather than downgrading the verdict. A check that claims a human judgement is
+    /// wrong about what it is, and quietly rewriting its answer would leave a report that looks
+    /// correct and a check that is not.
+    /// </para>
+    /// </remarks>
+    /// <param name="item">The item to run.</param>
+    /// <param name="subject">The processed asset and everything needed to judge it.</param>
+    private static QaOutcome Graded(IQaCheck item, QaSubject subject)
+    {
+        var outcome = item.Evaluate(subject);
+
+        if (item.Classification == QaClassification.Human
+            && outcome.Verdict != QaVerdict.HumanGapOnly)
+        {
+            throw new InvalidOperationException(
+                $"`15` Part F item {item.ItemNumber} is classified " +
+                $"{nameof(QaClassification)}.{item.Classification} and returned " +
+                $"{nameof(QaVerdict)}.{outcome.Verdict}. Assumption A5 permits a human item exactly " +
+                $"one verdict, {nameof(QaVerdict)}.{QaVerdict.HumanGapOnly}: the mechanical half of " +
+                "the checklist is built and the human half is declared as a named, visible gap, so " +
+                "a check that concludes a human item is a heuristic wearing the checklist's " +
+                "clothes and would let a batch be accepted by machinery alone.");
+        }
+
+        return outcome;
     }
 }

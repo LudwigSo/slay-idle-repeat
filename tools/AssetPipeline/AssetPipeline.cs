@@ -37,7 +37,8 @@ public sealed record PipelineOptions
 /// <see cref="Intermediates"/> lists the same objects <see cref="Steps"/> already holds, so one
 /// bitmap can appear several times across this record and <see cref="Output"/> is always the last
 /// step's. M8-10 drives roughly 942 assets: disposing per run matters, and disposing the same
-/// native surface twice is how that goes wrong.
+/// native surface twice is how that goes wrong. <see cref="DistinctOutputs"/> is the set to
+/// dispose; iterating <see cref="Steps"/> is the double free.
 /// </para>
 /// </remarks>
 /// <param name="AssetId">The asset's `15` §D1 id.</param>
@@ -59,7 +60,73 @@ public sealed record PipelineRun(
     string Reason,
     SKBitmap? Output,
     IReadOnlyList<AssetStepResult> Steps,
-    IReadOnlyList<SKBitmap> Intermediates);
+    IReadOnlyList<SKBitmap> Intermediates)
+{
+    /// <summary>
+    /// Every bitmap this run produced, <b>once each, by reference identity</b>, in step order.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>This is the collection to dispose, and <see cref="Steps"/> is not.</b> A step that
+    /// skips returns the instance it was handed — `15` §B4 step 3 on a non-biome row does exactly
+    /// that, which is 646 of the 942 uncut rows — and <see cref="Intermediates"/> aliases the same
+    /// objects again, so the obvious
+    /// <c>foreach (var step in run.Steps) step.Image.Dispose()</c> frees the same native surface
+    /// twice. Comparison is reference identity on purpose: <see cref="SKBitmap"/> does not override
+    /// equality, but a future value-equality wrapper would silently collapse two distinct surfaces
+    /// that happen to hold identical pixels, and disposing one of those would leave the other
+    /// dangling.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The caller's own input can appear here</b>, in the one case where the first step skips
+    /// and hands it straight back. Nothing in `15` §B4 steps 1-6 skips at position 1 today, but a
+    /// caller that disposes its input separately must still not dispose it twice.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<SKBitmap> DistinctOutputs
+    {
+        get
+        {
+            // HashSet<object>, because ReferenceEqualityComparer implements IEqualityComparer<object>
+            // and there is no generic overload to hand Distinct<SKBitmap>.
+            var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            var distinct = new List<SKBitmap>(Steps.Count);
+
+            foreach (var step in Steps)
+            {
+                if (seen.Add(step.Image))
+                {
+                    distinct.Add(step.Image);
+                }
+            }
+
+            return distinct;
+        }
+    }
+
+    /// <summary>
+    /// Every deviation every step declared, concatenated in `15` §B4 step order.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A run-level aggregate so a batch report does not re-derive it 942 times, and so "this
+    /// batch took no deviations" is one empty check rather than a fold nobody wrote. Duplicates are
+    /// kept: two steps declaring the same id is a fact about the run, and de-duplicating would hide
+    /// which steps were affected.
+    /// </remarks>
+    public IReadOnlyList<DeclaredDeviation> Deviations =>
+        [.. Steps.SelectMany(step => step.Deviations)];
+
+    /// <summary>
+    /// Every contradiction every step ran into, concatenated in `15` §B4 step order.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The same aggregate for <see cref="AssetStepResult.Contradictions"/>, and kept apart from
+    /// <see cref="Deviations"/> for the reason stated there: a deviation is owed to the toolchain,
+    /// a contradiction is owed to a human ruling on `15`.
+    /// </remarks>
+    public IReadOnlyList<DocContradiction> Contradictions =>
+        [.. Steps.SelectMany(step => step.Contradictions)];
+}
 
 /// <summary>
 /// Composes `15` §B4 steps 1-6, in order, over one asset.

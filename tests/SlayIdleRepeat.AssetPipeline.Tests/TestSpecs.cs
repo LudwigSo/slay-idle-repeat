@@ -124,4 +124,31 @@ internal static class StatedThresholds
             .With(ThresholdKeys.SilhouetteMaxComponentCount, 4d)
             .With(ThresholdKeys.SilhouetteMinDistinguishability, 0.01d)
             .With(ThresholdKeys.WatermarkCornerOpacityCeiling, 0.5d);
+
+    /// <summary>
+    /// The same set with the two `15` §B4 step 6 keys left uncalibrated, for the composed run over
+    /// a full `15` §C generation canvas.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Not a weakening: step 6's uncalibrated path is a shipped, tested path — it emits
+    /// <see cref="ExportStep.PngquantDeviationId"/> saying the compression half did not run — and
+    /// the composed case is about which step changes the image's size, which step 6 does not. What
+    /// it buys is time: the managed median cut is the one stage whose cost is superlinear in the
+    /// colour count, and a 1024x1024 frame is sixteen times the pixels every other case here
+    /// drives. <c>ExportStepTests</c> is where the calibrated path is pinned.
+    /// </remarks>
+    internal static ThresholdSet ForGenerationCanvasFixture() =>
+        ThresholdSet.Uncalibrated()
+            .With(ThresholdKeys.BackgroundKeyTolerance, 12d)
+            .With(ThresholdKeys.MatteDecontaminationStrength, 1d)
+            .With(ThresholdKeys.OutlineColourTolerance, 8d)
+
+            // 1, not the 8 above: the fixture is a plain rectangle with no outline to repair at
+            // all, so any positive radius closes nothing, and the smallest one keeps a
+            // 1024x1024 morphological pass off the clock.
+            .With(ThresholdKeys.OutlineGapClosureRadius, 1d)
+            .With(ThresholdKeys.OutlineWidthUniformityTolerance, 1d)
+            .WithColours(ThresholdKeys.PaletteNeutrals, ["#FFFFFF", "#000000"])
+            .With(ThresholdKeys.PaletteMatchTolerance, 64d)
+            .With(ThresholdKeys.ResizeSharpenRadius, 1d);
 }

@@ -1,4 +1,5 @@
 using Shouldly;
+using SkiaSharp;
 using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
@@ -82,6 +83,72 @@ public sealed class StepCompositionTests
             fixture.Image, row, StatedThresholds.ForSyntheticFixtures());
 
         run.Steps.Select(step => step.Number).ToArray().ShouldBe(new[] { 1, 2, 3, 4, 5, 6 });
+    }
+
+    /// <summary>
+    /// 🔒 <b>The case whose absence let the misread ship.</b> `15` §B4 lists step 2 ("pad to the
+    /// target canvas") and step 5 ("Resize -&gt; to the spec size in the manifest") as two steps.
+    /// While step 2 padded to the <em>delivery</em> size, step 5's input was already the target: the
+    /// Mitchell resample was an identity on every asset, its scale measurement was exactly 1.0, and
+    /// <c>DEV_LANCZOS_UNAVAILABLE</c> was declared for a resample that never resampled — while §B4's
+    /// own step 5 was dead text. Every per-step case still passed, because each one asserted its own
+    /// step in isolation.
+    /// </summary>
+    /// <remarks>
+    /// The triple is what makes step 5 provably live: the run ends at the manifest's size, step 2
+    /// did <b>not</b> resize, and step 5's scale is not 1. Any two of the three can be satisfied by
+    /// the defect.
+    /// </remarks>
+    [Fact]
+    public void Run_over_a_15_C_generation_canvas_downscales_in_step_5_and_not_in_step_2()
+    {
+        const int generationCanvas = 1024;
+        const int deliveryEdge = 512;
+
+        var row = ManifestRows.Require(ManifestRows.SquareCharacterDeliveringAt512);
+
+        // 🔒 The shipped row really does deliver at 512x512 — otherwise the assertions below would
+        // be measuring against a number this case invented.
+        row.RequireDeliverySize().Width.ShouldBe(deliveryEdge);
+        row.RequireDeliverySize().Height.ShouldBe(deliveryEdge);
+
+        // A subject well inside the generation frame, and centred rather than bottom-aligned: a
+        // subject filling the frame would leave step 2 nothing to re-frame, and one already sitting
+        // at the row's own bottom-center pivot would let a step 2 that did nothing pass. Touching
+        // no edge also keeps `15` §B4 step 1 from sampling the subject as the border colour.
+        const int contentWidth = 600;
+        const int contentHeight = 400;
+        var fixture = SyntheticAsset.PivotedSubject(
+            generationCanvas, contentWidth, contentHeight, Doc15Pivots.Center);
+
+        var run = new AssetPipeline().Run(
+            fixture.Image, row, StatedThresholds.ForGenerationCanvasFixture());
+
+        var trim = run.Steps.Single(step => step.Number == 2);
+        var resize = run.Steps.Single(step => step.Number == 5);
+
+        // (a) The run delivers at the manifest's size.
+        run.Output.ShouldNotBeNull();
+        run.Output!.Width.ShouldBe(deliveryEdge);
+        run.Output.Height.ShouldBe(deliveryEdge);
+
+        // (b) Step 2 re-framed on the generation canvas and did not resize. The re-framing is
+        // asserted as the exact bbox the row's bottom-center pivot puts the subject at, so a step 2
+        // that returned its input untouched would fail here as well as a step 2 that resized.
+        trim.Image.Width.ShouldBe(generationCanvas);
+        trim.Image.Height.ShouldBe(generationCanvas);
+        Pixels.OpaqueBounds(trim.Image).ShouldBe(new SKRectI(
+            (generationCanvas - contentWidth) / 2,
+            generationCanvas - contentHeight,
+            ((generationCanvas - contentWidth) / 2) + contentWidth,
+            generationCanvas));
+
+        // (c) Step 5 actually resampled.
+        var scale = resize.Measurements
+            .Single(measurement => measurement.Key == ResizeStep.ScaleMeasurement)
+            .Value;
+        scale.ShouldNotBe(1d);
+        scale.ShouldBe(deliveryEdge / (double)generationCanvas);
     }
 
     private static IAssetStep StepFor(int number) => number switch

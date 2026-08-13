@@ -251,4 +251,61 @@ public sealed class QaChecklistTests
             .ToArray()
             .ShouldBe([2, 4, 8, 9, 11]);
     }
+
+    /// <summary>
+    /// 🔒 <b>Assumption A5 as structure, not as five coincidences.</b> The five shipped human items
+    /// each return <see cref="QaVerdict.HumanGapOnly"/> from a single statement, and until now only
+    /// the per-item cases above pinned it — so an <see cref="IQaCheck"/> M8-10 writes could return
+    /// <see cref="QaVerdict.Pass"/> from a <see cref="QaClassification.Human"/> classification and
+    /// nothing in <see cref="QaChecklist"/> would object. That is a batch accepted by machinery
+    /// alone, which is the exact failure A5 exists to prevent. The stub below is that check.
+    /// </summary>
+    [Fact]
+    public void A_check_that_concludes_a_human_item_is_refused_naming_the_item_and_the_verdict()
+    {
+        var items = new QaChecklist().Items.ToArray();
+        items[3] = new HumanItemThatConcludes();
+        var checklist = new QaChecklist(items);
+        var subject = QaSubjects.For(
+            SyntheticAsset.ChibiCutOut().Image,
+            ManifestRows.NonBiomeUiIcon,
+            TestSpecs.WithTargetSize(
+                ManifestRows.NonBiomeUiIcon, SyntheticAsset.Canvas, SyntheticAsset.Canvas));
+
+        // The stub really is wired in as item 4 and really is classified human, so the refusal
+        // below is about what it returned and not about the checklist rejecting its shape.
+        checklist.Items[3].Classification.ShouldBe(QaClassification.Human);
+
+        var exception = Should.Throw<InvalidOperationException>(() => checklist.Evaluate(subject));
+
+        exception.Message.ShouldContain("item 4", Case.Sensitive);
+        exception.Message.ShouldContain(nameof(QaClassification.Human), Case.Sensitive);
+        exception.Message.ShouldContain(nameof(QaVerdict.Pass), Case.Sensitive);
+        exception.Message.ShouldContain("A5", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// A check classified <see cref="QaClassification.Human"/> that concludes anyway — the
+    /// heuristic-wearing-the-checklist's-clothes assumption A5 forbids, written down so the guard
+    /// against it can be made to fire.
+    /// </summary>
+    private sealed class HumanItemThatConcludes : IQaCheck
+    {
+        public int ItemNumber => 4;
+
+        public string ChecklistText => Doc15PartF.Item4;
+
+        public QaClassification Classification => QaClassification.Human;
+
+        public string DocReference => "15 §A3 lighting";
+
+        public string? HumanGap => "A stub standing in for a check a later task might write.";
+
+        public QaOutcome Evaluate(QaSubject subject) => new(
+            QaVerdict.Pass,
+            ItemNumber,
+            "This stub decided a human item, which is the thing assumption A5 forbids.",
+            [],
+            HumanGap);
+    }
 }
