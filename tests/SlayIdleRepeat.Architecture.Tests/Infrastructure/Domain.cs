@@ -3,12 +3,22 @@ using Mono.Cecil;
 namespace SlayIdleRepeat.Architecture.Tests.Infrastructure;
 
 /// <summary>
-/// The names the rules are written against. Most of these types do not exist yet —
-/// <c>M1</c> creates them (<c>30</c> §11.4). Every rule that needs one looks it up by
-/// name: absent, the rule's subject set is empty and the rule holds; present, the
-/// rule asserts. That is what makes the suite bite the moment M1 lands, without a
-/// single <c>Skip</c>.
+/// The names the rules are written against. Every rule that needs one looks it up by name: absent,
+/// the rule's subject set is empty and the rule holds; present, the rule asserts. That is what made
+/// the suite bite the moment M1 landed, without a single <c>Skip</c>.
 /// </summary>
+/// <remarks>
+/// 🔒 <b>M1-12 corrected "most of these types do not exist yet — M1 creates them".</b> It is now
+/// inverted: of the type-name constants below, exactly <b>two</b> name types that do not exist —
+/// <see cref="GuildViewType"/> (M14) and <see cref="GhostSnapshotType"/> (M12) — and both are
+/// tracked in <c>SubjectSetFloorTests.Pending</c> with the milestone that brings them.
+/// <see cref="ClockPortType"/> is a third absence and a permanent one: `30` §3 makes it the name
+/// that must NEVER appear in <c>Core</c>, so it is correctly in neither register. Everything else
+/// resolves. The count is deliberately not restated as a number in prose beside the list that
+/// carries it — the mistake this milestone made three times over
+/// <c>Core_internal_layering_holds</c>' row count — but "most do not exist" was wrong in
+/// <em>direction</em>, which is worse than being wrong by one.
+/// </remarks>
 internal static class Domain
 {
     internal const string CoreNamespace = "SlayIdleRepeat.Core";
@@ -20,7 +30,6 @@ internal static class Domain
     internal const string GuildModelNamespace = "SlayIdleRepeat.Core.Model.Guild";
     internal const string RulesNamespace = "SlayIdleRepeat.Core.Rules";
     internal const string CombatRulesNamespace = "SlayIdleRepeat.Core.Rules.Combat";
-    internal const string StatsRulesNamespace = "SlayIdleRepeat.Core.Rules.Stats";
     internal const string CommandsNamespace = "SlayIdleRepeat.Core.Commands";
     internal const string EventsNamespace = "SlayIdleRepeat.Core.Events";
     internal const string HandlersNamespace = "SlayIdleRepeat.Core.Handlers";
@@ -34,10 +43,16 @@ internal static class Domain
     /// </summary>
     /// <remarks>
     /// This is the closed list. <c>Core_internal_layering_holds</c> forbids specific pairs
-    /// out of a fixed five-row table, so a type under a namespace that is in no row of that
-    /// table is matched by nothing at all — a new <c>Core/Foo/</c> would be an ungoverned
-    /// region with the layering rule still green. Naming the permitted set instead makes the
-    /// next unlisted namespace a build failure rather than a silent gap.
+    /// out of a fixed table, so a type under a namespace that is in no row of that table is
+    /// matched by nothing at all — a new <c>Core/Foo/</c> would be an ungoverned region with
+    /// the layering rule still green. Naming the permitted set instead makes the next unlisted
+    /// namespace a build failure rather than a silent gap.
+    /// <para>
+    /// 🔒 <b>It said "five-row" until M1-11 and had been wrong since M1-06</b>, which added the
+    /// <c>Commands</c> row; M1-11 added the <c>Events</c> and <c>Testing</c> rows and the count is
+    /// now left to the table rather than transcribed a third time (steering <b>S4</b>'s known
+    /// limit — a number in prose beside the thing it counts is a number that goes stale silently).
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PermittedCoreNamespaces { get; } = new[]
     {
@@ -58,13 +73,37 @@ internal static class Domain
     internal const string ApplyMethod = "Apply";
     internal const string GameCommandType = "GameCommand";
     internal const string InMemoryGameType = "InMemoryGame";
+    internal const string DomainEventType = "DomainEvent";
     internal const string CurrencyChangedEvent = "CurrencyChanged";
     internal const string CurrencyIdType = "CurrencyId";
     internal const string EntitlementsType = "Entitlements";
-    internal const string GameContextType = "GameContext";
     internal const string GuildViewType = "GuildView";
     internal const string GhostSnapshotType = "GhostSnapshot";
     internal const string ClockPortType = "IClockPort";
+
+    /// <summary>
+    /// 🔒 `14` §8.1's counter-based draw stream. The name
+    /// <c>DomainPurityTests.DeterministicRng_is_constructed_only_inside_Core_Rng</c> looks for a
+    /// <c>newobj</c> on — rename the type without renaming this and the rule matches nothing, with
+    /// every handler free to open its own stream and never write the counter back.
+    /// </summary>
+    internal const string DeterministicRngType = "DeterministicRng";
+
+    /// <summary>
+    /// 🔒 The one sanctioned <see cref="DeterministicRngType"/> construction site, and the identity
+    /// floor under the rule above (steering S3): a count-only floor is satisfied by a construction
+    /// anywhere, including the one that replaced the scope.
+    /// </summary>
+    internal const string RunRngScopeType = "RunRngScope";
+
+    /// <summary>
+    /// 🔒 The <b>second</b> sanctioned <c>DeterministicRng</c> construction site — `14` §8.1's meta
+    /// regime, landed by M1-09. Named for the same reason <see cref="RunRngScopeType"/> is: it is an
+    /// IDENTITY floor under <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c>, and a
+    /// count-only floor would stay satisfied by <c>RunRngScope</c> alone while the meta regime
+    /// stopped opening streams entirely.
+    /// </summary>
+    internal const string MetaDrawScopeType = "MetaDrawScope";
 
     /// <summary>
     /// The two <c>Rules</c> types <c>30</c> §11.2 documents as public, each with a named
@@ -110,14 +149,53 @@ internal static class Domain
                         .ToArray();
 
     /// <summary>True when the type is compiler-generated and therefore not the author's business.</summary>
-    internal static bool IsCompilerGenerated(TypeDefinition type) =>
-        type.CustomAttributes.Any(a =>
-            a.AttributeType.FullName == "System.Runtime.CompilerServices.CompilerGeneratedAttribute");
+    /// <remarks>
+    /// 🔒 <b>Walks out to the outermost declaring type</b>, exactly as <see cref="Il.NamespaceOf"/>
+    /// does, and that is not tidiness. The compiler marks <c>&lt;PrivateImplementationDetails&gt;</c>
+    /// with <c>[CompilerGenerated]</c> but does <b>not</b> mark the
+    /// <c>__StaticArrayInitTypeSize=N</c> types it nests inside it — and those nest at namespace
+    /// <c>""</c>. So the first <c>Core</c> type to compile a static array initialiser
+    /// (<c>Player.WalletCurrencies</c>, M1-04) made
+    /// <c>Every_Core_type_lives_under_a_documented_namespace</c> fail over a type no author wrote
+    /// and no author can move. Measured, red-then-green: without this walk the rule reports
+    /// <c>&lt;PrivateImplementationDetails&gt;/__StaticArrayInitTypeSize=24 is in namespace ''</c>.
+    /// </remarks>
+    internal static bool IsCompilerGenerated(TypeDefinition type)
+    {
+        var outer = type;
+        while (outer is not null)
+        {
+            if (IsCompilerGenerated((ICustomAttributeProvider)outer))
+            {
+                return true;
+            }
+
+            outer = outer.DeclaringType;
+        }
+
+        return false;
+    }
 
     /// <summary>True when the member is compiler-generated (record plumbing, backing fields, lambdas).</summary>
     internal static bool IsCompilerGenerated(ICustomAttributeProvider member) =>
         member.CustomAttributes.Any(a =>
             a.AttributeType.FullName == "System.Runtime.CompilerServices.CompilerGeneratedAttribute");
+
+    /// <summary>
+    /// True for the <c>30</c> §7 event hierarchy: a type under <c>Core/Events/</c> that either is
+    /// <see cref="DomainEventType"/> or derives from it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Both halves are load-bearing, and neither is sufficient alone.</b> Matching only the
+    /// namespace would exempt a payload record someone dropped into <c>Core/Events/</c>. Matching
+    /// only the base type would exempt a <c>Core/Model/</c> aggregate that derived from
+    /// <c>DomainEvent</c> — nothing in this suite forbids that, and it would let a real wallet buy
+    /// its way out of <c>DomainPurityTests.CurrencyFields()</c> by inheriting from an event.
+    /// </remarks>
+    internal static bool IsDomainEvent(TypeDefinition type) =>
+        Il.IsUnder(Il.NamespaceOf(type), EventsNamespace) &&
+        (type.Name.Equals(DomainEventType, StringComparison.Ordinal) ||
+         DerivesFrom(type, DomainEventType));
 
     /// <summary>True when a type derives — at any depth — from a type with the given simple name.</summary>
     internal static bool DerivesFrom(TypeDefinition type, string baseSimpleName)

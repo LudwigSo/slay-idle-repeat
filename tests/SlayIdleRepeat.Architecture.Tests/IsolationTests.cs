@@ -67,8 +67,13 @@ public sealed class IsolationTests
     /// <remarks>
     /// Structural coverage: this asserts no type under `Core/Rules/` names `Entitlements`.
     /// It cannot prove the ad-cap rule reads only the cap, because "which field it reads"
-    /// is a semantic question — that stays a `Core.Tests` obligation. Vacuous until M1
-    /// declares `Entitlements` (`30` §3).
+    /// is a semantic question — that stays a `Core.Tests` obligation.
+    /// <para>
+    /// 🔒 <b>No longer vacuous.</b> It needed two things: <c>Entitlements</c>, which M1-07
+    /// declared, and a type under <c>Core/Rules/</c> to look inside, which M1-10 landed as
+    /// <c>Core/Rules/Economy/</c>. Both are here, and M1-10 proved the rule bites by naming
+    /// <c>Entitlements</c> from an energy rule on purpose and capturing the failure.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Entitlements_are_unreachable_from_the_rules_and_the_power_computation()
@@ -116,8 +121,18 @@ public sealed class IsolationTests
     /// </para>
     /// <para>
     /// Neither can cover a predicate renamed into something neutral
-    /// (`if (mode == PremiumMode)`); that remains a review obligation. Vacuous today: no
-    /// `.cs` file under `src/` names any of these flags.
+    /// (`if (mode == PremiumMode)`); that remains a review obligation.
+    /// <para>
+    /// ⚠️ <b>M1 REVIEW — this said "vacuous today: no `.cs` file under `src/` names any of these
+    /// flags", and that stopped being true at M1-07</b>, which declared
+    /// <c>Entitlements.HasPlus</c>. The SOURCE arm is still subject-less (no <c>if</c> names the
+    /// flag), but the IL arm now has real subjects — <c>get_HasPlus</c> and the constructor both
+    /// read the member — so the rule is <em>more</em> live than its own remark claimed. Second-order
+    /// hazard worth knowing before it surprises somebody: <c>EntitlementBranchesInIl</c> treats any
+    /// <c>FieldReference</c> operand as a read, so adding a validating <c>if</c> to
+    /// <c>Entitlements</c>' own constructor would make this rule fire on
+    /// <c>Entitlements..ctor</c>. That is the loud direction, but it is not obvious from the
+    /// message.</para>
     /// </para>
     /// </remarks>
     [Fact]

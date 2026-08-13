@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using Xunit;
 
@@ -9,11 +9,12 @@ namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The subject set — public snapshot records in <c>Core/Model/Snapshots/</c> — is empty today
-/// because <c>PlayerSnapshot</c> and <c>RunSnapshot</c> are <c>M1-04</c>/<c>M1-05</c>'s. The rules
-/// below are written against that final subject regardless: today they hold over nothing, and the
-/// moment M1 declares the first record they become real assertions, with no <c>Skip</c>, no
-/// placeholder, and nobody having to remember to switch anything on.
+/// The subject set — public snapshot records in <c>Core/Model/Snapshots/</c> — was empty until
+/// <b>M1-04</b>, because <c>PlayerSnapshot</c> and <c>RunSnapshot</c> are <c>M1-04</c>/<c>M1-05</c>'s.
+/// The rules below were written against that final subject regardless, and they became real
+/// assertions the moment the first record landed, with no <c>Skip</c>, no placeholder, and nobody
+/// having to remember to switch anything on. They now quantify over <c>PlayerSnapshot</c>'s
+/// nineteen pinned fields.
 /// </para>
 /// <para>
 /// Because a vacuous rule proves nothing about its own teeth, the second half of this file drives
@@ -25,8 +26,8 @@ public sealed class SnapshotFieldOrderPinTests
 {
     /// <summary>
     /// 🔒 `14` §16.6 — every snapshot record's canonical field order is exactly the list pinned
-    /// for the current <c>SchemaVersion</c>. Vacuous until M1; an assertion over every field of
-    /// every snapshot the day it lands.
+    /// for the current <c>SchemaVersion</c>. Vacuous until M1-04; an assertion over every field of
+    /// every snapshot from the day <c>PlayerSnapshot</c> landed.
     /// </summary>
     [Fact]
     public void Every_snapshot_record_matches_the_field_order_pinned_for_the_current_SchemaVersion()
@@ -43,13 +44,14 @@ public sealed class SnapshotFieldOrderPinTests
                 CanonicalStateWriter.CanonicalFieldOrder(record))
             select offender;
 
-        offenders.Should().BeEmpty();
+        offenders.ShouldBeEmpty();
     }
 
     /// <summary>
     /// 🔒 `14` §16.6 — a snapshot record that is not pinned at all is an <b>added</b> record, which
-    /// is as much a serialisation change as an added field. This is the rule that fires on the day
-    /// M1 declares <c>PlayerSnapshot</c> and does not pin it, which is exactly the intent.
+    /// is as much a serialisation change as an added field. It fired on the day M1-04 declared
+    /// <c>PlayerSnapshot</c> and had not yet pinned it, which was exactly the intent; it fires
+    /// again for <c>RunSnapshot</c> when M1-05 lands.
     /// </summary>
     [Fact]
     public void Every_snapshot_record_is_pinned_for_the_current_SchemaVersion()
@@ -62,7 +64,7 @@ public sealed class SnapshotFieldOrderPinTests
                 $"{record.FullName} is a snapshot record with no pinned field list for " +
                 $"SchemaVersion {SnapshotSchema.SchemaVersion}. {SnapshotFieldOrderPin.Consequence}");
 
-        offenders.Should().BeEmpty();
+        offenders.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -82,7 +84,7 @@ public sealed class SnapshotFieldOrderPinTests
                 $"{name} is pinned for SchemaVersion {SnapshotSchema.SchemaVersion} but no longer " +
                 $"exists in Core/Model/Snapshots/. {SnapshotFieldOrderPin.Consequence}");
 
-        offenders.Should().BeEmpty();
+        offenders.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -92,7 +94,7 @@ public sealed class SnapshotFieldOrderPinTests
     [Fact]
     public void The_pin_file_carries_a_section_for_the_current_SchemaVersion()
     {
-        SnapshotFieldOrderPin.PinnedVersions.Should().Contain(SnapshotSchema.SchemaVersion);
+        SnapshotFieldOrderPin.PinnedVersions.ShouldContain(SnapshotSchema.SchemaVersion);
     }
 
     /// <summary>
@@ -104,7 +106,7 @@ public sealed class SnapshotFieldOrderPinTests
     {
         var expected = Enumerable.Range(1, SnapshotSchema.SchemaVersion);
 
-        SnapshotFieldOrderPin.PinnedVersions.Should().BeEquivalentTo(expected);
+        SnapshotFieldOrderPin.PinnedVersions.ShouldBe(expected, ignoreOrder: true);
     }
 
     /// <summary>
@@ -114,7 +116,8 @@ public sealed class SnapshotFieldOrderPinTests
     [Fact]
     public void The_pin_file_carries_no_section_above_the_current_SchemaVersion()
     {
-        SnapshotFieldOrderPin.PinnedVersions.Should().OnlyContain(v => v <= SnapshotSchema.SchemaVersion);
+        SnapshotFieldOrderPin.PinnedVersions.ShouldNotBeEmpty();
+        SnapshotFieldOrderPin.PinnedVersions.ShouldAllBe(v => v <= SnapshotSchema.SchemaVersion);
     }
 
     /// <summary>
@@ -130,7 +133,7 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, reordered, actual);
 
-        offenders.Should().NotBeEmpty();
+        offenders.ShouldNotBeEmpty();
     }
 
     /// <summary>🔒 `14` §16.6 — the pin bites on an <b>added</b> field.</summary>
@@ -142,7 +145,7 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, withoutTheNewField, actual);
 
-        offenders.Should().ContainSingle().Which.Should().Contain("pinned <no field>");
+        offenders.ShouldHaveSingleItem().ShouldContain("pinned <no field>", Case.Sensitive);
     }
 
     /// <summary>🔒 `14` §16.6 — the pin bites on a <b>removed</b> field.</summary>
@@ -154,7 +157,7 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, withAnExtraField, actual);
 
-        offenders.Should().ContainSingle().Which.Should().Contain("found <no field>");
+        offenders.ShouldHaveSingleItem().ShouldContain("found <no field>", Case.Sensitive);
     }
 
     /// <summary>
@@ -169,7 +172,7 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, pinned, actual);
 
-        offenders.Should().NotBeEmpty();
+        offenders.ShouldNotBeEmpty();
     }
 
     /// <summary>
@@ -185,11 +188,11 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, reordered, actual);
 
-        offenders.Should().NotBeEmpty();
-        offenders[0].Should().Contain("SERIALISATION CHANGE")
-            .And.Contain("SnapshotSchema.SchemaVersion")
-            .And.Contain("migration")
-            .And.Contain("never by editing the pinned list");
+        offenders.ShouldNotBeEmpty();
+        offenders[0].ShouldContain("SERIALISATION CHANGE", Case.Sensitive);
+        offenders[0].ShouldContain("SnapshotSchema.SchemaVersion", Case.Sensitive);
+        offenders[0].ShouldContain("migration", Case.Sensitive);
+        offenders[0].ShouldContain("never by editing the pinned list", Case.Sensitive);
     }
 
     /// <summary>
@@ -203,7 +206,7 @@ public sealed class SnapshotFieldOrderPinTests
 
         var offenders = SnapshotFieldOrderPin.Violations(nameof(PlayerLikeSnapshot), 1, actual, actual);
 
-        offenders.Should().BeEmpty();
+        offenders.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -216,7 +219,7 @@ public sealed class SnapshotFieldOrderPinTests
     [Fact]
     public void IsCanonicalRecord_accepts_a_positional_record()
     {
-        CanonicalStateWriter.IsCanonicalRecord(typeof(PlayerLikeSnapshot)).Should().BeTrue();
+        CanonicalStateWriter.IsCanonicalRecord(typeof(PlayerLikeSnapshot)).ShouldBeTrue();
     }
 
     /// <summary>
@@ -228,7 +231,7 @@ public sealed class SnapshotFieldOrderPinTests
     [MemberData(nameof(ShapesWithNoPinnableFieldOrder))]
     public void IsCanonicalRecord_rejects_a_shape_with_no_pinnable_declaration_order(Type shape)
     {
-        CanonicalStateWriter.IsCanonicalRecord(shape).Should().BeFalse();
+        CanonicalStateWriter.IsCanonicalRecord(shape).ShouldBeFalse();
     }
 
     /// <summary>
@@ -240,12 +243,14 @@ public sealed class SnapshotFieldOrderPinTests
     {
         var order = CanonicalStateWriter.CanonicalFieldOrder(typeof(OuterSnapshot));
 
-        order.Should().Equal(
+        order.ShouldBe(new[]
+        {
             "Head:System.String",
             "Middle.Label:System.String",
             "Middle.Leaf.Depth:System.Int32",
             "Middle.Leaf.Label:System.String",
-            "Tail:System.Int32");
+            "Tail:System.Int32",
+        });
     }
 
     /// <summary>
@@ -256,10 +261,10 @@ public sealed class SnapshotFieldOrderPinTests
     public void CanonicalFieldOrder_names_the_element_key_and_value_slots_of_a_collection()
     {
         CanonicalStateWriter.CanonicalFieldOrder(typeof(InnerListSnapshot))
-            .Should().Equal("Items[].Depth:System.Int32", "Items[].Label:System.String");
+            .ShouldBe(new[] { "Items[].Depth:System.Int32", "Items[].Label:System.String" });
 
         CanonicalStateWriter.CanonicalFieldOrder(typeof(StringMapSnapshot))
-            .Should().Equal("ByName{key}:System.String", "ByName{value}:System.Int32");
+            .ShouldBe(new[] { "ByName{key}:System.String", "ByName{value}:System.Int32" });
     }
 
     /// <summary>
@@ -272,8 +277,8 @@ public sealed class SnapshotFieldOrderPinTests
         var optional = CanonicalStateWriter.CanonicalFieldOrder(typeof(OneValueSnapshot<int?>));
         var required = CanonicalStateWriter.CanonicalFieldOrder(typeof(OneValueSnapshot<int>));
 
-        optional.Should().Equal("Value:System.Nullable<System.Int32>");
-        required.Should().Equal("Value:System.Int32");
+        optional.ShouldBe(new[] { "Value:System.Nullable<System.Int32>" });
+        required.ShouldBe(new[] { "Value:System.Int32" });
     }
 
     /// <summary>
@@ -288,28 +293,56 @@ public sealed class SnapshotFieldOrderPinTests
     [Fact]
     public void The_visibility_and_namespace_filter_reaches_the_snapshots_namespace_today()
     {
-        SnapshotFieldOrderPin.PublicTypesUnderSnapshots.Select(type => type.Name)
-            .Should().Contain(nameof(SnapshotSchema))
-            .And.Contain(nameof(CanonicalStateWriter));
+        var names = SnapshotFieldOrderPin.PublicTypesUnderSnapshots.Select(type => type.Name).ToArray();
+
+        names.ShouldContain(nameof(SnapshotSchema));
+        names.ShouldContain(nameof(CanonicalStateWriter));
     }
 
     /// <summary>
-    /// 🔒 The tripwire. The subject set is empty today, and the four rules above therefore hold
-    /// vacuously; this is the one assertion that <b>announces</b> the day that stops being true,
-    /// instead of letting a silently-still-empty selector look like a passing pin.
+    /// 🔒 The floor that replaced the vacuity tripwire. <b>The pin woke up in M1-04</b>:
+    /// <c>PlayerSnapshot</c> is the first snapshot record, its field list is pinned in
+    /// <c>SnapshotFieldOrder.json</c> under SchemaVersion 1, and the four rules above are real
+    /// assertions from that commit.
     /// </summary>
     /// <remarks>
-    /// <b>When this fails, the pin has woken up.</b> M1 declared the first snapshot record: pin its
-    /// field list in <c>SnapshotFieldOrder.json</c> and delete this test. Never weaken the selector
-    /// to make it green again — an empty subject set is the failure this whole file exists to
-    /// prevent, not the state it wants to preserve.
+    /// <para>
+    /// The tripwire that used to stand here asserted the subject set was <i>empty</i> and told the
+    /// milestone that filled it to delete the test. Deleting it outright would have left the four
+    /// pin rules with nothing watching their subject set at all — exactly the steering <b>S3</b>
+    /// failure the tripwire existed to prevent, arriving one commit after it was retired. So it is
+    /// replaced rather than removed: the assertion flips from "still empty" to "never empty again",
+    /// and it names the record it expects.
+    /// </para>
+    /// <para>
+    /// Both halves matter. The count floor catches the selector being emptied by a move or a
+    /// visibility change (<c>PlayerSnapshot</c> made <c>internal</c>, or nested, or moved out of
+    /// <c>Core/Model/Snapshots/</c> — all of which
+    /// <see cref="The_visibility_and_namespace_filter_reaches_the_snapshots_namespace_today"/>
+    /// documents as plausible). Naming <c>PlayerSnapshot</c> catches it being emptied by a rename,
+    /// which a bare count would not once <c>RunSnapshot</c> lands beside it.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_pins_subject_set_is_still_empty_and_says_so_when_it_stops_being()
+    public void The_pins_subject_set_is_not_empty_and_holds_the_first_snapshot_record()
     {
-        SnapshotFieldOrderPin.SnapshotRecords.Should().BeEmpty(
-            "when this fails the pin has woken up — M1 declared the first snapshot record. Pin its " +
-            "field list in SnapshotFieldOrder.json and delete this tripwire; do not weaken the selector.");
+        SnapshotFieldOrderPin.SnapshotRecords.ShouldNotBeEmpty(
+            "the pin woke up in M1-04 and must never go back to sleep. An empty subject set is the " +
+            "one failure a pin cannot announce: all four rules above would report success forever. " +
+            "If PlayerSnapshot moved, was renamed, was made internal or was nested, fix that — do " +
+            "not weaken the selector.");
+
+        SnapshotFieldOrderPin.SnapshotRecords
+            .Select(record => record.Name)
+            .ShouldContain(nameof(PlayerSnapshot));
+
+        // 🔒 M1-05. Naming the second record as well is what the remark above anticipated: with two
+        // records in the set, a bare count survives one of them being renamed, made internal, nested
+        // or moved out of Core/Model/Snapshots/, and the pin would go on guarding the survivor while
+        // reporting success over the one that left.
+        SnapshotFieldOrderPin.SnapshotRecords
+            .Select(record => record.Name)
+            .ShouldContain(nameof(RunSnapshot));
     }
 
     /// <summary>
@@ -319,7 +352,8 @@ public sealed class SnapshotFieldOrderPinTests
     /// it would fail nothing until <c>stateHash</c> values existed in the wild.
     /// </summary>
     /// <remarks>
-    /// Vacuous today, like the four rules above, and free to add while it still is.
+    /// Added while it was still vacuous, which is when a rule is cheapest to write; live over
+    /// <c>PlayerSnapshot</c> since M1-04.
     /// <see cref="The_first_field_rule_recognises_a_record_that_does_and_one_that_does_not"/> is
     /// the half that proves it can tell the two apart.
     /// </remarks>
@@ -333,15 +367,15 @@ public sealed class SnapshotFieldOrderPinTests
                 "*Snapshot record does (14 §16.6, 30 §11.3) — Rehydrate validates it, and a record " +
                 "whose version is not the first thing written cannot be read back before it is known.");
 
-        offenders.Should().BeEmpty();
+        offenders.ShouldBeEmpty();
     }
 
     /// <summary>The teeth of the rule above: it accepts the shape that complies and rejects one that does not.</summary>
     [Fact]
     public void The_first_field_rule_recognises_a_record_that_does_and_one_that_does_not()
     {
-        CanonicalStateWriter.CanonicalFieldOrder(typeof(PlayerLikeSnapshot))[0].Should().Be(SchemaVersionField);
-        CanonicalStateWriter.CanonicalFieldOrder(typeof(InnerSnapshot))[0].Should().NotBe(SchemaVersionField);
+        CanonicalStateWriter.CanonicalFieldOrder(typeof(PlayerLikeSnapshot))[0].ShouldBe(SchemaVersionField);
+        CanonicalStateWriter.CanonicalFieldOrder(typeof(InnerSnapshot))[0].ShouldNotBe(SchemaVersionField);
     }
 
     /// <summary>The pinned-field-list entry a <c>SchemaVersion</c> at index 0 produces.</summary>
@@ -354,5 +388,6 @@ public sealed class SnapshotFieldOrderPinTests
         typeof(UnsupportedSnapshots.AmbiguousConstructors),
         typeof(UnsupportedSnapshots.Empty),
         typeof(UnsupportedSnapshots.WithPropertyOutsideTheConstructor),
+        typeof(UnsupportedSnapshots.WithPublicField),
     };
 }

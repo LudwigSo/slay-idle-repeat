@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
 
@@ -17,7 +17,7 @@ public sealed class ContentVersionTests
     {
         var version = ContentVersion.FromHex(ValidStamp);
 
-        version.Value.Should().Be(ValidStamp);
+        version.Value.ShouldBe(ValidStamp);
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class ContentVersionTests
     {
         var version = ContentVersion.FromHex(ValidStamp);
 
-        version.Short.Should().Be("9f2c4a1b8e7d");
+        version.Short.ShouldBe("9f2c4a1b8e7d");
     }
 
     [Theory]
@@ -37,7 +37,7 @@ public sealed class ContentVersionTests
     {
         var act = () => ContentVersion.FromHex(candidate);
 
-        act.Should().Throw<FormatException>();
+        Should.Throw<FormatException>(act);
     }
 
     [Fact]
@@ -45,13 +45,13 @@ public sealed class ContentVersionTests
     {
         var parsed = ContentVersion.TryFromHex("not-a-hash", out var version);
 
-        parsed.Should().BeFalse();
-        version.Should().BeNull();
+        parsed.ShouldBeFalse();
+        version.ShouldBeNull();
     }
 
     [Fact]
     public void Equality_is_by_value_so_two_snapshots_of_the_same_content_compare_equal()
     {
-        ContentVersion.FromHex(ValidStamp).Should().Be(ContentVersion.FromHex(ValidStamp));
+        ContentVersion.FromHex(ValidStamp).ShouldBe(ContentVersion.FromHex(ValidStamp));
     }
 }

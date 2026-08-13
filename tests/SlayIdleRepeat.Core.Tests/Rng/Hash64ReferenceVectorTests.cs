@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
@@ -31,7 +31,7 @@ public sealed class Hash64ReferenceVectorTests
 
         var hash = Hash64.Of(row.Arguments.ToArray());
 
-        hash.Should().Be(row.Hash, "'{0}' pins {1}", row.Id, row.Why);
+        hash.ShouldBe(row.Hash, $"'{row.Id}' pins {row.Why}");
     }
 
     /// <summary>
@@ -47,7 +47,7 @@ public sealed class Hash64ReferenceVectorTests
 
         var length = Hash64.CanonicalByteCount(row.Arguments.ToArray());
 
-        length.Should().Be(row.EncodedByteLength, "'{0}' pins {1}", row.Id, row.Why);
+        length.ShouldBe(row.EncodedByteLength, $"'{row.Id}' pins {row.Why}");
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public sealed class Hash64ReferenceVectorTests
         var rows = ReferenceVectors.Canonical
             .Where(row => row.ArgumentTypes.Contains(argumentType, StringComparer.Ordinal));
 
-        rows.Should().NotBeEmpty();
+        rows.ShouldNotBeEmpty();
     }
 
     /// <summary>The table must still carry the two derivations of `02` §2 and `14` §8.1.</summary>
@@ -79,7 +79,7 @@ public sealed class Hash64ReferenceVectorTests
     [InlineData("derivation-battleseed-0")]
     public void The_reference_table_still_covers_both_seed_derivations(string rowId)
     {
-        ReferenceVectors.Canonical.Should().ContainSingle(row => row.Id == rowId);
+        ReferenceVectors.Canonical.Where(row => row.Id == rowId).ShouldHaveSingleItem();
     }
 
     /// <summary>
@@ -102,7 +102,7 @@ public sealed class Hash64ReferenceVectorTests
     public void The_published_sanity_set_still_covers_every_length_and_seed(int length, ulong seed)
     {
         ReferenceVectors.Published
-            .Should().ContainSingle(row => row.Length == length && row.Seed == seed);
+            .Where(row => row.Length == length && row.Seed == seed).ShouldHaveSingleItem();
     }
 
     /// <summary>The three short ASCII vectors that circulate with every port of xxHash.</summary>
@@ -113,7 +113,7 @@ public sealed class Hash64ReferenceVectorTests
     public void The_published_ascii_set_still_covers_its_three_inputs(string input)
     {
         ReferenceVectors.PublishedAscii
-            .Should().ContainSingle(row => row.Input == input);
+            .Where(row => row.Input == input).ShouldHaveSingleItem();
     }
 
     /// <summary>
@@ -135,14 +135,14 @@ public sealed class Hash64ReferenceVectorTests
     [InlineData("shrine-near-max")]
     public void The_draw_table_still_covers_every_committed_stream_and_position(string rowId)
     {
-        ReferenceVectors.Draws.Should().ContainSingle(row => row.Id == rowId);
+        ReferenceVectors.Draws.Where(row => row.Id == rowId).ShouldHaveSingleItem();
     }
 
     /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
     [Fact]
     public void The_reference_table_ids_are_unique()
     {
-        ReferenceVectors.Canonical.Select(row => row.Id).Should().OnlyHaveUniqueItems();
+        ReferenceVectors.Canonical.Select(row => row.Id).ShouldBeUnique();
     }
 
     /// <summary>
@@ -154,8 +154,8 @@ public sealed class Hash64ReferenceVectorTests
     {
         var row = ReferenceVectors.Row("mixed-all-types");
 
-        row.ArgumentTypes.Should().Equal("ulong", "long", "int", "enum", "string");
-        Hash64.Of(row.Arguments.ToArray()).Should().Be(row.Hash);
+        row.ArgumentTypes.ShouldBe(new[] { "ulong", "long", "int", "enum", "string" });
+        Hash64.Of(row.Arguments.ToArray()).ShouldBe(row.Hash);
     }
 
     /// <summary>
@@ -169,7 +169,8 @@ public sealed class Hash64ReferenceVectorTests
         var longMinusOne = ReferenceVectors.Row("long-minus-one");
         var ulongMax = ReferenceVectors.Row("ulong-max");
 
-        intMinusOne.Hash.Should().Be(longMinusOne.Hash).And.Be(ulongMax.Hash);
+        intMinusOne.Hash.ShouldBe(longMinusOne.Hash);
+        intMinusOne.Hash.ShouldBe(ulongMax.Hash);
     }
 
     /// <summary>
@@ -186,8 +187,8 @@ public sealed class Hash64ReferenceVectorTests
         var first = ReferenceVectors.Row(firstId);
         var second = ReferenceVectors.Row(secondId);
 
-        first.Hash.Should().NotBe(second.Hash);
-        Hash64.Of(first.Arguments.ToArray()).Should().NotBe(Hash64.Of(second.Arguments.ToArray()));
+        first.Hash.ShouldNotBe(second.Hash);
+        Hash64.Of(first.Arguments.ToArray()).ShouldNotBe(Hash64.Of(second.Arguments.ToArray()));
     }
 
     public static TheoryData<string> CanonicalIds() => ReferenceVectors.CanonicalIds();

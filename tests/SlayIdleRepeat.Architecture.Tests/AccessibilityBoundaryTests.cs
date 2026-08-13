@@ -1,5 +1,8 @@
+using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -16,6 +19,16 @@ public sealed class AccessibilityBoundaryTests
     /// method or public constructor on any type under `Core/Model/`. The persistence DTOs
     /// under `Model/Snapshots/` are exempt by `30` §11.3 — an adapter must be able to build
     /// a `PlayerSnapshot` to call `Rehydrate`.
+    /// <para>
+    /// ⚠️ <b>`Core/Testing/` is the second documented exemption, and it is outside this rule's
+    /// subject set rather than exempted by it</b> — written down here because the rule's name is
+    /// wider than its scope. `30` §6's `InMemoryGame` ships in the production assembly with public
+    /// `CreatePlayer`, `Send` and `Clock.Advance`, all of which change state; that is exactly what
+    /// §6 asks for, since the harness IS the sanctioned public driver. What keeps it honest is not
+    /// this rule but `Core_internal_layering_holds`' `Testing` row (it may not name `Rules` or
+    /// `Handlers`) plus the harness declaring no door onto an aggregate's `internal` mutators — see
+    /// `InMemoryGame.State`'s own remarks for the one route that remains open.
+    /// </para>
     /// </summary>
     [Fact]
     public void Apply_is_the_only_public_mutation()
@@ -43,6 +56,15 @@ public sealed class AccessibilityBoundaryTests
                 type.Methods
                     .Where(IsPublicMutator)
                     .Select(m => $"{Il.Describe(m)} is a public method that writes to the aggregate's own state"));
+
+            // 🔒 The fifth surface, added in M1-05's architecture review. The four above read
+            // setters, fields, constructors and mutating methods — none of which sees a MUTABLE
+            // COLLECTION handed out through a read-only-looking view. `Player.WalletCurrencies`
+            // records the hole in its own remarks: a bare array behind an IReadOnlyList<T> casts
+            // straight back to T[], so a caller rewrites the aggregate's state through a getter
+            // and every rule in this file stays green. Measured on this branch before the check
+            // existed: a `public IReadOnlyList<int> P => _array;` added to `Run` passed 54/54.
+            offenders.AddRange(ExposedMutableCollections(type));
         }
 
         // The single documented public mutation must itself be public and static (30 §11.2).
@@ -101,9 +123,20 @@ public sealed class AccessibilityBoundaryTests
     }
 
     /// <summary>
-    /// `30` §11.4 — the internal layering holds: Handlers ▶ Rules ▶ Model ▶ Content ▶
-    /// Primitives. `Rules` never references `Handlers`; `Model` never references `Rules`.
-    /// `Rng` is pure arithmetic (`14` §8.1) and sits below `Model` with `Content`.
+    /// `30` §11.4 — the internal layering holds: Handlers ▶ Rules ▶ Model ▶ Content ▶ Primitives.
+    /// `Rules` never references `Handlers`; `Model` never references `Rules`. `Rng` is pure
+    /// arithmetic (`14` §8.1) and sits below `Model` with `Content`. `Commands` sits above
+    /// `Rng`/`Content`/`Primitives` and below `Handlers`. `Primitives`, `Content`, `Rng`, `Events`,
+    /// `Commands` and `Model` never reach up into the `SlayIdleRepeat.Core` root.
+    /// <para>
+    /// ⚠️ **`Testing` sits above `Handlers`, and that position is an inference rather than a
+    /// quotation.** `30` §11.4's chain is written `Handlers ▶ Rules ▶ Model ▶ Content ▶ Primitives`
+    /// and omits `Testing` exactly as it omits `Commands` and `Events`. Its place comes from `30` §6
+    /// (the harness drives the game) and `30` §11.2 (`GameRules.Apply` is the only public mutation),
+    /// which together settle two directions: `Testing` names neither `Rules` nor `Handlers`, and
+    /// nothing beneath it — the `SlayIdleRepeat.Core` root included — names `Testing`. The rows
+    /// themselves record what that does and does not close.
+    /// </para>
     /// </summary>
     [Fact]
     public void Core_internal_layering_holds()
@@ -111,11 +144,127 @@ public sealed class AccessibilityBoundaryTests
         // Each layer, with the layers it must never reference — everything above it.
         var forbidden = new (string Layer, string[] MustNotReference)[]
         {
-            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
-            (Domain.ContentNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
-            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace }),
-            (Domain.ModelNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace }),
-            (Domain.RulesNamespace, new[] { Domain.HandlersNamespace }),
+            // 🔒 Commands appears in the three rows below as well as owning one of its own, and the
+            // symmetry is the point: 30 §11.4's tree puts Commands/ above Rng/, Content/ and
+            // Primitives/, so those three may not name a command either. Added in M1-06's
+            // architecture review — the Commands row landed one-directional, which left
+            // `Primitives.RunId naming Commands.GameCommand` matched by no row in either direction,
+            // exactly the ungoverned region the row was written to close. Measured on this branch:
+            // a `GameCommand`-typed member added to a Primitives type passed 58/58 before this.
+            // 🔒 Testing appears in every row below as well as owning one of its own, added by M1-11
+            // on the symmetry M1-06's Commands row established. `30` §11.4 puts Core/Testing/ INSIDE
+            // the production assembly, so the harness is a real layer rather than a test project —
+            // and it sits at the very top, above Handlers: it drives the domain through
+            // GameRules.Apply and every other layer is beneath it. A production type naming the test
+            // harness is therefore a cycle under every reading, which is the settled direction; the
+            // row of its own below is the other half, and the root's own loop after the table is the
+            // third (the root has no Layer row, so it needed a check rather than an entry).
+            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.EventsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.ContentNamespace, new[] { Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.EventsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.EventsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+
+            // 🔒 M1 REVIEW. Events was in NO row's forbidden list until now — the same ungoverned
+            // region M1-06 found for Commands and M1-11 for Testing, arriving a third time. A
+            // Primitives, Content or Rng type gaining a CurrencyChanged-typed member passed 67/67.
+            // Rules and Handlers are added to the Events row for the reason Testing already was: a
+            // handler CONSTRUCTS the event, so an event naming BeginSession or EnergyMath is a cycle
+            // under every reading. Content -> Rng was likewise one-directional (Rng could not name
+            // Content, Content could name Rng); they are peers, so the row is now symmetric.
+            //
+            // ⚠️ Model and Rules deliberately carry NO Commands entry, and that is the open half
+            // rather than an oversight. A handler consumes a command and reads the model, so
+            // Handlers -> Commands is required; whether a Rules calculator or an aggregate may name
+            // one is not settled by any document, and forbidding it on a guess would block a task
+            // rather than protect one. The Commands row below forbids the direction that IS settled.
+            (Domain.ModelNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.RulesNamespace, new[] { Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.HandlersNamespace, new[] { Domain.TestingNamespace }),
+
+            // 🔒 M1-06's first cut at carried-forward item 8. 30 §11.4's chain — "Handlers -> Rules
+            // -> Model -> Content -> Primitives" — omits Commands and Events entirely, so both were
+            // ungoverned regions: a type under either was matched by no row in either direction,
+            // with this rule green. M1-03 closed the unambiguous half for Events; this closes it for
+            // Commands, and Commands is the easier of the two because nothing in the design set puts
+            // an aggregate inside a command.
+            //
+            // WHAT THIS ROW SAYS: a command may name Primitives, Content and Rng — ids, indices,
+            // content references, the vocabulary of 14 §2.3's parameter columns — and may not name
+            // Model, Rules or Handlers.
+            //
+            // WHY IT IS SAFE where the Events equivalent is not. 30 §7 forces Events -> Model:
+            // GearGranted(int, GearInstance, SourceClass, bool) carries a Model aggregate, so a row
+            // forbidding it would contradict 30 §7 and block M4-03 outright. Nothing forces the
+            // command equivalent. 14 §2.3's commands carry ids and indices — a merge names gear
+            // INSTANCE IDS, not GearInstances; the server owns the instance — and 30 §11.6's
+            // one-vocabulary rule makes a command a wire value, which an aggregate is not. A
+            // handler consumes a command and reads the model; a command naming its handler or its
+            // rules would be a cycle under every reading.
+            //
+            // ⚠️ IF M1-02 FINDS A COMMAND THAT MUST CARRY A MODEL TYPE, that is a design finding and
+            // belongs at a kickoff, not a row deleted to make a build green. The binding ruling on
+            // the Events half is due at the M4 kickoff, before M4-03 authors GearGranted, and its
+            // deliverable is a 30 §11.4 amendment rather than a table edit.
+            (Domain.CommandsNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+
+            // 🔒 M1-11. Events gets its FIRST row here, and it is deliberately a row of exactly one
+            // entry. The contested half of the Events question is `Events -> Model` — 30 §7 writes
+            // GearGranted(int, GearInstance, SourceClass, bool) and GearInstance is a Model
+            // aggregate, so a row forbidding it would contradict 30 §7 and block M4-03; that ruling
+            // is still owned by the M4 kickoff and is NOT pre-empted here. `Events -> Testing` is not
+            // contested under any reading: Apply PRODUCES the event list and the harness CONSUMES
+            // Apply, so an event naming InMemoryGame is a cycle. Measured before this row existed: a
+            // `typeof(InMemoryGame)` field added to CurrencyChanged passed 63/63.
+            (Domain.EventsNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+
+            // 🔒 M1-11, `30` §6 + `30` §11.2. Core/Testing/ was an ungoverned region until this
+            // commit — the same shape M1-06 found for Commands and M1-03 for Events, and the same
+            // discipline applies: only the direction the documents SETTLE is written.
+            //
+            // WHAT THIS ROW SAYS: the harness may name the SlayIdleRepeat.Core root (GameRules,
+            // WorldSlice, GameContext, CommandResult — it is above them, which is why Testing is
+            // deliberately NOT in mustNotReachTheRoot below), Model (it builds a Player through
+            // 30 §11.3's Rehydrate), Content, Commands, Events, Rng and Primitives — and may NOT
+            // name Rules or Handlers.
+            //
+            // WHY THAT HALF IS SETTLED. `30` §11.2: "the only public way to change state in this
+            // game is GameRules.Apply", and `30` §6 makes InMemoryGame the artefact that
+            // DEMONSTRATES it. Core/Testing/ lives inside the production assembly, so it can see
+            // every internal in Core — a harness calling BeginSession.Handle or EnergyMath.Grant
+            // would drive the domain behind Apply's back, past the clone (P4), past the catch-up,
+            // past the RNG fold and past the event stamping, and every claim the harness makes about
+            // "the rules decided this" would be a claim about the harness instead. Nothing else
+            // catches that: Handlers_and_Rules_are_internal is about ACCESSIBILITY, and internal is
+            // exactly what those types are TO this namespace.
+            //
+            // 🔒 WHAT THIS ROW DOES NOT CLOSE — AND WHAT NOW DOES. The row permits `Testing ->
+            // Model`, and it MUST: 30 §11.3 makes Player.Rehydrate the one validated construction
+            // path and CreatePlayer has to call it. But Player's mutators are `internal`, and
+            // Core/Testing/ is inside the assembly — so a harness calling player.AccrueEnergy(...),
+            // player.MoveCurrency(...) or player.MarkApplied(...) bypasses Apply just as completely
+            // as calling BeginSession.Handle would, and NO forbidden PAIR can see it: the permitted
+            // reference and the forbidden one go to the same namespace and differ only in the
+            // visibility of the member reached.
+            //
+            // M1-11 wrote that limit down honestly and left it resting on "InMemoryGame declaring no
+            // such door… and on review". M1-12 closed it, as an ACCESSIBILITY rule rather than a
+            // layering row: The_harness_drives_the_aggregates_through_their_public_seam_only, in this
+            // file. Measured — a `player.MarkApplied(Clock.NowUtc)` added to CreatePlayer goes red
+            // naming the method and the member; it passed every rule in the suite before.
+            //
+            // What this row still owns is the namespace-decidable half, which that rule does not
+            // duplicate: Testing may not name Rules or Handlers AT ALL, public or otherwise.
+            //
+            // ⚠️ AND A KNOWN TENSION WITH 30 §11.2, which is why the `Rules` half is stated as
+            // settled-for-now rather than settled. §11.2 makes CombatSimulator public precisely
+            // because "the balance harness calls it directly (05 §9)", and 30 §6 makes that balance
+            // harness a thin wrapper over InMemoryGame. Today the two are different things — the
+            // harness is a tools/ project outside Core, so this row cannot reach it — but a future
+            // Core/Testing/ type that wanted CombatSimulator would be doing something 30 §11.2
+            // explicitly sanctions and this row forbids wholesale. OWNER: the M6 kickoff, which is
+            // where 05 §9's harness is built. The fix if it lands is narrow — exempt
+            // Domain.PublicRuleTypes for this layer — and it is written here so it is a decision
+            // rather than a surprise.
+            (Domain.TestingNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace }),
         };
 
         var offenders = new List<string>();
@@ -137,10 +286,819 @@ public sealed class AccessibilityBoundaryTests
             }
         }
 
+        // The `SlayIdleRepeat.Core` ROOT has no row in the table above, and until M1-07 it held no
+        // types at all — so the moment `GameRules` (M1-06) and `GameContext` (M1-07) landed there,
+        // the root became a region the layering rule matched in neither direction. One of those
+        // directions is legitimate: the root sits at the TOP of the layering and reaches down into
+        // Handlers, Rules, Model and Content by design. The reverse is not — a bottom layer that
+        // names `GameContext` inverts the whole chain with this rule green.
+        //
+        // ⚠️ Matched EXACTLY, never by prefix. A `StartsWith("SlayIdleRepeat.Core.")` row would
+        // match every type in the assembly and make the rule above trivially true — the same trap
+        // Domain.IsPermittedCoreNamespace documents for the permitted-namespace list.
+        // ⚠️ `Events` is here and in NO row of the table above, and that asymmetry is deliberate.
+        // 30 §11.4's chain omits Commands and Events entirely, while 30 §7 writes
+        // GearGranted(int, GearInstance, SourceClass, bool) — GearInstance being a Model aggregate.
+        // So a row forbidding Events -> Model would contradict 30 §7 and block M4-03, and it is not
+        // written on a guess; the ruling is owned by M1-06's brief and due at the M4 kickoff (see
+        // SubjectSetFloorTests' Events row). What is NOT in doubt in either reading is the
+        // direction below: Apply produces events, so an event naming GameRules or GameContext is a
+        // cycle, and this row can fire today — GameContext, Entitlements and FeatureFlags are all
+        // in the root already.
+        var mustNotReachTheRoot = new[]
+        {
+            Domain.PrimitivesNamespace,
+            Domain.ContentNamespace,
+            Domain.RngNamespace,
+            Domain.EventsNamespace,
+
+            // 🔒 M1-06. A command naming GameRules is a cycle — Apply CONSUMES commands — and a
+            // command naming GameContext or CommandResult would be a second door onto Apply's own
+            // arguments and return: a command carrying its own NowUtc or its own CommandSeed is the
+            // ambient clock and the invented entropy 30 §3 exists to keep out, one indirection
+            // further out and past every guard on GameContext. WorldSlice is in the root too, and a
+            // command carrying one would smuggle the aggregates past the clone P4 depends on.
+            Domain.CommandsNamespace,
+
+            // 🔒 M1-06's architecture review. Model was ungoverned in this direction, and the cost
+            // of that went up on the commit that put GameRules, WorldSlice and CommandResult in the
+            // root beside GameContext: every one of those four is a cycle when an aggregate names
+            // it. Apply CLONES the slice and CONSUMES the aggregates (30 §2.1's P4), so an aggregate
+            // that named WorldSlice, CommandResult or GameRules would close a loop the layering
+            // forbids, and one that named GameContext would be handed the clock that 30 §3 exists to
+            // keep out of the domain — Player.MarkApplied takes the DateTimeOffset VALUE for exactly
+            // that reason. Entitlements is the sharpest case and it is already ruled: 30 §3 and
+            // 12 §2.1 put entitlement on the SESSION, never on the aggregate (GapRegister's Player
+            // -contents note records the ruling), and IsolationTests only forbids Rules from
+            // reaching it.
+            //
+            // ⚠️ RULES IS NOT HERE, and that is the open half, on the pattern of the Events row
+            // above. A rule branching on GameContext.FeatureFlags (26 §8, 30 §3 resolve remote
+            // config into that root type) is a shape nothing in the design set forbids, and a row
+            // written on a guess would block the first task that needs it. The ruling belongs at the
+            // kickoff of the milestone that first wants it, together with 30 §11.4's amendment for
+            // Events -> Model.
+            Domain.ModelNamespace,
+        };
+
+        foreach (var layer in mustNotReachTheRoot)
+        {
+            foreach (var type in Domain.CoreTypesUnder(layer))
+            {
+                offenders.AddRange(
+                    Il.ReferencedTypeNames(type)
+                        .Where(IsCoreRootType)
+                        .Select(referenced =>
+                            $"{type.FullName} (in {layer}) references {referenced}, which is in the " +
+                            $"{Domain.CoreNamespace} root. The root holds GameRules, WorldSlice, CommandResult " +
+                            "and GameContext — the top of the layering — so a layer beneath it reaching up " +
+                            "inverts Handlers -> Rules -> Model -> Content -> Primitives (30 §11.4). For Events: " +
+                            "Apply PRODUCES the event list, so an event naming GameRules or GameContext is a " +
+                            "cycle. For Model: Apply CLONES and CONSUMES the aggregates (30 §2.1's P4), so an " +
+                            "aggregate naming WorldSlice, CommandResult or GameRules closes that loop. And in " +
+                            "every layer, a timestamp reached through GameContext.NowUtc is the clock 30 §3 " +
+                            "keeps out of the domain — take the value, not the context."));
+            }
+        }
+
+        // 🔒 M1-11 — AND THE ROOT ITSELF MUST NOT NAME THE HARNESS. This is the one direction the
+        // table above structurally cannot express: `Testing` was added to every layer's forbidden
+        // list, but the SlayIdleRepeat.Core root has no Layer row (its outbound direction is
+        // legitimate — the root is the top of the chain and reaches down by design), so
+        // `GameRules -> InMemoryGame` was matched by nothing in either direction. That is the
+        // sharpest cycle available in this assembly: InMemoryGame CALLS GameRules.Apply, so a root
+        // type naming the harness closes a loop between the transition function and the thing that
+        // exists to drive it — and it would additionally put a test artefact in the production call
+        // graph of every command. Measured before this check: a `typeof(InMemoryGame)` field added to
+        // GameRules passed 63/63.
+        //
+        // ⚠️ Written as its own loop rather than as a `(CoreNamespace, [TestingNamespace])` row,
+        // because Domain.CoreTypesUnder matches by PREFIX and that row would select every type in
+        // the assembly — including the harness itself, which would then be forbidden from naming its
+        // own namespace. IsCoreRootType is the exact-match predicate the loop above already uses.
+        foreach (var type in Domain.CoreTypes.Where(t => IsCoreRootType(t.FullName)))
+        {
+            offenders.AddRange(
+                Il.ReferencedTypeNames(type)
+                    .Where(r => Il.IsUnder(NamespaceOfReference(r), Domain.TestingNamespace))
+                    .Select(referenced =>
+                        $"{type.FullName} (in the {Domain.CoreNamespace} root) references {referenced}, which " +
+                        $"is in {Domain.TestingNamespace}. 30 §6's harness DRIVES the root — InMemoryGame " +
+                        "calls GameRules.Apply — so a root type naming it closes a cycle between the " +
+                        "transition function and the thing that exists to exercise it, and puts a test " +
+                        "artefact in the production call graph of every command. Testing sits at the TOP of " +
+                        "30 §11.4's chain: it names the root, the root does not name it."));
+        }
+
+        // 🔒 M1-12 — AND THE ARM THE IL PHYSICALLY CANNOT CARRY. Everything above reads metadata, and
+        // a `const` never reaches metadata: the compiler inlines it at the use site as a literal, so
+        // `EnergyTuning.M1_12_Tuning` read from Core/Model/ emits `ldc.i4` and nothing else. No
+        // TypeRef, no FieldRef, no local — Il.ReferencedTypeNames has nothing to yield. This was found
+        // by M1-01 (its first S1 mutation PASSED for exactly this reason), re-found by M1-10 (which
+        // named the exploit: a Model type reading tuning through a const pointer), and re-found by
+        // M1-11 (which hit it trying to break the closure arm one file over). Measured on this branch
+        // before this arm existed: a Core/Content/ method returning a Core/Rules/ `const int` passed
+        // 63/63 — the whole suite green over a forbidden edge in this rule's own table.
+        offenders.AddRange(InlinedCrossLayerReferences(forbidden, mustNotReachTheRoot));
+
         ArchRule.Empty(
             offenders,
-            "Core's internal layering holds: Handlers -> Rules -> Model -> Content -> Primitives (30 §11.4).");
+            "Core's internal layering holds: Testing -> Handlers -> Rules -> Model -> Content -> Primitives, " +
+            "Commands names nothing above it, the 30 §6 harness under Testing/ names neither Rules nor " +
+            "Handlers (it drives the domain through GameRules.Apply alone) and nothing beneath it — root " +
+            "included — names the harness, and Primitives, Content, Rng, Events, Commands and Model never " +
+            "reach up into the SlayIdleRepeat.Core root (30 §11.4, 30 §6, 30 §11.2).");
     }
+
+    /// <summary>
+    /// 🔒 `30` §11.4 / carried-forward item (a) — the half of
+    /// <see cref="Core_internal_layering_holds"/> that <b>cannot</b> be answered from IL: a
+    /// cross-layer read of a <c>const</c>, which the compiler inlines as a literal so that no type,
+    /// field or local reference survives into metadata.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Scoped to exactly the blind spot, and no wider.</b> The candidate set is not "every type
+    /// in the upper layer" — it is "every type in the upper layer that declares at least one literal
+    /// field", because those are the only types a lower layer can name without leaving an IL trace.
+    /// Any other cross-layer reference is already reported by the metadata scan above and reporting
+    /// it twice would make one rule's failure two. ⚠️ Enum members are literal fields, so an enum
+    /// counts: <c>if (x == CommandKind.Run)</c> on an already-typed <c>x</c> compiles to
+    /// <c>ldc.i4</c> with the enum type reachable only through whatever declared <c>x</c>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The spellings a grep is normally defeated by are handled here.</b> <c>Il</c>'s own
+    /// preamble names three: a <c>using</c> alias, a fully-qualified call, an extension method. The
+    /// third does not apply — there is no such thing as an extension <em>constant</em> — and the
+    /// other two do: a qualified read is matched through the type's own namespace suffixes (see
+    /// <see cref="QualifiedPrefix"/>), and every <c>using X = A.B.C;</c> is read out of the same
+    /// stripped text so that <c>X</c> is searched for alongside <c>C</c>. <b>A fourth spelling that
+    /// list does not mention</b> — <c>using static A.B.C;</c> then a bare <c>MEMBER</c> — leaves
+    /// neither an IL trace nor a <c>Type.MEMBER</c> pair, and is caught at the <em>directive</em>
+    /// instead: importing a type's statics is naming that type. Comments and string literals are
+    /// already blanked by <see cref="SourceText"/>, which is what keeps the four
+    /// <c>GameRules.Apply</c> mentions in <c>Primitives</c>' and <c>Model</c>'s comments from
+    /// reading as violations. ⚠️ Two further spellings are <b>not</b> closed and are listed in the
+    /// residual limits below, rather than left under a claim that everything is.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The residual limits, stated so nobody assumes otherwise</b> (steering <b>S1</b>). All of
+    /// them fail in the <em>loud</em> direction — a false positive whose fix is to move the value —
+    /// except the last two, which are gaps and are listed as such:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>A const read inside a <c>#if</c>-excluded branch reads as a violation and is not one.
+    ///   No such branch exists in <c>Core</c> today.</item>
+    ///   <item>An unqualified access to a member of the <em>enclosing</em> type whose name collides
+    ///   with an upper-layer type — <c>Energy.Total</c> where an upper layer declares an
+    ///   <c>Energy</c> carrying a const — reads as a violation. No such collision exists today
+    ///   (<c>Energy</c> is a <c>Player</c> property; the upper-layer types are <c>EnergyTuning</c>,
+    ///   <c>EnergyMath</c>, <c>EnergyAccrual</c>, <c>EnergySpend</c>).</item>
+    ///   <item><b>GAP.</b> Generic and nested types are excluded from the candidate set — see
+    ///   <see cref="IsSpellableInSource"/>. None declares a literal field in <c>Core</c> today.</item>
+    ///   <item><b>GAP.</b> A <em>namespace</em> alias (<c>using Econ = …Rules.Economy;</c> then
+    ///   <c>Econ.EnergyMath.MaxBanked</c>) and an alias whose target is spelled
+    ///   <c>global::A.B.C</c> are both missed: the alias map keys on the target's last segment being
+    ///   a candidate <em>type</em>, and <c>[\w.]+</c> cannot span <c>::</c>. Neither spelling exists
+    ///   in <c>Core</c>. Written down rather than closed because closing them means resolving
+    ///   namespace aliases into <see cref="QualifiedPrefix"/>, which is a second mechanism for a
+    ///   shape nobody has written — and a clause nobody can show working is the defect this whole
+    ///   file is about.</item>
+    ///   <item>The alias and static-import arms match on the target's <b>simple name</b> and ignore
+    ///   its namespace, so <c>using static System.Math;</c> would read as a violation if an upper
+    ///   layer ever declared a const-carrying <c>Math</c>. Loud direction; no collision today.</item>
+    ///   <item>Two same-named types in different layers — one permitted to this layer, one not —
+    ///   are indistinguishable to a simple-name match, so the permitted read would be reported.
+    ///   Loud direction; <c>Core</c> declares no duplicate simple names.</item>
+    /// </list>
+    /// <para>
+    /// What it cannot do is prove the <em>absence</em> of a const read in a file outside <c>Core</c>'s
+    /// project directory — which no file in this assembly is, because the SDK globs the directory.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> InlinedCrossLayerReferences(
+        (string Layer, string[] MustNotReference)[] forbidden,
+        IReadOnlyList<string> mustNotReachTheRoot)
+    {
+        var offenders = new List<string>();
+
+        foreach (var (layer, mustNotReference) in forbidden)
+        {
+            foreach (var upper in mustNotReference)
+            {
+                offenders.AddRange(
+                    InlinedReferencesFrom(layer, InlinableTypesIn(upper))
+                        .Select(hit => Explain(hit, layer, upper)));
+            }
+        }
+
+        // The root has no Layer row for the reason the metadata loop above records, so the
+        // root-directed direction is its own pass here too.
+        var rootTypes = InlinableRootTypes();
+
+        foreach (var layer in mustNotReachTheRoot)
+        {
+            offenders.AddRange(
+                InlinedReferencesFrom(layer, rootTypes)
+                    .Select(hit => Explain(hit, layer, Domain.CoreNamespace + " root")));
+        }
+
+        return offenders;
+
+        static string Explain(string hit, string layer, string upper) =>
+            $"{hit} — a type in {layer} names {upper} in SOURCE (30 §11.4). If the metadata scan " +
+            "above reported nothing for this file, the reference is an INLINED CONSTANT: the " +
+            "compiler folds a `const` into its use site, so no type, field or local reference " +
+            "reaches metadata and nothing but a source scan can see it. Make it `static readonly` " +
+            "if the layering permits the reference at all — that emits an ldsfld the scan can see — " +
+            "or move the value to a layer this one may name. ⚠️ If the scan above DID report this " +
+            "file, the two lines are one violation seen twice: the candidate set here is 'upper-" +
+            "layer types declaring at least one literal field', which is wider than 'the constant " +
+            "itself', so a type that happens to declare a const is watched by both arms. Fix the " +
+            "reference once.";
+    }
+
+    /// <summary>
+    /// Every hit of one of <paramref name="candidates"/> used as a member access, in the source
+    /// files of <paramref name="layer"/>, with each file's <c>using</c> aliases resolved.
+    /// </summary>
+    internal static IEnumerable<string> InlinedReferencesFrom(
+        string layer, IReadOnlyCollection<(string Name, string Namespace)> candidates)
+    {
+        if (candidates.Count == 0)
+        {
+            yield break;
+        }
+
+        var wanted = candidates.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var file in CoreSourceFiles.Value.Where(f => Il.IsUnder(f.Namespace, layer)))
+        {
+            foreach (var import in file.StaticImports.Where(wanted.Contains))
+            {
+                yield return $"{RepoLayout.Relative(file.Text.Path)} statically imports {import}";
+            }
+
+            foreach (var hit in InlinedMemberAccesses(file.Text.Stripped, candidates, file.Aliases))
+            {
+                yield return $"{RepoLayout.Relative(file.Text.Path)} reads {hit}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The pure half, so <see cref="The_inlined_reference_check_sees_a_const_read_and_refuses_a_bare_mention"/>
+    /// can drive it against text rather than against the repository.
+    /// </summary>
+    /// <param name="stripped">Source with comments and string literals already blanked.</param>
+    /// <param name="candidates">
+    /// Types whose members could be inlined constants, each with the namespace it is declared in —
+    /// the namespace is what lets a <b>qualified</b> read be recognised without <c>a.B.C</c> on an
+    /// arbitrary local reading as one.
+    /// </param>
+    /// <param name="aliases">This file's <c>using X = A.B.C;</c> map, alias to target simple name.</param>
+    internal static IEnumerable<string> InlinedMemberAccesses(
+        string stripped,
+        IReadOnlyCollection<(string Name, string Namespace)> candidates,
+        IReadOnlyDictionary<string, string> aliases)
+    {
+        var wanted = candidates.ToList();
+
+        // An alias stands for the type on its own, with no namespace in front of it — `EM.X`, never
+        // `Something.EM.X` — so it carries an empty namespace and gets no qualified-prefix arm.
+        wanted.AddRange(
+            aliases.Where(a => candidates.Any(c => c.Name.Equals(a.Value, StringComparison.Ordinal)))
+                   .Select(a => (Name: a.Key, Namespace: string.Empty)));
+
+        foreach (var (name, ns) in wanted.Distinct().OrderBy(c => c.Name, StringComparer.Ordinal))
+        {
+            // `Name` followed by a member access. Requiring the DOT AFTER is what makes this a
+            // const-read detector rather than a second, weaker copy of the metadata scan: a constant
+            // is always read as `Type.MEMBER`, while `nameof(Type)` or a bare type name in a
+            // signature has no dot — and a signature would have left an IL trace anyway.
+            //
+            // ⚠️ The lookbehind refusing a dot BEFORE is what keeps `state.Run.Position` — an
+            // ordinary instance member access on a local — from reading as `Model.Run`. That is
+            // also why the qualified form needs the explicit prefix below rather than a relaxed
+            // lookbehind: `…Rules.Economy.EnergyMath.MaxBanked` has a dot before the name too, and
+            // the only thing that tells the two apart is that one prefix is the type's OWN
+            // namespace and the other is whatever a local happens to be called.
+            // Built once per candidate and cached across files: `Testing` alone is a candidate layer
+            // in seven forbidden rows, and Core has ~60 source files. Measured before caching: the
+            // whole rule ran in 533 ms, so this is headroom rather than a fix.
+            var pattern = PatternCache.GetOrAdd(
+                (name, ns),
+                key => new Regex(
+                    @"(?<![\w.])" + QualifiedPrefix(key.Namespace) + Regex.Escape(key.Name) + @"\s*\.\s*\w+",
+                    RegexOptions.None));
+
+            foreach (Match match in pattern.Matches(stripped))
+            {
+                yield return Regex.Replace(match.Value, @"\s+", string.Empty);
+            }
+        }
+    }
+
+    /// <summary>
+    /// An optional namespace qualification in front of a type name: any <b>suffix</b> of the
+    /// declaring namespace, so <c>SlayIdleRepeat.Core.Rules.Economy.EnergyMath</c>,
+    /// <c>Rules.Economy.EnergyMath</c> and <c>Economy.EnergyMath</c> all read as the same type.
+    /// </summary>
+    /// <remarks>
+    /// Suffixes rather than the full name alone because C# resolves a partially-qualified name
+    /// against the enclosing namespace, and a rule that only knew the fully-qualified spelling would
+    /// have a hole exactly the width of `using SlayIdleRepeat.Core;`. Longest first, so a match
+    /// reports the whole qualification rather than its tail.
+    /// </remarks>
+    private static string QualifiedPrefix(string ns)
+    {
+        if (ns.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var segments = ns.Split('.');
+
+        var alternatives = Enumerable.Range(0, segments.Length)
+            .Select(skip => string.Join(@"\s*\.\s*", segments.Skip(skip).Select(Regex.Escape)))
+            .ToArray();
+
+        return @"(?:(?:global\s*::\s*)?(?:" + string.Join("|", alternatives) + @")\s*\.\s*)?";
+    }
+
+    /// <summary>
+    /// `Core` types under <paramref name="ns"/> that declare a literal field, with their namespaces.
+    /// </summary>
+    internal static IReadOnlyCollection<(string Name, string Namespace)> InlinableTypesIn(string ns) =>
+        InlinableTypesByNamespace.GetOrAdd(ns, key =>
+            Domain.CoreTypesUnder(key)
+                  .Where(t => t.Fields.Any(f => f.IsLiteral))
+                  .Where(IsSpellableInSource)
+                  .Select(t => (t.Name, Namespace: Il.NamespaceOf(t)))
+                  .Distinct()
+                  .ToArray());
+
+    /// <summary>One compiled <see cref="Regex"/> per (type name, declaring namespace).</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Name, string Namespace), Regex>
+        PatternCache = new();
+
+    /// <summary>Memoised per namespace: <c>Testing</c> alone appears in seven forbidden rows.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyCollection<(string Name, string Namespace)>>
+        InlinableTypesByNamespace = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 🔒 True when a type's Cecil name is the name C# source would spell it by — which generic and
+    /// nested types are not.
+    /// </summary>
+    /// <remarks>
+    /// Cecil spells a generic type <c>Foo`1</c> and a nested one by its bare inner name, so
+    /// <c>Regex.Escape</c> would produce a pattern that can never match source (the backtick) or one
+    /// the <c>(?&lt;![\w.])</c> lookbehind always rejects (<c>Outer.Nested.CONST</c> has a dot before
+    /// the inner name). Excluded <b>explicitly</b> rather than left to fail silently inside the
+    /// escape: no generic or nested <c>Core</c> type declares a literal field today, so this is a
+    /// stated residual limit and not a live gap — and if one ever does, the exclusion is a line
+    /// someone can find rather than a regex nobody suspects.
+    /// </remarks>
+    private static bool IsSpellableInSource(TypeDefinition type) =>
+        !type.HasGenericParameters && type.DeclaringType is null;
+
+    /// <summary>
+    /// `Core` types declared directly in the <c>SlayIdleRepeat.Core</c> root that declare a literal
+    /// field — the root's own inlinable surface, matched exactly rather than by prefix.
+    /// </summary>
+    private static IReadOnlyCollection<(string Name, string Namespace)> InlinableRootTypes() =>
+        Domain.CoreTypes
+              .Where(t => Il.NamespaceOf(t).Equals(Domain.CoreNamespace, StringComparison.Ordinal))
+              .Where(t => t.Fields.Any(f => f.IsLiteral))
+              .Where(IsSpellableInSource)
+              .Select(t => (t.Name, Namespace: Domain.CoreNamespace))
+              .Distinct()
+              .ToArray();
+
+    /// <summary>One `Core` source file, stripped, with its namespace and its <c>using</c> aliases.</summary>
+    private sealed record CoreSourceFile(
+        SourceText Text,
+        string Namespace,
+        IReadOnlyDictionary<string, string> Aliases,
+        IReadOnlyList<string> StaticImports);
+
+    private static readonly Lazy<IReadOnlyList<CoreSourceFile>> CoreSourceFiles = new(() =>
+        RepoLayout.SourceFiles(RepoLayout.ProjectDirectory(ProductionAssemblies.CoreName))
+                  .Select(ReadCoreSource)
+                  .ToArray());
+
+    private static CoreSourceFile ReadCoreSource(string path)
+    {
+        var text = SourceText.Read(path);
+
+        var ns = Regex.Match(text.Stripped, @"\bnamespace\s+([\w.]+)") is { Success: true } m
+            ? m.Groups[1].Value
+            : string.Empty;
+
+        var aliases = Regex.Matches(text.Stripped, @"\busing\s+(?!static\b)(\w+)\s*=\s*([\w.]+)\s*;")
+            .Select(x => (Alias: x.Groups[1].Value, Target: x.Groups[2].Value.Split('.').Last()))
+            .GroupBy(x => x.Alias, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Target, StringComparer.Ordinal);
+
+        // 🔒 `using static A.B.C;` followed by a BARE `MEMBER`. The fifth spelling, and the only one
+        // that leaves neither an IL trace nor a `Type.MEMBER` pair for the scan below to find — so it
+        // is caught at the DIRECTIVE instead, which is unambiguous and needs no attribution of bare
+        // identifiers. Importing a type's statics IS naming that type.
+        var staticImports = Regex.Matches(text.Stripped, @"\busing\s+static\s+([\w.]+)\s*;")
+            .Select(x => x.Groups[1].Value.Split('.').Last())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return new CoreSourceFile(text, ns, aliases, staticImports);
+    }
+
+    /// <summary>
+    /// The namespace part of a Cecil type name — <c>SlayIdleRepeat.Core.Testing</c> for
+    /// <c>SlayIdleRepeat.Core.Testing.InMemoryGame</c> and for its nested
+    /// <c>…InMemoryGame/PlayerSession</c>.
+    /// </summary>
+    /// <remarks>
+    /// A nested type is spelled <c>Namespace.Outer/Nested</c>, so the outer name is taken first and
+    /// the namespace is what precedes its last dot. Written out rather than done with a
+    /// <c>StartsWith(ns + ".")</c> because that would match a future
+    /// <c>SlayIdleRepeat.Core.TestingSupport</c> as well, which is the prefix trap
+    /// <c>Domain.IsPermittedCoreNamespace</c> documents.
+    /// </remarks>
+    private static string NamespaceOfReference(string typeFullName)
+    {
+        var outer = typeFullName.Split('/')[0];
+        var lastDot = outer.LastIndexOf('.');
+
+        return lastDot < 0 ? string.Empty : outer[..lastDot];
+    }
+
+    /// <summary>
+    /// True for a type declared directly in the <c>SlayIdleRepeat.Core</c> root — <c>GameContext</c>,
+    /// not <c>Content.ContentSnapshot</c>. Nested types are attributed to their outermost declaring
+    /// type, which is how Cecil spells them (<c>Namespace.Outer/Nested</c>).
+    /// </summary>
+    private static bool IsCoreRootType(string typeFullName)
+    {
+        if (!typeFullName.StartsWith(Domain.CoreNamespace + ".", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var outerName = typeFullName[(Domain.CoreNamespace.Length + 1)..].Split('/')[0];
+
+        return !outerName.Contains('.', StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.4 — the teeth of the inlined-reference arm of
+    /// <see cref="Core_internal_layering_holds"/>. It must recognise a <c>const</c> read and refuse
+    /// a bare mention, an instance member access, and a longer name that merely starts the same way.
+    /// </summary>
+    /// <remarks>
+    /// The negative cases carry the weight. Without the "longer name" case the check would report
+    /// <c>Primitives.RunId</c> as <c>Model.Run</c> on every file that names a run id, and a rule that
+    /// cries wolf on correct code is one the next agent weakens back out — which is how this hole
+    /// stayed open through three separate findings. Without the alias case the residual limit the arm
+    /// claims to have closed would still be open, with a comment saying it was not.
+    /// </remarks>
+    [Fact]
+    public void The_inlined_reference_check_sees_a_const_read_and_refuses_a_bare_mention()
+    {
+        var none = new Dictionary<string, string>(StringComparer.Ordinal);
+        var candidates = new[]
+        {
+            ("EnergyMath", "SlayIdleRepeat.Core.Rules.Economy"),
+            ("Run", "SlayIdleRepeat.Core.Model"),
+        };
+
+        InlinedMemberAccesses("var x = EnergyMath.MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "EnergyMath.MaxBanked",
+                "the plain, unqualified read is the shape the whole arm exists for. If this stops " +
+                "matching, nothing else in this method can tell you so — the negatives all pass over " +
+                "a predicate that matches nothing.");
+
+        InlinedMemberAccesses("var x = EnergyMath . MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "EnergyMath.MaxBanked",
+                "whitespace around the dot is legal C# and must not be a way past the check.");
+
+        InlinedMemberAccesses("var x = SlayIdleRepeat.Core.Rules.Economy.EnergyMath.MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "SlayIdleRepeat.Core.Rules.Economy.EnergyMath.MaxBanked",
+                "a fully-qualified read is one of the three ways Il's preamble says a grep is " +
+                "defeated. It is not one of them here: the qualification is built from the type's OWN " +
+                "namespace, so it is recognised without a bare relaxed lookbehind letting every " +
+                "instance member access in.");
+
+        InlinedMemberAccesses("var x = Economy.EnergyMath.MaxBanked;", candidates, none)
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "Economy.EnergyMath.MaxBanked",
+                "C# resolves a PARTIALLY-qualified name against the enclosing namespace, so a rule " +
+                "that knew only the fully-qualified spelling would have a hole the width of one " +
+                "`using`.");
+
+        InlinedMemberAccesses("nameof(EnergyMath)", candidates, none)
+            .ShouldBeEmpty(
+                "a bare mention is not a constant read, and anything that put the TYPE in a signature " +
+                "would have left an IL trace the metadata scan already reports.");
+
+        InlinedMemberAccesses("var x = RunId.Parse(s);", candidates, none)
+            .ShouldBeEmpty(
+                "RunId is a Primitives type and Run is a Model one. If this fires, every file naming a " +
+                "run id is a false positive and the arm gets deleted rather than obeyed.");
+
+        InlinedMemberAccesses("var x = other.Run.Position;", candidates, none)
+            .ShouldBeEmpty(
+                "a property access on an instance is not a static const read — the lookbehind refuses " +
+                "a preceding dot. Without this, `state.Run` reads as a layer naming Model.");
+
+        InlinedMemberAccesses(
+                "var x = EM.MaxBanked;",
+                candidates,
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["EM"] = "EnergyMath" })
+            .ShouldHaveSingleItem()
+            .ShouldBe(
+                "EM.MaxBanked",
+                "a `using EM = ...EnergyMath;` alias is the one way a grep of this shape can genuinely " +
+                "be defeated. It is resolved rather than declared a known limit.");
+
+        InlinedMemberAccesses("var x = EM.MaxBanked;", candidates, none)
+            .ShouldBeEmpty("an alias nobody declared is just an identifier.");
+
+        // 🔒 AND THE CHAIN, against the real repository. Everything above drives the pure string
+        // function with hand-built text and hand-built candidates — so if CoreSourceFiles' namespace
+        // regex, Il.IsUnder's layer match or InlinableTypesIn ever stopped resolving, every file
+        // would fall out of every layer, InlinedReferencesFrom would yield nothing, and both the arm
+        // and every assertion above would stay green. Driven over a PERMITTED pair — Model may name
+        // Primitives — so it can never become a false failure: Player reads CurrencyId's members,
+        // and CurrencyId is an enum, whose members are literal fields.
+        var live = InlinedReferencesFrom(
+                Domain.ModelNamespace, InlinableTypesIn(Domain.PrimitivesNamespace))
+            .ToArray();
+
+        live.ShouldNotBeEmpty(
+            "the whole chain — Core's source files, their parsed namespaces, the layer match and the " +
+            "literal-field candidate set — resolves against the real repository. Empty here means the " +
+            "arm is scanning nothing, with Core_internal_layering_holds green.");
+
+        live.ShouldContain(
+            hit => hit.Contains("CurrencyId.", StringComparison.Ordinal),
+            "Core/Model/ reads CurrencyId's enum members, and an enum member is a literal field — " +
+            "which is exactly the inlined read this arm exists to see.");
+
+        InlinableTypesIn(Domain.ContentNamespace)
+            .ShouldContain(
+                c => c.Name.Equals("EnergyTuning", StringComparison.Ordinal),
+                "an identity floor beside the count one (S3): the candidate set for a layer must " +
+                "still contain the type M1-10's exploit path is written about, or a count that " +
+                "merely stayed non-empty would hide its loss.");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §6 / §11.2 / §11.3 — the `30` §6 harness drives the aggregates through their
+    /// <b>public</b> seam only. A type under <c>Core/Testing/</c> may call
+    /// <c>Rehydrate</c>/<c>ToSnapshot</c> and every other public member of <c>Core/Model/</c>, and
+    /// may not touch a non-public one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>This is the hole <c>Core_internal_layering_holds</c>' <c>Testing</c> row writes down and
+    /// says it cannot reach.</b> That row permits <c>Testing -&gt; Model</c>, and it <em>must</em>:
+    /// `30` §11.3 makes <c>Player.Rehydrate</c> the one validated construction path and
+    /// <c>InMemoryGame.CreatePlayer</c> has to call it. But <c>Core/Testing/</c> lives inside the
+    /// production assembly, so <c>player.AccrueEnergy(…)</c>, <c>player.MoveCurrency(…)</c> and
+    /// <c>player.MarkApplied(…)</c> are all reachable from it — each bypassing <c>Apply</c> as
+    /// completely as calling <c>BeginSession.Handle</c> would, past the P4 clone, past the catch-up,
+    /// past the RNG fold and past the event stamping. M1-11 wrote the limit down honestly rather than
+    /// denying it and left it resting on <em>"InMemoryGame declaring no such door… and on review"</em>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It is closable, and the reason is that the boundary is an ACCESSIBILITY one, not a
+    /// namespace one.</b> Which is why it is a rule of its own rather than another row in that table:
+    /// no forbidden <em>pair</em> can express it, because the permitted and the forbidden reference
+    /// go to the same namespace and differ only in the visibility of the member reached. `30` §11.3
+    /// already put the sanctioned pair on the public surface — <c>Player.Rehydrate</c>,
+    /// <c>Run.Rehydrate</c>, <c>ToSnapshot</c> — precisely so an <em>adapter</em> could call it from
+    /// outside the assembly, so "public only" costs the harness nothing it is entitled to.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The floor is by identity</b> (steering <b>S3</b>). The subject set is "members of
+    /// <c>Core/Model/</c> reached from <c>Core/Testing/</c>", which becomes empty the moment the
+    /// harness stops building a <c>Player</c> — at which point this rule reports success forever over
+    /// a harness that has stopped driving the domain at all. <c>Rehydrate</c> is named, because a
+    /// count-only floor is satisfied by any Model call whatsoever.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What it does not close.</b> It governs <c>Core/Testing/</c>, not
+    /// <c>SlayIdleRepeat.Core.Tests</c> — the test assembly holds `30` §11.3's one
+    /// <c>InternalsVisibleTo</c> grant and is supposed to reach internals, which is what lets the
+    /// domain suite drive <c>Hash64</c> and <c>CanonicalStateWriter</c> directly. The harness is the
+    /// artefact that ships.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_harness_drives_the_aggregates_through_their_public_seam_only()
+    {
+        var reached = ModelMembersReachedFromTesting().ToArray();
+
+        Assert.True(
+            reached.Length > 0,
+            "Core/Testing/ names no Core/Model/ member at all, so this rule is quantifying over " +
+            "nothing and will report success forever. 30 §6's harness exists to DRIVE the aggregates; " +
+            "if it has stopped touching them, that is the finding, not this rule's silence.");
+
+        // 🔒 Player::Rehydrate EXACTLY, not "something called Rehydrate". Run.Rehydrate satisfies a
+        // Contains("Rehydrate") just as well, which would leave the floor claiming the harness still
+        // builds a Player while it had stopped — the by-name/by-identity distinction this file makes
+        // about Run::_wallet one rule over. InMemoryGame.CreatePlayer is the only call site.
+        Assert.True(
+            reached.Any(r => r.Member.Contains(
+                "SlayIdleRepeat.Core.Model.Player::Rehydrate", StringComparison.Ordinal)),
+            "the harness no longer calls Player.Rehydrate — 30 §11.3's one validated construction " +
+            "path. Either CreatePlayer has found another way to build an aggregate, which is what " +
+            "this rule exists to forbid, or the harness has stopped building one and the rule's " +
+            "subject set is about to empty.");
+
+        var offenders = reached
+            .Where(r => !r.IsPublic)
+            .Select(r =>
+                $"{r.Caller} calls the non-public {r.Member}. 30 §11.2 makes GameRules.Apply the only " +
+                "public way to change state, and 30 §6's harness is the artefact that DEMONSTRATES " +
+                "it. Reaching an AGGREGATE's internal mutator drives the domain behind Apply's back, " +
+                "past the P4 clone, past 30 §2.3's catch-up, past the 14 §8.1 RNG fold and past the " +
+                "30 §7 event stamping. Reaching an internal member of the CORE ROOT is worse: " +
+                "GameRules.Execute takes a CommandDispatch, so a harness calling it drives the domain " +
+                "against a fabricated command table, past all 49 of 14 §2.3's rows. Either way, every " +
+                "claim the harness makes about 'the rules decided this' becomes a claim about the " +
+                "harness. 30 §11.3's Rehydrate/ToSnapshot pair and 30 §11.2's Apply are public " +
+                "precisely so this is not a cost: build the state through them and send a command.");
+
+        ArchRule.Empty(
+            offenders,
+            "The 30 §6 harness reaches Core/Model/ and the Core root through their public seam only " +
+            "— it drives the " +
+            "domain through GameRules.Apply, never through an aggregate's internal mutator nor " +
+            "through an internal seam of the transition function itself (30 §6, 30 §11.2).");
+    }
+
+    /// <summary>
+    /// Every <c>Core/Model/</c> or <c>SlayIdleRepeat.Core</c>-root member a <c>Core/Testing/</c>
+    /// method names in its IL, with whether that member is publicly reachable.
+    /// </summary>
+    /// <remarks>
+    /// Methods and fields both: an <c>internal</c> field written directly is the same bypass as an
+    /// <c>internal</c> mutator called, and reading only the calls would leave the shorter route open.
+    /// A reference that cannot be resolved is skipped rather than guessed at — it is not a
+    /// <c>Core/Model/</c> member if Cecil cannot find it in this assembly.
+    /// </remarks>
+    private static IEnumerable<(string Caller, string Member, bool IsPublic)> ModelMembersReachedFromTesting()
+    {
+        foreach (var type in Domain.CoreTypesUnder(Domain.TestingNamespace))
+        {
+            foreach (var method in type.Methods)
+            {
+                foreach (var instruction in Il.Instructions(method))
+                {
+                    switch (instruction.Operand)
+                    {
+                        case MethodReference call when IsSanctionedHarnessRead(call):
+                            break;
+
+                        case MethodReference call when IsBehindTheSeam(call.DeclaringType):
+                            if (call.Resolve() is { } target)
+                            {
+                                yield return (
+                                    Il.Describe(method),
+                                    call.FullName,
+                                    target.IsPublic && IsPubliclyVisible(target.DeclaringType));
+                            }
+
+                            break;
+
+                        case FieldReference field when IsBehindTheSeam(field.DeclaringType):
+                            if (field.Resolve() is { } resolved)
+                            {
+                                yield return (
+                                    Il.Describe(method),
+                                    field.FullName,
+                                    resolved.IsPublic && IsPubliclyVisible(resolved.DeclaringType));
+                            }
+
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// True when a type is visible outside the assembly — public, and publicly nested all the way
+    /// out.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A <c>public</c> member on an <c>internal</c> type is not part of the seam `30` §11.3
+    /// sanctions: an adapter cannot reach it, so the harness reaching it is the same bypass by a
+    /// different spelling. No such type exists under <c>Core/Model/</c> today, which makes this a
+    /// hole closed rather than a defect fixed.
+    /// </remarks>
+    private static bool IsPubliclyVisible(TypeDefinition type)
+    {
+        var current = type;
+
+        while (current is not null)
+        {
+            if (!(current.DeclaringType is null ? current.IsPublic : current.IsNestedPublic))
+            {
+                return false;
+            }
+
+            current = current.DeclaringType;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 🔒 True when a type reference names something the harness must reach through a
+    /// <b>public</b> door: a <c>Core/Model/</c> aggregate, or a type in the
+    /// <c>SlayIdleRepeat.Core</c> root.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The root is here because it holds the sharper bypass, and an earlier draft of this rule
+    /// missed it.</b> <c>GameRules.Execute</c> is <c>internal static</c> and lives in the root, and
+    /// <c>Core_internal_layering_holds</c>' <c>Testing</c> row deliberately permits
+    /// <c>Testing → root</c> — so a harness calling <c>GameRules.Execute(someFabricatedDispatch, …)</c>
+    /// would drive the domain against a <em>made-up</em> command table, past all 49 production rows,
+    /// and every rule in this suite would stay green. That is worse than reaching an aggregate's
+    /// mutator, because it replaces the transition function's own dispatch rather than one write.
+    /// <c>GameRules.Apply</c> is <c>public</c>, which is the whole point: `30` §11.2 makes it the one
+    /// public way to change state, so "public only" leaves the harness exactly the door §6 gives it.
+    /// </remarks>
+    /// <remarks>
+    /// 🔒 <b>M1 REVIEW — Rng and Events joined Model and the root.</b> The predicate covered two of
+    /// <c>Core</c>'s ten namespaces, so the rule's name outran its subject set. <c>Core/Rng/</c> is
+    /// the one that mattered: <c>RunRngScope</c> accumulates the draw positions <c>Apply</c> folds
+    /// back, so a harness constructing a scope directly and committing fabricated positions is the
+    /// same class of bypass as reaching <c>player.AccrueEnergy</c> — and
+    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c> catches a <c>newobj</c> on the
+    /// generator, not on the scope.
+    /// <para>
+    /// ⚠️ <c>Primitives</c> and <c>Content</c> are deliberately NOT behind the seam, and that is a
+    /// decision rather than a silence: <c>VirtualClock</c> and <c>InMemoryGame</c> already read
+    /// <c>GameCalendar</c>, which is <c>internal static</c> under <c>Primitives</c>, to place the
+    /// game-day and game-week boundaries. Those are stateless calendar arithmetic — no aggregate is
+    /// mutated and no transition is driven — so the harness reading them is not a bypass of anything.
+    /// <see cref="SanctionedCalendarReads"/> names them, so a third such read is a build failure.
+    /// </para>
+    /// </remarks>
+    private static bool IsBehindTheSeam(TypeReference reference) =>
+        reference.Resolve() is { } resolved &&
+        (Il.IsUnder(Il.NamespaceOf(resolved), Domain.ModelNamespace) ||
+         Il.IsUnder(Il.NamespaceOf(resolved), Domain.RngNamespace) ||
+         Il.IsUnder(Il.NamespaceOf(resolved), Domain.EventsNamespace) ||
+         IsCoreRootType(resolved.FullName));
+
+    /// <summary>
+    /// The <c>Core/Primitives/</c> type the `30` §6 harness is sanctioned to reach, named rather
+    /// than left to a namespace exemption — the identity floor under the note above.
+    /// </summary>
+    internal static IReadOnlyList<string> SanctionedCalendarReads { get; } = new[] { "GameCalendar" };
+
+    /// <summary>
+    /// The internal root members `30` §6's harness is sanctioned to <b>read</b>, named rather than
+    /// pattern-matched.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>One question, two members.</b> <c>InMemoryGame.Send</c> asks the production dispatch
+    /// table for a command's <c>CommandKind</c> — <c>GameRules.RegistrationFor(t)?.Kind</c> — so it
+    /// can decide whether `30` §3's meta-only <c>CommandSeed</c> belongs on the context. Asking the
+    /// real table is strictly better than the alternative the harness would otherwise need (guessing
+    /// from the command's type name), and it writes nothing. Both halves of that one expression are
+    /// listed, because the widened rule caught the second the moment it caught the first.
+    /// </para>
+    /// <para>
+    /// ⚠️ Exempted by <b>NAME</b>, not by a predicate over "reads that look harmless": a third
+    /// internal root member is a build failure and therefore a decision, which is the whole reason
+    /// this rule was widened past <c>Core/Model/</c> in the first place. Nothing here is a mutation
+    /// path — <c>Execute</c>, the member that would be, is deliberately absent.
+    /// </para>
+    /// </remarks>
+    private static readonly (string Type, string Member)[] SanctionedHarnessReads =
+    {
+        (Domain.GameRulesType, "RegistrationFor"),
+        ("CommandRegistration", "get_Kind"),
+    };
+
+    private static bool IsSanctionedHarnessRead(MethodReference reference) =>
+        SanctionedHarnessReads.Any(s =>
+            reference.DeclaringType.Name.Equals(s.Type, StringComparison.Ordinal) &&
+            reference.Name.Equals(s.Member, StringComparison.Ordinal));
 
     /// <summary>
     /// `30` §11.3 — 🔒 `InternalsVisibleTo` names exactly one assembly,
@@ -185,13 +1143,27 @@ public sealed class AccessibilityBoundaryTests
     /// `Handlers`, `Testing`, or the `SlayIdleRepeat.Core` root that holds `GameRules`.
     /// </summary>
     /// <remarks>
-    /// <c>Core_internal_layering_holds</c> works from a fixed five-row table of forbidden
-    /// pairs, so a type under a namespace that appears in no row is matched by nothing at
-    /// all — not permitted, not forbidden, simply ungoverned, with the layering rule still
-    /// green. (This is the hole M0-07 reasoned about when it placed
-    /// <c>CanonicalStateWriter</c> under <c>Model/Snapshots/</c>; the judgement was right and
-    /// the hole stayed open.) Vacuously true today, which is the point: it costs nothing now
-    /// and makes the next <c>Core/Foo/</c> a build failure rather than a silent new region.
+    /// <para>
+    /// <c>Core_internal_layering_holds</c> works from a fixed table of forbidden pairs, so a
+    /// type under a namespace that appears in no row is matched by nothing at all — not
+    /// permitted, not forbidden, simply ungoverned, with the layering rule still green. (This
+    /// is the hole M0-07 reasoned about when it placed <c>CanonicalStateWriter</c> under
+    /// <c>Model/Snapshots/</c>; the judgement was right and the hole stayed open.) Naming the
+    /// permitted set instead makes the next <c>Core/Foo/</c> a build failure rather than a
+    /// silent new region.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Two facts in the sentence above have been corrected rather than left to rot</b>
+    /// (steering <b>S4</b>'s known limit, which this milestone keeps hitting). The table is not
+    /// <b>five</b> rows — M1-06 added the <c>Commands</c> row and M1-11 the <c>Events</c> and
+    /// <c>Testing</c> rows — and the count is deliberately <em>not</em> restated as a number here,
+    /// because a number in prose beside the thing it counts is a number that goes stale silently.
+    /// Read the table. And this rule is no longer <b>vacuously true</b>:
+    /// it was, while <c>Core</c> held no types, and it has quantified over real ones since
+    /// M0-06. <c>Core/Testing/</c> is the newest region it governs, and it is the sharpest case
+    /// the closed list has had — a directory named <em>Testing</em> inside the <em>production</em>
+    /// assembly (`30` §11.4), holding `30` §6's harness, whose every reference ships.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_Core_type_lives_under_a_documented_namespace()
@@ -227,12 +1199,205 @@ public sealed class AccessibilityBoundaryTests
             .Where(t => !Domain.IsCompilerGenerated(t))
             .Where(t => coreNames.Contains(t.Name) ||
                         Domain.DerivesFrom(t, Domain.GameCommandType) ||
-                        Domain.DerivesFrom(t, "DomainEvent"))
+                        Domain.DerivesFrom(t, Domain.DomainEventType))
             .Select(t => $"{t.FullName} re-declares a Core domain type");
 
         ArchRule.Empty(
             offenders,
             "Contracts re-declares no command, event or domain type — it is wire envelopes only (30 §11.6).");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.2 — the teeth of the exposed-collection half of
+    /// <see cref="Apply_is_the_only_public_mutation"/>, driven against real IL compiled from
+    /// <see cref="ExposedCollectionFixtures"/>. The shape it must catch is a violation, and a
+    /// violation is never committed to `Core` to prove a rule works.
+    /// </summary>
+    /// <remarks>
+    /// The negative half carries the same weight as the positive one. Every collection an
+    /// aggregate in this repository exposes today goes out behind a
+    /// <c>ReadOnlyDictionary&lt;,&gt;</c>, a <c>ReadOnlyCollection&lt;T&gt;</c> or an
+    /// <c>IReadOnly*</c>-typed field, and none of those casts back to its mutable store — so a
+    /// check that flagged them would be reverted within a commit, and the hole would stay open.
+    /// </remarks>
+    [Fact]
+    public void The_exposed_collection_check_catches_a_mutable_store_behind_a_read_only_view()
+    {
+        var hole = ExposedMutableCollections(
+            SuiteAssembly.Type(nameof(ExposedCollectionFixtures.ArrayBehindAReadOnlyView)));
+
+        hole.ShouldNotBeEmpty(
+            "an int[] handed out as IReadOnlyList<int> casts straight back to int[]. If this is empty " +
+            "the check is blind to the exact shape it was written for, and 30 §11.2's 'everything the " +
+            "outside world can see is a getter' is a claim nothing enforces.");
+
+        hole.ShouldHaveSingleItem().ShouldContain("System.Int32[]", Case.Sensitive);
+
+        ExposedMutableCollections(
+                SuiteAssembly.Type(nameof(ExposedCollectionFixtures.MutableFieldBehindAnInterfaceView)))
+            .ShouldNotBeEmpty(
+                "a Dictionary<,> reached through a getter typed IReadOnlyDictionary<,> casts back just as " +
+                "an array does. A check that only knew about arrays would miss the commoner shape.");
+
+        ExposedMutableCollections(
+                SuiteAssembly.Type(nameof(ExposedCollectionFixtures.ReadOnlyWrapperOverAMutableStore)))
+            .ShouldBeEmpty(
+                "a ReadOnlyDictionary<,> view over a private Dictionary<,> is the house idiom — Player's " +
+                "counters and Run's ad uses are both built this way. If this fires, the check flags the " +
+                "correct construction and would be weakened back out again.");
+
+        ExposedMutableCollections(
+                SuiteAssembly.Type(nameof(ExposedCollectionFixtures.ReadOnlyInterfaceOverAnImmutableStore)))
+            .ShouldBeEmpty(
+                "a field DECLARED as IReadOnlyDictionary<,> is the shape Run.RngStreamPositions and " +
+                "Player.Wallet use. It cannot be proven immutable from metadata and it is not the hole " +
+                "this check is about — flagging it would make the rule unsatisfiable.");
+    }
+
+    /// <summary>
+    /// The mutable collection types a read-only-looking getter can be cast straight back to.
+    /// </summary>
+    /// <remarks>
+    /// Arrays are handled separately (they are an <see cref="ArrayType"/>, not a named type). The
+    /// interfaces are here as well as the concrete classes because <c>IList&lt;T&gt;</c> and
+    /// <c>ICollection&lt;T&gt;</c> carry <c>Add</c>/<c>Clear</c> in their own signature — a field
+    /// declared as one is a mutation surface without any cast at all.
+    /// </remarks>
+    private static readonly string[] MutableCollectionTypes =
+    {
+        "System.Collections.Generic.List`1",
+        "System.Collections.Generic.Dictionary`2",
+        "System.Collections.Generic.HashSet`1",
+        "System.Collections.Generic.SortedDictionary`2",
+        "System.Collections.Generic.SortedList`2",
+        "System.Collections.Generic.SortedSet`1",
+        "System.Collections.Generic.LinkedList`1",
+        "System.Collections.Generic.Queue`1",
+        "System.Collections.Generic.Stack`1",
+        "System.Collections.ObjectModel.Collection`1",
+        "System.Collections.ObjectModel.KeyedCollection`2",
+        "System.Collections.Generic.ICollection`1",
+        "System.Collections.Generic.IList`1",
+        "System.Collections.Generic.IDictionary`2",
+        "System.Collections.Generic.ISet`1",
+        "System.Collections.IList",
+        "System.Collections.IDictionary",
+    };
+
+    /// <summary>True for an array or a mutable collection type, generic instantiation included.</summary>
+    private static bool IsMutableCollection(TypeReference? reference) =>
+        reference is ArrayType ||
+        (reference is not null &&
+         MutableCollectionTypes.Contains(reference.GetElementType().FullName, StringComparer.Ordinal));
+
+    /// <summary>
+    /// Every mutable collection an aggregate hands out: a public getter (or public field) whose own
+    /// type is mutable, and — the shape that matters — one whose read-only-looking type is backed
+    /// by a field declared mutable, which a caller casts straight back to.
+    /// </summary>
+    /// <remarks>
+    /// The backing field is read from the getter's IL rather than assumed to be an auto-property's,
+    /// because the hole is written by hand: <c>public IReadOnlyList&lt;T&gt; Items =&gt; _items;</c>
+    /// compiles to a <c>ldfld</c> on a field the property type says nothing about.
+    /// </remarks>
+    private static IReadOnlyList<string> ExposedMutableCollections(TypeDefinition type)
+    {
+        var offenders = new List<string>();
+
+        foreach (var property in type.Properties)
+        {
+            var getter = property.GetMethod;
+            if (getter is null || !getter.IsPublic || Domain.IsCompilerGenerated(getter))
+            {
+                continue;
+            }
+
+            if (IsMutableCollection(property.PropertyType))
+            {
+                offenders.Add(
+                    $"{type.FullName}.{property.Name} is typed {property.PropertyType.FullName}, a mutable " +
+                    "collection. A caller adds, clears or overwrites the aggregate's state through a getter, " +
+                    "which is a public mutation path around GameRules.Apply (30 §11.2).");
+                continue;
+            }
+
+            offenders.AddRange(
+                ReturnedFields(getter)
+                    .Where(field => IsMutableCollection(field.FieldType))
+                    .Select(field =>
+                        $"{type.FullName}.{property.Name} is typed {property.PropertyType.FullName} but returns " +
+                        $"{Il.Describe(field)}, declared {field.FieldType.FullName} — a mutable store a caller " +
+                        "casts straight back to. Wrap it (Array.AsReadOnly, ReadOnlyDictionary<,>) or hand out " +
+                        "a copy; a read-only-looking type is not a boundary (30 §11.2)."));
+        }
+
+        offenders.AddRange(
+            type.Fields
+                .Where(f => f.IsPublic && !Domain.IsCompilerGenerated(f) && IsMutableCollection(f.FieldType))
+                .Select(f =>
+                    $"{Il.Describe(f)} is a public {f.FieldType.FullName} — a mutable collection anyone can " +
+                    "write to, readonly or not (30 §11.2)."));
+
+        return offenders;
+    }
+
+    /// <summary>Every field of the declaring type a getter loads and returns.</summary>
+    private static IEnumerable<FieldDefinition> ReturnedFields(MethodDefinition getter) =>
+        Il.Instructions(getter)
+          .Where(i => i.OpCode == OpCodes.Ldfld || i.OpCode == OpCodes.Ldsfld)
+          .Select(i => (i.Operand as FieldReference)?.Resolve())
+          .Where(f => f is not null &&
+                      f.DeclaringType.FullName.Equals(getter.DeclaringType.FullName, StringComparison.Ordinal))
+          .Select(f => f!);
+
+    /// <summary>
+    /// The four shapes <see cref="ExposedMutableCollections"/> has to tell apart. They live here
+    /// rather than in `Core` because two of them are violations, and a violation is never committed
+    /// to the domain to prove a rule works.
+    /// </summary>
+    private static class ExposedCollectionFixtures
+    {
+        /// <summary>The hole `Player.WalletCurrencies` documents: an array behind a read-only view.</summary>
+        internal sealed class ArrayBehindAReadOnlyView
+        {
+            private readonly int[] _items = new int[1];
+
+            /// <summary>Casts straight back to <c>int[]</c>.</summary>
+            public IReadOnlyList<int> Items => _items;
+        }
+
+        /// <summary>The commoner spelling of the same hole: a <c>Dictionary</c> behind an interface.</summary>
+        internal sealed class MutableFieldBehindAnInterfaceView
+        {
+            private readonly Dictionary<string, long> _counters = new(StringComparer.Ordinal);
+
+            /// <summary>Casts straight back to <c>Dictionary&lt;string, long&gt;</c>.</summary>
+            public IReadOnlyDictionary<string, long> Counters => _counters;
+        }
+
+        /// <summary>The house idiom, and it must not be flagged: `Player`'s counters, `Run`'s ad uses.</summary>
+        internal sealed class ReadOnlyWrapperOverAMutableStore
+        {
+            private readonly Dictionary<string, long> _counters = new(StringComparer.Ordinal);
+            private readonly ReadOnlyDictionary<string, long> _view;
+
+            /// <summary>Builds the view once, exactly as the aggregates do.</summary>
+            internal ReadOnlyWrapperOverAMutableStore() =>
+                _view = new ReadOnlyDictionary<string, long>(_counters);
+
+            /// <summary>A live view that cannot be written through.</summary>
+            public IReadOnlyDictionary<string, long> Counters => _view;
+        }
+
+        /// <summary>The other legitimate shape: a field DECLARED read-only, replaced wholesale.</summary>
+        internal sealed class ReadOnlyInterfaceOverAnImmutableStore
+        {
+            private readonly IReadOnlyDictionary<string, ulong> _positions =
+                new ReadOnlyDictionary<string, ulong>(new Dictionary<string, ulong>(0, StringComparer.Ordinal));
+
+            /// <summary>`Run.RngStreamPositions`' shape.</summary>
+            public IReadOnlyDictionary<string, ulong> Positions => _positions;
+        }
     }
 
     /// <summary>Public types under `Core/Model/`, excluding the persistence DTOs of `Model/Snapshots/`.</summary>
@@ -242,9 +1407,12 @@ public sealed class AccessibilityBoundaryTests
               .Where(t => (t.IsPublic || t.IsNestedPublic) && !Domain.IsCompilerGenerated(t));
 
     /// <summary>An <c>init</c> accessor is a construction-time setter, not a mutation surface.</summary>
-    private static bool IsInitOnly(MethodDefinition setter) =>
-        setter.ReturnType is RequiredModifierType modifier &&
-        modifier.ModifierType.FullName == "System.Runtime.CompilerServices.IsExternalInit";
+    /// <remarks>
+    /// Delegates to <see cref="Il.IsInitOnlySetter"/> rather than repeating the modifier check:
+    /// <c>DomainPurityTests</c> asks the same question of the same metadata, and two spellings of
+    /// it would eventually disagree about a record (steering S4).
+    /// </remarks>
+    private static bool IsInitOnly(MethodDefinition setter) => Il.IsInitOnlySetter(setter);
 
     /// <summary>
     /// A public method that writes an instance or static field of the type it is declared

@@ -1,5 +1,7 @@
-using FluentAssertions;
+using Shouldly;
+using SlayIdleRepeat.TestSupport;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
@@ -21,7 +23,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int>(1));
 
-        Hex(bytes).Should().Be("0100000000000000");
+        Hex(bytes).ShouldBe("0100000000000000");
     }
 
     /// <summary>
@@ -34,7 +36,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int>(-1));
 
-        Hex(bytes).Should().Be("ffffffffffffffff");
+        Hex(bytes).ShouldBe("ffffffffffffffff");
     }
 
     /// <summary>A negative int that is not all-ones, so the row above cannot pass by accident.</summary>
@@ -43,7 +45,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int>(-2));
 
-        Hex(bytes).Should().Be("feffffffffffffff");
+        Hex(bytes).ShouldBe("feffffffffffffff");
     }
 
     /// <summary>`14` §16.6 — an unsigned integer is zero-extended, the mirror of the rule above.</summary>
@@ -52,7 +54,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<uint>(uint.MaxValue));
 
-        Hex(bytes).Should().Be("ffffffff00000000");
+        Hex(bytes).ShouldBe("ffffffff00000000");
     }
 
     /// <summary>`14` §16.6 — every integral width widens to the same 8 bytes for the same value.</summary>
@@ -65,7 +67,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(OneValueOf(value));
 
-        Hex(bytes).Should().Be("ffffffffffffffff");
+        Hex(bytes).ShouldBe("ffffffffffffffff");
     }
 
     /// <summary>`14` §16.6 — a <see cref="ulong"/> survives its full range, uninterpreted.</summary>
@@ -74,7 +76,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<ulong>(ulong.MaxValue));
 
-        Hex(bytes).Should().Be("ffffffffffffffff");
+        Hex(bytes).ShouldBe("ffffffffffffffff");
     }
 
     /// <summary>🔒 A boolean is <b>one</b> byte — not a widened integer.</summary>
@@ -85,7 +87,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<bool>(value));
 
-        Hex(bytes).Should().Be(expected);
+        Hex(bytes).ShouldBe(expected);
     }
 
     /// <summary>🔒 An enum is its numeric value, 8 bytes — never its name and never its ordinal.</summary>
@@ -94,7 +96,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<Element>(Element.Frost));
 
-        Hex(bytes).Should().Be("0700000000000000");
+        Hex(bytes).ShouldBe("0700000000000000");
     }
 
     /// <summary>An enum widens exactly as its underlying integral type does — signed, negative.</summary>
@@ -103,7 +105,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<Rarity>(Rarity.Cursed));
 
-        Hex(bytes).Should().Be("fdffffffffffffff");
+        Hex(bytes).ShouldBe("fdffffffffffffff");
     }
 
     /// <summary>A <see cref="ulong"/>-backed enum keeps values no <see cref="long"/> could hold.</summary>
@@ -112,7 +114,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<BigFlag>(BigFlag.All));
 
-        Hex(bytes).Should().Be("ffffffffffffffff");
+        Hex(bytes).ShouldBe("ffffffffffffffff");
     }
 
     /// <summary>
@@ -125,7 +127,7 @@ public sealed class CanonicalEncodingTests
         var asEnum = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<Element>(Element.Frost));
         var asInt = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int>(7));
 
-        Hex(asEnum).Should().Be(Hex(asInt));
+        Hex(asEnum).ShouldBe(Hex(asInt));
     }
 
     /// <summary>
@@ -136,12 +138,12 @@ public sealed class CanonicalEncodingTests
     [Fact]
     public void CanonicalBytes_prefixes_a_string_with_its_UTF8_byte_count_not_its_char_count()
     {
-        ReferenceSnapshots.MultiByteText.Length.Should().Be(9);
+        ReferenceSnapshots.MultiByteText.Length.ShouldBe(9);
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string>(ReferenceSnapshots.MultiByteText));
 
         // 01 = present, 0f000000 = 15 bytes little-endian, then the UTF-8 bytes themselves.
-        Hex(bytes).Should().Be("010f000000" + "4772c3bcc39f652c20e4b896e7958c");
+        Hex(bytes).ShouldBe("010f000000" + "4772c3bcc39f652c20e4b896e7958c");
     }
 
     /// <summary>A plain ASCII string, so the prefix is readable without decoding UTF-8.</summary>
@@ -150,7 +152,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string>("abc"));
 
-        Hex(bytes).Should().Be("01" + "03000000" + "616263");
+        Hex(bytes).ShouldBe("01" + "03000000" + "616263");
     }
 
     /// <summary>An empty string is a <b>present</b> slot with a zero byte count.</summary>
@@ -159,7 +161,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string>(""));
 
-        Hex(bytes).Should().Be("01" + "00000000");
+        Hex(bytes).ShouldBe("01" + "00000000");
     }
 
     /// <summary>🔒 An empty string and an absent string are different states and different bytes.</summary>
@@ -169,7 +171,7 @@ public sealed class CanonicalEncodingTests
         var empty = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string?>(""));
         var absent = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string?>(null));
 
-        Hex(empty).Should().NotBe(Hex(absent));
+        Hex(empty).ShouldNotBe(Hex(absent));
     }
 
     /// <summary>
@@ -183,7 +185,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<string>("\uFEFFa"));
 
-        Hex(bytes).Should().Be("01" + "04000000" + "efbbbf" + "61");
+        Hex(bytes).ShouldBe("01" + "04000000" + "efbbbf" + "61");
     }
 
     /// <summary>
@@ -197,7 +199,7 @@ public sealed class CanonicalEncodingTests
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<DateTimeOffset>(stamp));
 
-        Hex(bytes).Should().Be("5549b0d38f010000");
+        Hex(bytes).ShouldBe("5549b0d38f010000");
     }
 
     /// <summary>The epoch itself is eight zero bytes — the row a seconds-based encoder also passes.</summary>
@@ -207,7 +209,7 @@ public sealed class CanonicalEncodingTests
         var bytes = CanonicalStateWriter.CanonicalBytes(
             new OneValueSnapshot<DateTimeOffset>(DateTimeOffset.FromUnixTimeMilliseconds(0)));
 
-        Hex(bytes).Should().Be("0000000000000000");
+        Hex(bytes).ShouldBe("0000000000000000");
     }
 
     /// <summary>
@@ -220,7 +222,7 @@ public sealed class CanonicalEncodingTests
         var bytes = CanonicalStateWriter.CanonicalBytes(
             new OneValueSnapshot<DateTimeOffset>(DateTimeOffset.FromUnixTimeMilliseconds(1000)));
 
-        Hex(bytes).Should().Be("e803000000000000");
+        Hex(bytes).ShouldBe("e803000000000000");
     }
 
     /// <summary>A pre-epoch instant is a negative millisecond count, sign-extended like any integer.</summary>
@@ -230,7 +232,7 @@ public sealed class CanonicalEncodingTests
         var bytes = CanonicalStateWriter.CanonicalBytes(
             new OneValueSnapshot<DateTimeOffset>(DateTimeOffset.FromUnixTimeMilliseconds(-1000)));
 
-        Hex(bytes).Should().Be("18fcffffffffffff");
+        Hex(bytes).ShouldBe("18fcffffffffffff");
     }
 
     /// <summary>
@@ -246,7 +248,7 @@ public sealed class CanonicalEncodingTests
         var utcBytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<DateTimeOffset>(utc));
         var shiftedBytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<DateTimeOffset>(shifted));
 
-        Hex(shiftedBytes).Should().Be(Hex(utcBytes));
+        Hex(shiftedBytes).ShouldBe(Hex(utcBytes));
     }
 
     /// <summary>
@@ -260,7 +262,7 @@ public sealed class CanonicalEncodingTests
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneUtcDateTimeSnapshot(value));
 
-        Hex(bytes).Should().Be("00c2abd38f010000");
+        Hex(bytes).ShouldBe("00c2abd38f010000");
     }
 
     /// <summary>
@@ -277,7 +279,7 @@ public sealed class CanonicalEncodingTests
 
         var act = () => CanonicalStateWriter.CanonicalBytes(new UnsupportedSnapshots.WithLocalDateTime(value));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*Utc*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*Utc*");
     }
 
     /// <summary>🔒 A present optional is the presence byte <c>0x01</c>, then the value.</summary>
@@ -286,7 +288,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int?>(1));
 
-        Hex(bytes).Should().Be("01" + "0100000000000000");
+        Hex(bytes).ShouldBe("01" + "0100000000000000");
     }
 
     /// <summary>🔒 An absent optional is the presence byte <c>0x00</c> and nothing else.</summary>
@@ -295,7 +297,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int?>(null));
 
-        Hex(bytes).Should().Be("00");
+        Hex(bytes).ShouldBe("00");
     }
 
     /// <summary>
@@ -308,8 +310,8 @@ public sealed class CanonicalEncodingTests
         var present = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int?>(0));
         var absent = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int?>(null));
 
-        Hex(present).Should().Be("01" + "0000000000000000");
-        Hex(absent).Should().Be("00");
+        Hex(present).ShouldBe("01" + "0000000000000000");
+        Hex(absent).ShouldBe("00");
     }
 
     /// <summary>An absent nested record is one zero byte — the descent stops, it does not zero-fill.</summary>
@@ -318,7 +320,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OptionalsSnapshot(null, null, null));
 
-        Hex(bytes).Should().Be("000000");
+        Hex(bytes).ShouldBe("000000");
     }
 
     /// <summary>
@@ -331,7 +333,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(1234.5678));
 
-        Hex(bytes).Should().Be("adfa5c6d454a9340");
+        Hex(bytes).ShouldBe("adfa5c6d454a9340");
     }
 
     /// <summary>
@@ -345,7 +347,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(0.1));
 
-        Hex(bytes).Should().Be("9a9999999999b93f");
+        Hex(bytes).ShouldBe("9a9999999999b93f");
     }
 
     /// <summary>
@@ -365,14 +367,15 @@ public sealed class CanonicalEncodingTests
     public void CanonicalBytes_refuses_negative_zero()
     {
         var negativeZero = BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000000UL));
-        negativeZero.Should().Be(0.0);
-        double.IsNegative(negativeZero).Should().BeTrue();
+        negativeZero.ShouldBe(0.0);
+        double.IsNegative(negativeZero).ShouldBeTrue();
 
         var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(negativeZero));
 
-        act.Should().Throw<NotSupportedException>()
-            .WithMessage("*-0.0*")
-            .WithMessage("*record equality*");
+        var thrown = Should.Throw<NotSupportedException>(act);
+
+        thrown.Message.ShouldMatchWildcard("*-0.0*");
+        thrown.Message.ShouldMatchWildcard("*record equality*");
     }
 
     /// <summary>
@@ -384,11 +387,11 @@ public sealed class CanonicalEncodingTests
     public void CanonicalBytes_refuses_the_negative_zero_that_the_rounding_rule_itself_produces()
     {
         var rounded = Math.Round(-0.00004, 4);
-        double.IsNegative(rounded).Should().BeTrue();
+        double.IsNegative(rounded).ShouldBeTrue();
 
         var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(rounded));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*-0.0*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*-0.0*");
     }
 
     /// <summary>
@@ -400,7 +403,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(0.0));
 
-        Hex(bytes).Should().Be("0000000000000000");
+        Hex(bytes).ShouldBe("0000000000000000");
     }
 
     /// <summary>
@@ -413,7 +416,7 @@ public sealed class CanonicalEncodingTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(0.123456789));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*4*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*4*");
     }
 
     /// <summary>
@@ -434,7 +437,7 @@ public sealed class CanonicalEncodingTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(value));
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     /// <summary>🔒 §16.6 — NaN is forbidden in state. CI fails on it; so does the writer.</summary>
@@ -443,7 +446,7 @@ public sealed class CanonicalEncodingTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(double.NaN));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*NaN*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*NaN*");
     }
 
     /// <summary>🔒 §16.6 — the infinities are forbidden in state, both of them.</summary>
@@ -454,7 +457,7 @@ public sealed class CanonicalEncodingTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(value));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*infinit*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*infinit*");
     }
 
     /// <summary>
@@ -468,7 +471,7 @@ public sealed class CanonicalEncodingTests
 
         var act = () => CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<double>(signalling));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*NaN*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*NaN*");
     }
 
     /// <summary>
@@ -480,7 +483,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(ReferenceSnapshots.NestedDepthThree);
 
-        Hex(bytes).Should().Be(
+        Hex(bytes).ShouldBe(
             "01" + "05000000" + "6f75746572" +          // Head    : "outer"
             "01" +                                       // Middle  : present
                 "01" + "06000000" + "6d6964646c65" +     //   Label : "middle"
@@ -501,7 +504,7 @@ public sealed class CanonicalEncodingTests
             "a", new MiddleSnapshot("b", new InnerSnapshot(1, "c")), 2));
         var flattened = CanonicalStateWriter.CanonicalBytes(new FlattenedSnapshot("a", "b", 1, "c", 2));
 
-        Hex(nested).Should().NotBe(Hex(flattened));
+        Hex(nested).ShouldNotBe(Hex(flattened));
     }
 
     /// <summary>The root snapshot is required: there is no presence byte and no "absent state".</summary>
@@ -510,7 +513,7 @@ public sealed class CanonicalEncodingTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>
@@ -522,7 +525,7 @@ public sealed class CanonicalEncodingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<int>(1));
 
-        bytes.Should().HaveCount(8);
+        bytes.Length.ShouldBe(8);
     }
 
     private static object OneValueOf(object value) => value switch
@@ -533,6 +536,65 @@ public sealed class CanonicalEncodingTests
         long v => new OneValueSnapshot<long>(v),
         _ => throw new InvalidOperationException($"No fixture for {value.GetType()}."),
     };
+
+    /// <summary>
+    /// 🔒 <c>EnergyBanks</c> (M1-10) has the positional shape `14` §16.6 requires, so
+    /// <c>PlayerSnapshot</c> can carry it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the case the type's <b>shape</b> exists for, and it is asserted rather than assumed.
+    /// <c>EnergyBanks</c> was first written as an <c>internal</c> record struct with <c>internal</c>
+    /// properties, which <see cref="CanonicalStateWriter.CanonicalProperties"/> refuses — a
+    /// <c>BindingFlags.Public</c> lookup finds neither property, the type falls off the closed
+    /// allowlist, and the first person to put one in a snapshot discovers it has no canonical
+    /// encoding. <c>PlayerId</c>'s remarks record the same trap; this pins the answer for the type
+    /// M1-04 will actually persist.
+    /// </para>
+    /// <para>
+    /// Two banks, two 8-byte little-endian fields, in <b>constructor</b> order — <c>Energy</c> then
+    /// <c>Reserve</c>. Swapping the two parameters moves these bytes, which is exactly the
+    /// <c>SchemaVersion</c> change `14` §16.6 wants to be impossible to make silently.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void CanonicalBytes_encodes_EnergyBanks_as_two_widened_fields()
+    {
+        CanonicalStateWriter.IsCanonicalRecord(typeof(EnergyBanks)).ShouldBeTrue(
+            "EnergyBanks is not a positional record by 14 §16.6's test — exactly one public " +
+            "constructor, every parameter matched by a public readable property of the same name " +
+            "and type, and no public property beyond them. PlayerSnapshot cannot carry it, and " +
+            "30 §11.5's 'Energy never exceeds max + reserve' has nothing to persist.");
+
+        CanonicalStateWriter.CanonicalFieldOrder(typeof(OneValueSnapshot<EnergyBanks>)).ShouldBe(
+            new[] { "Value.Energy:System.Int32", "Value.Reserve:System.Int32" });
+
+        Hex(CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<EnergyBanks>(new EnergyBanks(138, 200))))
+            .ShouldBe("8a00000000000000" + "c800000000000000");
+    }
+
+    /// <summary>
+    /// 🔒 The converse, and the reason a byte test beats a "does it throw" test: neither bank is
+    /// silently omitted. A field that contributed zero bytes would let two states record equality
+    /// calls different share a <c>stateHash</c> — the one failure a state hash may never have.
+    /// </summary>
+    [Fact]
+    public void CanonicalBytes_distinguishes_EnergyBanks_that_differ_in_either_bank()
+    {
+        var baseline = Hex(Bytes(new EnergyBanks(138, 200)));
+
+        Hex(Bytes(new EnergyBanks(139, 200))).ShouldNotBe(
+            baseline, "the main bar contributed no bytes.");
+        Hex(Bytes(new EnergyBanks(138, 201))).ShouldNotBe(
+            baseline, "the Energy Reserve contributed no bytes.");
+
+        // 🔒 And the two banks are not interchangeable: (138, 200) and (200, 138) hold different
+        // amounts of spendable Energy in different places and must not collide.
+        Hex(Bytes(new EnergyBanks(200, 138))).ShouldNotBe(baseline);
+
+        static byte[] Bytes(EnergyBanks banks) =>
+            CanonicalStateWriter.CanonicalBytes(new OneValueSnapshot<EnergyBanks>(banks));
+    }
 
     private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
 }

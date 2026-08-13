@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
 
@@ -32,7 +32,7 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode(-1);
 
-        bytes.Should().Equal(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+        bytes.ShouldBe(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF });
     }
 
     /// <summary>Positive integers are plain little-endian, which pins byte order.</summary>
@@ -41,7 +41,7 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode(1);
 
-        bytes.Should().Equal(0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+        bytes.ShouldBe(new byte[] { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 });
     }
 
     /// <summary>
@@ -53,8 +53,8 @@ public sealed class Hash64EncodingTests
     [Fact]
     public void The_encoding_is_by_value_so_int_minus_one_long_minus_one_and_ulong_MaxValue_agree()
     {
-        Hash64.Of(-1).Should().Be(Hash64.Of(-1L));
-        Hash64.Of(-1L).Should().Be(Hash64.Of(ulong.MaxValue));
+        Hash64.Of(-1).ShouldBe(Hash64.Of(-1L));
+        Hash64.Of(-1L).ShouldBe(Hash64.Of(ulong.MaxValue));
     }
 
     /// <summary>An enum widens through its underlying type, signed ones by sign extension.</summary>
@@ -63,7 +63,7 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode((ReferenceEnums.Int32Enum)(-1));
 
-        bytes.Should().Equal(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+        bytes.ShouldBe(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF });
     }
 
     /// <summary>An unsigned-backed enum widens by zero extension, and past <c>long.MaxValue</c> intact.</summary>
@@ -72,7 +72,7 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode((ReferenceEnums.UInt32Enum)uint.MaxValue);
 
-        bytes.Should().Equal(0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00);
+        bytes.ShouldBe(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00 });
     }
 
     /// <summary>The empty string is a four-byte zero count and nothing else — never zero bytes.</summary>
@@ -81,7 +81,7 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode(string.Empty);
 
-        bytes.Should().Equal(0x00, 0x00, 0x00, 0x00);
+        bytes.ShouldBe(new byte[] { 0x00, 0x00, 0x00, 0x00 });
     }
 
     /// <summary>A one-byte ASCII string: the count, then the byte.</summary>
@@ -90,7 +90,7 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode("a");
 
-        bytes.Should().Equal(0x01, 0x00, 0x00, 0x00, 0x61);
+        bytes.ShouldBe(new byte[] { 0x01, 0x00, 0x00, 0x00, 0x61 });
     }
 
     /// <summary>
@@ -103,12 +103,12 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode("größe");
 
-        bytes.Should().HaveCount(4 + 7);
-        bytes.Take(4).Should().Equal(0x07, 0x00, 0x00, 0x00);
+        bytes.Length.ShouldBe(4 + 7);
+        bytes.Take(4).ShouldBe(new byte[] { 0x07, 0x00, 0x00, 0x00 });
 
         // g r ö(c3 b6) ß(c3 9f) e — the payload, not merely its count, so an encoder that got the
         // number right and the bytes wrong is caught here too. Its astral sibling below does the same.
-        bytes.Skip(4).Should().Equal(0x67, 0x72, 0xC3, 0xB6, 0xC3, 0x9F, 0x65);
+        bytes.Skip(4).ShouldBe(new byte[] { 0x67, 0x72, 0xC3, 0xB6, 0xC3, 0x9F, 0x65 });
     }
 
     /// <summary>
@@ -120,9 +120,9 @@ public sealed class Hash64EncodingTests
     {
         var bytes = Encode("\U0001F3B2");
 
-        bytes.Should().HaveCount(4 + 4);
-        bytes.Take(4).Should().Equal(0x04, 0x00, 0x00, 0x00);
-        bytes.Skip(4).Should().Equal(0xF0, 0x9F, 0x8E, 0xB2);
+        bytes.Length.ShouldBe(4 + 4);
+        bytes.Take(4).ShouldBe(new byte[] { 0x04, 0x00, 0x00, 0x00 });
+        bytes.Skip(4).ShouldBe(new byte[] { 0xF0, 0x9F, 0x8E, 0xB2 });
     }
 
     /// <summary>
@@ -132,7 +132,7 @@ public sealed class Hash64EncodingTests
     [Fact]
     public void The_encoding_is_argument_order_sensitive()
     {
-        Hash64.Of(1, "a").Should().NotBe(Hash64.Of("a", 1));
+        Hash64.Of(1, "a").ShouldNotBe(Hash64.Of("a", 1));
     }
 
     /// <summary>
@@ -142,7 +142,7 @@ public sealed class Hash64EncodingTests
     [Fact]
     public void The_length_prefix_separates_argument_lists_that_would_otherwise_concatenate_alike()
     {
-        Hash64.Of("ab", "c").Should().NotBe(Hash64.Of("a", "bc"));
+        Hash64.Of("ab", "c").ShouldNotBe(Hash64.Of("a", "bc"));
     }
 
     /// <summary>
@@ -157,7 +157,7 @@ public sealed class Hash64EncodingTests
         var viaDrawOverload = Hash64.Of(0x0123456789ABCDEFUL, "dice", 12UL);
         var viaGeneralOverload = Hash64.Of(new Hash64Argument[] { 0x0123456789ABCDEFUL, "dice", 12UL });
 
-        viaDrawOverload.Should().Be(viaGeneralOverload);
+        viaDrawOverload.ShouldBe(viaGeneralOverload);
     }
 
     /// <summary>
@@ -171,7 +171,7 @@ public sealed class Hash64EncodingTests
     {
         var index = 12;
 
-        Hash64.Of(7UL, "dice", index).Should().Be(Hash64.Of(7UL, "dice", 12UL));
+        Hash64.Of(7UL, "dice", index).ShouldBe(Hash64.Of(7UL, "dice", 12UL));
     }
 
     /// <summary>
@@ -182,35 +182,35 @@ public sealed class Hash64EncodingTests
     [Fact]
     public void The_encoding_of_no_arguments_is_the_empty_buffer()
     {
-        Hash64.CanonicalByteCount(Array.Empty<Hash64Argument>()).Should().Be(0);
-        Hash64.Of().Should().Be(0xEF46DB3751D8E999UL);
+        Hash64.CanonicalByteCount(Array.Empty<Hash64Argument>()).ShouldBe(0);
+        Hash64.Of().ShouldBe(0xEF46DB3751D8E999UL);
     }
 
     /// <summary>A null string has no canonical encoding; it is a caller bug, not a draw.</summary>
     [Fact]
     public void The_encoding_rejects_a_null_string_argument()
     {
-        var act = () => Hash64.Of((string)null!);
+        Action act = () => _ = Hash64.Of((string)null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>A null argument array is the same caller bug one level up.</summary>
     [Fact]
     public void The_encoding_rejects_a_null_argument_array()
     {
-        var act = () => Hash64.Of((Hash64Argument[])null!);
+        Action act = () => _ = Hash64.Of((Hash64Argument[])null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>A null stream name on the draw overload is rejected the same way.</summary>
     [Fact]
     public void The_draw_overload_rejects_a_null_stream_name()
     {
-        var act = () => Hash64.Of(0UL, null!, 0UL);
+        Action act = () => _ = Hash64.Of(0UL, null!, 0UL);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>
@@ -223,7 +223,11 @@ public sealed class Hash64EncodingTests
     {
         var oneOfEach = new Hash64Argument[] { 0UL, 0L, 0, ReferenceEnums.Int32Enum.Zero };
 
-        oneOfEach.Should().AllSatisfy(argument => Hash64.CanonicalByteCount(new[] { argument }).Should().Be(8));
+        oneOfEach.ShouldNotBeEmpty();
+        foreach (var argument in oneOfEach)
+        {
+            Hash64.CanonicalByteCount(new[] { argument }).ShouldBe(8, $"argument {argument}");
+        }
     }
 
     /// <summary>The draw shape: 8 + (4 + 4) + 8 for a four-byte stream name.</summary>
@@ -232,7 +236,7 @@ public sealed class Hash64EncodingTests
     {
         var length = Hash64.CanonicalByteCount(new Hash64Argument[] { 0UL, "dice", 0UL });
 
-        length.Should().Be(8 + 4 + 4 + 8);
+        length.ShouldBe(8 + 4 + 4 + 8);
     }
 
     /// <summary>
@@ -259,12 +263,12 @@ public sealed class Hash64EncodingTests
         var text = new string('x', length);
         var arguments = new Hash64Argument[] { text };
 
-        Hash64.CanonicalByteCount(arguments).Should().Be(4 + length);
+        Hash64.CanonicalByteCount(arguments).ShouldBe(4 + length);
 
         var expected = new byte[4 + length];
         Hash64.WriteCanonical(arguments, expected);
 
-        Hash64.Of(text).Should().Be(Hash64.XxHash64(expected));
+        Hash64.Of(text).ShouldBe(Hash64.XxHash64(expected));
     }
 
     /// <summary>
@@ -281,12 +285,12 @@ public sealed class Hash64EncodingTests
         var text = new string('y', length);
         var arguments = new Hash64Argument[] { 0x0123456789ABCDEFUL, text, 12UL };
 
-        Hash64.CanonicalByteCount(arguments).Should().Be(8 + 4 + length + 8);
+        Hash64.CanonicalByteCount(arguments).ShouldBe(8 + 4 + length + 8);
 
         var expected = new byte[8 + 4 + length + 8];
         Hash64.WriteCanonical(arguments, expected);
 
-        Hash64.Of(arguments).Should().Be(Hash64.XxHash64(expected));
+        Hash64.Of(arguments).ShouldBe(Hash64.XxHash64(expected));
     }
 
     /// <summary>
@@ -308,7 +312,7 @@ public sealed class Hash64EncodingTests
         var viaDrawOverload = Hash64.Of(0x0123456789ABCDEFUL, streamName, 12UL);
         var viaGeneralOverload = Hash64.Of(new Hash64Argument[] { 0x0123456789ABCDEFUL, streamName, 12UL });
 
-        viaDrawOverload.Should().Be(viaGeneralOverload);
+        viaDrawOverload.ShouldBe(viaGeneralOverload);
     }
 
     private static byte[] Encode(Hash64Argument argument)

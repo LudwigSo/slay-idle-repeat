@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using Xunit;
 
@@ -31,7 +31,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithTuningEdit("\"topRarity\": \"SS\"", "\"topRarity\": \"SSS\""));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithTuningEdit("\"id\": \"WID_ANVIL\"", "\"id\": \"anvil\""));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class SchemaValidationTests
         var issues = Issues(ContentTestData.WithTuningEdit(
             "\"inputCount\": 3", "\"inputCount\": 3, \"inputCountt\": 3"));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class SchemaValidationTests
         }
         """));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.UnknownId);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
     // ------------------------------------------------------------ 14 §6: out-of-range values
@@ -72,7 +72,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithTuningEdit("\"inputCount\": 3", "\"inputCount\": 6"));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithTuningEdit("\"inputCount\": 3", "\"inputCount\": 1"));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class SchemaValidationTests
         var issues = Issues(ContentTestData.WithTuningEdit(
             "\"statBonusPerLevel\": 0.07", "\"statBonusPerLevel\": 0"));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class SchemaValidationTests
         }
         """));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 
     // ------------------------------------------------------------ 14 §6: duplicate IDs
@@ -125,7 +125,7 @@ public sealed class SchemaValidationTests
             "{ \"id\": \"WID_ANVIL\", \"rarity\": \"C\", \"icon\": \"icon_anvil\", " +
             "\"displayName\": \"loc.widget.anvil.name\", \"requires\": null }"));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.DuplicateId);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class SchemaValidationTests
         var issues = Issues(ContentTestData.WithTuningEdit(
             "\"id\": \"WID_BELLOWS\"", "\"id\": \"WID_ANVIL\""));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.DuplicateId);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.DuplicateId);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class SchemaValidationTests
         var issues = Issues(ContentTestData.WithTuningEdit(
             "\"inputCount\": 3", "\"inputCount\": 3, \"inputCount\": 4"));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.DuplicateKey);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.DuplicateKey);
     }
 
     // ------------------------------------------------------- 14 §6: orphaned references
@@ -154,7 +154,7 @@ public sealed class SchemaValidationTests
         var issues = Issues(ContentTestData.WithTuningEdit(
             "\"requires\": \"WID_ANVIL\"", "\"requires\": \"WID_TONGS\""));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.OrphanedReference);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class SchemaValidationTests
         }
         """));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.LocalisationMismatch);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.LocalisationMismatch);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public sealed class SchemaValidationTests
                 "\"loc.widget.tongs.name\": \"##TODO_DE## Tongs\"",
                 StringComparison.Ordinal));
 
-        Issues(source).Should().Contain(i => i.Code == ContentIssueCode.OrphanedReference);
+        Issues(source).ShouldContain(i => i.Code == ContentIssueCode.OrphanedReference);
     }
 
     // ----------------------------------------------------------- 14 §6: missing icons
@@ -197,7 +197,7 @@ public sealed class SchemaValidationTests
         var issues = Issues(ContentTestData.WithTuningEdit(
             "\"icon\": \"icon_bellows\", ", string.Empty));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.MissingIcon);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.MissingIcon);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithTuningEdit("\"icon\": \"icon_bellows\"", "\"icon\": \"\""));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.MissingIcon);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.MissingIcon);
     }
 
     // ------------------------------------------------------------ null is not a default
@@ -215,7 +215,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithTuningEdit("\"inputCount\": 3", "\"inputCount\": null"));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.SchemaViolation);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.SchemaViolation);
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public sealed class SchemaValidationTests
     {
         var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
 
-        snapshot.Read($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost").IsUnauthorised.Should().BeTrue();
+        snapshot.Read($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost").IsUnauthorised.ShouldBeTrue();
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithTuningEdit("\"_status\": \"partial\",", string.Empty));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.SchemaViolation);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.SchemaViolation);
     }
 
     // ------------------------------------------------------ the validator's own honesty
@@ -245,7 +245,7 @@ public sealed class SchemaValidationTests
                 "\"minItems\": 1, \"contains\": { \"type\": \"object\" },",
                 StringComparison.Ordinal)));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.UnsupportedSchemaKeyword);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.UnsupportedSchemaKeyword);
     }
 
     /// <summary>
@@ -285,7 +285,7 @@ public sealed class SchemaValidationTests
     {
         var issues = Issues(ContentTestData.WithSchemaEdit(find, replaceWith));
 
-        issues.Should().Contain(i => i.Code == ContentIssueCode.UnsupportedSchemaKeyword);
+        issues.ShouldContain(i => i.Code == ContentIssueCode.UnsupportedSchemaKeyword);
     }
 
     /// <summary>
@@ -300,7 +300,7 @@ public sealed class SchemaValidationTests
         var source = ContentTestData.WithSchemaEdit(
             Limits, "\"limits\": { \"type\": \"object\", \"properties\": [] }");
 
-        Issues(source).Should().Contain(i =>
+        Issues(source).ShouldContain(i =>
             i.Code == ContentIssueCode.UnsupportedSchemaKeyword &&
             i.Location == "schema/widgets.schema.json#/properties/merge/properties/limits/properties");
     }
@@ -330,7 +330,7 @@ public sealed class SchemaValidationTests
     public void Load_enforces_every_keyword_it_claims_to_support(
         string find, string replaceWith, ContentIssueCode expected)
     {
-        Issues(ContentTestData.WithTuningEdit(find, replaceWith)).Should().Contain(i => i.Code == expected);
+        Issues(ContentTestData.WithTuningEdit(find, replaceWith)).ShouldContain(i => i.Code == expected);
     }
 
     /// <summary>
@@ -348,7 +348,7 @@ public sealed class SchemaValidationTests
             "\"displayName\": \"loc.widget.bellows.name\", \"requires\": \"WID_ANVIL\" }",
             "{ \"id\": \"WID_ANVIL\", \"rarity\": \"C\", \"icon\": \"icon_anvil\", " +
             "\"displayName\": \"loc.widget.anvil.name\", \"requires\": null }"))
-            .Should().Contain(i =>
+            .ShouldContain(i =>
                 i.Code == ContentIssueCode.DuplicateId &&
                 i.Location == "tuning/widgets.json#/widgets/1" &&
                 i.Message.Contains("is identical to item 0", StringComparison.Ordinal));
@@ -364,7 +364,7 @@ public sealed class SchemaValidationTests
     public void Load_enforces_uniqueItems_on_an_array_that_has_no_invariant_backstop()
     {
         Issues(ContentTestData.WithTuningEdit("\"stoneCosts\": [2, 3]", "\"stoneCosts\": [2, 2]"))
-            .Should().Contain(i =>
+            .ShouldContain(i =>
                 i.Code == ContentIssueCode.DuplicateId &&
                 i.Location == "tuning/widgets.json#/merge/stoneCosts/1" &&
                 i.Message.Contains("is identical to item 0", StringComparison.Ordinal));
@@ -387,7 +387,7 @@ public sealed class SchemaValidationTests
         }
         """));
 
-        issues.Should().Contain(i =>
+        issues.ShouldContain(i =>
             i.Code == ContentIssueCode.OutOfRange && i.Location == "loc/en.json#/strings");
     }
 
@@ -420,7 +420,7 @@ public sealed class SchemaValidationTests
     [Fact]
     public void SupportedKeywords_is_the_exact_set_this_validator_claims()
     {
-        JsonSchemaValidator.SupportedKeywords.Should().BeEquivalentTo(
+        JsonSchemaValidator.SupportedKeywords.ShouldBe(
         [
             "$schema", "$id", "$comment", "$defs", "$ref",
             "title", "description", "default", "examples", "deprecated",
@@ -431,6 +431,7 @@ public sealed class SchemaValidationTests
             "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
             "minLength", "maxLength", "pattern", "format",
             "oneOf",
-        ]);
+        ],
+        ignoreOrder: true);
     }
 }

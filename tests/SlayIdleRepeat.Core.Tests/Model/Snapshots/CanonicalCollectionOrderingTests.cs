@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
-using FluentAssertions;
+using Shouldly;
+using SlayIdleRepeat.TestSupport;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using Xunit;
 
@@ -25,7 +26,7 @@ public sealed class CanonicalCollectionOrderingTests
         var forwards = CanonicalStateWriter.CanonicalBytes(new ListSnapshot(new[] { 1, 2, 3 }));
         var backwards = CanonicalStateWriter.CanonicalBytes(new ListSnapshot(new[] { 3, 2, 1 }));
 
-        Hex(forwards).Should().NotBe(Hex(backwards));
+        Hex(forwards).ShouldNotBe(Hex(backwards));
     }
 
     /// <summary>A list is a 4-byte little-endian element count, then each element in turn.</summary>
@@ -34,7 +35,7 @@ public sealed class CanonicalCollectionOrderingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new ListSnapshot(new[] { 7 }));
 
-        Hex(bytes).Should().Be("01" + "01000000" + "0700000000000000");
+        Hex(bytes).ShouldBe("01" + "01000000" + "0700000000000000");
     }
 
     /// <summary>An empty list is a present slot with a zero count, not an absence.</summary>
@@ -43,7 +44,7 @@ public sealed class CanonicalCollectionOrderingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new ListSnapshot(Array.Empty<int>()));
 
-        Hex(bytes).Should().Be("01" + "00000000");
+        Hex(bytes).ShouldBe("01" + "00000000");
     }
 
     /// <summary>
@@ -59,7 +60,7 @@ public sealed class CanonicalCollectionOrderingTests
         var second = CanonicalStateWriter.CanonicalBytes(
             new NestedListSnapshot(new IReadOnlyList<int>[] { new[] { 1, 2 }, new[] { 3 } }));
 
-        Hex(first).Should().NotBe(Hex(second));
+        Hex(first).ShouldNotBe(Hex(second));
     }
 
     /// <summary>Every list-shaped declared type encodes identically — the shape is the contract.</summary>
@@ -70,8 +71,8 @@ public sealed class CanonicalCollectionOrderingTests
         var fromList = CanonicalStateWriter.CanonicalBytes(new ListSnapshot(new List<int> { 1, 2 }));
         var fromImmutable = CanonicalStateWriter.CanonicalBytes(new ListSnapshot(ImmutableArray.Create(1, 2)));
 
-        Hex(fromList).Should().Be(Hex(fromArray));
-        Hex(fromImmutable).Should().Be(Hex(fromArray));
+        Hex(fromList).ShouldBe(Hex(fromArray));
+        Hex(fromImmutable).ShouldBe(Hex(fromArray));
     }
 
     /// <summary>Each element of a list of records is descended into, depth-first, in stored order.</summary>
@@ -81,7 +82,7 @@ public sealed class CanonicalCollectionOrderingTests
         var bytes = CanonicalStateWriter.CanonicalBytes(
             new InnerListSnapshot(new[] { new InnerSnapshot(1, "a"), new InnerSnapshot(2, "b") }));
 
-        Hex(bytes).Should().Be(
+        Hex(bytes).ShouldBe(
             "01" + "02000000" +                                   // present, 2 elements
             "01" + "0100000000000000" + "01" + "01000000" + "61" + // { Depth = 1, Label = "a" }
             "01" + "0200000000000000" + "01" + "01000000" + "62"); // { Depth = 2, Label = "b" }
@@ -101,7 +102,7 @@ public sealed class CanonicalCollectionOrderingTests
         var first = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(oneOrder));
         var second = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(otherOrder));
 
-        Hex(first).Should().Be(Hex(second));
+        Hex(first).ShouldBe(Hex(second));
     }
 
     /// <summary>
@@ -115,7 +116,7 @@ public sealed class CanonicalCollectionOrderingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(ReferenceSnapshots.MixedCaseMap));
 
-        Hex(bytes).Should().Be(
+        Hex(bytes).ShouldBe(
             "01" + "04000000" +                                       // present, 4 entries
             "01" + "01000000" + "41" + "0400000000000000" +           // "A" -> 4
             "01" + "01000000" + "42" + "0200000000000000" +           // "B" -> 2
@@ -139,8 +140,8 @@ public sealed class CanonicalCollectionOrderingTests
         var ordinal = keys.OrderBy(k => k, StringComparer.Ordinal).ToArray();
         var caseFolding = keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToArray();
 
-        ordinal.Should().Equal("A", "B", "a", "b");
-        ordinal.Should().NotEqual(caseFolding);
+        ordinal.ShouldBe(new[] { "A", "B", "a", "b" });
+        ordinal.SequenceEqual(caseFolding).ShouldBeFalse();
     }
 
     /// <summary>
@@ -152,7 +153,7 @@ public sealed class CanonicalCollectionOrderingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new NumberMapSnapshot(ReferenceSnapshots.UnorderedNumberMap));
 
-        Hex(bytes).Should().Be(
+        Hex(bytes).ShouldBe(
             "01" + "03000000" +                                                       // present, 3 entries
             "fbffffffffffffff" + "01" + "0a000000" + "6d696e75732066697665" +          // -5 -> "minus five"
             "0200000000000000" + "01" + "03000000" + "74776f" +                        //  2 -> "two"
@@ -170,7 +171,7 @@ public sealed class CanonicalCollectionOrderingTests
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new UnsignedMapSnapshot(map));
 
-        Hex(bytes).Should().Be(
+        Hex(bytes).ShouldBe(
             "01" + "02000000" +
             "0100000000000000" + "0200000000000000" +   // 1 first
             "ffffffffffffffff" + "0100000000000000");   // ulong.MaxValue last
@@ -184,7 +185,7 @@ public sealed class CanonicalCollectionOrderingTests
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new EnumMapSnapshot(map));
 
-        Hex(bytes).Should().Be(
+        Hex(bytes).ShouldBe(
             "01" + "02000000" +
             "0000000000000000" + "0200000000000000" +   // None (0) first
             "0700000000000000" + "0100000000000000");   // Frost (7) second
@@ -203,8 +204,8 @@ public sealed class CanonicalCollectionOrderingTests
         var fromImmutable = CanonicalStateWriter.CanonicalBytes(
             new StringMapSnapshot(ImmutableDictionary.CreateRange(entries)));
 
-        Hex(fromSorted).Should().Be(Hex(fromDictionary));
-        Hex(fromImmutable).Should().Be(Hex(fromDictionary));
+        Hex(fromSorted).ShouldBe(Hex(fromDictionary));
+        Hex(fromImmutable).ShouldBe(Hex(fromDictionary));
     }
 
     /// <summary>
@@ -225,7 +226,7 @@ public sealed class CanonicalCollectionOrderingTests
 
         var bytes = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(caseFoldSorted));
 
-        Hex(bytes).Should().Be(
+        Hex(bytes).ShouldBe(
             "01" + "02000000" +
             "01" + "01000000" + "42" + "0200000000000000" +   // "B" (0x42) first, ordinally
             "01" + "01000000" + "61" + "0100000000000000");   // "a" (0x61) second
@@ -237,7 +238,7 @@ public sealed class CanonicalCollectionOrderingTests
     {
         var bytes = CanonicalStateWriter.CanonicalBytes(new StringMapSnapshot(new Dictionary<string, int>()));
 
-        Hex(bytes).Should().Be("01" + "00000000");
+        Hex(bytes).ShouldBe("01" + "00000000");
     }
 
     /// <summary>
@@ -251,7 +252,7 @@ public sealed class CanonicalCollectionOrderingTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(snapshot);
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*16.6*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*16.6*");
     }
 
     /// <summary>
@@ -264,7 +265,7 @@ public sealed class CanonicalCollectionOrderingTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(snapshot);
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*16.6*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*16.6*");
     }
 
     /// <summary>The containers with no defined iteration order, one fixture per shape.</summary>

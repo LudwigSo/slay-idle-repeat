@@ -28,6 +28,15 @@ public static class SnapshotSchema
     /// snapshot without bumping this number also changes every <c>stateHash</c> in existence.
     /// <para>Bumping it is not tied to the assembly version or to
     /// <c>PROTOCOL_VERSION</c>: the wire can stay put while the snapshot moves, and vice versa.</para>
+    /// <para>
+    /// 🔒 <b>History, so a reader can tell a bump that happened from one that was skipped.</b>
+    /// <b>1</b> — M0-07's format, populated by M1-04 (<c>PlayerSnapshot</c>) and M1-05
+    /// (<c>RunSnapshot</c>). <b>2</b> — M1-09 added `19` Part G's two login-calendar fields to
+    /// <c>PlayerSnapshot</c>. No migration is written for either: the M1 kickoff ruled that no
+    /// migration code exists before soft launch and that written migrations become mandatory at M18,
+    /// so a row stamped 1 is refused loudly by <c>Player.Rehydrate</c> rather than read against the
+    /// wrong layout.
+    /// </para>
     /// </remarks>
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 }

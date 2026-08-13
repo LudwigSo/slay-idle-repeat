@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
@@ -15,9 +15,9 @@ public sealed class ContentLoaderTests
     {
         var result = ContentLoader.Load(ContentTestData.Valid());
 
-        result.Issues.Should().BeEmpty();
-        result.Succeeded.Should().BeTrue();
-        result.Snapshot.Should().NotBeNull();
+        result.Issues.ShouldBeEmpty();
+        result.Succeeded.ShouldBeTrue();
+        result.Snapshot.ShouldNotBeNull();
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class ContentLoaderTests
     {
         var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
 
-        snapshot.DocumentPaths.Should().NotContain(p => p.StartsWith("schema/", StringComparison.Ordinal));
+        snapshot.DocumentPaths.ShouldNotContain(p => p.StartsWith("schema/", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -33,8 +33,10 @@ public sealed class ContentLoaderTests
     {
         var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
 
-        snapshot.DocumentPaths.Should().Equal(
-            ContentTestData.GermanPath, ContentTestData.EnglishPath, ContentTestData.TuningPath);
+        snapshot.DocumentPaths.ShouldBe(new[]
+        {
+            ContentTestData.GermanPath, ContentTestData.EnglishPath, ContentTestData.TuningPath,
+        });
     }
 
     [Fact]
@@ -42,9 +44,9 @@ public sealed class ContentLoaderTests
     {
         var snapshot = ContentLoader.Load(ContentTestData.Valid()).Require();
 
-        var act = () => snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost");
+        Action act = () => _ = snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/dustSubstituteCost");
 
-        act.Should().Throw<UnauthorisedTunableException>();
+        Should.Throw<UnauthorisedTunableException>(act);
     }
 
     [Fact]
@@ -53,7 +55,7 @@ public sealed class ContentLoaderTests
         var first = ContentLoader.Load(ContentTestData.Valid()).Require();
         var second = ContentLoader.Load(ContentTestData.Valid()).Require();
 
-        second.Version.Should().Be(first.Version);
+        second.Version.ShouldBe(first.Version);
     }
 
     [Fact]
@@ -69,7 +71,7 @@ public sealed class ContentLoaderTests
                 .Set(ContentTestData.TuningPath, ContentTestData.WidgetTuning)
                 .Set(ContentTestData.SchemaPath, ContentTestData.WidgetSchema)).Require();
 
-        backwards.Version.Should().Be(forwards.Version);
+        backwards.Version.ShouldBe(forwards.Version);
     }
 
     [Fact]
@@ -80,7 +82,7 @@ public sealed class ContentLoaderTests
         var after = ContentLoader.Load(ContentTestData.WithTuningEdit(
             "\"inputCount\": 3", "\"inputCount\": 4")).Require();
 
-        after.Version.Should().NotBe(before.Version);
+        after.Version.ShouldNotBe(before.Version);
     }
 
     [Fact]
@@ -97,7 +99,7 @@ public sealed class ContentLoaderTests
                 .Set(ContentTestData.TuningPath, Rename(ContentTestData.WidgetTuning)))
             .Require();
 
-        after.Version.Should().NotBe(before.Version);
+        after.Version.ShouldNotBe(before.Version);
 
         static string Rename(string json) =>
             json.Replace("loc.widget.anvil.name", "loc.widget.anvil.title", StringComparison.Ordinal);
@@ -110,7 +112,7 @@ public sealed class ContentLoaderTests
 
         var result = ContentLoader.Load(source);
 
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.MissingSchema);
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.MissingSchema);
     }
 
     /// <summary>
@@ -124,7 +126,7 @@ public sealed class ContentLoaderTests
     public void A_content_file_is_paired_with_its_content_type_schema_not_with_its_own_stem(
         string documentPath, string schemaPath)
     {
-        ContentLayout.SchemaFor(documentPath).Should().Be(schemaPath);
+        ContentLayout.SchemaFor(documentPath).ShouldBe(schemaPath);
     }
 
     /// <summary>
@@ -137,7 +139,7 @@ public sealed class ContentLoaderTests
         var source = ContentTestData.Valid()
             .Set("content/runes/RUNE_EMBER.json", """{ "id": "RUNE_EMBER" }""");
 
-        ContentLoader.Load(source).Issues.Should().Contain(i =>
+        ContentLoader.Load(source).Issues.ShouldContain(i =>
             i.Code == ContentIssueCode.MissingSchema && i.Location == "content/runes/RUNE_EMBER.json");
     }
 
@@ -156,7 +158,7 @@ public sealed class ContentLoaderTests
         var issues = ContentLoader.Load(Slots(
             """{ "slot": 3 }""", """{ "slot": 3.0 }""")).Issues;
 
-        issues.Should().Contain(i =>
+        issues.ShouldContain(i =>
             i.Code == ContentIssueCode.DuplicateId && i.Location == "tuning/gizmos.json#/gizmos");
     }
 
@@ -171,7 +173,7 @@ public sealed class ContentLoaderTests
         var issues = ContentLoader.Load(Slots(
             """{ "slot": { "a": 1 } }""", """{ "slot": { "a": 2 } }""")).Issues;
 
-        issues.Should().NotContain(i => i.Code == ContentIssueCode.DuplicateId);
+        issues.ShouldNotContain(i => i.Code == ContentIssueCode.DuplicateId);
     }
 
     /// <summary>A two-document source whose entries carry the numeric identity member `slot`.</summary>
@@ -221,7 +223,7 @@ public sealed class ContentLoaderTests
 
         var result = ContentLoader.Load(source);
 
-        result.Issues.Should().Contain(i => i.Code == ContentIssueCode.OrphanSchema);
+        result.Issues.ShouldContain(i => i.Code == ContentIssueCode.OrphanSchema);
     }
 
     [Fact]
@@ -229,9 +231,10 @@ public sealed class ContentLoaderTests
     {
         var result = ContentLoader.Load(new Adapters.InMemory.InMemoryContentSource());
 
-        result.Issues.Should().ContainSingle()
-              .Which.Should().Match<ContentIssue>(i =>
-                  i.Code == ContentIssueCode.MissingSchema && i.Location == "(content source)");
+        var issue = result.Issues.ShouldHaveSingleItem();
+
+        issue.Code.ShouldBe(ContentIssueCode.MissingSchema);
+        issue.Location.ShouldBe("(content source)");
     }
 
     [Fact]
@@ -243,8 +246,8 @@ public sealed class ContentLoaderTests
 
         var snapshot = ContentLoader.Load(source).Require();
 
-        snapshot.DocumentPaths.Should().NotContain("tuning/experiments/cheaper_merges.json");
-        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").Should().Be(3);
+        snapshot.DocumentPaths.ShouldNotContain("tuning/experiments/cheaper_merges.json");
+        snapshot.ReadInt32($"{ContentTestData.TuningPath}#/merge/inputCount").ShouldBe(3);
     }
 
     [Fact]
@@ -253,9 +256,9 @@ public sealed class ContentLoaderTests
         var result = ContentLoader.Load(ContentTestData.WithTuningEdit(
             "\"inputCount\": 3", "\"inputCount\": 99"));
 
-        var act = () => result.Require();
+        Action act = () => _ = result.Require();
 
-        act.Should().Throw<ContentLoadException>()
-           .Which.Issues.Should().Contain(i => i.Code == ContentIssueCode.OutOfRange);
+        Should.Throw<ContentLoadException>(act)
+            .Issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 }

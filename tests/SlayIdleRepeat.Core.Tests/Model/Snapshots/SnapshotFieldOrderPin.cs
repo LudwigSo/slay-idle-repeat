@@ -10,10 +10,14 @@ namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 /// <remarks>
 /// <para>
 /// The subject set is every public snapshot record in <c>SlayIdleRepeat.Core.Model.Snapshots</c>.
-/// That set is <b>empty today</b>: <c>PlayerSnapshot</c> and <c>RunSnapshot</c> are <c>M1-04</c>
-/// and <c>M1-05</c>'s. The rule is written against its final subject anyway, so it passes
-/// vacuously now and turns into a real assertion the moment M1 declares the first record — with
-/// no <c>Skip</c>, no placeholder and nobody having to remember to switch it on.
+/// It was <b>empty until M1-04</b>, and the rule was written against its final subject anyway —
+/// so it passed vacuously and turned into a real assertion the moment the first record landed,
+/// with no <c>Skip</c>, no placeholder and nobody having to remember to switch it on. That day was
+/// <b>M1-04</b>: <c>PlayerSnapshot</c> is in the set, its field list is pinned under SchemaVersion
+/// 1, and <c>RunSnapshot</c> joins it with M1-05. The vacuity tripwire that guarded the empty
+/// state has been replaced by
+/// <c>SnapshotFieldOrderPinTests.The_pins_subject_set_is_not_empty_and_holds_the_first_snapshot_record</c>,
+/// which is the same guard pointing the other way.
 /// </para>
 /// <para>
 /// The pinned list is produced by <see cref="CanonicalStateWriter.CanonicalFieldOrder"/> — the
@@ -66,7 +70,17 @@ internal static class SnapshotFieldOrderPin
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToArray();
 
-    /// <summary>Every public snapshot record in <c>Core/Model/Snapshots/</c>. Empty until M1.</summary>
+    /// <summary>
+    /// Every public snapshot record in <c>Core/Model/Snapshots/</c>. Was empty until M1-04 and must
+    /// never be empty again.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ M1-12 dropped "holds <c>PlayerSnapshot</c> from that commit" rather than extending it to
+    /// name <c>RunSnapshot</c> too. It was true and incomplete from M1-05 onwards, which is the
+    /// shape that goes stale silently — a list of members in prose beside the list that computes
+    /// them. What is durable is the claim: this set is non-empty, and every record in it is pinned.
+    /// The identities are floored in <c>SubjectSetFloorTests</c>, where a rename goes red.
+    /// </remarks>
     internal static IReadOnlyList<Type> SnapshotRecords { get; } =
         PublicTypesUnderSnapshots
             .Where(CanonicalStateWriter.IsCanonicalRecord)

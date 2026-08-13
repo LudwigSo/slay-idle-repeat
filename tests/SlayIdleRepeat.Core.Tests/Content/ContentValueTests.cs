@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
 
@@ -17,8 +17,8 @@ public sealed class ContentValueTests
     {
         var value = ContentValue.Unauthorised;
 
-        value.Kind.Should().Be(ContentValueKind.Unauthorised);
-        value.IsUnauthorised.Should().BeTrue();
+        value.Kind.ShouldBe(ContentValueKind.Unauthorised);
+        value.IsUnauthorised.ShouldBeTrue();
     }
 
     /// <summary>
@@ -41,9 +41,9 @@ public sealed class ContentValueTests
     public void Every_accessor_throws_UnauthorisedTunableException_rather_than_returning_a_default(
         string accessor, Func<ContentValue, object> read)
     {
-        var act = () => read(ContentValue.Unauthorised);
+        Action act = () => _ = read(ContentValue.Unauthorised);
 
-        act.Should().Throw<UnauthorisedTunableException>(accessor);
+        Should.Throw<UnauthorisedTunableException>(act, accessor);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ContentValueTests
             new("alpha", ContentValue.Number(3m)),
         ]);
 
-        value.MemberNames.Should().Equal("Alpha", "_doc", "alpha", "zeta");
+        value.MemberNames.ShouldBe(new[] { "Alpha", "_doc", "alpha", "zeta" });
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class ContentValueTests
             new("inputCount", ContentValue.Number(4m)),
         ]);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class ContentValueTests
     {
         var value = ContentValue.Array([ContentValue.Number(2m), ContentValue.Number(3m), ContentValue.Number(4m)]);
 
-        value.Items.Select(i => i.AsInt32()).Should().Equal(2, 3, 4);
+        value.Items.Select(i => i.AsInt32()).ShouldBe(new[] { 2, 3, 4 });
     }
 
     [Fact]
@@ -87,8 +87,8 @@ public sealed class ContentValueTests
 
         var found = value.TryGetMember("absent", out var member);
 
-        found.Should().BeFalse();
-        member.Should().BeNull();
+        found.ShouldBeFalse();
+        member.ShouldBeNull();
     }
 
     [Fact]
@@ -98,8 +98,8 @@ public sealed class ContentValueTests
 
         var found = value.TryGetMember("perLevelSuccessRate", out var member);
 
-        found.Should().BeTrue();
-        member!.IsUnauthorised.Should().BeTrue();
+        found.ShouldBeTrue();
+        member!.IsUnauthorised.ShouldBeTrue();
     }
 
     [Fact]
@@ -107,9 +107,9 @@ public sealed class ContentValueTests
     {
         var value = ContentValue.Text("MERGE_DUST");
 
-        var act = () => value.AsNumber();
+        Action act = () => _ = value.AsNumber();
 
-        act.Should().Throw<ContentTypeMismatchException>();
+        Should.Throw<ContentTypeMismatchException>(act);
     }
 
     [Fact]
@@ -117,9 +117,9 @@ public sealed class ContentValueTests
     {
         var value = ContentValue.Number(0.07m);
 
-        var act = () => value.AsInt32();
+        Action act = () => _ = value.AsInt32();
 
-        act.Should().Throw<ContentTypeMismatchException>();
+        Should.Throw<ContentTypeMismatchException>(act);
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public sealed class ContentValueTests
             new("stoneCostPerLevel", ContentValue.Array([ContentValue.Number(2m), ContentValue.Number(3m)])),
         ]);
 
-        left.Should().Be(right);
-        left.GetHashCode().Should().Be(right.GetHashCode());
+        left.ShouldBe(right);
+        left.GetHashCode().ShouldBe(right.GetHashCode());
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class ContentValueTests
         var unauthorised = ContentValue.Object([new("frontierChapterBonus", ContentValue.Unauthorised)]);
         var zero = ContentValue.Object([new("frontierChapterBonus", ContentValue.Number(0m))]);
 
-        unauthorised.Should().NotBe(zero);
+        unauthorised.ShouldNotBe(zero);
     }
 
     [Fact]
@@ -155,6 +155,6 @@ public sealed class ContentValueTests
         var ascending = ContentValue.Array([ContentValue.Number(2m), ContentValue.Number(3m)]);
         var descending = ContentValue.Array([ContentValue.Number(3m), ContentValue.Number(2m)]);
 
-        ascending.Should().NotBe(descending);
+        ascending.ShouldNotBe(descending);
     }
 }

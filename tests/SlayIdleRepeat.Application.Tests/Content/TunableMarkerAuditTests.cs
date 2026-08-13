@@ -1,4 +1,5 @@
-using FluentAssertions;
+using Shouldly;
+using SlayIdleRepeat.TestSupport;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Content.Tunables;
 using Xunit;
@@ -31,7 +32,7 @@ public sealed class TunableMarkerAuditTests
 
         var markers = TunableMarkerScanner.Scan("08_GEAR_AND_MERGING.md", markdown);
 
-        markers.Should().ContainSingle().Which.Section.Should().Be(new DocSection("08", "4.2"));
+        markers.ShouldHaveSingleItem().Section.ShouldBe(new DocSection("08", "4.2"));
     }
 
     [Fact]
@@ -49,7 +50,7 @@ public sealed class TunableMarkerAuditTests
 
         var markers = TunableMarkerScanner.Scan("03_BOARD_AND_TILES.md", markdown);
 
-        markers.Should().ContainSingle().Which.Section.Should().Be(new DocSection("03", "1"));
+        markers.ShouldHaveSingleItem().Section.ShouldBe(new DocSection("03", "1"));
     }
 
     [Fact]
@@ -65,7 +66,7 @@ public sealed class TunableMarkerAuditTests
 
         var markers = TunableMarkerScanner.Scan("03_BOARD_AND_TILES.md", markdown);
 
-        markers.Should().ContainSingle().Which.Section.Should().Be(new DocSection("03", "7a.3"));
+        markers.ShouldHaveSingleItem().Section.ShouldBe(new DocSection("03", "7a.3"));
     }
 
     [Fact]
@@ -81,7 +82,7 @@ public sealed class TunableMarkerAuditTests
 
         var markers = TunableMarkerScanner.Scan("03_BOARD_AND_TILES.md", markdown);
 
-        markers.Should().ContainSingle().Which.NamedDataFiles.Should().Equal("tuning/currencies.json");
+        markers.ShouldHaveSingleItem().NamedDataFiles.ShouldBe(new[] { "tuning/currencies.json" });
     }
 
     [Fact]
@@ -97,7 +98,7 @@ public sealed class TunableMarkerAuditTests
 
         var markers = TunableMarkerScanner.Scan("03_BOARD_AND_TILES.md", markdown);
 
-        markers.Should().HaveCount(2);
+        markers.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -105,7 +106,7 @@ public sealed class TunableMarkerAuditTests
     {
         var markers = TunableMarkerScanner.Scan("NOTES.md", $"## 1. Things\n\n{Marker} TUNABLE.");
 
-        markers.Should().BeEmpty();
+        markers.ShouldBeEmpty();
     }
 
     // ---------------------------------------------------------------- path normalisation
@@ -119,7 +120,7 @@ public sealed class TunableMarkerAuditTests
     [InlineData("tuning/forge.json", "tuning/forge.json")]
     public void NormaliseDataFilePath_strips_the_prefixes_the_docs_write(string asWritten, string expected)
     {
-        TunableMarkerAudit.NormaliseDataFilePath(asWritten).Should().Be(expected);
+        TunableMarkerAudit.NormaliseDataFilePath(asWritten).ShouldBe(expected);
     }
 
     // ----------------------------------------------------------------- the citation scanner
@@ -138,7 +139,7 @@ public sealed class TunableMarkerAuditTests
 
         var citations = SchemaCitationScanner.Scan("schema/forge.schema.json", schema, governsTuningFile: true);
 
-        citations.Should().ContainSingle().Which.Section.Should().Be(new DocSection("08", "4.1"));
+        citations.ShouldHaveSingleItem().Section.ShouldBe(new DocSection("08", "4.1"));
     }
 
     [Fact]
@@ -150,12 +151,13 @@ public sealed class TunableMarkerAuditTests
 
         var citations = SchemaCitationScanner.Scan("schema/forge.schema.json", schema, governsTuningFile: true);
 
-        citations.Select(c => c.Section).Should().BeEquivalentTo(
+        citations.Select(c => c.Section).ShouldBe(
         [
             new DocSection("08", "4.1"),
             new DocSection("08", "4.2"),
             new DocSection("08", "4.3"),
-        ]);
+        ],
+        ignoreOrder: true);
     }
 
     [Fact]
@@ -167,11 +169,12 @@ public sealed class TunableMarkerAuditTests
 
         var citations = SchemaCitationScanner.Scan("schema/forge.schema.json", schema, governsTuningFile: true);
 
-        citations.Select(c => c.Section).Should().BeEquivalentTo(
+        citations.Select(c => c.Section).ShouldBe(
         [
             new DocSection("08", "4.1"),
             new DocSection("24", "6.1"),
-        ]);
+        ],
+        ignoreOrder: true);
     }
 
     // ------------------------------------------------------------------- section overlap
@@ -188,7 +191,7 @@ public sealed class TunableMarkerAuditTests
     {
         new DocSection(leftDoc, leftSection)
             .Overlaps(new DocSection(rightDoc, rightSection))
-            .Should().Be(expected);
+            .ShouldBe(expected);
     }
 
     // ------------------------------------------------------------------------ the audit
@@ -208,8 +211,8 @@ public sealed class TunableMarkerAuditTests
             [CitationAt("08", "4.1")],
             TunableBaseline.None);
 
-        report.Issues.Should().BeEmpty();
-        report.Succeeded.Should().BeTrue();
+        report.Issues.ShouldBeEmpty();
+        report.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -220,8 +223,8 @@ public sealed class TunableMarkerAuditTests
             [CitationAt("08", "4.1")],
             TunableBaseline.None);
 
-        report.Issues.Should().Contain(i => i.Code == ContentIssueCode.TunableMarkerUnmatched);
-        report.UnmatchedMarkers.Should().Contain(new DocSection("09", "2"));
+        report.Issues.ShouldContain(i => i.Code == ContentIssueCode.TunableMarkerUnmatched);
+        report.UnmatchedMarkers.ShouldContain(new DocSection("09", "2"));
     }
 
     [Fact]
@@ -232,8 +235,8 @@ public sealed class TunableMarkerAuditTests
             [CitationAt("08", "4.1"), CitationAt("08", "9")],
             TunableBaseline.None);
 
-        report.Issues.Should().Contain(i => i.Code == ContentIssueCode.TunableKeyUnmarked);
-        report.UnmarkedCitations.Should().Contain(new DocSection("08", "9"));
+        report.Issues.ShouldContain(i => i.Code == ContentIssueCode.TunableKeyUnmarked);
+        report.UnmarkedCitations.ShouldContain(new DocSection("08", "9"));
     }
 
     [Fact]
@@ -244,7 +247,7 @@ public sealed class TunableMarkerAuditTests
             [CitationAt("08", "4.1"), CitationAt("19", "1", tuning: false)],
             TunableBaseline.None);
 
-        report.Issues.Should().NotContain(i => i.Code == ContentIssueCode.TunableKeyUnmarked);
+        report.Issues.ShouldNotContain(i => i.Code == ContentIssueCode.TunableKeyUnmarked);
     }
 
     [Fact]
@@ -260,8 +263,8 @@ public sealed class TunableMarkerAuditTests
             [CitationAt("08", "4.1")],
             baseline);
 
-        report.Issues.Should().BeEmpty();
-        report.UnmatchedMarkers.Should().Contain(new DocSection("09", "2"));
+        report.Issues.ShouldBeEmpty();
+        report.UnmatchedMarkers.ShouldContain(new DocSection("09", "2"));
     }
 
     [Fact]
@@ -277,8 +280,8 @@ public sealed class TunableMarkerAuditTests
             [CitationAt("08", "4.1")],
             baseline);
 
-        report.Issues.Should().Contain(i => i.Code == ContentIssueCode.StaleBaselineEntry);
-        report.StaleBaselineEntries.Should().ContainSingle();
+        report.Issues.ShouldContain(i => i.Code == ContentIssueCode.StaleBaselineEntry);
+        report.StaleBaselineEntries.ShouldHaveSingleItem();
     }
 
     /// <summary>The real catalogue, so these cases assert a configuration that actually occurs.</summary>
@@ -293,7 +296,7 @@ public sealed class TunableMarkerAuditTests
             TunableBaseline.None,
             Catalogue);
 
-        report.Issues.Should().Contain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
+        report.Issues.ShouldContain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
     }
 
     [Fact]
@@ -307,7 +310,7 @@ public sealed class TunableMarkerAuditTests
             TunableBaseline.None,
             Catalogue);
 
-        report.Issues.Should().NotContain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
+        report.Issues.ShouldNotContain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
     }
 
     [Fact]
@@ -319,13 +322,13 @@ public sealed class TunableMarkerAuditTests
             TunableBaseline.None,
             Catalogue);
 
-        report.Issues.Should().NotContain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
+        report.Issues.ShouldNotContain(i => i.Code == ContentIssueCode.TunableOutsideTuningDirectory);
     }
 
     [Fact]
     public void The_non_economy_allow_list_is_exactly_these_five_files_and_grows_only_deliberately()
     {
-        TunableMarkerAudit.NonEconomyDataFiles.Should().Equal(
+        TunableMarkerAudit.NonEconomyDataFiles.ShouldBe(
         [
             // 05 §2 — combat caps are balance, not economy. 14 §6's locked scope is
             // "every ECONOMY-AFFECTING tunable lives specifically in tuning/". Authored by M2-07.
@@ -365,17 +368,18 @@ public sealed class TunableMarkerAuditTests
         }
         """));
 
-        baseline.UnmatchedMarkers.Should().SatisfyRespectively(
-            debt =>
-            {
-                debt.Kind.Should().Be(TunableBaselineKind.SpecDebt);
-                debt.ClosedBy.Should().Be("M4-06");
-            },
-            excluded =>
-            {
-                excluded.Kind.Should().Be(TunableBaselineKind.OutOfScope);
-                excluded.ClosedBy.Should().BeEmpty();
-            });
+        // SatisfyRespectively: exactly two entries, each matching its own inspector, in order.
+        // The count assertion is half of it — without it the second inspector could simply
+        // never run.
+        baseline.UnmatchedMarkers.Count.ShouldBe(2);
+
+        var debt = baseline.UnmatchedMarkers[0];
+        debt.Kind.ShouldBe(TunableBaselineKind.SpecDebt);
+        debt.ClosedBy.ShouldBe("M4-06");
+
+        var excluded = baseline.UnmatchedMarkers[1];
+        excluded.Kind.ShouldBe(TunableBaselineKind.OutOfScope);
+        excluded.ClosedBy.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -395,7 +399,7 @@ public sealed class TunableMarkerAuditTests
         }
         """));
 
-        act.Should().Throw<FormatException>().WithMessage("*09 §2*unreviewed*");
+        Should.Throw<FormatException>(act).Message.ShouldMatchWildcard("*09 §2*unreviewed*");
     }
 
     [Fact]
@@ -408,7 +412,7 @@ public sealed class TunableMarkerAuditTests
         }
         """));
 
-        act.Should().Throw<FormatException>().WithMessage("*no 'closedBy'*");
+        Should.Throw<FormatException>(act).Message.ShouldMatchWildcard("*no 'closedBy'*");
     }
 
     [Fact]
@@ -423,14 +427,14 @@ public sealed class TunableMarkerAuditTests
         }
         """));
 
-        act.Should().Throw<FormatException>().WithMessage("*out of scope*M4-06*");
+        Should.Throw<FormatException>(act).Message.ShouldMatchWildcard("*out of scope*M4-06*");
     }
 
     private static Core.Content.ContentValue ParseBaseline(string json)
     {
         JsonContentReader.TryRead("baseline.json", System.Text.Encoding.UTF8.GetBytes(json),
             out var root, out var issues);
-        issues.Should().BeEmpty();
+        issues.ShouldBeEmpty();
         return root!;
     }
 
@@ -438,7 +442,7 @@ public sealed class TunableMarkerAuditTests
     {
         JsonContentReader.TryRead("schema/test.schema.json", System.Text.Encoding.UTF8.GetBytes(json),
             out var root, out var issues);
-        issues.Should().BeEmpty();
+        issues.ShouldBeEmpty();
         return root!;
     }
 }

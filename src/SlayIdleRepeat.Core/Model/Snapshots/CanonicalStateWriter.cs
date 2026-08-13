@@ -172,7 +172,7 @@ public static class CanonicalStateWriter
     /// <para>
     /// 🔒 <b>What this may and may not cache, and why they are not the same question.</b> A
     /// <see cref="Type"/>'s metadata is immutable and command-independent: <c>RunSnapshot</c> is a
-    /// record with the same eleven fields whichever command is being hashed. Resolving that once
+    /// record of the same shape whichever command is being hashed. Resolving that once
     /// therefore cannot make one command's <c>stateHash</c> depend on the command before it — the
     /// plan is a function of the type alone, and the bytes are a function of the plan and the
     /// value. The <b>buffer</b> is the opposite case and is deliberately <i>not</i> cached: see
@@ -726,6 +726,25 @@ public static class CanonicalStateWriter
     /// silently omitting it.
     /// </para>
     /// <para>
+    /// 🔒 <b>And the same for a public <i>field</i>, which is not the same check.</b> M0-07 wrote
+    /// the converse over <see cref="Type.GetProperties(BindingFlags)"/> only, so
+    /// <c>public int RevivesUsed;</c> beside a positional record — one keyword-pair away from the
+    /// property shape above, and the shape a hand-written DTO reaches for first — passed straight
+    /// through: it is in no parameter list, it is not a property, and the count above therefore
+    /// matched. It would have hashed as <b>zero bytes</b> with no refusal anywhere, which is the
+    /// one failure a <c>stateHash</c> may never have. Latent since M0-07 and harmless only while no
+    /// snapshot record existed; closed here, by the commit that authors the first one, and driven
+    /// red-then-green against <c>UnsupportedSnapshots.WithPublicField</c>.
+    /// </para>
+    /// <para>
+    /// A compliant positional <c>record</c> or <c>record struct</c> compiles every component to a
+    /// <b>private</b> backing field, so requiring zero public instance fields costs a real snapshot
+    /// nothing. What it also catches, for free and correctly: an <c>enum</c> (its <c>value__</c> is
+    /// public) and a <see cref="ValueTuple"/> (its <c>Item1…</c> are public) reaching the record
+    /// branch at all — neither has a pinnable declaration order this encoding recognises, and both
+    /// are already refused for other reasons before they get here.
+    /// </para>
+    /// <para>
     /// Recognising the shape and resolving the properties are one pass because the writer needs
     /// both for every record it descends into. The answer is then memoised on the type's
     /// <see cref="TypePlan"/> — see <see cref="Plans"/> for why that is safe and
@@ -773,6 +792,22 @@ public static class CanonicalStateWriter
         // for a `record` and a `record struct`.
         var declared = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         if (declared.Length != parameters.Length)
+        {
+            return null;
+        }
+
+        // 🔒 And the same for FIELDS, which is the half this check was missing from M0-07 until the
+        // first snapshot record existed. See the remarks: a positional record's parameter list maps
+        // to PROPERTIES, so a public *field* beside them is in no parameter list, has no property
+        // to be counted by the check above, and would be written as ZERO BYTES.
+        //
+        // A positional `record` and `record struct` both compile their components to PRIVATE
+        // backing fields, so a compliant snapshot has no public instance field at all and this
+        // costs it nothing. Any field with public visibility here — declared by the author, or an
+        // enum's `value__`, or a ValueTuple's `Item1` — means the type's state is not entirely
+        // described by its primary constructor.
+        var publicFields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+        if (publicFields.Length != 0)
         {
             return null;
         }
@@ -1007,10 +1042,11 @@ public static class CanonicalStateWriter
         "(IReadOnlyList<T>), maps (IReadOnlyDictionary<TKey, TValue>) and positional records — " +
         "and deliberately nothing else, because 'no unordered container is ever hashed as-is' " +
         "and a type with no pinned byte layout would be a second serialisation contract. A record " +
-        "carrying a public property that is not a primary-constructor parameter is refused for the " +
-        "same reason: the field list is the constructor's parameter list, so such a property would " +
-        "be hashed as ZERO BYTES — two states differing only in it would share a stateHash, and " +
-        "the SchemaVersion field-order pin would never see it. Move it into the primary constructor.");
+        "carrying a public property OR A PUBLIC FIELD that is not a primary-constructor parameter " +
+        "is refused for the same reason: the field list is the constructor's parameter list, so " +
+        "such a member would be hashed as ZERO BYTES — two states differing only in it would share " +
+        "a stateHash, and the SchemaVersion field-order pin would never see it. Move it into the " +
+        "primary constructor.");
 
     /// <summary>Which branch of the closed allowlist a declared type falls into.</summary>
     private enum PlanKind

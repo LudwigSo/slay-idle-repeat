@@ -1,5 +1,5 @@
 using System.Text;
-using FluentAssertions;
+using Shouldly;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using Xunit;
 
@@ -33,7 +33,7 @@ public sealed class Fnv1a64KnownAnswerTests
 
         var hash = CanonicalStateWriter.Fnv1a64(bytes);
 
-        hash.Should().Be(expected);
+        hash.ShouldBe(expected);
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ public sealed class Fnv1a64KnownAnswerTests
     {
         var hash = CanonicalStateWriter.Fnv1a64(ReadOnlySpan<byte>.Empty);
 
-        hash.Should().Be(0xcbf29ce484222325UL);
+        hash.ShouldBe(0xcbf29ce484222325UL);
     }
 
     /// <summary>
@@ -59,7 +59,8 @@ public sealed class Fnv1a64KnownAnswerTests
 
         var hash = CanonicalStateWriter.Fnv1a64(new byte[] { (byte)'a' });
 
-        hash.Should().Be(expected).And.Be(0xaf63dc4c8601ec8cUL);
+        hash.ShouldBe(expected);
+        hash.ShouldBe(0xaf63dc4c8601ec8cUL);
     }
 
     /// <summary>
@@ -73,7 +74,7 @@ public sealed class Fnv1a64KnownAnswerTests
 
         var hash = CanonicalStateWriter.Fnv1a64(new byte[] { (byte)'a' });
 
-        hash.Should().NotBe(fnv1);
+        hash.ShouldNotBe(fnv1);
     }
 
     /// <summary>
@@ -83,8 +84,8 @@ public sealed class Fnv1a64KnownAnswerTests
     [Fact]
     public void The_reference_table_names_the_specified_FNV_1a_64_parameters()
     {
-        CanonicalReferenceVectors.OffsetBasis.Should().Be(0xcbf29ce484222325UL);
-        CanonicalReferenceVectors.Prime.Should().Be(0x100000001b3UL);
+        CanonicalReferenceVectors.OffsetBasis.ShouldBe(0xcbf29ce484222325UL);
+        CanonicalReferenceVectors.Prime.ShouldBe(0x100000001b3UL);
     }
 
     /// <summary>
@@ -101,7 +102,7 @@ public sealed class Fnv1a64KnownAnswerTests
     public void The_published_set_still_covers_its_load_bearing_inputs(string input)
     {
         CanonicalReferenceVectors.Published
-            .Should().ContainSingle(row => row.Input == input);
+            .Where(row => row.Input == input).ShouldHaveSingleItem();
     }
 
     public static TheoryData<string, ulong> PublishedRows() => CanonicalReferenceVectors.PublishedRows();

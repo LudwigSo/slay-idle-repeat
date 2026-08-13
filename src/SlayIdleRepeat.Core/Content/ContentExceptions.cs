@@ -58,6 +58,42 @@ public sealed class UnauthorisedTunableException : ContentException
     public string Reference { get; }
 }
 
+/// <summary>
+/// 🔒 Raised when a tunable is present, authorised and of the right type, but holds a value the
+/// rule reading it cannot work with — a Max Energy of zero, a cap below the base, a regeneration
+/// interval that is not a positive span.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The fourth member of the family, and the one that completes it: <see cref="MissingContentException"/>
+/// is "nothing there", <see cref="UnauthorisedTunableException"/> is "a deliberate <c>null</c>",
+/// <see cref="ContentTypeMismatchException"/> is "the wrong kind", and this is "the right kind, an
+/// impossible value". Without it a reader's own range check has to throw something outside the
+/// family, and a composition root catching <see cref="ContentException"/> to report a bad data set
+/// at start-up misses exactly the errors a balance patch introduces.
+/// </para>
+/// <para>
+/// The <paramref name="detail"/> is the reading rule's, not this type's: only the rule knows that
+/// `10` §3 authors 120 and that zero is therefore impossible. Public, like the rest of the family,
+/// because <see cref="Reference"/> is what a host logs and the domain's readers are
+/// <c>internal</c>.
+/// </para>
+/// </remarks>
+public sealed class InvalidTunableException : ContentException
+{
+    /// <summary>Creates the exception for the reference that holds the unusable value.</summary>
+    /// <param name="reference">The content reference, e.g. <c>tuning/progression.json#/energy/baseMax</c>.</param>
+    /// <param name="detail">What is wrong with it, and which document authorises what instead.</param>
+    public InvalidTunableException(string reference, string detail)
+        : base($"Content reference '{reference}' is authorised but unusable: {detail}")
+    {
+        Reference = reference;
+    }
+
+    /// <summary>The reference whose value the rule reading it cannot work with.</summary>
+    public string Reference { get; }
+}
+
 /// <summary>Raised when a content value is read as a type it does not hold.</summary>
 public sealed class ContentTypeMismatchException : ContentException
 {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using FluentAssertions;
+using Shouldly;
+using SlayIdleRepeat.TestSupport;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using Xunit;
 
@@ -25,7 +26,7 @@ public sealed class CanonicalStateWriterTests
     {
         var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
 
-        hash.Should().StartWith("fnv1a:");
+        hash.ShouldStartWith("fnv1a:", Case.Sensitive);
     }
 
     /// <summary>The wire form is the prefix plus exactly 16 hex characters — 22 in all.</summary>
@@ -34,14 +35,14 @@ public sealed class CanonicalStateWriterTests
     {
         var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
 
-        hash.Should().HaveLength(22);
-        hash.Should().MatchRegex(WireForm);
+        hash.Length.ShouldBe(22);
+        WireForm.IsMatch(hash).ShouldBeTrue($"'{hash}' is not of the form {WireForm}");
     }
 
     /// <summary>🔒 The hex is lowercase. A mixed-case wire form is two wire forms.</summary>
     /// <remarks>
     /// Asserted against a value whose hash actually <b>has</b> letters in it, and checked for at
-    /// least one. The obvious form — <c>hash.Should().Be(hash.ToLowerInvariant())</c> — is vacuous
+    /// least one. The obvious form — <c>hash.ShouldBe(hash.ToLowerInvariant())</c> — is vacuous
     /// for any hash made only of digits, and is subsumed by the wire-form regex besides: both would
     /// pass an uppercase formatter roughly whenever the digits happened to fall that way.
     /// </remarks>
@@ -51,8 +52,12 @@ public sealed class CanonicalStateWriterTests
         var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Scalars);
         var digits = hash[CanonicalStateWriter.AlgorithmPrefix.Length..];
 
-        digits.Should().ContainAny("a", "b", "c", "d", "e", "f");
-        digits.Should().NotContainAny("A", "B", "C", "D", "E", "F");
+        var lowercaseHexLetters = new[] { "a", "b", "c", "d", "e", "f" };
+
+        lowercaseHexLetters.Any(digits.Contains)
+            .ShouldBeTrue($"'{digits}' has no hex letter at all, so it cannot show the case of one");
+        lowercaseHexLetters.Select(letter => letter.ToUpperInvariant()).Any(digits.Contains)
+            .ShouldBeFalse($"'{digits}' contains an uppercase hex letter; the wire form is lowercase");
     }
 
     /// <summary>
@@ -67,8 +72,8 @@ public sealed class CanonicalStateWriterTests
 
         var hash = CanonicalStateWriter.HashMetaCommandState(snapshot);
 
-        hash.Should().StartWith("fnv1a:00");
-        hash.Should().MatchRegex(WireForm);
+        hash.ShouldStartWith("fnv1a:00", Case.Sensitive);
+        WireForm.IsMatch(hash).ShouldBeTrue($"'{hash}' is not of the form {WireForm}");
     }
 
     /// <summary>The wire form's hex is the raw 64-bit hash of the same bytes, restated.</summary>
@@ -80,16 +85,16 @@ public sealed class CanonicalStateWriterTests
 
         var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
 
-        hash.Should().Be("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
+        hash.ShouldBe("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
     }
 
     /// <summary>The prefix is a public constant, so a consumer checks it rather than retyping it.</summary>
     [Fact]
     public void AlgorithmPrefix_is_the_literal_prefix_of_every_hash_the_writer_produces()
     {
-        CanonicalStateWriter.AlgorithmPrefix.Should().Be("fnv1a:");
+        CanonicalStateWriter.AlgorithmPrefix.ShouldBe("fnv1a:");
         CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player)
-            .Should().StartWith(CanonicalStateWriter.AlgorithmPrefix);
+            .ShouldStartWith(CanonicalStateWriter.AlgorithmPrefix, Case.Sensitive);
     }
 
     /// <summary>🔒 A run command hashes <c>PlayerSnapshot</c> then <c>RunSnapshot</c>, concatenated.</summary>
@@ -103,7 +108,7 @@ public sealed class CanonicalStateWriterTests
 
         var hash = CanonicalStateWriter.HashRunCommandState(ReferenceSnapshots.Player, ReferenceSnapshots.Run);
 
-        hash.Should().Be("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
+        hash.ShouldBe("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
     }
 
     /// <summary>🔒 A meta command hashes <c>PlayerSnapshot</c> alone.</summary>
@@ -115,7 +120,7 @@ public sealed class CanonicalStateWriterTests
 
         var hash = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
 
-        hash.Should().Be("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
+        hash.ShouldBe("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
     }
 
     /// <summary>
@@ -128,7 +133,7 @@ public sealed class CanonicalStateWriterTests
         var run = CanonicalStateWriter.HashRunCommandState(ReferenceSnapshots.Player, ReferenceSnapshots.Run);
         var meta = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
 
-        run.Should().NotBe(meta);
+        run.ShouldNotBe(meta);
     }
 
     /// <summary>
@@ -141,7 +146,7 @@ public sealed class CanonicalStateWriterTests
         var forwards = CanonicalStateWriter.HashRunCommandState(ReferenceSnapshots.Player, ReferenceSnapshots.Run);
         var backwards = CanonicalStateWriter.HashRunCommandState(ReferenceSnapshots.Run, ReferenceSnapshots.Player);
 
-        forwards.Should().NotBe(backwards);
+        forwards.ShouldNotBe(backwards);
     }
 
     /// <summary>
@@ -157,7 +162,7 @@ public sealed class CanonicalStateWriterTests
 
         var hash = CanonicalStateWriter.HashRunCommandState(ReferenceSnapshots.Player, ReferenceSnapshots.Run);
 
-        hash.Should().NotBe("fnv1a:" + (playerHash ^ runHash).ToString("x16", CultureInfo.InvariantCulture));
+        hash.ShouldNotBe("fnv1a:" + (playerHash ^ runHash).ToString("x16", CultureInfo.InvariantCulture));
     }
 
     /// <summary>A run command with no player snapshot has no canonical state to hash.</summary>
@@ -166,7 +171,7 @@ public sealed class CanonicalStateWriterTests
     {
         var act = () => CanonicalStateWriter.HashRunCommandState(null!, ReferenceSnapshots.Run);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>And a run command with no run snapshot is not a meta command in disguise.</summary>
@@ -175,7 +180,7 @@ public sealed class CanonicalStateWriterTests
     {
         var act = () => CanonicalStateWriter.HashRunCommandState(ReferenceSnapshots.Player, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>The meta mode's single snapshot is required for the same reason.</summary>
@@ -184,7 +189,7 @@ public sealed class CanonicalStateWriterTests
     {
         var act = () => CanonicalStateWriter.HashMetaCommandState(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     /// <summary>🔒 The same input hashes identically twice — nothing is consumed or advanced.</summary>
@@ -194,7 +199,7 @@ public sealed class CanonicalStateWriterTests
         var first = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Scalars);
         var second = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Scalars);
 
-        second.Should().Be(first);
+        second.ShouldBe(first);
     }
 
     /// <summary>
@@ -207,7 +212,7 @@ public sealed class CanonicalStateWriterTests
         var first = CanonicalStateWriter.HashMetaCommandState(new PlayerLikeSnapshot(1, "PL_0001", 12345L));
         var second = CanonicalStateWriter.HashMetaCommandState(new PlayerLikeSnapshot(1, "PL_0001", 12345L));
 
-        second.Should().Be(first);
+        second.ShouldBe(first);
     }
 
     /// <summary>
@@ -222,7 +227,7 @@ public sealed class CanonicalStateWriterTests
         CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Scalars);
         var after = CanonicalStateWriter.HashMetaCommandState(ReferenceSnapshots.Player);
 
-        after.Should().Be(before);
+        after.ShouldBe(before);
     }
 
     /// <summary>
@@ -237,7 +242,7 @@ public sealed class CanonicalStateWriterTests
         CanonicalStateWriter.HashMetaCommandState(new OneValueSnapshot<string>(new string('x', 4096)));
         var afterLong = CanonicalStateWriter.HashMetaCommandState(new OneValueSnapshot<string>("a"));
 
-        afterLong.Should().Be(alone);
+        afterLong.ShouldBe(alone);
     }
 
     /// <summary>
@@ -253,7 +258,7 @@ public sealed class CanonicalStateWriterTests
 
         var bytes = CanonicalStateWriter.CanonicalBytes(snapshot);
 
-        bytes.Should().HaveCount(1 + 4 + length);
+        bytes.Length.ShouldBe(1 + 4 + length);
     }
 
     /// <summary>The wire form is well formed at those same buffer boundaries.</summary>
@@ -265,7 +270,7 @@ public sealed class CanonicalStateWriterTests
 
         var hash = CanonicalStateWriter.HashMetaCommandState(snapshot);
 
-        hash.Should().MatchRegex(WireForm);
+        WireForm.IsMatch(hash).ShouldBeTrue($"'{hash}' is not of the form {WireForm}");
     }
 
     /// <summary>
@@ -279,7 +284,7 @@ public sealed class CanonicalStateWriterTests
 
         var changed = CanonicalStateWriter.HashMetaCommandState(new PlayerLikeSnapshot(1, "PL_0001", 12346L));
 
-        changed.Should().NotBe(baseline);
+        changed.ShouldNotBe(baseline);
     }
 
     /// <summary>
@@ -293,7 +298,7 @@ public sealed class CanonicalStateWriterTests
     {
         var act = () => CanonicalStateWriter.CanonicalBytes(snapshot);
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*16.6*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*16.6*");
     }
 
     /// <summary>
@@ -309,7 +314,7 @@ public sealed class CanonicalStateWriterTests
 
         var act = () => CanonicalStateWriter.CanonicalBytes(snapshot);
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*16.6*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*16.6*");
     }
 
     /// <summary>
@@ -324,10 +329,11 @@ public sealed class CanonicalStateWriterTests
         var act = () => CanonicalStateWriter.CanonicalBytes(
             new UnsupportedSnapshots.WithPropertyOutsideTheConstructor(1, 3) { RevivesUsed = 99 });
 
-        act.Should().Throw<NotSupportedException>()
-            .WithMessage("*16.6*")
-            .WithMessage("*ZERO BYTES*")
-            .WithMessage("*primary constructor*");
+        var thrown = Should.Throw<NotSupportedException>(act);
+
+        thrown.Message.ShouldMatchWildcard("*16.6*");
+        thrown.Message.ShouldMatchWildcard("*ZERO BYTES*");
+        thrown.Message.ShouldMatchWildcard("*primary constructor*");
     }
 
     /// <summary>
@@ -342,13 +348,100 @@ public sealed class CanonicalStateWriterTests
         var quiet = new UnsupportedSnapshots.WithPropertyOutsideTheConstructor(1, 3) { RevivesUsed = 0 };
         var busy = quiet with { RevivesUsed = 99 };
 
-        busy.Should().NotBe(quiet);
+        busy.ShouldNotBe(quiet);
 
         var hashQuiet = () => CanonicalStateWriter.HashMetaCommandState(quiet);
         var hashBusy = () => CanonicalStateWriter.HashMetaCommandState(busy);
 
-        hashQuiet.Should().Throw<NotSupportedException>();
-        hashBusy.Should().Throw<NotSupportedException>();
+        Should.Throw<NotSupportedException>(hashQuiet);
+        Should.Throw<NotSupportedException>(hashBusy);
+    }
+
+    /// <summary>
+    /// 🔴 `14` §16.6 — a record carrying a public <b>field</b> outside its primary constructor is
+    /// refused too. The check above counted <i>properties</i>; a field is in no parameter list and
+    /// is not a property, so it slipped past both halves and hashed as zero bytes.
+    /// </summary>
+    /// <remarks>
+    /// Latent in M0-07 since it shipped, and harmless only while no snapshot record existed. M1-04
+    /// authors the first one, so it closes this: without the fix the record below encodes happily
+    /// and <see cref="HashMetaCommandState_refuses_a_public_field_record_equality_can_see"/> shows
+    /// what that costs.
+    /// </remarks>
+    [Fact]
+    public void CanonicalBytes_refuses_a_record_field_declared_outside_the_primary_constructor()
+    {
+        var act = () => CanonicalStateWriter.CanonicalBytes(
+            new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 99 });
+
+        var thrown = Should.Throw<NotSupportedException>(act);
+
+        thrown.Message.ShouldMatchWildcard("*16.6*");
+        thrown.Message.ShouldMatchWildcard("*PUBLIC FIELD*");
+        thrown.Message.ShouldMatchWildcard("*ZERO BYTES*");
+        thrown.Message.ShouldMatchWildcard("*primary constructor*");
+    }
+
+    /// <summary>
+    /// 🔴 The consequence, stated as the assertion that fails without the fix: two states a
+    /// <b>public field</b> makes different must never share a <c>stateHash</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Measured, not assumed:</b> Roslyn's synthesized record <c>Equals</c> compares every
+    /// <i>instance field</i> of the type, not only the primary-constructor components — so equality
+    /// <b>does</b> see this field, and the divergence is exactly the property case's. The first
+    /// draft of this test asserted the opposite on a plausible reading of "the field list is the
+    /// parameter list" and went red, which is the reading being corrected here. The assertion is on
+    /// the refusal rather than on the two hashes differing because there is no encoding of this
+    /// shape that could be correct: the field is in no parameter list, so it has no position.
+    /// </remarks>
+    [Fact]
+    public void HashMetaCommandState_refuses_a_public_field_record_equality_can_see()
+    {
+        var quiet = new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 0 };
+        var busy = new UnsupportedSnapshots.WithPublicField(1, 3) { RevivesUsed = 99 };
+
+        busy.ShouldNotBe(
+            quiet,
+            "Roslyn's synthesized record Equals compares every INSTANCE FIELD of the type, not only " +
+            "the primary-constructor components — so a public field is visible to equality even " +
+            "though it is in no parameter list. That is precisely the divergence: the language " +
+            "calls these two records different and the encoder would call them the same.");
+
+        var hashQuiet = () => CanonicalStateWriter.HashMetaCommandState(quiet);
+        var hashBusy = () => CanonicalStateWriter.HashMetaCommandState(busy);
+
+        Should.Throw<NotSupportedException>(hashQuiet);
+        Should.Throw<NotSupportedException>(hashBusy);
+    }
+
+    /// <summary>
+    /// 🔴 And the field-order pin asks the same question, so the shape has no pinnable field order
+    /// either. Without this half, a future <c>CanonicalFieldOrder</c> could pin a list for a record
+    /// the bytes refuse — the drift the two sharing one <c>BuildPlan</c> exists to prevent.
+    /// </summary>
+    [Fact]
+    public void CanonicalFieldOrder_refuses_a_record_field_declared_outside_the_primary_constructor()
+    {
+        var act = () => CanonicalStateWriter.CanonicalFieldOrder(typeof(UnsupportedSnapshots.WithPublicField));
+
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*PUBLIC FIELD*");
+    }
+
+    /// <summary>
+    /// 🔒 The negative half: the fix refuses a public field and <b>only</b> a public field. A
+    /// positional record compiles its components to private backing fields, so requiring zero
+    /// public instance fields must cost a compliant snapshot nothing — including the real
+    /// <c>PlayerSnapshot</c>, whose value-typed members carry backing fields of their own.
+    /// </summary>
+    [Fact]
+    public void The_public_field_refusal_leaves_a_compliant_record_alone()
+    {
+        CanonicalStateWriter.IsCanonicalRecord(typeof(UnsupportedSnapshots.WithPublicField)).ShouldBeFalse();
+
+        CanonicalStateWriter.IsCanonicalRecord(typeof(PlayerLikeSnapshot)).ShouldBeTrue();
+        CanonicalStateWriter.IsCanonicalRecord(typeof(SlayIdleRepeat.Core.Primitives.EnergyBanks)).ShouldBeTrue();
+        CanonicalStateWriter.IsCanonicalRecord(typeof(SlayIdleRepeat.Core.Primitives.PlayerId)).ShouldBeTrue();
     }
 
     /// <summary>
@@ -370,7 +463,7 @@ public sealed class CanonicalStateWriterTests
 
         var act = () => CanonicalStateWriter.CanonicalBytes(deep!);
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*depth*");
+        Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*depth*");
     }
 
     /// <summary>The shapes with no reflection-defined declaration order, one fixture per shape.</summary>
