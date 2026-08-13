@@ -320,7 +320,13 @@ internal sealed class BattleSimulation
 
         // ── 0b · fire ON_BATTLE_START: hero side first (hero, then pets in slot order), then
         //    enemies by index; within one actor in ascending effect-id order.
-        foreach (var actor in BattleStartOrder())
+        //
+        // 🔒 The order is MATERIALISED before the walk, for step 0c's reason below: BattleStartOrder()
+        // is a deferred LINQ query over `_actors`, so an ON_BATTLE_START that summons would invalidate
+        // it mid-iteration. The opening roster is what fires ON_BATTLE_START — a summon admitted here
+        // is not a battle-opening actor and AdmitSummon gives it a full cooldown rather than an
+        // opener's zero — so freezing the sequence is also the correct semantics, not just the safe one.
+        foreach (var actor in BattleStartOrder().ToList())
         {
             FireTriggers(actor, new TriggerOccurrence
             {
@@ -332,11 +338,26 @@ internal sealed class BattleSimulation
         }
 
         // ── 0c · the boss's phase 1 counts as entered.
-        foreach (var actor in _actors)
+        //
+        // 🔴 Indexed over a count taken BEFORE the walk, exactly as the tick loop's slots 2a-6 are and
+        // for the identical reason: entering phase 1 fires ON_PHASE_ENTER, an ON_PHASE_ENTER may be a
+        // SUMMON, and `05` §3.1 appends a summon to `_actors` — so a foreach here throws
+        // "Collection was modified". This is not hypothetical: BOSS_OSSUARY_KING's phase 1 carries
+        // BOSS_OSSUARY_KING_P1_COURT, a SUMMON on ON_PHASE_ENTER phase 1, and every Chapter 3 boss
+        // fight crashed on tick 0 before this loop was indexed. It went unseen because the three
+        // scripts M2-12 exercised summon on phase 2 or 3, where the tick loop's already-indexed walks
+        // admit the summon safely; the pre-tick was the one walk left as a foreach.
+        //
+        // The bound is taken before the walk rather than re-read each step so that a boss summoned by
+        // another boss's phase 1 cannot have its own phase 1 entered in the same pass — `05` §3 has one
+        // boss per fight, and a roster that grew into a second one mid-pre-tick would enter phases in
+        // an order that depends on how many adds landed first.
+        var opening = _actors.Count;
+        for (var i = 0; i < opening; i++)
         {
-            if (actor.IsBoss)
+            if (_actors[i].IsBoss)
             {
-                _seams.Phases.EnterInitialPhase(actor, 0);
+                _seams.Phases.EnterInitialPhase(_actors[i], 0);
             }
         }
 

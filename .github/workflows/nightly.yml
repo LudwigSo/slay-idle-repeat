@@ -3,21 +3,31 @@
 # Requirement: 14 §14, verbatim —
 #   "Nightly: balance harness + economy simulator."
 #
-# HONEST BUT THIN, and deliberately so. Both tools exist and both are empty
-# shells today:
+# X-08 — "balance harness green — guardrail tests run nightly once combat
+# exists" — is FILLED IN as of M2-16a. The balance-harness job below runs the
+# real 05 §9 sweep: 8 chapters x 3 tiers x 5 build archetypes x 10,000 fights =
+# 1,200,000 boss fights, then asserts five of the six guardrails plus the
+# Sporequeen duration band, and exits non-zero on a breach.
 #
-#   tools/BalanceHarness  prints "BalanceHarness: not implemented yet" -> exit 0
-#   tools/EconomySim      prints "EconomySim: not implemented yet"     -> exit 0
+# 🔴 IT IS RED ON THE SHIPPED DATA, AND THAT IS THE HARNESS WORKING.
+# M2-16a's first measurement is that the clear rate at par is 0.00% in all 120
+# cells: ParPower(c,t) places the hero at par while EnemyPower(42) puts the boss
+# at par x 5.434, so a par player fights a boss 5.4x its own power scalar.
+# Guardrails 1, 5 and 6 fail; 3 and 4 cannot be measured at all because nothing
+# clears. Softening the band, scaling a build, or gating this job off to get a
+# green tick would delete the only evidence anybody has about whether the game
+# is balanced. The fix is a TUNING decision on game-data/ (21 §3.2 keeps that
+# out of code and out of this workflow), not a change here.
 #
-# So this workflow really does build and run both, and really does fail if either
-# stops building or starts crashing. It just has very little to assert yet. That
-# is a thin real job, not a fake one — the alternative (gating it off until the
-# tools are real) would let the tools rot unbuilt for six milestones.
+# Why nightly and not a PR gate: the sweep measured 1752.85 s (~29.2 min) on a
+# dev machine. The PR tier runs the same guardrail code over a deterministic
+# 200-fight subset inside SlayIdleRepeat.Core.Tests (~6 s), which is what keeps
+# a harness regression from reaching this job unnoticed.
 #
-# What fills it in:
-#   M2-16  Balance harness v1 — 10,000 fights per (chapter, tier, archetype) and
-#          the 6 guardrail tests (05 §9). The run stops being a smoke test and
-#          starts failing on a guardrail breach.
+# What still fills in:
+#   M2-16b Guardrail 2 — no single perk raises clear rate by more than 12 pp in
+#          isolation. Deferred to M3-07, which authors the 98-perk catalogue;
+#          deliberately NOT stubbed here.
 #   M6-09  Economy simulator assertions A1–A16 plus inherited E1–E23, wired as
 #          the CI gate on game-data changes, with a perf budget of
 #          180 d × 14 profiles × 200 seeds in under 4 minutes (21 §9).
@@ -55,11 +65,15 @@ env:
 jobs:
 
   # ===========================================================================
-  # balance-harness — 05 §9, filled in by M2-16
+  # balance-harness — 05 §9, filled in by M2-16a
   # ===========================================================================
   balance-harness:
     name: balance harness (05 §9)
     runs-on: ubuntu-24.04
+    # 29.2 min measured for the sweep on a dev machine; the ceiling is generous
+    # because a shared runner is slower and because a job killed by the default
+    # 6 h limit would report as "cancelled" rather than as a guardrail breach.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -74,12 +88,32 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json', 'Directory.Build.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Run the balance harness
-        # Asserts exit 0 — which is all there is to assert until M2-16 gives the
-        # harness its 6 guardrail tests. It does already catch a harness that
-        # stops compiling or starts throwing, which is the failure mode a tool
-        # nobody runs for six milestones actually has.
-        run: dotnet run --project tools/BalanceHarness/SlayIdleRepeat.BalanceHarness.csproj --configuration Release
+      - name: Run the 05 §9 sweep and assert the guardrails
+        # 8 chapters x 3 tiers x 5 archetypes x 10,000 fights = 1.2M boss fights.
+        # `sweep` writes the full report; the harness exits 1 on a guardrail
+        # breach, on a guardrail that could not be measured at all, and on an
+        # engine fault that shrank the swept set — a sweep that silently covered
+        # fewer cells must not read green.
+        #
+        # 🔴 This step is EXPECTED TO FAIL on the shipped data. See the header.
+        # Do not add `continue-on-error`, do not lower `--fights`, and do not
+        # narrow `--chapters` to the cells that pass — there are none.
+        run: >
+          dotnet run
+          --project tools/BalanceHarness/SlayIdleRepeat.BalanceHarness.csproj
+          --configuration Release
+          --
+          sweep --fights 10000 --out balance-report.txt
+
+      - name: Upload the balance report
+        # always(), because the report is the whole point: the run that FAILS is
+        # the one whose numbers a tuning decision is made from.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-report
+          path: balance-report.txt
+          if-no-files-found: error
 
   # ===========================================================================
   # economy-simulator — 21, filled in by M6-09

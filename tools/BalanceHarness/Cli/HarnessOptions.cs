@@ -1,0 +1,273 @@
+using System.Globalization;
+using SlayIdleRepeat.BalanceHarness.Content;
+using SlayIdleRepeat.BalanceHarness.Model;
+using SlayIdleRepeat.BalanceHarness.Sweep;
+
+namespace SlayIdleRepeat.BalanceHarness.Cli;
+
+/// <summary>`21` §10's three commands.</summary>
+public enum HarnessCommand
+{
+    /// <summary>The full `05` §9 sweep, every guardrail, both experiments and the report. The default.</summary>
+    Sweep,
+
+    /// <summary>🔒 Guardrails only, minimal output, NON-ZERO EXIT on a breach. The CI entry point.</summary>
+    Assert,
+
+    /// <summary>The deterministic PR-tier subset — the same shape, a small fight count, no experiments.</summary>
+    Fast,
+}
+
+/// <summary>Which experiment <c>--experiment</c> asked for.</summary>
+public enum ExperimentSelection
+{
+    /// <summary>Both, which is what <c>sweep</c> does by default.</summary>
+    All,
+
+    /// <summary>`05` §5's undecayed Thornmaw RAGE only.</summary>
+    Rage,
+
+    /// <summary>`17` §1's <c>addsPowerFraction</c> band only.</summary>
+    Adds,
+
+    /// <summary>None — what <c>assert</c> and <c>fast</c> do.</summary>
+    None,
+}
+
+/// <summary>
+/// 🔒 The harness's own argument parser. `30` §6 / `21` §2 forbid a <c>PackageReference</c>, so a CLI
+/// parsing library is not available and this is written out.
+/// </summary>
+/// <remarks>
+/// 🔒 <b>An unknown argument is an error, never a warning and never ignored.</b> A nightly job invoked
+/// with a mistyped <c>--fights</c> that silently ran the default would report a number nobody asked
+/// for, under a name that says it is something else.
+/// </remarks>
+public sealed record HarnessOptions
+{
+    /// <summary>🔒 `05` §9 — the documented fights per cell, and the default for <c>sweep</c> and <c>assert</c>.</summary>
+    public const int DefaultFights = SweepScope.DocumentedFightsPerCell;
+
+    /// <summary>The <c>fast</c> subset's fights per cell. Small enough for a PR, large enough to move a rate.</summary>
+    public const int FastFights = 200;
+
+    /// <summary>Which command to run.</summary>
+    public HarnessCommand Command { get; init; } = HarnessCommand.Sweep;
+
+    /// <summary>Fights per <c>(chapter, tier, archetype)</c>.</summary>
+    public int Fights { get; init; } = DefaultFights;
+
+    /// <summary>The <c>game-data</c> root. Defaults to the running checkout's.</summary>
+    public string DataRoot { get; init; } = GameDataLoader.DataRoot;
+
+    /// <summary>Where to write the report, or <c>null</c> for stdout only.</summary>
+    public string? OutputPath { get; init; }
+
+    /// <summary>Chapters to sweep, or <c>null</c> for every authored one.</summary>
+    public IReadOnlyList<int>? Chapters { get; init; }
+
+    /// <summary>Tiers to sweep, or <c>null</c> for all three.</summary>
+    public IReadOnlyList<Tier>? Tiers { get; init; }
+
+    /// <summary>Archetype ids to sweep, or <c>null</c> for all five authored ones.</summary>
+    public IReadOnlyList<string>? Archetypes { get; init; }
+
+    /// <summary>Which experiment to run.</summary>
+    public ExperimentSelection Experiment { get; init; } = ExperimentSelection.All;
+
+    /// <summary>Threads. Defaults to the machine's processor count; 1 forces a sequential run.</summary>
+    public int Parallelism { get; init; } = Environment.ProcessorCount;
+
+    /// <summary>Set by <c>--help</c>.</summary>
+    public bool ShowUsage { get; init; }
+
+    /// <summary>`21` §10's usage block.</summary>
+    public static string Usage =>
+        """
+        BalanceHarness [command] [options]
+
+          sweep    (default)  the full 05 §9 sweep + every guardrail + the report
+          assert              guardrails only, minimal output, NON-ZERO EXIT on a breach
+          fast                the deterministic PR-tier subset
+
+        Options:
+          --fights <n>        fights per (chapter, tier, archetype); default 10000 per 05 §9
+          --data <dir>        default: the repo's game-data
+          --out <file>        write the report
+          --chapters <list>   comma-separated, e.g. 1,4,7
+          --tiers <list>      comma-separated NORMAL,HEROIC,MYTHIC
+          --archetypes <list> comma-separated build archetype ids
+          --experiment <e>    rage | adds   (sweep only; default: both)
+          --parallel <n>      degree of parallelism; default: processor count, 1 = sequential
+          --help              this text
+
+        Exit codes:
+          0  every guardrail passed
+          1  a guardrail breached, or could not be measured at all
+          2  the arguments were not understood
+        """;
+
+    /// <summary>
+    /// Parses an argument vector. Returns <c>null</c> and an error on anything not understood.
+    /// </summary>
+    public static HarnessOptions? Parse(IReadOnlyList<string> args, out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        error = null;
+        var options = new HarnessOptions();
+        var index = 0;
+
+        if (args.Count > 0 && !args[0].StartsWith("--", StringComparison.Ordinal))
+        {
+            switch (args[0])
+            {
+                case "sweep": options = options with { Command = HarnessCommand.Sweep }; break;
+                case "assert":
+                    options = options with
+                    {
+                        Command = HarnessCommand.Assert,
+                        Experiment = ExperimentSelection.None,
+                    };
+                    break;
+                case "fast":
+                    options = options with
+                    {
+                        Command = HarnessCommand.Fast,
+                        Fights = FastFights,
+                        Experiment = ExperimentSelection.None,
+                    };
+                    break;
+                default:
+                    error = $"'{args[0]}' is not a command. The commands are sweep, assert and fast.";
+                    return null;
+            }
+
+            index = 1;
+        }
+
+        for (; index < args.Count; index++)
+        {
+            var name = args[index];
+
+            if (string.Equals(name, "--help", StringComparison.Ordinal))
+            {
+                return options with { ShowUsage = true };
+            }
+
+            if (index + 1 >= args.Count)
+            {
+                error = $"'{name}' expects a value and none followed it.";
+                return null;
+            }
+
+            var value = args[++index];
+
+            switch (name)
+            {
+                case "--fights":
+                    if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var fights) ||
+                        fights <= 0)
+                    {
+                        error = $"--fights '{value}' is not a positive whole number.";
+                        return null;
+                    }
+
+                    options = options with { Fights = fights };
+                    break;
+
+                case "--data":
+                    options = options with { DataRoot = value };
+                    break;
+
+                case "--out":
+                    options = options with { OutputPath = value };
+                    break;
+
+                case "--chapters":
+                    var chapters = new List<int>();
+                    foreach (var part in Split(value))
+                    {
+                        if (!int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var chapter))
+                        {
+                            error = $"--chapters '{part}' is not a whole number.";
+                            return null;
+                        }
+
+                        chapters.Add(chapter);
+                    }
+
+                    options = options with { Chapters = chapters };
+                    break;
+
+                case "--tiers":
+                    var tiers = new List<Tier>();
+                    foreach (var part in Split(value))
+                    {
+                        if (!Enum.TryParse<Tier>(part, ignoreCase: true, out var tier))
+                        {
+                            error =
+                                $"--tiers '{part}' is not a tier. The three are " +
+                                $"{string.Join(", ", Model.Tiers.All)}.";
+                            return null;
+                        }
+
+                        tiers.Add(tier);
+                    }
+
+                    options = options with { Tiers = tiers };
+                    break;
+
+                case "--archetypes":
+                    options = options with { Archetypes = Split(value) };
+                    break;
+
+                case "--experiment":
+                    switch (value.ToUpperInvariant())
+                    {
+                        case "RAGE": options = options with { Experiment = ExperimentSelection.Rage }; break;
+                        case "ADDS": options = options with { Experiment = ExperimentSelection.Adds }; break;
+                        default:
+                            error = $"--experiment '{value}' is not an experiment. The two are rage and adds.";
+                            return null;
+                    }
+
+                    break;
+
+                case "--parallel":
+                    if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parallel) ||
+                        parallel <= 0)
+                    {
+                        error = $"--parallel '{value}' is not a positive whole number.";
+                        return null;
+                    }
+
+                    options = options with { Parallelism = parallel };
+                    break;
+
+                default:
+                    error = $"'{name}' is not an option this harness understands.";
+                    return null;
+            }
+        }
+
+        return options;
+    }
+
+    /// <summary>The scope this options object describes, against the authored catalogues.</summary>
+    public SweepScope ToScope(ParPowerTable parPower, CalibrationBuilds calibration)
+    {
+        ArgumentNullException.ThrowIfNull(parPower);
+        ArgumentNullException.ThrowIfNull(calibration);
+
+        return new SweepScope(
+            Chapters ?? parPower.Chapters,
+            Tiers ?? Model.Tiers.All,
+            Archetypes ?? calibration.Archetypes.Select(a => a.Id).ToArray(),
+            Fights,
+            Parallelism);
+    }
+
+    private static string[] Split(string value) =>
+        value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
