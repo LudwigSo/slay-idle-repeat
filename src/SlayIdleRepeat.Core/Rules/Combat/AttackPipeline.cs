@@ -468,6 +468,27 @@ internal sealed class AttackPipeline : IAttackPipeline
             }
         }
 
+        // 🔴 `18` §2.4's SURVIVE_LETHAL, consumed HERE and nowhere else. The op armed a save on
+        //    CombatFlowState and cross-task review found ConsumeDeathSave with no production caller
+        //    at all, so every "survive a lethal hit" perk in the game was inert and `05` §3.1's
+        //    anti-loop `once` count was unreachable code guarding nothing.
+        //
+        //    🔒 It is checked BEFORE the write rather than after, because `05` §3.1 puts an actor
+        //    out of play "at that moment" it reaches 0 — an actor restored on the next slot would
+        //    have spent a tick dead, firing ON_DEATH and being skipped by target selection. `18` §3
+        //    is explicit that a SURVIVE_LETHAL actor never died, so there is no ON_DEATH and no
+        //    ON_REVIVE here; REVIVE is the other op and is consumed in ResolveDeaths.
+        //
+        //    🔒 hpLost is REDUCED to what actually came off, so the Hit event stays truthful. `05`
+        //    §8 makes the log the replay, and a Hit carrying the full lethal amount beside an actor
+        //    standing at 1 HP is a frame a replayer cannot draw. It is also what step 10's ON_HIT
+        //    readings see, so a lifesteal off the saving blow leeches the real number.
+        if (hpLost > 0.0 && target.CurrentHp - hpLost <= 0.0
+            && target.Flow.ConsumeDeathSave(revive: false) is { } save)
+        {
+            hpLost = Math.Max(0.0, StatRounding.Round(target.CurrentHp - save.Hp));
+        }
+
         if (hpLost > 0.0)
         {
             target.SetCurrentHp(target.CurrentHp - hpLost);

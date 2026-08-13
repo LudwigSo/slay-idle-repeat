@@ -778,6 +778,29 @@ internal sealed class BattleSimulation
 
                 FireTriggers(actor, Occurrence(TriggerKind.ON_DEATH, actor));
 
+                // 🔴 `18` §2.4's REVIVE, consumed HERE and nowhere else. The op armed a save on
+                // CombatFlowState and cross-task review found ConsumeDeathSave with no production
+                // caller, so no REVIVE in the game ever returned anyone and ON_REVIVE could not fire
+                // anywhere -- one of `18` §11's 23 triggers was unreachable by construction.
+                //
+                // 🔒 AFTER ON_DEATH, which is what the re-check below was already written for: `18`
+                // §2.4 arms a return "from 0 HP", so the actor must have reached it, and `18` §3
+                // makes ON_REVIVE the counterpart of a death that happened. That also lets an
+                // ON_DEATH holding arm the save that saves its own holder, which is the shape
+                // `05` §3.1's re-sweep exists to tolerate.
+                if (actor.Flow.ConsumeDeathSave(revive: true) is { } save)
+                {
+                    actor.SetCurrentHp(save.Hp);
+
+                    // 🔒 Fired only when the save actually restored HP. A REVIVE authored at 0 --
+                    // or clamped to 0 by a Max HP of 0 -- leaves a body, and ON_REVIVE over an actor
+                    // still at 0 would announce a return that did not happen.
+                    if (actor.CurrentHp > 0.0)
+                    {
+                        FireTriggers(actor, Occurrence(TriggerKind.ON_REVIVE, actor));
+                    }
+                }
+
                 // Re-checked: an ON_DEATH may have carried a REVIVE, and an actor that came back is
                 // not a body to remove.
                 if (actor.CurrentHp > 0.0)
