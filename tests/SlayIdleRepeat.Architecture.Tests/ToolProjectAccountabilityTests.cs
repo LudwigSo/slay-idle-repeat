@@ -92,6 +92,61 @@ public sealed class ToolProjectAccountabilityTests
     private static readonly string[] ManifestConsumerToolNames = ["SlayIdleRepeat.AssetPipeline"];
 
     /// <summary>
+    /// Tools that compose the three asset-production libraries — the register, the `15` §B4
+    /// pipeline and the provenance format — and reach <b>nothing else in this repository</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>SlayIdleRepeat.AssetPlaceholders</c> (M8-10) draws one placeholder per runtime art slot,
+    /// drives every one through `15` §B4's seven steps and Part F's checklist, and writes a
+    /// <c>procedural</c> provenance record beside each image. It is the first tool that needs all
+    /// three at once, and none of the four categories above permits that:
+    /// <c>CoreOnlyToolNames</c> is pinned to <c>Core</c> (`30` §6) and this touches no game rule;
+    /// <c>ToolCompositionRootNames</c> composes an adapter (`23` §7) and this composes none;
+    /// <c>DependencyFreeToolNames</c> reaches nothing; <c>RegisterConsumerToolNames</c> and
+    /// <c>ManifestConsumerToolNames</c> each permit exactly ONE project reference, the register.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Stated as a rule, not as a label.</b> A pipeline-consumer tool may reference
+    /// <c>SlayIdleRepeat.AssetManifest</c>, <c>SlayIdleRepeat.AssetPipeline</c> and
+    /// <c>SlayIdleRepeat.AssetProvenance</c>, and <b>nothing else</b>: no <c>Core</c>, no
+    /// <c>Application</c>, no <c>Contracts</c>, no <c>Adapters.*</c>, and no other tool. The teeth
+    /// are on the first four specifically — a placeholder generator that reached into
+    /// <c>Application</c> "for just one service" would put a build-time asset tool on the game's
+    /// use-case layer and make `30` §13's "the whole game is playable from Core alone" quietly
+    /// harder to keep true.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The three permitted references are exactly the three merged M8 dependencies, and that
+    /// is the point.</b> Steering S12: a fourth manifest reader, a second `15` §D1 naming
+    /// implementation or a parallel Part F path is a duplicate mechanism, and the way this
+    /// repository prevents one is by making the real thing reachable rather than by asking nicely.
+    /// The rule below therefore <em>requires</em> all three to be present as well as forbidding a
+    /// fourth: a tool in this category that had dropped its reference to the pipeline would be
+    /// running §B4 somewhere else.
+    /// </para>
+    /// <para>
+    /// Package references are deliberately not restricted here, for the same reason
+    /// <see cref="ManifestConsumerToolNames"/> does not restrict them:
+    /// <c>Vendor_package_is_referenced_by_exactly_one_project</c> already governs those, and two
+    /// rules for one decision is one rule too many. SkiaSharp reaches M8-10 transitively through
+    /// <c>SlayIdleRepeat.AssetPipeline</c>, which is what keeps that rule armed.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] PipelineConsumerToolNames = ["SlayIdleRepeat.AssetPlaceholders"];
+
+    /// <summary>
+    /// Every project a pipeline-consumer tool may reference, and no other. The three merged M8
+    /// asset-production libraries.
+    /// </summary>
+    private static readonly string[] PipelineConsumerPermittedReferences =
+    [
+        ManifestProjectName,
+        "SlayIdleRepeat.AssetPipeline",
+        "SlayIdleRepeat.AssetProvenance",
+    ];
+
+    /// <summary>
     /// `23` §6 / `30` §6 — every project under <c>tools/</c> is named by one of the sets the
     /// dependency rules are stated over. A tool in none of them has no reference rule at all.
     /// </summary>
@@ -108,6 +163,7 @@ public sealed class ToolProjectAccountabilityTests
             .Concat(DependencyFreeToolNames)
             .Concat(RegisterConsumerToolNames)
             .Concat(ManifestConsumerToolNames)
+            .Concat(PipelineConsumerToolNames)
             .ToArray();
 
         var toolProjects = ToolProjectFiles();
@@ -133,7 +189,10 @@ public sealed class ToolProjectAccountabilityTests
                     "ToolProjectAccountabilityTests.RegisterConsumerToolNames (reaches M8-09's asset " +
                     "register and nothing else, and takes no package), or " +
                     "ToolProjectAccountabilityTests.ManifestConsumerToolNames (reads the asset-manifest " +
-                    "register and nothing else in the repository, but may take an imaging package) — " +
+                    "register and nothing else in the repository, but may take an imaging package), or " +
+                    "ToolProjectAccountabilityTests.PipelineConsumerToolNames (composes the asset " +
+                    "register, the 15 §B4 pipeline and the provenance format, and nothing else in the " +
+                    "repository) — " +
                     "whichever is true of it. Until then it may reference Application, or take a vendor " +
                     "package, with a green suite."));
 
@@ -321,6 +380,96 @@ public sealed class ToolProjectAccountabilityTests
         ArchRule.Empty(
             offenders,
             "Manifest-consumer tools reference SlayIdleRepeat.AssetManifest and nothing else (23 §6, 30 §6).");
+    }
+
+    /// <summary>
+    /// `23` §6 / `30` §6 — a pipeline-consumer tool project-references all three asset-production
+    /// libraries (<c>SlayIdleRepeat.AssetManifest</c>, <c>SlayIdleRepeat.AssetPipeline</c>,
+    /// <c>SlayIdleRepeat.AssetProvenance</c>) and <b>nothing else in this repository</b>: no
+    /// <c>Core</c>, no <c>Application</c>, no <c>Contracts</c>, no <c>Adapters.*</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rule is what makes the category a rule rather than a label — see
+    /// <see cref="PipelineConsumerToolNames"/> for why none of the other four describes M8-10.
+    /// It has two halves and both are load-bearing. Forbidding a fourth reference keeps a
+    /// build-time asset tool off the game's dependency graph. <b>Requiring all three</b> is steering
+    /// S12: a placeholder generator that had stopped referencing the pipeline would be running `15`
+    /// §B4 somewhere else, and one that had stopped referencing the provenance format would be
+    /// writing a second record shape — both are duplicate mechanisms that an "at most these three"
+    /// rule would wave through.
+    /// </para>
+    /// <para>
+    /// 🔒 Two floors, both steering S3. An empty category quantifies over nothing and passes
+    /// forever while still handing out a free pass in the accountability rule above; a category
+    /// naming a project with no <c>.csproj</c> governs a project that is not there.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_pipeline_consumer_tools_reference_the_three_asset_libraries_and_nothing_else()
+    {
+        var offenders = new List<string>();
+
+        // S3 — a rule whose subject set can silently empty passes forever.
+        if (PipelineConsumerToolNames.Length == 0)
+        {
+            offenders.Add(
+                "PipelineConsumerToolNames is empty, so this rule quantifies over nothing. Either a tool " +
+                "belongs in the category or the category should be deleted along with its entry in " +
+                "`governed` above — leaving it empty means the accountability rule hands out a free pass.");
+        }
+
+        // S3 — and the permitted set can empty just as silently, which would turn the "reaches
+        // nothing else" half into "reaches nothing at all" and the "references all three" half into
+        // a loop over no names.
+        if (PipelineConsumerPermittedReferences.Length != 3)
+        {
+            offenders.Add(
+                $"PipelineConsumerPermittedReferences names {PipelineConsumerPermittedReferences.Length} " +
+                "projects and the category is defined over exactly three — M8-09's register, M8-06's " +
+                "pipeline and M8-01a's provenance format. Adding a fourth is a decision about what an " +
+                "asset-production tool may reach, and it belongs in this rule's remarks, not in a list " +
+                "that grew by one.");
+        }
+
+        foreach (var tool in PipelineConsumerToolNames)
+        {
+            var projectFile = ToolProjectFiles().SingleOrDefault(
+                p => RepoLayout.ProjectName(p).Equals(tool, StringComparison.Ordinal));
+
+            if (projectFile is null)
+            {
+                offenders.Add(
+                    $"'{tool}' has no .csproj under tools/. A rule keyed on a project that is not there " +
+                    "governs nothing — remove the entry, or point it at where the project went.");
+                continue;
+            }
+
+            var references = RepoLayout.ProjectReferences(projectFile).ToArray();
+
+            offenders.AddRange(
+                PipelineConsumerPermittedReferences
+                    .Where(permitted => !references.Contains(permitted, StringComparer.Ordinal))
+                    .Select(permitted =>
+                        $"{tool} does not project-reference '{permitted}'. A pipeline-consumer tool " +
+                        "composes all three asset-production libraries; one it does not reference is one " +
+                        "it has grown its own copy of, which is the duplicate mechanism steering S12 " +
+                        "exists to prevent."));
+
+            offenders.AddRange(
+                references
+                    .Where(r => !PipelineConsumerPermittedReferences.Contains(r, StringComparer.Ordinal))
+                    .Select(r =>
+                        $"{tool} project-references '{r}'. A pipeline-consumer tool reaches " +
+                        $"{string.Join(", ", PipelineConsumerPermittedReferences)} and nothing else in " +
+                        "this repository — no Core, no Application, no Contracts, no adapter, and no " +
+                        "other tool."));
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "Pipeline-consumer tools reference the three asset-production libraries and nothing else " +
+            "(23 §6, 30 §6).");
     }
 
     /// <summary>The register every register- and manifest-consumer tool reads (M8-09).</summary>

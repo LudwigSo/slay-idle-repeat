@@ -97,6 +97,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetPipelin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetPipeline.Tests", "tests\SlayIdleRepeat.AssetPipeline.Tests\SlayIdleRepeat.AssetPipeline.Tests.csproj", "{66B71B79-8639-489C-A20C-E4DCC25E17C5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetPlaceholders", "tools\AssetPlaceholders\SlayIdleRepeat.AssetPlaceholders.csproj", "{92683381-7F92-4481-B138-A4057D3C1A41}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetPlaceholders.Tests", "tests\SlayIdleRepeat.AssetPlaceholders.Tests\SlayIdleRepeat.AssetPlaceholders.Tests.csproj", "{C4F85F57-CB6A-40EE-9948-4747077841CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -262,6 +266,14 @@ Global
 		{66B71B79-8639-489C-A20C-E4DCC25E17C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{66B71B79-8639-489C-A20C-E4DCC25E17C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{66B71B79-8639-489C-A20C-E4DCC25E17C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92683381-7F92-4481-B138-A4057D3C1A41}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92683381-7F92-4481-B138-A4057D3C1A41}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92683381-7F92-4481-B138-A4057D3C1A41}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92683381-7F92-4481-B138-A4057D3C1A41}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4F85F57-CB6A-40EE-9948-4747077841CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4F85F57-CB6A-40EE-9948-4747077841CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4F85F57-CB6A-40EE-9948-4747077841CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4F85F57-CB6A-40EE-9948-4747077841CE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{673B7BF0-F824-4555-BAFA-1875DBE42927} = {3DC05598-070C-4A81-B839-1DE39A7CAA92}
@@ -308,5 +320,7 @@ Global
 		{A0E5ED12-8862-44F7-AD8F-E9EA597780FE} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
 		{B5892FA7-39D9-4A1B-9BCC-F51C42A8BFA0} = {AA433BF3-56C0-4FED-8C6F-A2894989E102}
 		{66B71B79-8639-489C-A20C-E4DCC25E17C5} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
+		{92683381-7F92-4481-B138-A4057D3C1A41} = {AA433BF3-56C0-4FED-8C6F-A2894989E102}
+		{C4F85F57-CB6A-40EE-9948-4747077841CE} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
 	EndGlobalSection
 EndGlobal
