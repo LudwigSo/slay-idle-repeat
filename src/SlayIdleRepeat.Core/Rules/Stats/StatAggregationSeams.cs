@@ -252,9 +252,10 @@ internal sealed class UnconditionalEffectsOnly : IEffectConditionGate
 
         return effect.Condition is null
             ? true
-            : throw new NotSupportedException(
-                $"18 §8 step 2 filters by condition, evaluated against current state, and '{effect.Id}' " +
-                "carries one. Evaluating 18 §4's condition functions needs the live fight and is M2-05's; " +
+            : throw new EffectContextException(
+                effect.Id,
+                "18 §8 step 2 filters by condition, evaluated against current state, and it carries one",
+                "Evaluating 18 §4's condition functions needs the live fight and is M2-05's; " +
                 "M2-07 ships the aggregation order with this seam open. Admitting the effect anyway would " +
                 "apply PK_EXECUTIONER against a full-health target, and skipping it would delete " +
                 "PK_BERSERK — both are silent balance bugs, so the aggregation refuses instead. Pass a " +
@@ -296,26 +297,31 @@ internal sealed class AuthoredEffectValue : IEffectValueReader
 
         if (effect.ValueScale is not null)
         {
-            throw new NotSupportedException(
-                $"'{effect.Id}' carries a valueScale, which 18 §1.1 evaluates against live state " +
-                "(effectiveValue = value x steps, steps = min(floor(fn / per), cap)). Reading fn is " +
+            throw new EffectContextException(
+                effect.Id,
+                "it carries a valueScale, which 18 §1.1 evaluates against live state " +
+                "(effectiveValue = value x steps, steps = min(floor(fn / per), cap))",
+                "Reading fn is " +
                 "M2-05's and the evaluator wiring is M2-06's; ValueScale.EffectiveValue already owns the " +
                 "arithmetic. Pass a StatAggregationSeams with a real IEffectValueReader.");
         }
 
         if (effect.ValueMode is { } mode && mode != ValueMode.FLAT)
         {
-            throw new NotSupportedException(
-                $"'{effect.Id}' is a stat op with valueMode {mode}. 18 §2.2's value modes are damage- " +
+            throw new EffectContextException(
+                effect.Id,
+                $"it is a stat op with valueMode {mode}",
+                "18 §2.2's value modes are damage- " +
                 "and heal-relative, and the only stat op in 18 that carries one is 9.1's " +
                 "STAT_SET MAX_HP with FLAT. What the other seven would mean against a stat is written " +
                 "nowhere, so M2-07 refuses rather than picking one. Op behaviour is M2-03's.");
         }
 
-        return effect.Value ?? throw new ArgumentException(
-            $"'{effect.Id}' is a {effect.Op} with no value. Every stat op in 18 §2.1 is a magnitude; " +
+        return effect.Value ?? throw new EffectContextException(
+            effect.Id,
+            $"it is a {effect.Op} with no value",
+            "Every stat op in 18 §2.1 is a magnitude; " +
             "an absent one is an authoring hole, and treating it as 0 would make STAT_ADD_* a no-op and " +
-            "STAT_MULT a wipe.",
-            nameof(effect));
+            "STAT_MULT a wipe.");
     }
 }

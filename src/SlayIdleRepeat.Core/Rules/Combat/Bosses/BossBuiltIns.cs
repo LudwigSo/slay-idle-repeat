@@ -1,5 +1,6 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Combat.Status;
 using SlayIdleRepeat.Core.Rules.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
@@ -55,11 +56,16 @@ internal static class BossBuiltIns
     /// <summary>🔒 `17` §1 — the phase-3 <c>FREEZE</c> immunity's effect id.</summary>
     internal const string Phase3FreezeImmunityId = "SYS_PHASE3_IMMUNE_FREEZE";
 
-    /// <summary>`05` §5's <c>STUN</c>.</summary>
-    internal const string StunStatusId = "STUN";
+    /// <summary>`05` §5's <c>STUN</c> — an alias of <see cref="StatusIds.Stun"/>.</summary>
+    /// <remarks>
+    /// 🔴 The literal used to live here <em>and</em> in <c>StatusTimeline</c>, each declared as the
+    /// single naming. `17` §1's phase-3 immunity pair is still this file's rule; the two words it
+    /// names are `05` §5's, and <see cref="StatusIds"/> is where they are spelled.
+    /// </remarks>
+    internal const string StunStatusId = StatusIds.Stun;
 
-    /// <summary>`05` §5's <c>FREEZE</c>.</summary>
-    internal const string FreezeStatusId = "FREEZE";
+    /// <summary>`05` §5's <c>FREEZE</c> — an alias of <see cref="StatusIds.Freeze"/>.</summary>
+    internal const string FreezeStatusId = StatusIds.Freeze;
 
     /// <summary>🔒 `05` §3.1 — <c>SYS_ENRAGE</c>'s <c>interval</c>: <em>"per second"</em>.</summary>
     internal const double EnrageIntervalSeconds = 1.0;

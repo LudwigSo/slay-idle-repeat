@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
@@ -432,11 +433,11 @@ public sealed class PeriodicAnchoringTests
     /// 🔒 The tick rate this layer counts in is `05` §3's, the same one the combat log counts in.
     /// </summary>
     /// <remarks>
-    /// R17 makes <c>Rules.Effects</c> the bottom of the intra-<c>Rules</c> layering, so
-    /// <see cref="TriggerSchedule"/> cannot name <c>CombatLog.TicksPerSecond</c> and states `05` §3's
-    /// 20 Hz itself. That is two statements of one fact, which is a defect unless something compares
-    /// them — this test is that something, and it lives in the test assembly precisely because the
-    /// test assembly is allowed to see both.
+    /// 🔴 R17 makes <c>Rules.Effects</c> the bottom of the intra-<c>Rules</c> layering, so
+    /// <see cref="TriggerSchedule"/> could not name <c>CombatLog.TicksPerSecond</c> and stated `05`
+    /// §3's 20 Hz itself — two statements of one fact, closed only by this comparison. Both are now
+    /// aliases of <see cref="BattleTicks.PerSecond"/>, so this test can no longer fail; it is kept
+    /// because it is what would go red if either alias were unwound back into a literal.
     /// </remarks>
     [Fact]
     public void The_tick_rate_agrees_with_the_combat_log()
@@ -444,7 +445,59 @@ public sealed class PeriodicAnchoringTests
         TriggerSchedule.TicksPerSecond.ShouldBe(CombatLog.TicksPerSecond);
         TriggerSchedule.MaxSpanTicks.ShouldBe(CombatLog.MaxTicks);
         TriggerTestBattle.TicksPerSecond.ShouldBe(CombatLog.TicksPerSecond);
+
+        TriggerSchedule.TicksPerSecond.ShouldBe(BattleTicks.PerSecond);
+        CombatLog.MaxTicks.ShouldBe(BattleTicks.MaxPerFight);
     }
+
+    /// <summary>
+    /// 🔴 `05` §3's whole-tick predicate — <b>one</b> predicate, with one tolerance, for every caller
+    /// that asks whether a span lands on a tick.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>This is the half the rate comparison above never covered.</b>
+    /// <c>TriggerSchedule</c> and <c>CombatLog</c> each carried their own <c>1e-9</c>, their own
+    /// <c>Math.Abs(x − Math.Round(x)) &gt; tolerance</c> and their own <em>"use a multiple of
+    /// 0.05 s"</em> sentence. Only the <c>20</c> was pinned, so the two could have disagreed about
+    /// which spans are admissible while this file stayed green — one layer accepting a trigger
+    /// interval the other refuses as a telegraph lead.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Two shapes plus a negative control</b>, and none of them a <c>const</c>: the compiler
+    /// folds a <c>const</c>, so a literal would test the test rather than the rule. <c>1.2 s</c> is
+    /// the value whose product with 20 is not bit-exactly whole and which the tolerance exists to
+    /// admit; <c>0.05 s</c> is one tick exactly; <c>1.0001 s</c> is the defect being caught, missing
+    /// by six orders of magnitude more than the tolerance.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(1.2, true)]
+    [InlineData(0.05, true)]
+    [InlineData(1.0001, false)]
+    public void The_whole_tick_predicate_is_one_predicate(double seconds, bool expected)
+    {
+        var span = seconds + Zero();
+
+        BattleTicks.IsWhole(span, out _).ShouldBe(expected);
+
+        // The two callers, reached through their own refusals rather than through the primitive —
+        // which is what makes this a statement about the callers and not about BattleTicks.
+        var scheduleAccepts = true;
+        try
+        {
+            TriggerSchedule.Ticks(span, "interval", "PERIODIC");
+        }
+        catch (EffectContextException)
+        {
+            scheduleAccepts = false;
+        }
+
+        scheduleAccepts.ShouldBe(expected);
+    }
+
+    /// <summary>Defeats constant folding — see the theory's remarks.</summary>
+    private static double Zero() => DateTime.UtcNow.Year > 0 ? 0.0 : 1.0;
 
     /// <summary>
     /// Drives the hand-cranked tick source from 0 to <paramref name="upTo"/> and reports every tick

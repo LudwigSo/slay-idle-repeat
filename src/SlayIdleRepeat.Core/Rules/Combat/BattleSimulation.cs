@@ -223,8 +223,24 @@ internal sealed class BattleSimulation
             }
 
             // ── 2 · expiries, ascending effect-id order (M2-10) ──────────────────────────────
+            //
+            // 🔴 TWO KINDS OF EXPIRY, and the ward half is the loop's rather than the seam's. `05`
+            // §5 lists WARD among the statuses, so M2-09 wrote ExpireWards expecting M2-10 to route
+            // it from ExpireDue — and cross-task review found nothing calling it at all, which made
+            // every timed segment permanent and WardPool.ExpireDue dead code. It is fixed HERE and
+            // not inside StatusTimeline because a `05` §4.2 SHIELD grants a segment in a fight that
+            // wires NoStatusTimeline and holds no status: behind the seam, the sweep would be a
+            // no-op for exactly the fights that have a ward and nothing else.
+            //
+            // Wards first, per actor. `05` §3.1 orders slot 2's emissions by ascending effect-id,
+            // and ExpireWards already applies that order within the pool — but a status and a ward
+            // expiring on one tick interleave by kind rather than by id. ⚠️ Recorded as errata: one
+            // merged ordering would need both stores walked together, and no authored content
+            // carries a timed ward yet (every production GrantWard passes expiresAtTick: null), so
+            // the case is unreachable today and stating it wrongly in two places is the worse risk.
             for (var i = 0; i < _actors.Count; i++)
             {
+                ExpireWards(_actors[i]);
                 _seams.Timeline.ExpireDue(_actors[i], Tick);
             }
 
@@ -761,6 +777,29 @@ internal sealed class BattleSimulation
                 }
 
                 FireTriggers(actor, Occurrence(TriggerKind.ON_DEATH, actor));
+
+                // 🔴 `18` §2.4's REVIVE, consumed HERE and nowhere else. The op armed a save on
+                // CombatFlowState and cross-task review found ConsumeDeathSave with no production
+                // caller, so no REVIVE in the game ever returned anyone and ON_REVIVE could not fire
+                // anywhere -- one of `18` §11's 23 triggers was unreachable by construction.
+                //
+                // 🔒 AFTER ON_DEATH, which is what the re-check below was already written for: `18`
+                // §2.4 arms a return "from 0 HP", so the actor must have reached it, and `18` §3
+                // makes ON_REVIVE the counterpart of a death that happened. That also lets an
+                // ON_DEATH holding arm the save that saves its own holder, which is the shape
+                // `05` §3.1's re-sweep exists to tolerate.
+                if (actor.Flow.ConsumeDeathSave(revive: true) is { } save)
+                {
+                    actor.SetCurrentHp(save.Hp);
+
+                    // 🔒 Fired only when the save actually restored HP. A REVIVE authored at 0 --
+                    // or clamped to 0 by a Max HP of 0 -- leaves a body, and ON_REVIVE over an actor
+                    // still at 0 would announce a return that did not happen.
+                    if (actor.CurrentHp > 0.0)
+                    {
+                        FireTriggers(actor, Occurrence(TriggerKind.ON_REVIVE, actor));
+                    }
+                }
 
                 // Re-checked: an ON_DEATH may have carried a REVIVE, and an actor that came back is
                 // not a body to remove.

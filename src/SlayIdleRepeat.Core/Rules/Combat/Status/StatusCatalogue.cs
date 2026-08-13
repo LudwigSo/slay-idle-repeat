@@ -220,6 +220,9 @@ internal sealed record StatusCatalogue(
     /// <summary>🔒 `05` §5 fixes exactly twelve statuses. Asserted at load — see <see cref="Read"/>.</summary>
     internal const int ExpectedStatusCount = 12;
 
+    /// <summary>🔒 `05` §5 — the twelve-row table itself, the pointer every row fault is stated against.</summary>
+    internal const string StatusesPointer = Document + "#/statuses";
+
     /// <summary>📐 `05` §5 — <c>BLEED</c>'s missing-HP scaling term.</summary>
     internal const string BleedMissingHpScalingPointer = Document + "#/bleedMissingHpScaling";
 
@@ -336,6 +339,12 @@ internal sealed record StatusCatalogue(
     /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
     /// <exception cref="MissingContentException">A pointer is absent.</exception>
     /// <exception cref="UnauthorisedTunableException">A value is <c>null</c> where one is required.</exception>
+    /// <exception cref="ContentTypeMismatchException">
+    /// A row is malformed, duplicated, or outside one of `05` §5's closed vocabularies, or the table
+    /// is not twelve rows. ⚠️ <c>ContentException</c>'s hierarchy rather than <c>FormatException</c>:
+    /// the content-load boundary catches <c>ContentException</c>, which is how the enemy and boss
+    /// catalogues state the same three fault classes, and the pointer names WHICH row failed.
+    /// </exception>
     internal static StatusCatalogue Read(ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -343,9 +352,11 @@ internal sealed record StatusCatalogue(
         var rows = content.GetDocument(Document).Root;
         if (!rows.TryGetMember("statuses", out var list) || list!.Kind != ContentValueKind.Array)
         {
-            throw new FormatException(
-                $"{Document} carries no 'statuses' array. 05 §5's table is the whole point of the " +
-                "file, and its schema requires exactly twelve rows.");
+            throw new ContentTypeMismatchException(
+                StatusesPointer,
+                list?.Kind ?? ContentValueKind.Unauthorised,
+                "the 'statuses' array. 05 §5's table is the whole point of the " +
+                "file, and its schema requires exactly twelve rows");
         }
 
         var statuses = new List<StatusDefinition>(list.Items.Count);
@@ -353,17 +364,21 @@ internal sealed record StatusCatalogue(
 
         for (var index = 0; index < list.Items.Count; index++)
         {
-            var row = Row(list.Items[index]);
+            var pointer = RowPointer(index);
+            var row = Row(list.Items[index], pointer);
 
             // 🔒 Duplicate ids are refused BY NAME. ToDictionary's own failure is a bare
             // ArgumentException naming neither the document nor the id, and the schema's uniqueItems
             // compares whole objects — so two rows sharing an id with different bodies pass it.
             if (!seen.Add(row.Id))
             {
-                throw new FormatException(
-                    $"{Document} declares '{row.Id}' twice. 05 §3.1 is 'one instance per statusId " +
-                    "per target', which needs the id to identify one row; the schema's uniqueItems " +
-                    "compares whole rows and cannot see two that differ elsewhere.");
+                throw new ContentTypeMismatchException(
+                    pointer,
+                    ContentValueKind.Object,
+                    $"a status this document declares once — it declares '{row.Id}' twice. 05 §3.1 " +
+                    "is 'one instance per statusId per target', which needs the id to identify one " +
+                    "row; the schema's uniqueItems compares whole rows and cannot see two that " +
+                    "differ elsewhere");
             }
 
             statuses.Add(row);
@@ -375,10 +390,13 @@ internal sealed record StatusCatalogue(
         // partial catalogue whose first symptom is Of() blaming its caller for the file's defect.
         if (statuses.Count != ExpectedStatusCount)
         {
-            throw new FormatException(
-                $"{Document} carries {statuses.Count.ToString(CultureInfo.InvariantCulture)} statuses. " +
+            throw new ContentTypeMismatchException(
+                StatusesPointer,
+                ContentValueKind.Array,
+                "exactly twelve statuses — it carries " +
+                $"{statuses.Count.ToString(CultureInfo.InvariantCulture)}. " +
                 "05 §5 fixes exactly twelve, and its schema declares minItems and maxItems 12; a " +
-                "catalogue that is short fails later, mid-battle, as an unknown-status error.");
+                "catalogue that is short fails later, mid-battle, as an unknown-status error");
         }
 
         return new StatusCatalogue(
@@ -388,21 +406,30 @@ internal sealed record StatusCatalogue(
             statuses);
     }
 
-    private static StatusDefinition Row(ContentValue row)
+    /// <summary>🔒 The content pointer of one `05` §5 row — what every fault below is stated against.</summary>
+    private static string RowPointer(int index) =>
+        $"{StatusesPointer}/{index.ToString(CultureInfo.InvariantCulture)}";
+
+    private static StatusDefinition Row(ContentValue row, string pointer)
     {
-        var id = Text(row, "id");
+        var id = Text(row, "id", pointer);
 
         return new StatusDefinition(
             id,
-            Lookup(Kinds, Text(row, "type"), "05 §5's Type column", id),
-            Lookup(Bases, Text(row, "potencyBasis"), "05 §5's potency units", id),
+            Lookup(Kinds, Text(row, "type", pointer), "05 §5's Type column", id, $"{pointer}/type"),
+            Lookup(
+                Bases,
+                Text(row, "potencyBasis", pointer),
+                "05 §5's potency units",
+                id,
+                $"{pointer}/potencyBasis"),
             row.TryGetMember("stat", out var stat) && stat!.Kind == ContentValueKind.Text
 
                 // Through the same Lookup as type and potencyBasis, not Enum.Parse: review found
                 // that Enum.Parse threw a bare BCL ArgumentException naming no document and no row,
                 // and silently accepted any of the fourteen StatIds where the schema's $defs/statId
                 // admits four.
-                ? Lookup(Stats, stat.AsText(), "05 §5's four debuffable stats", id)
+                ? Lookup(Stats, stat.AsText(), "05 §5's four debuffable stats", id, $"{pointer}/stat")
                 : null,
             row.TryGetMember("fixedPotency", out var fixedPotency) &&
             fixedPotency!.Kind == ContentValueKind.Number
@@ -410,7 +437,7 @@ internal sealed record StatusCatalogue(
                 : null,
             row.TryGetMember("scalesWithTargetMissingHp", out var scales) &&
             scales!.Kind == ContentValueKind.Boolean && scales.AsBoolean(),
-            Stacking(row),
+            Stacking(row, pointer),
 
             // 🔒 The tree is walked rather than the value read through a pointer, and that is what
             // keeps RAGE's authored null a null. ContentSnapshot.Read throws
@@ -423,7 +450,7 @@ internal sealed record StatusCatalogue(
                 : null);
     }
 
-    private static EffectStacking? Stacking(ContentValue row)
+    private static EffectStacking? Stacking(ContentValue row, string pointer)
     {
         if (!row.TryGetMember("stacking", out var stacking) || stacking!.Kind != ContentValueKind.Object)
         {
@@ -432,7 +459,12 @@ internal sealed record StatusCatalogue(
 
         return new EffectStacking
         {
-            Mode = Lookup(Modes, Text(stacking, "mode"), "18 §6's stacking modes", Text(row, "id")),
+            Mode = Lookup(
+                Modes,
+                Text(stacking, "mode", $"{pointer}/stacking"),
+                "18 §6's stacking modes",
+                Text(row, "id", pointer),
+                $"{pointer}/stacking/mode"),
             MaxStacks = stacking.TryGetMember("maxStacks", out var max) &&
                         max!.Kind == ContentValueKind.Number
                 ? max.AsInt32()
@@ -444,15 +476,17 @@ internal sealed record StatusCatalogue(
         };
     }
 
-    private static string Text(ContentValue value, string member) =>
+    private static string Text(ContentValue value, string member, string pointer) =>
         value.TryGetMember(member, out var found) && found!.Kind == ContentValueKind.Text
             ? found.AsText()
-            : throw new FormatException(
-                $"A {Document} row carries no '{member}'. Its schema requires the key, so a row " +
-                "reaching here without one was not validated against that schema.");
+            : throw new ContentTypeMismatchException(
+                $"{pointer}/{member}",
+                found?.Kind ?? ContentValueKind.Unauthorised,
+                $"a '{member}'. Its schema requires the key, so a row " +
+                "reaching here without one was not validated against that schema");
 
     private static TValue Lookup<TValue>(
-        IReadOnlyDictionary<string, TValue> table, string token, string what, string id)
+        IReadOnlyDictionary<string, TValue> table, string token, string what, string id, string pointer)
         where TValue : struct
     {
         if (table.TryGetValue(token, out var found))
@@ -460,9 +494,11 @@ internal sealed record StatusCatalogue(
             return found;
         }
 
-        throw new FormatException(
-            $"{Document}'s {id} row carries '{token}', which is not one of {what}. The schema " +
+        throw new ContentTypeMismatchException(
+            pointer,
+            ContentValueKind.Text,
+            $"one of {what} — the {id} row carries '{token}'. The schema " +
             "encloses the set, so a token reaching here was not validated against it — and the " +
-            $"vocabulary in code is the one 05 §5 states: {string.Join(", ", table.Keys)}.");
+            $"vocabulary in code is the one 05 §5 states: {string.Join(", ", table.Keys)}");
     }
 }

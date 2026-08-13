@@ -150,7 +150,7 @@ public sealed class ValueScaleEvaluatorTests
     {
         var holed = Berserk() with { Value = null };
 
-        var thrown = Should.Throw<ArgumentException>(
+        var thrown = Should.Throw<EffectContextException>(
             () => ValueScaleEvaluator.EffectiveValue(holed, AtHp(0.60)));
 
         thrown.Message.ShouldContain("PK_BERSERK_I", Case.Sensitive);

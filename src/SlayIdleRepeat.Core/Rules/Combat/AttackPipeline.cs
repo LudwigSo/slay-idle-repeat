@@ -273,7 +273,20 @@ internal sealed class AttackPipeline : IAttackPipeline
         RequireFinite(amount, sourceEffectId, "healing");
 
         var scaled = Math.Max(0.0, StatRounding.Round(amount * actor.Stats[StatId.HEAL_PCT]));
-        var headroom = Math.Max(0.0, StatRounding.Round(actor.MaxHp - actor.CurrentHp));
+
+        // 🔴 `18` §7.6's HEAL_CEILING, re-read from the live aggregate on every heal. `05` §4.3's
+        //    headroom is `MaxHP − HP`; a ceiling replaces MaxHP as the bar this heal may reach, which
+        //    is Avatar of War's "you can no longer be healed above 80% Max HP" (`09` §4). Cross-task
+        //    review found the seam that computes it (IStatOpBehaviour.HealCeilingFraction) wired to
+        //    nothing, so that build kept its ×1.20 ATK as a pure buff where the design authored a
+        //    trade-off. Clamped at 0 for a ceiling already below current HP: `05` §4.3 heals, and a
+        //    negative headroom would turn a heal into damage no Hit event describes — the same
+        //    erratum, and the same clamp, as the scaled amount above.
+        var ceiling = actor.Aggregated.HealCeilingFraction is { } fraction
+            ? StatRounding.Round(actor.MaxHp * fraction)
+            : actor.MaxHp;
+
+        var headroom = Math.Max(0.0, StatRounding.Round(ceiling - actor.CurrentHp));
 
         var healed = Math.Min(scaled, headroom);
         var overheal = StatRounding.Round(scaled - healed);
@@ -455,6 +468,27 @@ internal sealed class AttackPipeline : IAttackPipeline
             }
         }
 
+        // 🔴 `18` §2.4's SURVIVE_LETHAL, consumed HERE and nowhere else. The op armed a save on
+        //    CombatFlowState and cross-task review found ConsumeDeathSave with no production caller
+        //    at all, so every "survive a lethal hit" perk in the game was inert and `05` §3.1's
+        //    anti-loop `once` count was unreachable code guarding nothing.
+        //
+        //    🔒 It is checked BEFORE the write rather than after, because `05` §3.1 puts an actor
+        //    out of play "at that moment" it reaches 0 — an actor restored on the next slot would
+        //    have spent a tick dead, firing ON_DEATH and being skipped by target selection. `18` §3
+        //    is explicit that a SURVIVE_LETHAL actor never died, so there is no ON_DEATH and no
+        //    ON_REVIVE here; REVIVE is the other op and is consumed in ResolveDeaths.
+        //
+        //    🔒 hpLost is REDUCED to what actually came off, so the Hit event stays truthful. `05`
+        //    §8 makes the log the replay, and a Hit carrying the full lethal amount beside an actor
+        //    standing at 1 HP is a frame a replayer cannot draw. It is also what step 10's ON_HIT
+        //    readings see, so a lifesteal off the saving blow leeches the real number.
+        if (hpLost > 0.0 && target.CurrentHp - hpLost <= 0.0
+            && target.Flow.ConsumeDeathSave(revive: false) is { } save)
+        {
+            hpLost = Math.Max(0.0, StatRounding.Round(target.CurrentHp - save.Hp));
+        }
+
         if (hpLost > 0.0)
         {
             target.SetCurrentHp(target.CurrentHp - hpLost);
@@ -474,36 +508,34 @@ internal sealed class AttackPipeline : IAttackPipeline
     private static double Thorns(BattleActor actor) =>
         StatRounding.Round(actor.Stats[StatId.THORNS] + actor.Flow.ThornsBonus());
 
-    private static void RequireFinite(double value, string sourceEffectId, string what)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            throw new EffectContextException(
-                sourceEffectId,
-                $"its {what} is {value.ToString("R", CultureInfo.InvariantCulture)}",
-                "`05` §4's pipeline produces real quantities. A NaN compares false against every " +
-                "bound in the ten steps — the dodge test, the floor, the ward cap — so it would pass " +
-                "through all of them and be refused by CombatLog three layers later, naming the " +
-                "serialiser rather than the effect that produced it.");
-        }
-    }
-
     /// <summary>
-    /// The roster's own actor behind an `18` §4/§5 view.
+    /// 🔒 `05` §4's pipeline produces real quantities — the refusal, forwarded to
+    /// <see cref="OpRounding.RequireFinite"/>, which is where it is stated.
     /// </summary>
     /// <remarks>
-    /// <c>BattleFlowSink</c>'s guard and its reason: a battle has one roster and one view of it, so a
-    /// foreign implementation means the pipeline is writing HP into a roster the tick loop will never
-    /// read.
+    /// 🔴 <b>A forwarder, not a second statement.</b> This method used to carry its own near-verbatim
+    /// copy of the refusal — same type, same <c>"R"</c> invariant formatting, same rationale, on the
+    /// same values under the same labels. The guard is still needed <em>here</em>: <c>StatusTimeline</c>
+    /// and the boss scripts reach this pipeline directly, without passing through
+    /// <c>Rules.Effects.Ops</c>, so nothing on that path has already rounded the number. What is gone
+    /// is the second wording of the rule.
     /// </remarks>
-    private static BattleActor Actor(IEffectActorView view)
-    {
-        ArgumentNullException.ThrowIfNull(view);
+    /// <param name="value">The pipeline number.</param>
+    /// <param name="sourceEffectId">The effect that produced it — named in the failure message.</param>
+    /// <param name="what">What the number is, in the reader's terms.</param>
+    /// <exception cref="EffectContextException"><paramref name="value"/> is NaN or infinite.</exception>
+    private static void RequireFinite(double value, string sourceEffectId, string what) =>
+        OpRounding.RequireFinite(value, sourceEffectId, what);
 
-        return view as BattleActor ??
-            throw new InvalidOperationException(
-                $"A {view.GetType().Name} reached `05` §4's damage pipeline. A battle has one roster " +
-                "and one view of it (IEffectActorView); a second implementation means the HP, the " +
-                "ward pool and the flow state this pipeline writes belong to a different fight.");
-    }
+    /// <summary>
+    /// The roster's own actor behind an `18` §4/§5 view — forwarded to <see cref="BattleActor.Of"/>,
+    /// which is where the cast and its diagnosis are stated.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <c>BattleFlowSink</c>'s guard and its reason: a battle has one roster and one view of it, so
+    /// a foreign implementation means the pipeline is writing HP into a roster the tick loop will
+    /// never read. This method used to say so in its own words while <c>TargetSelection</c> said it in
+    /// different ones; the sentence now lives in one place.
+    /// </remarks>
+    private static BattleActor Actor(IEffectActorView view) => BattleActor.Of(view);
 }

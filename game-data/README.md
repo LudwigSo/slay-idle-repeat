@@ -69,8 +69,8 @@ is a bug.**
 ### `content/` — what the game is made of
 
 Content is *identity and structure*: which enemies a chapter contains, what a perk does, which boss
-sits at the end. It is authored per milestone (M2/M3/M11), and every directory here is currently a
-`.gitkeep` waiting for its owner.
+sits at the end. It is authored per milestone (M2/M3/M11). M2 filled `enemies/`, `bosses/` and
+`statuses.json`; the remaining directories are still `.gitkeep`s waiting for their owner.
 
 | Directory | Owner doc |
 |---|---|
@@ -158,10 +158,37 @@ mistake the paragraph above warns about.
 |---|---|
 | `content/chapters/` | `schema/chapter.schema.json` |
 | `content/liveops_events/` | `schema/event.schema.json` |
+| `content/enemies/` | `schema/enemies.schema.json` |
+| `content/bosses/` | `schema/bosses.schema.json` |
 
-The other thirteen directories have no schema yet. Their first file therefore fails the build with
+The remaining directories have no schema yet. Their first file therefore fails the build with
 `MissingSchema` — deliberately. Authoring a content type means authoring its schema **and** adding
 its row to that table, in the same commit.
+
+⚠️ **`content/statuses.json` sits flat and pairs by stem**, against the directory rule above.
+`05` §5's twelve statuses are a closed vocabulary authored as one aggregate document, which is the
+same shape as `combat_caps.json` — but unlike that file it does hold many instances, so it sits on
+the wrong side of the criterion as this README states it. Recorded rather than quietly moved:
+relocating it to `content/statuses/` means a `ContentTypeSchemas` row and a path change in
+`StatusCatalogue`, which is a content-layout decision rather than a documentation fix.
+
+⚠️ **`content/elites/` and `content/modifiers/` are empty and will stay empty.** `05` §6.2's eight
+elite modifiers are authored inside `content/enemies/enemies.json`, because a modifier has no
+identity apart from the enemy it is drawn onto.
+
+🔒 **When an effect is embedded as DSL JSON, and when it is a named number.** Both shapes are in
+use and the rule is a real one, not a preference — it is stated in the schemas that apply it, and
+restated here because that is where an author of a *new* content type will look:
+
+> An effect is authored as embedded `18` §1 DSL JSON **only where a cross-file validation rule walks
+> it against `schema/effect.schema.json`.** Otherwise author named parameter numbers and record the
+> mapping obligation on the consumer.
+
+`bosses.json` embeds real effects because such a rule exists for it (`bosses.schema.json`). Elite
+modifiers and statuses are named numbers because no such rule exists for them, and the validator
+resolves same-document pointers only — so a schema here cannot `$ref` the effect vocabulary, and one
+that restated it would be a second copy of the op set. Embedded effects in those files would
+therefore ship completely unvalidated, which is the one thing the content build exists to prevent.
 
 ### `loc/` — every user-facing string, from day one
 

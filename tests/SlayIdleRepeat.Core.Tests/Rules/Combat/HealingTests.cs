@@ -207,7 +207,100 @@ public sealed class HealingTests
             expected, "lifesteal is a heal, so it fired ON_HEAL with HEAL_AMOUNT in hand");
     }
 
+    /// <summary>
+    /// 🔴 `18` §7.6's <c>HEAL_CEILING</c> — <em>"you can no longer be healed above X% Max HP"</em>
+    /// (<c>Avatar of War</c>, `09` §4) bounds <c>Heal()</c> in place of Max HP.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Two shapes plus a negative control</b>, because the fix this pins is a wiring rather
+    /// than an arithmetic: <c>IStatOpBehaviour.HealCeilingFraction</c> computed the answer correctly
+    /// all along and nothing carried it to `05` §4.3, so a test that only exercised the seam member
+    /// stayed green while the ceiling did nothing in any fight. The two ceilings differ in whether
+    /// the recipient starts <b>below</b> the bar (0.8, which heals to it and stops) or <b>above</b>
+    /// it (0.5 against 900 HP, which must heal <em>nothing</em> rather than damage the actor down to
+    /// it). The control holds no override at all and must still reach full Max HP.
+    /// </para>
+    /// <para>
+    /// The overheal is the discriminating reading. `05` §4.3's <c>overheal</c> is
+    /// <c>scaled − healed</c>, so a ceiling that clipped the heal without the overheal following it
+    /// would silently shrink <c>PK_TRANSFUSION</c>'s input, and the <c>Shield</c> event is what shows
+    /// it.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(0.8, 700.0, 250.0, 100.0, 150.0)]  // ceiling 800: heals to the bar, rest overheals
+    [InlineData(0.5, 900.0, 250.0, 0.0, 250.0)]    // ceiling 500, already above it: heals nothing
+    [InlineData(null, 700.0, 250.0, 250.0, 0.0)]   // control: no override, Max HP 1000 is the bar
+    public void A_HEAL_CEILING_bounds_the_heal_in_place_of_Max_HP(
+        double? ceilingFraction,
+        double startingHp,
+        double amount,
+        double expectedHealed,
+        double expectedOverheal)
+    {
+        var probe = Fight(
+            readings: true,
+            healCeiling: ceilingFraction,
+            body: p =>
+            {
+                p.Enemy().SetCurrentHp(startingHp);
+
+                p.Pipeline.Heal(p.Enemy(), amount, "EFF_H");
+
+                p.Enemy().CurrentHp.ShouldBe(startingHp + expectedHealed);
+            });
+
+        probe.EventsOf(CombatEventType.Heal).Single().Value.ShouldBe(expectedHealed);
+
+        probe.EventsOf(CombatEventType.Shield)
+            .Select(e => e.Value)
+            .ShouldBe(new[] { expectedHealed, expectedOverheal });
+    }
+
+    /// <summary>
+    /// 🔒 `18` §7.6 — the ceiling is a <b>fraction of Max HP</b>, so a Max HP that moves mid-fight
+    /// moves the bar with it.
+    /// </summary>
+    /// <remarks>
+    /// This is the re-read obligation <c>AggregatedStats</c> states, observed at the one place the
+    /// ceiling is used: the same 0.8 override answers 800 against a 1000 HP block and 400 against a
+    /// 500 HP one. A ceiling resolved once into an absolute HP number at battle start would pass the
+    /// theory above and fail this.
+    /// </remarks>
+    [Theory]
+    [InlineData(1000.0, 800.0)]
+    [InlineData(500.0, 400.0)]
+    public void The_ceiling_is_a_fraction_of_the_live_Max_HP(double maxHp, double expectedBar) =>
+        Fight(
+            healCeiling: 0.8,
+            recipientMaxHp: maxHp,
+            body: p =>
+            {
+                p.Enemy().SetCurrentHp(1.0);
+
+                p.Pipeline.Heal(p.Enemy(), maxHp * 10.0, "EFF_H");
+
+                p.Enemy().CurrentHp.ShouldBe(expectedBar);
+            });
+
     // ══════════════════════════════════════════════════════ helpers
+
+    /// <summary>
+    /// One untriggered <c>STAT_CAP_OVERRIDE</c> carrying `18` §7.6's <c>HEAL_CEILING</c>. Untriggered
+    /// is what puts it in `18` §8 step 1's standing set, which is the only route to step 9's
+    /// <c>overrides</c> array and so to the aggregate.
+    /// </summary>
+    private static HeldEffect HealCeiling(double fraction) =>
+        new(new EffectDefinition
+        {
+            Id = "EFF_C_HEAL_CEILING",
+            Op = EffectOp.STAT_CAP_OVERRIDE,
+            Target = EffectTarget.SELF,
+            Stat = StatSelector.Of(StatId.MAX_HP),
+            CapKind = StatCapKind.HEAL_CEILING,
+            Value = fraction,
+        });
 
     /// <summary>
     /// `05` §1's block — see <see cref="AttackPipelineBench.Stats"/>, whose <c>HEAL_PCT = 1.0</c>
@@ -243,26 +336,37 @@ public sealed class HealingTests
     /// Whether it holds the single <c>TARGET_MISSING_HP_PCT</c> probe instead, which reads the
     /// recipient's HP <em>at the moment the trigger fired</em>.
     /// </param>
+    /// <param name="healCeiling">
+    /// `18` §7.6's <c>HEAL_CEILING</c> fraction the recipient holds as a standing
+    /// <c>STAT_CAP_OVERRIDE</c>, or <c>null</c> for the majority case that holds none.
+    /// </param>
+    /// <param name="recipientMaxHp">
+    /// The recipient's <c>MAX_HP</c>, which the ceiling is a fraction <em>of</em>.
+    /// </param>
     private static AttackProbe Fight(
         Action<AttackProbe> body,
         double recipientHealPct = 1.0,
         double healerHealPct = 1.0,
         bool readings = false,
-        bool missingHpProbe = false)
+        bool missingHpProbe = false,
+        double? healCeiling = null,
+        double recipientMaxHp = MaxHp)
     {
-        var holdings = Array.Empty<HeldEffect>();
+        var holdings = new List<HeldEffect>();
 
         if (readings)
         {
-            holdings = new[]
-            {
-                OnHeal("EFF_A_HEAL_AMOUNT", ValueMode.HEAL_AMOUNT),
-                OnHeal("EFF_B_OVERHEAL_AMOUNT", ValueMode.OVERHEAL_AMOUNT),
-            };
+            holdings.Add(OnHeal("EFF_A_HEAL_AMOUNT", ValueMode.HEAL_AMOUNT));
+            holdings.Add(OnHeal("EFF_B_OVERHEAL_AMOUNT", ValueMode.OVERHEAL_AMOUNT));
         }
         else if (missingHpProbe)
         {
-            holdings = new[] { OnHeal("EFF_A_MISSING", ValueMode.TARGET_MISSING_HP_PCT) };
+            holdings.Add(OnHeal("EFF_A_MISSING", ValueMode.TARGET_MISSING_HP_PCT));
+        }
+
+        if (healCeiling is { } fraction)
+        {
+            holdings.Add(HealCeiling(fraction));
         }
 
         return AttackPipelineBench.Run(
@@ -271,8 +375,8 @@ public sealed class HealingTests
                 BattleTestBench.Hero(Stats(MaxHp, (StatId.ATK, 100.0), (StatId.HEAL_PCT, healerHealPct)), 1),
                 BattleTestBench.Enemy(
                     0,
-                    Stats(MaxHp, (StatId.DEF, 120.0), (StatId.HEAL_PCT, recipientHealPct)),
-                    effects: holdings),
+                    Stats(recipientMaxHp, (StatId.DEF, 120.0), (StatId.HEAL_PCT, recipientHealPct)),
+                    effects: holdings.ToArray()),
             },
             body);
     }

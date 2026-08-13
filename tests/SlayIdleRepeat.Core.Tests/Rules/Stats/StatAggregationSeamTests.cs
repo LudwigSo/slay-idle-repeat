@@ -49,7 +49,7 @@ public sealed class StatAggregationSeamTests
             }),
         };
 
-        var thrown = Should.Throw<NotSupportedException>(
+        var thrown = Should.Throw<EffectContextException>(
             () => StatAggregation.Aggregate(
                 StatFixtures.Zeroed(), [executioner], StatCaps.None, StatAggregationSeams.Strict));
 
@@ -102,7 +102,7 @@ public sealed class StatAggregationSeamTests
             ValueScale = new ValueScale { Fn = ConditionFunction.SELF_MISSING_HP_PCT, Per = 0.01, Cap = 45 },
         };
 
-        var thrown = Should.Throw<NotSupportedException>(
+        var thrown = Should.Throw<EffectContextException>(
             () => AuthoredEffectValue.Instance.EffectiveValue(berserk));
 
         thrown.Message.ShouldContain("PK_BERSERK_I", Case.Sensitive);
@@ -131,7 +131,7 @@ public sealed class StatAggregationSeamTests
                 ValueMode = mode,
             };
 
-            Should.Throw<NotSupportedException>(() => AuthoredEffectValue.Instance.EffectiveValue(effect))
+            Should.Throw<EffectContextException>(() => AuthoredEffectValue.Instance.EffectiveValue(effect))
                   .Message.ShouldContain("M2-03", Case.Sensitive);
         }
     }
@@ -146,7 +146,7 @@ public sealed class StatAggregationSeamTests
             Stat = StatSelector.Of(StatId.ATK),
         };
 
-        Should.Throw<ArgumentException>(() => AuthoredEffectValue.Instance.EffectiveValue(broken))
+        Should.Throw<EffectContextException>(() => AuthoredEffectValue.Instance.EffectiveValue(broken))
               .Message.ShouldContain("PK_NO_VALUE", Case.Sensitive);
     }
 

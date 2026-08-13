@@ -1,5 +1,6 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -246,15 +247,13 @@ public sealed class BossEngineRuleTests
     {
         var found = Subjects().Count;
 
-        Assert.True(
-            found >= BossesFloor,
+        (found >= BossesFloor).ShouldBeTrue(
             $"types under {BossesNamespace}: found {found}, floor is {BossesFloor}. All three rules in " +
             "this file are stated over them; empty, they report success over nothing and 17 §11's " +
             "'zero bespoke boss code' is free to become a switch on a boss id again. If this shrank on " +
             "purpose, lower the floor in the same commit and say why.");
 
-        Assert.True(
-            Il.IsUnder(BossesNamespace, Domain.CombatRulesNamespace),
+        (Il.IsUnder(BossesNamespace, Domain.CombatRulesNamespace)).ShouldBeTrue(
             $"{BossesNamespace} is no longer beneath {Domain.CombatRulesNamespace}, so R17's " +
             "Rules.Effects -> Rules.Combat edge no longer covers the boss engine and 18 §10.1 E6's op " +
             "may name a boss type directly — with IntraRulesLayeringRuleTests still green.");

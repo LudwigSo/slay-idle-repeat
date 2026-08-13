@@ -442,6 +442,42 @@ internal sealed class BattleActor : IEffectActorView
         Despawned = true;
     }
 
+    /// <summary>
+    /// 🔒 The roster's own actor behind an `18` §4/§5 view — <b>the one statement of that cast and
+    /// of its diagnosis</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 A cast with a message rather than a silent one. <c>BattleRoster</c> is typed over
+    /// <see cref="IEffectActorView"/> because `18` §4 and §5 are, but a battle's roster is built by
+    /// <see cref="BattleSimulation"/> out of <see cref="BattleActor"/>s exclusively — see
+    /// <see cref="IEffectActorView"/>'s <em>"two views of one battle are two chances to disagree"</em>.
+    /// A foreign view reaching a combat rule is a second roster, which is the defect that remark is
+    /// about.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>One diagnosis, not two.</b> <c>AttackPipeline</c> and <c>TargetSelection</c> each carried
+    /// their own copy of this cast with the same invariant and two different sentences, so the same
+    /// defect read differently depending on which rule tripped over it first. M2 review made this the
+    /// statement and both of those forwarders.
+    /// </para>
+    /// </remarks>
+    /// <param name="view">The view a combat rule was handed.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="view"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The view is not this battle's actor type.</exception>
+    internal static BattleActor Of(IEffectActorView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+
+        return view as BattleActor ??
+            throw new InvalidOperationException(
+                $"A {view.GetType().Name} reached `05` §4's combat rules rather than a " +
+                $"{nameof(BattleActor)}. A battle has one roster and one view of it " +
+                "(IEffectActorView); a second implementation means the HP, the ward pool and the " +
+                "flow state being read and written belong to a different fight — which is exactly " +
+                "how ENEMY_COUNT and ALL_ENEMIES come to disagree about the same one.");
+    }
+
     /// <summary>The actor as a failure message reads.</summary>
     public override string ToString() =>
         $"{Id} (#{Index.ToString(CultureInfo.InvariantCulture)}, {Kind}, {Side}, " +

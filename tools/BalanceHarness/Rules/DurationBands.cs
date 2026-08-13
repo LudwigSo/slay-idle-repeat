@@ -25,10 +25,23 @@ namespace SlayIdleRepeat.BalanceHarness.Rules;
 public static class DurationBands
 {
     /// <summary>🔒 `05` §3 — the fixed tick rate. 20 ticks is one second.</summary>
+    /// <remarks>
+    /// 🔴 <b>A third statement of `05` §3's rate, and it is on the record for the same reason as the
+    /// four duration numbers above.</b> <c>Core</c> states it once, in
+    /// <c>Core.Primitives.BattleTicks</c>, which is <c>internal</c> and therefore unreachable from
+    /// here. <c>DurationBandsTests</c> pins this copy against `05` §3's literals.
+    /// </remarks>
     public const double TicksPerSecond = 20.0;
 
     /// <summary>🔒 `05` §3 — the fight cap. 1800 ticks is 90 s, after which the fight is decided on HP.</summary>
-    public const int MaxFightTicks = 1800;
+    /// <remarks>
+    /// 🔴 <b>Derived rather than written as a bare <c>1800</c>, which is how this copy had already
+    /// drifted in shape.</b> <c>Core</c> writes the cap as <c>90 × TicksPerSecond</c> in both of its
+    /// statements; this one wrote the product. Nothing was wrong with the number — the hazard is that
+    /// a change to the rate would have moved <c>Core</c>'s two and silently left this one behind,
+    /// which is precisely the failure a duplicated constant exists to cause.
+    /// </remarks>
+    public const int MaxFightTicks = 90 * (int)TicksPerSecond;
 
     /// <summary>🔒 `17` §1 — the bottom of the intended band at par power. Mirrors <c>BossDurationGuardrails.ParMinSeconds</c>.</summary>
     public const double ParMinSeconds = 35.0;

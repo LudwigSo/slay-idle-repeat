@@ -185,6 +185,13 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     /// <c>StatusTimelineTests.A_DoT_expiring_on_a_cadence_boundary_deals_that_tick_first_then_expires</c>
     /// pins a DoT whose duration lands exactly on its boundary at one tick of damage rather than zero.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>Ward segments are not this method's, though `05` §5 lists <c>WARD</c> among the
+    /// statuses.</b> A <c>05</c> §4.2 <c>SHIELD</c> grants a segment in a fight that wires
+    /// <c>NoStatusTimeline</c> and holds no status at all, so the sweep cannot live behind this
+    /// seam — it is in the tick loop's own slot 2, beside the call to this. See
+    /// <c>BattleSimulation</c> slot 2 and <c>BattleServices.ExpireWards</c>.
+    /// </para>
     /// </remarks>
     public void ExpireDue(BattleActor actor, int tick)
     {
@@ -683,8 +690,16 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
         Log(receiver, CombatEventType.StatusApplied, definition, granted);
     }
 
-    /// <summary>`05` §5's <c>STUN</c> id, named once rather than spelled at four call sites.</summary>
-    private const string StunId = "STUN";
+    /// <summary>
+    /// `05` §5's <c>STUN</c> id — an alias of <see cref="StatusIds.Stun"/>, which is where it is
+    /// spelled.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 This constant used to hold the literal and claim to be the single naming, while
+    /// <c>BossBuiltIns</c> held its own <c>StunStatusId</c> two directories away with the same claim.
+    /// The word now lives in one place.
+    /// </remarks>
+    private const string StunId = StatusIds.Stun;
 
     private ActorStatuses For(BattleActor actor)
     {
