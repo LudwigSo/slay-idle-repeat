@@ -12,6 +12,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// 🔒 `05` §9 guardrail 6 — the structural zero, the ranking, and the synthetic archetype sets that
 /// show the guardrail can both pass and fail.
 /// </summary>
+[Collection(WallClockSensitive.Name)]
 public sealed class MarginalPowerGuardrailTests
 {
     [Fact]
@@ -82,15 +83,34 @@ public sealed class MarginalPowerGuardrailTests
     }
 
     [Fact]
-    public void The_guardrail_FAILS_on_the_shipped_archetypes_and_names_the_two_invisible_stats()
+    public void The_guardrail_FAILS_on_the_shipped_archetypes_naming_all_NINE_uncovered_stats()
     {
+        // 🔴 NINE, not two — and the difference is the finding. Asserting only that the summary
+        // mentions HEAL_PCT and THORNS is satisfied by a result that named two stats, or nine, or all
+        // fourteen; it cannot tell the structural zero (the two `29` §2.3 has no term for) apart from
+        // the seven the RELATIVE STEP additionally suppresses, which is a different defect with a
+        // different remedy. Seven_stats_can_never_reach_the_top_three_under_a_pure_relative_step below
+        // derives exactly that set, so this case pins the whole list rather than a sample of it.
         var result = MarginalPowerGuardrail.Evaluate(
             ShippedHarness.Content, ShippedHarness.Runner.Calibration.Archetypes, level: 40);
 
         result.Verdict.ShouldBe(GuardrailVerdict.Fail);
-        result.Summary.ShouldContain("HEAL_PCT");
-        result.Summary.ShouldContain("THORNS");
         result.SubjectCount.ShouldBe(14 * 5);
+
+        result.Summary.ShouldContain(
+            "9 of 14 stats are top-3 in no archetype: " +
+            "DEF, CRIT, CDMG, DODGE, BLOCK, PEN, DMG_PCT, HEAL_PCT, THORNS",
+            Case.Sensitive,
+            "the whole breach list, in StatIds.Combat order");
+
+        // 🔒 And WHICH cause the report reached. The two branches are not interchangeable: one says
+        // the verdict is step-independent, the other says the step is implicated and the ranking needs
+        // reading. On the shipped archetypes it must be the second, because DEF and friends are not
+        // stats `29` §2.3 is blind to — they are stats the +1% relative step cannot lift.
+        result.Summary.ShouldContain(
+            "the step definition is implicated", Case.Sensitive,
+            "not the step-independent CAUSE branch, which would understate the finding");
+        result.Summary.ShouldNotContain("CAUSE: `29` §2.3's closed form", Case.Sensitive);
     }
 
     [Fact]

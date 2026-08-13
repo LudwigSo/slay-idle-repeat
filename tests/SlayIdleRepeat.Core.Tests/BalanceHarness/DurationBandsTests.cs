@@ -16,6 +16,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// this file forbids is undetectable anywhere but here — which is exactly why the duplication is
 /// reported in M2-16a's notes rather than treated as harmless.
 /// </remarks>
+[Collection(WallClockSensitive.Name)]
 public sealed class DurationBandsTests
 {
     [Fact]

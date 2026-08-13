@@ -8,6 +8,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// <summary>
 /// 🔒 `21` §10's CLI — the three commands, every option, and the exit codes CI keys on.
 /// </summary>
+[Collection(WallClockSensitive.Name)]
 public sealed class HarnessCliTests
 {
     [Fact]
@@ -126,9 +127,24 @@ public sealed class HarnessCliTests
         HarnessRun.ExitGuardrailBreach.ShouldBe(1);
 
         var text = output.ToString();
-        text.ShouldContain("[FAIL");
-        text.ShouldContain("guardrail 1");
-        text.ShouldContain("0.00%");
+
+        // 🔴 GUARDRAIL 1's OWN LINE, not "somewhere in the report there is a FAIL". Guardrails 5 and 6
+        // also breach on the shipped data, so `[FAIL` and `guardrail 1` asserted separately are both
+        // satisfied by a report in which guardrail 1 PASSED and only its neighbours failed — which is
+        // exactly what happens if the band check is neutered. Measured: with
+        // `SweepGuardrails.ClearRateAtPar`'s breach test forced to false, this case stayed green while
+        // every one of guardrail 1's own discrimination cases went red.
+        //
+        // The summary below is a breaching guardrail 1's and nothing else's: the breach count, the
+        // authored band, and the clear rate that produced it.
+        text.ShouldContain(
+            "1/1 cells outside [62.00%, 78.00%]", Case.Sensitive,
+            "guardrail 1's own breach count over its own authored band");
+        text.ShouldContain(
+            "lowest 0.00% at C1 NORMAL ARCH_CRIT", Case.Sensitive,
+            "the par build clears nothing — the measured cause of the breach");
+        text.ShouldContain("] guardrail 1: Clear rate at par", Case.Sensitive, "the guardrail 1 line");
+        text.ShouldContain("[FAIL", Case.Sensitive);
     }
 
     [Fact]

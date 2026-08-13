@@ -33,6 +33,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// and the slow-wall build at 8 × par clears 100% with every clear above 75 s.
 /// </para>
 /// </remarks>
+[Collection(WallClockSensitive.Name)]
 public sealed class GuardrailDiscriminationTests
 {
     // ── guardrail 1 ────────────────────────────────────────────────────────────────────────────

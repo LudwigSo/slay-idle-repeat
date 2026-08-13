@@ -15,6 +15,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// silently returned four archetypes, or twenty-three par cells, or seven bosses would leave every
 /// downstream assertion green over a sweep that was quietly a fifth smaller than `05` §9's.
 /// </remarks>
+[Collection(WallClockSensitive.Name)]
 public sealed class HarnessContentTests
 {
     [Fact]

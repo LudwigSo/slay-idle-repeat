@@ -10,6 +10,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// 🔒 The sweep is reproducible: a <c>(cell, fightIndex)</c> names one fight, whatever the degree of
 /// parallelism, whatever the fight count, and whatever order the cells ran in.
 /// </summary>
+[Collection(WallClockSensitive.Name)]
 public sealed class SweepDeterminismTests
 {
     [Fact]

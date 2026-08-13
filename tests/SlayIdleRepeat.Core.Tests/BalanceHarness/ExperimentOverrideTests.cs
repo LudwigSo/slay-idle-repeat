@@ -13,6 +13,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// <c>game-data/</c>, and an override that matched nothing throws instead of quietly running the
 /// baseline twice.
 /// </summary>
+[Collection(WallClockSensitive.Name)]
 public sealed class ExperimentOverrideTests
 {
     private static string Shipped => BossDocumentOverrides.ReadShipped(GameDataLoader.DataRoot);
@@ -74,11 +75,18 @@ public sealed class ExperimentOverrideTests
         roster.All.Count(b => b.AddsPowerFraction is null).ShouldBe(4);
 
         // Second probe at the other end of `17` §1's band, so a hard-coded 0.25 would not pass.
+        // 🔒 S3 — its OWN count floor, not the one asserted over `roster` above. This is a separate
+        // read, and ShouldAllBe passes on an empty collection: an override that dropped every summoner
+        // would satisfy "every summoner carries 0.35" over nothing at all.
         var high = BossRoster.Read(Override(BossDocumentOverrides.WithAddsPowerFraction(Shipped, 0.35)));
+        high.Summoners.Count.ShouldBe(5);
         high.Summoners.ShouldAllBe(b => b.AddsPowerFraction == 0.35);
 
         // The shipped tree is untouched — `21` §3.3, an override never edits the canonical files.
-        BossRoster.Read(ShippedHarness.Content).Summoners.ShouldAllBe(b => b.AddsPowerFraction == 0.3);
+        // Floored for the same reason: a third read, and the assertion below is a "for all".
+        var untouched = BossRoster.Read(ShippedHarness.Content);
+        untouched.Summoners.Count.ShouldBe(5);
+        untouched.Summoners.ShouldAllBe(b => b.AddsPowerFraction == 0.3);
     }
 
     [Fact]

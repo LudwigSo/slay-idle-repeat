@@ -13,6 +13,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// <see cref="NodePower"/>'s own constants. An assertion built from the constants it is checking is
 /// the identity function with extra steps: it stays green when the constant is wrong.
 /// </remarks>
+[Collection(WallClockSensitive.Name)]
 public sealed class NodePowerTests
 {
     [Fact]

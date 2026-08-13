@@ -10,6 +10,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// <summary>
 /// 🔒 `05` §9 guardrail 5 — the closed form, its ceiling, and the controls that show it discriminates.
 /// </summary>
+[Collection(WallClockSensitive.Name)]
 public sealed class MitigationGuardrailTests
 {
     private static MitigationModel Model => new(MitigationDials.Read(ShippedHarness.Content));
@@ -110,10 +111,30 @@ public sealed class MitigationGuardrailTests
 
         result.Verdict.ShouldBe(GuardrailVerdict.Fail);
         result.SubjectCount.ShouldBeGreaterThan(100_000);
-        result.Summary.ShouldContain("maximum reached is");
 
-        // Both directions are actually evaluated — the details name an enemy wall AND a hero DEF.
-        string.Join("\n", result.Details).ShouldContain("Elite");
+        // 🔴 WHICH subject is the maximum, not merely that a maximum was printed. "maximum reached is"
+        // and a bare "Elite" are both satisfied by a guardrail that found its worst case anywhere at
+        // all — including at a wall that is not the worst one, which is the failure a max-finding bug
+        // actually produces. The corner named below is the one the authored model forces, and every
+        // part of it is independently pinned elsewhere in this suite:
+        //
+        //   WARDEN       — the highest authored DEF coefficient, 2.2
+        //                  (HarnessContentTests.The_enemy_derivation_coefficients_are_the_authored_ones)
+        //   ARMORED Elite — `05` §6.2's 2.2x power and 1.8x DEF, the only stacking pair
+        //   stage3 node 41 — `03` §1.1's last spine node, so the largest per-node growth term
+        //
+        // A maximum found anywhere else means the enumeration or the ordering moved.
+        result.Summary.ShouldContain("maximum reached is", Case.Sensitive);
+        result.Summary.ShouldContain(
+            "vs ARMORED Elite WARDEN at stage3 node 41", Case.Sensitive,
+            "the worst reachable wall the authored coefficients allow");
+
+        // ⚠️ Deliberately NOT asserted here: that the details name a hero-side subject too. Details
+        // carry only the worst sample per (chapter, tier) and an enemy wall wins every one of those
+        // groups, so a hero-side line never appears — asserting one would be asserting a falsehood.
+        // Both directions being evaluated is pinned by subject COUNT instead, in
+        // Both_directions_of_the_guardrail_are_present_in_the_subject_set below.
+        string.Join("\n", result.Details).ShouldContain("BREACH", Case.Sensitive);
     }
 
     [Fact]

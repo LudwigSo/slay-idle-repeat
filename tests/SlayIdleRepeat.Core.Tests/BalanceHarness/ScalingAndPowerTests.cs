@@ -2,6 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.BalanceHarness.Content;
 using SlayIdleRepeat.BalanceHarness.Model;
 using SlayIdleRepeat.BalanceHarness.Rules;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
 using Xunit;
@@ -11,6 +12,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// <summary>
 /// 🔒 `29` §2.1's derived <c>K_POWER</c> and `29` §2.5.3's scaling rule.
 /// </summary>
+[Collection(WallClockSensitive.Name)]
 public sealed class ScalingAndPowerTests
 {
     [Fact]
@@ -58,7 +60,15 @@ public sealed class ScalingAndPowerTests
         // needs revisiting rather than silently disagreeing with the file.
         var stats = CalibrationBuilds.Read(ShippedHarness.Content).ReferenceParBuild.ToActorStats();
 
-        Should.Throw<Exception>(() => PowerCalculator.Compute(stats, 10, ShippedHarness.Content));
+        // 🔴 The IDENTITY of the refusal, not merely that something threw. `Compute` documents four
+        // separate failure paths — ArgumentNullException, MissingContentException,
+        // ContentTypeMismatchException and this one — so `Should.Throw<Exception>` would stay green if
+        // the weights document went missing, if a pointer were misspelled, or if the whole read broke.
+        // What this case claims is narrower: the ONE authored hole is still a hole, at its pointer.
+        Should.Throw<UnauthorisedTunableException>(
+                () => PowerCalculator.Compute(stats, 10, ShippedHarness.Content))
+            .Reference.ShouldBe("tuning/power_model.json#/kPower");
+
         Should.NotThrow(() => PowerCalculator.PowerIndex(stats, 10, ShippedHarness.Content));
     }
 

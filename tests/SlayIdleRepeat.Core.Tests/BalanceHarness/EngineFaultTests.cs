@@ -28,6 +28,7 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// cannot hide as an empty cell.
 /// </para>
 /// </remarks>
+[Collection(WallClockSensitive.Name)]
 public sealed class EngineFaultTests
 {
     [Fact]
@@ -62,11 +63,19 @@ public sealed class EngineFaultTests
 
         cell.ShouldBeNull();
         fault.ShouldNotBeNullOrWhiteSpace();
-        fault!.ShouldContain("C2 NORMAL ARCH_CRIT");
 
-        // ...and the throwing form still throws, which is what the test suite and the guardrails rely on.
-        Should.Throw<Exception>(() => ShippedHarness.Runner.RunCell(
-            2, Tier.NORMAL, archetype.Id, archetype.Stats, fights: 2, broken));
+        // 🔴 The fault names WHICH cell and WHICH rule refused. A fault string carrying only the cell
+        // key would be satisfied by any failure whatsoever — an out-of-range chapter, a missing
+        // archetype — and this case would stop being about the authoring hole it is named for.
+        fault!.ShouldContain("C2 NORMAL ARCH_CRIT", Case.Sensitive, "which cell");
+        fault.ShouldContain("BOSS_GULGROT_P1_CROAK_POISON", Case.Sensitive, "which effect");
+        fault.ShouldContain("APPLY_STATUS with no value", Case.Sensitive, "which authoring rule");
+
+        // ...and the throwing form still throws, which is what the test suite and the guardrails rely
+        // on — with the SAME identity, so a cell that died of something else cannot pass as this.
+        Should.Throw<ArgumentException>(() => ShippedHarness.Runner.RunCell(
+                2, Tier.NORMAL, archetype.Id, archetype.Stats, fights: 2, broken))
+            .Message.ShouldContain("APPLY_STATUS with no value", Case.Sensitive);
     }
 
     [Fact]
