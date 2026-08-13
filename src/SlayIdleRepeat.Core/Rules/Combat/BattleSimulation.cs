@@ -223,8 +223,24 @@ internal sealed class BattleSimulation
             }
 
             // ── 2 · expiries, ascending effect-id order (M2-10) ──────────────────────────────
+            //
+            // 🔴 TWO KINDS OF EXPIRY, and the ward half is the loop's rather than the seam's. `05`
+            // §5 lists WARD among the statuses, so M2-09 wrote ExpireWards expecting M2-10 to route
+            // it from ExpireDue — and cross-task review found nothing calling it at all, which made
+            // every timed segment permanent and WardPool.ExpireDue dead code. It is fixed HERE and
+            // not inside StatusTimeline because a `05` §4.2 SHIELD grants a segment in a fight that
+            // wires NoStatusTimeline and holds no status: behind the seam, the sweep would be a
+            // no-op for exactly the fights that have a ward and nothing else.
+            //
+            // Wards first, per actor. `05` §3.1 orders slot 2's emissions by ascending effect-id,
+            // and ExpireWards already applies that order within the pool — but a status and a ward
+            // expiring on one tick interleave by kind rather than by id. ⚠️ Recorded as errata: one
+            // merged ordering would need both stores walked together, and no authored content
+            // carries a timed ward yet (every production GrantWard passes expiresAtTick: null), so
+            // the case is unreachable today and stating it wrongly in two places is the worse risk.
             for (var i = 0; i < _actors.Count; i++)
             {
+                ExpireWards(_actors[i]);
                 _seams.Timeline.ExpireDue(_actors[i], Tick);
             }
 

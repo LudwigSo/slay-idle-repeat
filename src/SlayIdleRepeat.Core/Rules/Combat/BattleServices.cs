@@ -171,10 +171,19 @@ internal sealed class BattleServices
     /// watched, and nothing in the log would look wrong.
     /// </para>
     /// <para>
-    /// ⚠️ <b>The tick loop does not call this.</b> `05` §3.1 puts expiries in <b>slot 2</b>, which is
-    /// <c>IStatusTimeline.ExpireDue</c> and M2-10's; a ward segment's timer is a `18` §6 duration
-    /// like any other. M2-09 owns the mechanism and states it here so that M2-10 routes rather than
-    /// reimplements.
+    /// 🔒 <b>The tick loop calls this in slot 2.</b> `05` §3.1 puts expiries in <b>slot 2</b>, and a
+    /// ward segment's timer is a `18` §6 duration like any other — so it is swept beside
+    /// <c>IStatusTimeline.ExpireDue</c> rather than inside it. An earlier draft of this remark asked
+    /// M2-10 to route it from behind the seam; that is wrong, because a `05` §4.2 <c>SHIELD</c>
+    /// grants a segment in a fight wiring <c>NoStatusTimeline</c>, where every seam call is a no-op.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The routing was the half that went missing.</b> Cross-task review found this method
+    /// with no caller at all: M2-09 stated the mechanism and M2-10 read the sentence above as a
+    /// description rather than an instruction, so every ward segment carrying a timer was permanent
+    /// and <c>WardPool.ExpireDue</c> was dead code. Two sides of a seam agreeing in prose is not one
+    /// of them calling the other — and <c>WardCapTests</c> hid it by calling this itself, doing the
+    /// loop's job inside the test that was supposed to observe the loop doing it.
     /// </para>
     /// </remarks>
     /// <param name="actor">The actor whose pool is being swept.</param>

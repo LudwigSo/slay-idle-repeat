@@ -185,6 +185,13 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     /// <c>StatusTimelineTests.A_DoT_expiring_on_a_cadence_boundary_deals_that_tick_first_then_expires</c>
     /// pins a DoT whose duration lands exactly on its boundary at one tick of damage rather than zero.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>Ward segments are not this method's, though `05` §5 lists <c>WARD</c> among the
+    /// statuses.</b> A <c>05</c> §4.2 <c>SHIELD</c> grants a segment in a fight that wires
+    /// <c>NoStatusTimeline</c> and holds no status at all, so the sweep cannot live behind this
+    /// seam — it is in the tick loop's own slot 2, beside the call to this. See
+    /// <c>BattleSimulation</c> slot 2 and <c>BattleServices.ExpireWards</c>.
+    /// </para>
     /// </remarks>
     public void ExpireDue(BattleActor actor, int tick)
     {

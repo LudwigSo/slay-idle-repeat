@@ -50,10 +50,26 @@ namespace SlayIdleRepeat.Core.Rules.Stats;
 /// carries the meaning; <c>Aggregation_does_not_depend_on_the_order_the_effects_arrive_in</c> does,
 /// and records why.
 /// </remarks>
+/// <param name="HealCeilingFraction">
+/// 🔒 `18` §7.6's <c>HEAL_CEILING</c> — the fraction of Max HP above which this actor cannot be
+/// healed (<c>Avatar of War</c>), or <c>null</c> where no <c>STAT_CAP_OVERRIDE HEAL_CEILING</c> is
+/// active. The lowest wins when several are, which is <c>IStatOpBehaviour.HealCeilingFraction</c>'s
+/// ruling and not restated here.
+/// <para>
+/// 🔴 <b>It rides on the aggregate because it is not a stat and has no other vehicle.</b> It bounds
+/// <c>Heal()</c> (`05` §4.3), which is <c>AttackPipeline</c>'s, and the only thing that crosses that
+/// boundary per actor per re-aggregation is this record. Cross-task review found the seam member
+/// computing the answer and nothing carrying it: <c>IStatOpBehaviour.HealCeilingFraction</c> had no
+/// production caller, so <c>Avatar of War</c> kept its ×1.20 ATK with its drawback silently absent.
+/// Being a member of this record is also what makes it honour the re-read obligation below — a
+/// ceiling raised or dropped mid-fight is picked up on the next pass like every other member.
+/// </para>
+/// </param>
 internal sealed record AggregatedStats(
     ActorStats Final,
     double PostMultiplierMaxHp,
-    IReadOnlyList<string> SkippedNonCombatStatEffects);
+    IReadOnlyList<string> SkippedNonCombatStatEffects,
+    double? HealCeilingFraction = null);
 
 /// <summary>
 /// 🔒 `18` §8 — the stat aggregation order, <em>"must be implemented exactly, or builds will produce
@@ -299,7 +315,17 @@ internal static class StatAggregation
         //    should not have to remember.
         RoundAll(values, "step 10 (final rounding)");
 
-        return new AggregatedStats(ActorStats.FromSlots(values), postMultiplierMaxHp, skipped);
+        // 🔒 `18` §7.6's HEAL_CEILING, read off the same `overrides` array step 9 already gathered.
+        //    It is NOT a step — it changes no stat, it bounds `05` §4.3's Heal() — which is why it is
+        //    computed after step 10 rather than inside step 9, and why it rides on the record rather
+        //    than on a slot. The early-out matches step 9's: no authored content carries an override
+        //    today and this runs per actor per re-aggregation.
+        var healCeiling = overrides.Length == 0
+            ? null
+            : seams.Ops.HealCeilingFraction(overrides, seams.Values);
+
+        return new AggregatedStats(
+            ActorStats.FromSlots(values), postMultiplierMaxHp, skipped, healCeiling);
     }
 
     /// <summary>`05` §1.1's rounding, at one `18` §8 step boundary.</summary>

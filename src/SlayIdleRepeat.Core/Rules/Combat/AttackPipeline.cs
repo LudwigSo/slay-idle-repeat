@@ -273,7 +273,20 @@ internal sealed class AttackPipeline : IAttackPipeline
         RequireFinite(amount, sourceEffectId, "healing");
 
         var scaled = Math.Max(0.0, StatRounding.Round(amount * actor.Stats[StatId.HEAL_PCT]));
-        var headroom = Math.Max(0.0, StatRounding.Round(actor.MaxHp - actor.CurrentHp));
+
+        // 🔴 `18` §7.6's HEAL_CEILING, re-read from the live aggregate on every heal. `05` §4.3's
+        //    headroom is `MaxHP − HP`; a ceiling replaces MaxHP as the bar this heal may reach, which
+        //    is Avatar of War's "you can no longer be healed above 80% Max HP" (`09` §4). Cross-task
+        //    review found the seam that computes it (IStatOpBehaviour.HealCeilingFraction) wired to
+        //    nothing, so that build kept its ×1.20 ATK as a pure buff where the design authored a
+        //    trade-off. Clamped at 0 for a ceiling already below current HP: `05` §4.3 heals, and a
+        //    negative headroom would turn a heal into damage no Hit event describes — the same
+        //    erratum, and the same clamp, as the scaled amount above.
+        var ceiling = actor.Aggregated.HealCeilingFraction is { } fraction
+            ? StatRounding.Round(actor.MaxHp * fraction)
+            : actor.MaxHp;
+
+        var headroom = Math.Max(0.0, StatRounding.Round(ceiling - actor.CurrentHp));
 
         var healed = Math.Min(scaled, headroom);
         var overheal = StatRounding.Round(scaled - healed);
