@@ -37,7 +37,18 @@ public sealed class KeyLightCheck : IQaCheck
     public string? HumanGap => KeyLightHumanGap;
 
     /// <inheritdoc/>
-    public QaOutcome Evaluate(QaSubject subject) => throw new NotImplementedException();
+    public QaOutcome Evaluate(QaSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+
+        return new QaOutcome(
+            QaVerdict.HumanGapOnly,
+            ItemNumber,
+            "Nothing was measured and nothing was decided: `15` Part F item 4 asks where the light " +
+            "came from, and a finished 2D asset does not carry that.",
+            [],
+            KeyLightHumanGap);
+    }
 }
 
 /// <summary>
@@ -76,7 +87,18 @@ public sealed class ProportionsCheck : IQaCheck
     public string? HumanGap => ProportionsHumanGap;
 
     /// <inheritdoc/>
-    public QaOutcome Evaluate(QaSubject subject) => throw new NotImplementedException();
+    public QaOutcome Evaluate(QaSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+
+        return new QaOutcome(
+            QaVerdict.HumanGapOnly,
+            ItemNumber,
+            "Nothing was measured and nothing was decided: `15` Part F item 9 counts heads, and " +
+            "locating a chibi's head is the hard half of that.",
+            [],
+            ProportionsHumanGap);
+    }
 }
 
 /// <summary>
@@ -113,5 +135,23 @@ public sealed class StyleDriftCheck : IQaCheck
     public string? HumanGap => StyleDriftHumanGap;
 
     /// <inheritdoc/>
-    public QaOutcome Evaluate(QaSubject subject) => throw new NotImplementedException();
+    public QaOutcome Evaluate(QaSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+
+        // 🔒 The count of what a reviewer would have to put beside this asset, and not a step toward
+        // comparing them. Item 11 names its own method — a person looking at four images at once —
+        // so the only honest thing a machine adds here is how many are available to look at.
+        var category = AssetNaming.CategoryOf(subject.Asset.Id);
+        var available = subject.Registry.InCategory(category).Count;
+
+        return new QaOutcome(
+            QaVerdict.HumanGapOnly,
+            ItemNumber,
+            $"No comparison was performed. The registry holds {available} previously-accepted " +
+            $"silhouette(s) in category '{category}' for a reviewer to set beside this asset; `15` " +
+            "Part F item 11 asks for three.",
+            [],
+            StyleDriftHumanGap);
+    }
 }

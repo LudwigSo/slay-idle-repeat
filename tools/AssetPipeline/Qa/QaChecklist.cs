@@ -1,3 +1,5 @@
+using SlayIdleRepeat.AssetPipeline.Qa.Checks;
+
 namespace SlayIdleRepeat.AssetPipeline.Qa;
 
 /// <summary>
@@ -28,19 +30,45 @@ public sealed class QaChecklist
     /// <summary>The eleven items, wired in `15` Part F order.</summary>
     public QaChecklist()
     {
+        Items =
+        [
+            new SilhouetteCheck(),
+            new ReadabilityCheck(),
+            new OutlineConformanceCheck(),
+            new KeyLightCheck(),
+            new PaletteConformanceCheck(),
+            new AlphaCleanlinessCheck(),
+            new CanvasAndPivotCheck(),
+            new WatermarkCheck(),
+            new ProportionsCheck(),
+            new NamingAndAtlasCheck(),
+            new StyleDriftCheck(),
+        ];
+
+        var numbers = Items.Select(item => item.ItemNumber).ToArray();
+        if (Items.Count != Doc15PartF.ItemCount
+            || !numbers.SequenceEqual(Enumerable.Range(1, Doc15PartF.ItemCount)))
+        {
+            throw new InvalidOperationException(
+                $"`15` Part F lists {Doc15PartF.ItemCount} items, numbered 1 to " +
+                $"{Doc15PartF.ItemCount} in its own order, and this checklist holds " +
+                $"[{string.Join(", ", numbers)}]. A checklist that can silently shrink or reorder " +
+                "passes forever (steering rule S3).");
+        }
     }
 
     /// <summary>The eleven checks, in `15` Part F order. Index 0 is item 1.</summary>
-    public IReadOnlyList<IQaCheck> Items => throw new NotImplementedException();
+    public IReadOnlyList<IQaCheck> Items { get; }
 
     /// <summary>How many items a machine decides outright. `15` Part F: two.</summary>
-    public int MechanicalCount => throw new NotImplementedException();
+    public int MechanicalCount => OfClassification(QaClassification.Mechanical).Count;
 
     /// <summary>How many a machine decides once somebody states a threshold. `15` Part F: four.</summary>
-    public int UncalibratedThresholdCount => throw new NotImplementedException();
+    public int UncalibratedThresholdCount =>
+        OfClassification(QaClassification.MechanicalUncalibratedThreshold).Count;
 
     /// <summary>How many no machine decides. `15` Part F: five.</summary>
-    public int HumanCount => throw new NotImplementedException();
+    public int HumanCount => OfClassification(QaClassification.Human).Count;
 
     /// <summary>
     /// Every named gap the checklist carries, in item order — the five human items' and item 1's.
@@ -49,14 +77,22 @@ public sealed class QaChecklist
     /// 🔒 First-class data, not commentary. This is the list M8-10 prints beside a batch report so
     /// that "the pipeline accepted 942 assets" can never be read as "942 assets passed Part F".
     /// </remarks>
-    public IReadOnlyList<string> HumanGaps => throw new NotImplementedException();
+    public IReadOnlyList<string> HumanGaps =>
+    [
+        .. Items.Where(item => item.HumanGap is not null).Select(item => item.HumanGap!),
+    ];
 
     /// <summary>The items of one classification, in item order.</summary>
     /// <param name="classification">The classification to filter by.</param>
     public IReadOnlyList<IQaCheck> OfClassification(QaClassification classification) =>
-        throw new NotImplementedException();
+        [.. Items.Where(item => item.Classification == classification)];
 
     /// <summary>Runs all eleven items over one asset.</summary>
     /// <param name="subject">The processed asset and everything needed to judge it.</param>
-    public QaBatchResult Evaluate(QaSubject subject) => throw new NotImplementedException();
+    public QaBatchResult Evaluate(QaSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+
+        return new QaBatchResult(subject.Asset.Id, [.. Items.Select(item => item.Evaluate(subject))]);
+    }
 }

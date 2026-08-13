@@ -62,6 +62,122 @@ public sealed class WatermarkCheck : IQaCheck
     /// <inheritdoc/>
     public string? HumanGap => WatermarkHumanGap;
 
+    /// <summary>
+    /// The four corner regions are the image's four quadrants.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Quadrants because they are the only corner decomposition with no free parameter. "The
+    /// corner" of an image is a size somebody has to choose, and `15` chooses none — an eighth would
+    /// be as defensible as a sixteenth, and whichever this picked would become a number nobody could
+    /// justify sitting in the middle of a proxy. Halving each axis is a statement about the image
+    /// rather than about signatures.
+    /// </remarks>
+    private const int QuadrantsPerAxis = 2;
+
     /// <inheritdoc/>
-    public QaOutcome Evaluate(QaSubject subject) => throw new NotImplementedException();
+    public QaOutcome Evaluate(QaSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+
+        var image = Raster.From(subject.Image);
+        var opacity = CornerOpacities(image);
+        var worst = 0;
+        for (var corner = 1; corner < opacity.Length; corner++)
+        {
+            // Strictly greater, so a tie reports the lowest-numbered corner and the same image
+            // always names the same one.
+            worst = opacity[corner] > opacity[worst] ? corner : worst;
+        }
+
+        return new QaOutcome(
+            QaVerdict.HumanGapOnly,
+            ItemNumber,
+            Verdictless(subject.Thresholds, opacity[worst], worst),
+            [
+                new StepMeasurement(CornerOpacityMeasurement, opacity[worst], "ratio", DocReference),
+                new StepMeasurement(WorstCornerMeasurement, worst, "index", DocReference),
+            ],
+            WatermarkHumanGap);
+    }
+
+    /// <summary>
+    /// What the proxy saw, said in a way that cannot be read as a verdict.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 "Above the ceiling" is a fact about one corner's alpha, not a finding of a watermark, and
+    /// "below it" is not a finding that there is none — the item asks about text <em>anywhere</em>
+    /// in the image. An uncalibrated ceiling is reported as ungraded rather than filled in
+    /// (steering rule S6); it changes nothing, because the proxy gates nothing.
+    /// </remarks>
+    /// <param name="thresholds">The threshold set.</param>
+    /// <param name="opacity">The worst corner's mean opacity.</param>
+    /// <param name="corner">Which corner that was.</param>
+    private static string Verdictless(ThresholdSet thresholds, double opacity, int corner)
+    {
+        var measured =
+            $"Measured only: corner {corner} is {QaEvidence.Number(opacity)} opaque on average.";
+
+        if (!thresholds.IsCalibrated(ThresholdKeys.WatermarkCornerOpacityCeiling))
+        {
+            return measured +
+                   $" It is not graded, because {ThresholdKeys.WatermarkCornerOpacityCeiling} is " +
+                   "uncalibrated. Nothing was decided either way.";
+        }
+
+        var ceiling = thresholds.RequireNumber(ThresholdKeys.WatermarkCornerOpacityCeiling);
+        var relation = opacity > ceiling ? "above" : "within";
+
+        return measured +
+               $" That is {relation} the stated ceiling of {QaEvidence.Number(ceiling)} — evidence " +
+               "for a human, not a verdict: the proxy sees corners and `15` Part F item 8 asks " +
+               "about text anywhere in the image.";
+    }
+
+    /// <summary>
+    /// Each quadrant's mean opacity, 0-1, indexed top-left, top-right, bottom-left, bottom-right.
+    /// </summary>
+    /// <param name="image">The processed image.</param>
+    private static double[] CornerOpacities(Raster image)
+    {
+        var opacity = new double[QuadrantsPerAxis * QuadrantsPerAxis];
+        var middleX = image.Width / QuadrantsPerAxis;
+        var middleY = image.Height / QuadrantsPerAxis;
+
+        for (var corner = 0; corner < opacity.Length; corner++)
+        {
+            var onRight = corner % QuadrantsPerAxis == 1;
+            var onBottom = corner / QuadrantsPerAxis == 1;
+            opacity[corner] = MeanOpacity(
+                image,
+                onRight ? middleX : 0,
+                onBottom ? middleY : 0,
+                onRight ? image.Width : middleX,
+                onBottom ? image.Height : middleY);
+        }
+
+        return opacity;
+    }
+
+    /// <summary>The mean alpha of a region, on the 0-1 scale.</summary>
+    /// <param name="image">The processed image.</param>
+    /// <param name="left">The region's left edge, inclusive.</param>
+    /// <param name="top">The region's top edge, inclusive.</param>
+    /// <param name="right">The region's right edge, exclusive.</param>
+    /// <param name="bottom">The region's bottom edge, exclusive.</param>
+    private static double MeanOpacity(Raster image, int left, int top, int right, int bottom)
+    {
+        var total = 0d;
+        var counted = 0;
+
+        for (var y = top; y < bottom; y++)
+        {
+            for (var x = left; x < right; x++)
+            {
+                total += image.AlphaAt(x, y) / (double)byte.MaxValue;
+                counted++;
+            }
+        }
+
+        return counted == 0 ? 0d : total / counted;
+    }
 }

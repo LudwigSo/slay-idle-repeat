@@ -57,20 +57,71 @@ public enum QaDecision
 public sealed record QaBatchResult(string AssetId, IReadOnlyList<QaOutcome> Outcomes)
 {
     /// <summary>The acceptance decision. See the type's remarks for the precedence.</summary>
-    public QaDecision Decision => throw new NotImplementedException();
+    public QaDecision Decision
+    {
+        get
+        {
+            var graded = Graded;
+
+            if (graded.Any(outcome => outcome.Verdict == QaVerdict.Fail))
+            {
+                return QaDecision.Rejected;
+            }
+
+            if (graded.Any(outcome => outcome.Verdict == QaVerdict.Uncalibrated))
+            {
+                return QaDecision.BlockedByUncalibratedThreshold;
+            }
+
+            return graded.Any(outcome => outcome.Verdict == QaVerdict.HumanGapOnly)
+                ? QaDecision.AwaitingHumanReview
+                : QaDecision.Accepted;
+        }
+    }
 
     /// <summary>True only for <see cref="QaDecision.Accepted"/>.</summary>
     public bool Accepted => Decision == QaDecision.Accepted;
 
     /// <summary>Every item that returned <see cref="QaVerdict.Fail"/>, in item order.</summary>
-    public IReadOnlyList<QaOutcome> Failures => throw new NotImplementedException();
+    public IReadOnlyList<QaOutcome> Failures => OfVerdict(QaVerdict.Fail);
 
     /// <summary>Every item that returned <see cref="QaVerdict.Uncalibrated"/>, in item order.</summary>
-    public IReadOnlyList<QaOutcome> Uncalibrated => throw new NotImplementedException();
+    public IReadOnlyList<QaOutcome> Uncalibrated => OfVerdict(QaVerdict.Uncalibrated);
 
     /// <summary>
     /// Every human gap any item surfaced, in item order — including item 1's, which a mechanical
     /// pass does not close.
     /// </summary>
-    public IReadOnlyList<string> HumanGaps => throw new NotImplementedException();
+    public IReadOnlyList<string> HumanGaps =>
+    [
+        .. Outcomes
+            .Where(outcome => !string.IsNullOrWhiteSpace(outcome.HumanGap))
+            .OrderBy(outcome => outcome.ItemNumber)
+            .Select(outcome => outcome.HumanGap!),
+    ];
+
+    /// <summary>
+    /// The outcomes, or a loud failure when there are none.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Steering rule S3. "Nothing failed" over an empty list is vacuously true, and that is
+    /// exactly the shape of a checklist that silently stopped running — so a decision over no
+    /// outcomes is refused rather than answered. The lists below do not refuse: an empty
+    /// <see cref="Failures"/> is a real, useful answer; an empty acceptance is not.
+    /// </remarks>
+    private IReadOnlyList<QaOutcome> Graded => Outcomes.Count > 0
+        ? Outcomes
+        : throw new InvalidOperationException(
+            $"No `15` Part F item was run against '{AssetId}', so there is no acceptance decision " +
+            "to report. A run holding no outcomes would otherwise read as a clean one, which is how " +
+            "a checklist that stopped running passes forever.");
+
+    /// <summary>Every outcome carrying one verdict, in `15` Part F item order.</summary>
+    /// <param name="verdict">The verdict to filter by.</param>
+    private IReadOnlyList<QaOutcome> OfVerdict(QaVerdict verdict) =>
+    [
+        .. Outcomes
+            .Where(outcome => outcome.Verdict == verdict)
+            .OrderBy(outcome => outcome.ItemNumber),
+    ];
 }

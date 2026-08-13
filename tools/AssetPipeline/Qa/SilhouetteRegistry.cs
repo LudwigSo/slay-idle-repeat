@@ -34,6 +34,21 @@ public sealed record AcceptedSilhouette(string AssetId, string Category, SKBitma
 /// </remarks>
 public sealed class SilhouetteRegistry
 {
+    /// <summary>
+    /// Everything accepted, in acceptance order. One flat list rather than a dictionary of lists:
+    /// the registry is read per category and written once per accepted asset, and a flat list keeps
+    /// both "in the order it was accepted" and "in ordinal category order" derivable rather than
+    /// stored.
+    /// </summary>
+    private readonly IReadOnlyList<AcceptedSilhouette> accepted;
+
+    private SilhouetteRegistry()
+        : this([])
+    {
+    }
+
+    private SilhouetteRegistry(IReadOnlyList<AcceptedSilhouette> accepted) => this.accepted = accepted;
+
     /// <summary>A registry holding nothing — the state before any asset has been accepted.</summary>
     /// <remarks>
     /// An empty category is not a failure: the first asset of a category has nothing to be confused
@@ -43,20 +58,43 @@ public sealed class SilhouetteRegistry
     public static SilhouetteRegistry Empty { get; } = new();
 
     /// <summary>How many silhouettes are held, across every category.</summary>
-    public int Count => throw new NotImplementedException();
+    public int Count => accepted.Count;
 
     /// <summary>Every category holding at least one silhouette, in ordinal order.</summary>
-    public IReadOnlyList<string> Categories => throw new NotImplementedException();
+    public IReadOnlyList<string> Categories =>
+    [
+        .. accepted
+            .Select(entry => entry.Category)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(category => category, StringComparer.Ordinal),
+    ];
 
     /// <summary>This registry plus one accepted silhouette.</summary>
     /// <param name="assetId">The accepted asset's `15` §D1 id.</param>
     /// <param name="mask">Its 64x64 mask, from <see cref="SilhouetteGate.Render"/>.</param>
     /// <returns>A new registry. This one is unchanged.</returns>
-    public SilhouetteRegistry Accept(string assetId, SKBitmap mask) =>
-        throw new NotImplementedException();
+    public SilhouetteRegistry Accept(string assetId, SKBitmap mask)
+    {
+        ArgumentNullException.ThrowIfNull(assetId);
+        ArgumentNullException.ThrowIfNull(mask);
+
+        // 🔒 Derived, never taken. A caller that could state the category could file a hero under
+        // "icon", and every subsequent hero would be measured against a bucket it does not belong
+        // to — which reads as "maximally distinguishable" and passes forever.
+        var entry = new AcceptedSilhouette(assetId, AssetNaming.CategoryOf(assetId), mask);
+        return new SilhouetteRegistry([.. accepted, entry]);
+    }
 
     /// <summary>Everything accepted in one category, in the order it was accepted.</summary>
     /// <param name="category">A `15` §D1 category prefix. An unknown one yields an empty list.</param>
-    public IReadOnlyList<AcceptedSilhouette> InCategory(string category) =>
-        throw new NotImplementedException();
+    public IReadOnlyList<AcceptedSilhouette> InCategory(string category)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        return
+        [
+            .. accepted.Where(entry =>
+                string.Equals(entry.Category, category, StringComparison.Ordinal)),
+        ];
+    }
 }

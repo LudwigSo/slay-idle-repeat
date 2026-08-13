@@ -43,5 +43,67 @@ public sealed class SilhouetteCheck : IQaCheck
     public string? HumanGap => SilhouetteHumanGap;
 
     /// <inheritdoc/>
-    public QaOutcome Evaluate(QaSubject subject) => throw new NotImplementedException();
+    public QaOutcome Evaluate(QaSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+
+        var category = AssetNaming.CategoryOf(subject.Asset.Id);
+
+        try
+        {
+            var result = SilhouetteGate.Evaluate(
+                subject.Image, category, subject.Registry, subject.Thresholds);
+
+            return new QaOutcome(
+                result.MechanicalPass ? QaVerdict.Pass : QaVerdict.Fail,
+                ItemNumber,
+                result.MechanicalPass ? ClearedTheFloor : result.Reason,
+                result.Measurements,
+                SilhouetteHumanGap);
+        }
+        catch (UncalibratedThresholdException uncalibrated)
+        {
+            // 🔒 The gate throws and this item reports. One open hole must stop item 1 concluding
+            // without aborting the other ten items of a 942-asset batch — and the measurements
+            // travel anyway, because they need no cutoff to be taken.
+            return QaEvidence.Uncalibrated(
+                ItemNumber, uncalibrated, MeasuredWithoutGrading(subject, category), SilhouetteHumanGap);
+        }
+    }
+
+    /// <summary>
+    /// What a mechanical pass says, phrased so that it cannot be quoted as "§A4 passed".
+    /// </summary>
+    private const string ClearedTheFloor =
+        "Every stated cutoff was cleared. That is the mechanical floor beneath `15` §A4, not §A4's " +
+        "own test — see the human gap.";
+
+    /// <summary>
+    /// The four `15` §A4 quantities, taken without grading them, so an uncalibrated outcome still
+    /// hands a reviewer the numbers a cutoff would have been compared against.
+    /// </summary>
+    /// <param name="subject">The asset under judgement.</param>
+    /// <param name="category">The `15` §D1 category the registry is consulted for.</param>
+    private static IReadOnlyList<StepMeasurement> MeasuredWithoutGrading(
+        QaSubject subject, string category)
+    {
+        using var mask = SilhouetteGate.Render(subject.Image);
+        var measurement = SilhouetteGate.Measure(mask, category, subject.Registry);
+
+        return
+        [
+            new StepMeasurement(
+                SilhouetteGate.CoverageRatioMeasurement,
+                measurement.CoverageRatio, "ratio", "15 §A4"),
+            new StepMeasurement(
+                SilhouetteGate.BoundingBoxFillMeasurement,
+                measurement.BoundingBoxFill, "ratio", "15 §A4"),
+            new StepMeasurement(
+                SilhouetteGate.ComponentCountMeasurement,
+                measurement.ConnectedComponentCount, "count", "15 §A4"),
+            new StepMeasurement(
+                SilhouetteGate.DistinguishabilityMeasurement,
+                measurement.Distinguishability, "ratio", "15 §A4"),
+        ];
+    }
 }
