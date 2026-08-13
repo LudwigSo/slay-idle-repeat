@@ -119,6 +119,11 @@ public sealed class BattleOutcomeTests
         var result = Standoff(100, 100, 100, 100, maxTicks: maxTicks);
 
         result.DurationTicks.ShouldBe(maxTicks);
+
+        // 🔒 Floored before the ShouldAllBe, which passes on an empty collection: at maxTicks 1 a
+        // loop that emitted nothing at all would satisfy "every event is below the cap" while
+        // proving nothing about where the cap falls.
+        result.Log.ShouldNotBeEmpty();
         result.Log.ShouldAllBe(e => e.Tick < maxTicks);
     }
 
