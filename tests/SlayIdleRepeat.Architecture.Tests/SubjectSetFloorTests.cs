@@ -291,10 +291,34 @@ public sealed class SubjectSetFloorTests
         // which is when the obligation has been discharged and the note should be deleted. If the
         // consumer picks another name, RENAME this entry rather than dropping it — the subject being
         // tracked is "one table maps the modifiers to effects", not the string.
-        new("EliteModifierEffects", SubjectKind.CoreType, "M2-08 / M2-13 — the first consumer",
+        //
+        // 🔴 THE OWNER WENT STALE INSIDE ITS OWN MILESTONE, and the architecture review corrected it.
+        // M2-11 wrote this entry against "M2-08 / M2-13 — the first consumer". Both tasks then landed
+        // and NEITHER wrote one: M2-08's tick engine takes a roster of ActorPlans and never reads a
+        // modifier row, and M2-13 authored bosses, which have no elite modifiers at all. The entry
+        // was still formally valid — the type does not exist, so the rule it guards is still vacuous
+        // for the reason stated — while its stated owner had passed, which is exactly S4's known
+        // limit ("an exemption whose REASON went stale while still formally valid is not mechanically
+        // detectable") and exactly the shape M2-16a found in PowerCalculator's entry.
+        //
+        // It is deliberately NOT reassigned to a guessed task. `05` §6.2's modifiers are consumed
+        // when an elite is spawned into a real encounter, which is the run layer's (M3) at the
+        // earliest, and the draw itself is M4-01's per the LuckService entry above; naming either
+        // here would be this file inventing a plan. The convention the PetAbility, Tier and
+        // StatusDecayCurve entries already use is the honest one.
+        //
+        // 🔒 The HALF of this note that was an unguarded obligation is now guarded. It said the
+        // elite-id rule "is blind to an enum switch" and left it there.
+        // EnemyDerivationRuleTests.No_elite_modifier_is_named_in_code_outside_the_enemy_namespace
+        // closes that: it scans the enum's TYPE reference rather than a string literal, and it
+        // permits Rules/Combat/Enemies/ — the directory this entry already names as the table's home.
+        // The entry survives because the rule cannot see the OTHER half: that no table exists at all.
+        new("EliteModifierEffects", SubjectKind.CoreType, "unassigned — the first consumer",
             "05 §6.2's modifier parameters, which have no consumer yet; 18's headnote forbids the " +
-            "per-modifier branching that is otherwise the path of least resistance, and the elite-id " +
-            "rule in EnemyDerivationRuleTests is blind to an enum switch"),
+            "per-modifier branching that is otherwise the path of least resistance. The branching " +
+            "itself is now caught by EnemyDerivationRuleTests." +
+            "No_elite_modifier_is_named_in_code_outside_the_enemy_namespace; this entry tracks the " +
+            "missing table, which no rule can see"),
 
         // ══════════════════════════════════════════════════════════════════════════════════════
         // ── M2-02 · `18` §8 step 1's NINE ABSENT SOURCES ──────────────────────────────────────

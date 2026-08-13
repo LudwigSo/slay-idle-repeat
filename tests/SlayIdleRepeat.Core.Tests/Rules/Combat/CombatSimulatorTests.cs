@@ -3,6 +3,7 @@ using System.Globalization;
 using Shouldly;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Effects;
+using SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 using SlayIdleRepeat.Core.Rules.Stats;
 using SlayIdleRepeat.Core.Tests.Rules.Stats;
 using SlayIdleRepeat.Core.Tests.BalanceHarness;
@@ -229,6 +230,7 @@ public sealed class CombatSimulatorTests
 
             // 🔒 A `content/combat_caps.json` of the SHIPPED shape — the same fixture
             // CombatCapsTests reads, so the entry point is exercised over the real pointer set
-            // rather than over three numbers a test chose.
-            StatFixtures.CombatCapsSnapshot());
+            // rather than over three numbers a test chose — plus `05` §5's catalogue, which the
+            // overload now reads because it composes a WIRED StatusTimeline. See its remarks.
+            StatusFixtures.With(StatFixtures.CombatCapsSnapshot()));
 }

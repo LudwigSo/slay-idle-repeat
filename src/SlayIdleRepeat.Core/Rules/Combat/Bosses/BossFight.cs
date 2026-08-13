@@ -23,13 +23,17 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 /// roster carrying a boss. Every other composition in the repository is a test bench.
 /// </para>
 /// <para>
-/// 🔴 <b>Consequence, recorded rather than fixed here:</b> the public
+/// 🔒 <b>That consequence was reported by M2-16a and is now closed.</b> The entry it named — the
+/// public
 /// <see cref="CombatSimulator.Simulate(ulong, ActorStats, int, IReadOnlyList{ActorStats}, int, ContentSnapshot)"/>
-/// overload still cannot run a fight in which any `05` §5 status is applied — a CASTER's biome status
-/// (`05` §6.1a) reaches <c>UnwiredStatusEngine.Apply</c> and throws. Widening
-/// <see cref="BattleSeams.For"/> to wire <see cref="StatusTimeline"/> would change the behaviour of
-/// every fight every existing suite runs, which is not M2-16a's to do on the last task of the
-/// milestone. This type therefore composes its own full seam set, and the gap is reported.
+/// overload — could not run a fight in which any `05` §5 status is applied, because a CASTER's biome
+/// status (`05` §6.1a) reached <c>UnwiredStatusEngine.Apply</c> and threw. The fix is the one this
+/// type already demonstrates and is <b>not</b> a widening of <see cref="BattleSeams.For"/>: that
+/// factory takes a <see cref="BattleServices"/> and no content snapshot, so it cannot read `05` §5's
+/// catalogue, and changing <see cref="BattlePlan"/>'s default would move every test bench in the
+/// repository. The overload composes its own <see cref="StatusTimeline"/> from the snapshot it
+/// already holds, exactly as this type does. <see cref="BattleSeams.For"/> keeps its meaning: the
+/// default for a plan built without content.
 /// </para>
 /// <para>
 /// 🔒 <b>Power arrives, and is never derived here.</b> `02` §4.3's <c>EnemyPower(i)</c> already

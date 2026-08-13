@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat.Bosses;
+using SlayIdleRepeat.Core.Rules.Combat.Status;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 using SlayIdleRepeat.Core.Rules.Stats;
@@ -110,6 +111,34 @@ public static class CombatSimulator
     /// <c>StatCaps.None</c> while it had no way to read them; it does now, so `18` §8 step 9 applies
     /// `05` §1's six ceilings to a public fight as the document says it should.
     /// </para>
+    /// <para>
+    /// ═══ 🔒 <b>WHY THIS COMPOSES ITS OWN SEAMS INSTEAD OF TAKING <c>BattleSeams.For</c></b> ═══
+    /// </para>
+    /// <para>
+    /// M2-16a recorded, in <see cref="BossFight"/>'s remarks, that this method <em>"still cannot run
+    /// a fight in which any `05` §5 status is applied"</em>: <see cref="BattleSeams.For"/> wires only
+    /// `05` §4's attack pipeline, so its <c>Statuses</c> is <c>UnwiredStatusEngine</c> and the first
+    /// <c>APPLY_STATUS</c> throws <em>"M2-10 has not landed"</em> — which stopped being true when
+    /// M2-10 landed. `30` §11.2 exports this entry point for `14` §2.4's client-side local battle
+    /// simulation, and `05` §6.1a gives a CASTER a biome status, so the export was unusable for its
+    /// named consumer against ordinary content.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The wiring is here rather than in <see cref="BattleSeams.For"/>, and that is the whole
+    /// of the fix.</b> <c>For</c> takes a <see cref="BattleServices"/> and nothing else — it has no
+    /// content snapshot, so it cannot read `05` §5's catalogue, and widening it would have to change
+    /// <see cref="BattlePlan"/>'s default for every test bench in the repository. This method already
+    /// holds the snapshot for <c>CombatCaps</c>. So the seam set is composed at the entry point that
+    /// has the data, exactly as <see cref="BossFight"/> composes its own, and <c>For</c> keeps its
+    /// meaning: the default a <see cref="BattlePlan"/> built without content gets.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Consequence for the caller:</b> the snapshot must now carry
+    /// <c>content/statuses.json</c> as well as <c>content/combat_caps.json</c>. That is what the
+    /// parameter has always been documented as — <em>"the loaded, schema-validated content
+    /// snapshot"</em> — and a missing document fails loudly at <c>StatusCatalogue.Read</c> rather
+    /// than mid-fight.
+    /// </para>
     /// </remarks>
     public static SimulationResult Simulate(
         ulong battleSeed,
@@ -167,6 +196,9 @@ public static class CombatSimulator
         // CombatCaps refuses an absent pointer and a null value rather than defaulting either.
         var caps = CombatCaps.Read(content);
 
+        // 🔒 `05` §5, WIRED. See the remarks above on why this is not BattleSeams.For.
+        var statuses = StatusCatalogue.Read(content);
+
         return Simulate(new BattlePlan
         {
             BattleSeed = battleSeed,
@@ -175,6 +207,22 @@ public static class CombatSimulator
             Mitigation = caps.Mitigation,
             WardCapPct = caps.WardCapPct,
             RunCounters = new RunTriggerCounters(),
+            Seams = services =>
+            {
+                var attack = new AttackPipeline(services);
+                var timeline = new StatusTimeline(services, attack, statuses);
+
+                // Phases stays NoBossPhases and Summons stays NoSummons deliberately: this overload's
+                // roster is stat blocks, so it carries no boss and authors no SUMMON, and both
+                // defaults are refusals at the point content asks. SimulateBossFight is the entry
+                // point for a roster that has either.
+                return BattleSeams.Strict with
+                {
+                    Attack = attack,
+                    Statuses = timeline,
+                    Timeline = timeline,
+                };
+            },
         });
     }
 
@@ -227,10 +275,10 @@ public static class CombatSimulator
     /// document already carries.
     /// </para>
     /// <para>
-    /// ⚠️ The composition itself lives in <see cref="BossFight"/>, whose remarks record what this
-    /// method's <em>sibling</em> still cannot do: <see cref="BattleSeams.For"/> leaves the status
-    /// engine unwired, so the plain overload above throws on the first `05` §5 status any fight
-    /// applies.
+    /// ⚠️ The composition itself lives in <see cref="BossFight"/>. Its remarks recorded that this
+    /// method's <em>sibling</em> could not run a fight applying a `05` §5 status; that gap is closed
+    /// — the plain overload above now composes its own <c>StatusTimeline</c> for the same reason this
+    /// one does, and for the same reason neither uses <see cref="BattleSeams.For"/>.
     /// </para>
     /// </remarks>
     public static SimulationResult SimulateBossFight(
