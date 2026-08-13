@@ -74,7 +74,13 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 internal sealed class CombatLog
 {
     /// <summary>🔒 `05` §3 — the tick rate: <c>TICK = 0.05 s</c>.</summary>
-    public const int TicksPerSecond = 20;
+    /// <remarks>
+    /// 🔴 An alias for <see cref="BattleTicks.PerSecond"/>. This constant and
+    /// <c>TriggerSchedule.TicksPerSecond</c> were two independent statements of one `05` §3 fact,
+    /// each with its own tolerance and its own whole-tick predicate beside it; only the <c>20</c>
+    /// itself was ever pinned across them.
+    /// </remarks>
+    public const int TicksPerSecond = BattleTicks.PerSecond;
 
     /// <summary>🔒 `05` §3 — 90 s at 20 ticks/second. Ticks run <c>0..1799</c>.</summary>
     /// <remarks>
@@ -82,7 +88,7 @@ internal sealed class CombatLog
     /// `11` §4.3) — 1200 ticks — which this class does not enforce, because it has no way to know
     /// which kind of fight it is logging. M2-14 owns the duel and inherits that bound.
     /// </remarks>
-    public const int MaxTicks = 90 * TicksPerSecond;
+    public const int MaxTicks = BattleTicks.MaxPerFight;
 
     /// <summary>🔒 `17` §1 — the shortest wind-up a damaging mechanic may have.</summary>
     public const double MinTelegraphSeconds = 1.0;
@@ -98,12 +104,6 @@ internal sealed class CombatLog
 
     /// <summary>The specification quoted in every refusal, so a failure says which rule it broke.</summary>
     private const string Specification = "05 §3.1 step 7";
-
-    /// <summary>
-    /// How far a telegraph's lead may sit from a whole tick before it is a fractional lead rather
-    /// than the residue of multiplying a decimal by 20.
-    /// </summary>
-    private const double WholeTickTolerance = 1e-9;
 
     private readonly List<CombatEvent> _events = [];
 
@@ -365,17 +365,18 @@ internal sealed class CombatLog
                 "one that is too long stops reading as a wind-up at all.");
         }
 
-        // Compared with a tolerance, not for exact equality: `1.2 * 20` is not bit-exactly 24.0 for
-        // every value in the band, and the defect being caught (a lead of 1.0001 s → 20.002 ticks)
-        // misses by 2e-3 — six orders of magnitude outside anything rounding can explain.
-        var leadTicks = leadSeconds * TicksPerSecond;
-        if (Math.Abs(leadTicks - Math.Round(leadTicks)) > WholeTickTolerance)
+        // 🔒 The predicate and its tolerance are BattleTicks'; the wording is this class's, because
+        // steering S2 asks which rule fired and "a telegraph at tick N" is not something the
+        // primitive can say. Compared with a tolerance rather than for exact equality: `1.2 * 20` is
+        // not bit-exactly 24.0 for every value in `17` §1's band, while the defect being caught — a
+        // lead of 1.0001 s, so 20.002 ticks — misses by 2e-3.
+        if (!BattleTicks.IsWhole(leadSeconds, out _))
         {
             throw new InvalidOperationException(
                 $"A telegraph at tick {tick} announces a {Format(leadSeconds)} s wind-up, which is " +
-                $"{Format(leadTicks)} ticks. `05` §3's simulation is fixed-tick, so the mechanic it announces " +
-                "lands on a whole tick — a fractional lead points between two ticks and therefore at nothing. " +
-                $"Use a multiple of {Format(1.0 / TicksPerSecond)} s.");
+                $"{Format(leadSeconds * TicksPerSecond)} ticks. `05` §3's simulation is fixed-tick, so the " +
+                "mechanic it announces lands on a whole tick — a fractional lead points between two ticks and " +
+                $"therefore at nothing. Use a multiple of {Format(BattleTicks.SecondsPerTick)} s.");
         }
 
         AppendCore(new CombatEvent(tick, CombatEventType.Telegraph, sourceId, targetId, leadSeconds, effectIndex));

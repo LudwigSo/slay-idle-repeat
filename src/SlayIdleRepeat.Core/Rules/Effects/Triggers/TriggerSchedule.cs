@@ -84,25 +84,14 @@ internal static class TriggerSchedule
     /// 🔒 `05` §3 — the tick rate: <c>TICK = 0.05 s</c>, 20 ticks per second.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>The same `05` §3 fact is also stated by <c>CombatLog.TicksPerSecond</c>, and this file
-    /// cannot name it.</b> R17 fixes the layering inside <c>Rules</c> as
-    /// <c>Rules.Combat ▶ Rules.Stats ▶ Rules.Effects</c>, so <c>Rules.Effects</c> is the bottom and
-    /// may not reach up into <c>Rules.Combat</c>. The duplication is therefore structural rather than
-    /// careless, and it is closed by a test — <c>PeriodicAnchoringTests.The_tick_rate_agrees_with_the_
-    /// combat_log</c> lives in the test assembly, which can see both.
+    /// 🔴 <b>An alias for <see cref="BattleTicks.PerSecond"/>, which is the one statement.</b> This
+    /// file used to declare the <c>20</c> itself, recording that <c>CombatLog.TicksPerSecond</c> said
+    /// the same thing and that R17's layering — <c>Rules.Combat ▶ Rules.Stats ▶ Rules.Effects</c> —
+    /// left this file, at the bottom, unable to name it. That is exactly the reasoning that made
+    /// <c>OpRounding</c> a second statement of <c>StatRounding</c>, and it has the same fix:
+    /// <c>Core.Primitives</c> sits beneath every layer that counts ticks.
     /// </remarks>
-    internal const int TicksPerSecond = 20;
-
-    /// <summary>
-    /// How far a span may sit from a whole tick before it is a fractional span rather than the
-    /// residue of multiplying a decimal by 20.
-    /// </summary>
-    /// <remarks>
-    /// The tolerance, and its size, are <c>CombatLog</c>'s: <c>1.2 × 20</c> is not bit-exactly
-    /// <c>24.0</c>, while the defect being caught misses a whole tick by orders of magnitude more
-    /// than this.
-    /// </remarks>
-    private const double WholeTickTolerance = 1e-9;
+    internal const int TicksPerSecond = BattleTicks.PerSecond;
 
     /// <summary>
     /// 🔒 A span of battle time in whole ticks.
@@ -115,9 +104,11 @@ internal static class TriggerSchedule
     /// </exception>
     internal static int Ticks(double seconds, string parameter, string token)
     {
-        var ticks = seconds * TicksPerSecond;
-
-        if (double.IsNaN(ticks) || double.IsInfinity(ticks))
+        // 🔒 Finiteness is checked separately, and before. `05` §3's whole-tick predicate answers
+        //    "no" to a NaN and to a mis-authored decimal alike, and the two want different sentences:
+        //    one names an arithmetic failure upstream, the other tells the author which multiple to
+        //    use. BattleTicks.IsWhole owns the predicate; the wording stays here.
+        if (double.IsNaN(seconds) || double.IsInfinity(seconds))
         {
             throw new EffectContextException(
                 token,
@@ -126,16 +117,14 @@ internal static class TriggerSchedule
                 "arithmetic failure upstream, not a span.");
         }
 
-        var whole = Math.Round(ticks);
-
-        if (Math.Abs(ticks - whole) > WholeTickTolerance)
+        if (!BattleTicks.IsWhole(seconds, out var whole))
         {
             throw new EffectContextException(
                 token,
-                $"its {parameter} is {Format(seconds)} s, which is {Format(ticks)} ticks",
+                $"its {parameter} is {Format(seconds)} s, which is {Format(seconds * TicksPerSecond)} ticks",
                 $"`05` §3's simulation is fixed-tick, so a trigger fires ON a tick — a fractional " +
                 $"span points between two ticks and therefore at neither. Use a multiple of " +
-                $"{Format(1.0 / TicksPerSecond)} s.");
+                $"{Format(BattleTicks.SecondsPerTick)} s.");
         }
 
         // 🔒 Bounded by the longest fight `05` §3 admits, and checked BEFORE the cast: a
@@ -161,7 +150,7 @@ internal static class TriggerSchedule
     /// at 70 s of a 90 s fight, and a <c>startDelay</c> that lands on the last tick is a trigger that
     /// fires once. What is refused is arithmetic that cannot be a span at all.
     /// </remarks>
-    internal const int MaxSpanTicks = 90 * TicksPerSecond;
+    internal const int MaxSpanTicks = BattleTicks.MaxPerFight;
 
     /// <summary>
     /// <see cref="TriggerKind.PERIODIC"/>'s interval, in whole ticks.
