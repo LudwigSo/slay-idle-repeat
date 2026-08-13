@@ -17,24 +17,28 @@ namespace SlayIdleRepeat.Core.Testing;
 /// (`30` §6) mechanically true rather than a claim about how fast the test suite runs.
 /// </para>
 /// <para>
-/// 🔒 <b>It only goes forwards, and that is a decision rather than an omission</b> — carried-forward
-/// item 20, which this type deliberately declines to settle. Two halves of one ruling disagree
-/// today: <c>GameRules.AdvanceTime</c> <b>clamps</b> a backwards clock on the energy path
-/// (<em>"a backwards clock costs the player nothing and grants them nothing"</em>, kept that way for
-/// `30` §2.1's <b>P3</b>), while <c>Player.MarkApplied</c> <b>throws</b>
-/// <see cref="ArgumentOutOfRangeException"/> on a <c>NowUtc</c> earlier than
-/// <c>LastAppliedAtUtc</c> — an exception out of <c>Apply</c>, which is the P3 violation the clamp
-/// exists to avoid, reached through the other door.
+/// 🔒 <b>It only goes forwards, and that is a decision rather than an omission.</b> M1-11 wrote it
+/// as a refusal to settle carried-forward item 20 — <c>GameRules.AdvanceTime</c> <b>clamped</b> a
+/// backwards clock on the energy path for `30` §2.1's <b>P3</b> while <c>Player.MarkApplied</c>
+/// <b>threw</b> on the same input, two halves of one ruling disagreeing — on the reasoning that a
+/// rewindable harness would be the only producer of that state in the repository, so whichever test
+/// was written first would settle a ruling nobody had made.
 /// </para>
 /// <para>
-/// A clock that could go backwards would make <b>this harness the only producer</b> of that
-/// disagreement in the repository: every test that moved time backwards would be asserting on an
-/// unresolved ruling, and the first one written would silently become the ruling. So
-/// <see cref="Advance"/> refuses a negative span and there is no setter. ⚠️ <b>This does not close
-/// the question and must not be read as closing it.</b> Host clock skew is real and reaches
-/// <c>Apply</c> in production through a composition root that is not this type; the disagreement
-/// stays carried forward, owned by whichever milestone rules on M1-05's guard against M1-08's
-/// clamp. What is decided here is only that the <em>test harness</em> does not manufacture it.
+/// 🔒 <b>M1-12 settled it, on P3's side, and this paragraph is corrected rather than left to
+/// rot</b> (steering <b>S4</b>'s known limit — the reason this type gave for being forward-only was
+/// still formally valid and had stopped being the reason). <c>GameRules.MarkApplied</c> now floors
+/// the instant it hands both aggregates; the aggregates go on refusing a backwards anchor, because
+/// inside the model that is a persistence defect rather than skew. Skew therefore returns a result.
+/// </para>
+/// <para>
+/// ⚠️ <b>Forward-only stays, on its own remaining merit.</b> It is no longer about an unsettled
+/// ruling: `30` §6 writes the harness as <c>Advance(...)</c> rather than a setter, and a clock that
+/// could rewind would let a test assert on a state the <em>harness</em> manufactured rather than one
+/// a composition root produces. Skew is real and reaches <c>Apply</c> through composition roots that
+/// are not this type — and it is now driven deliberately, by
+/// <c>GameRulesBackwardsClockTests</c>, which builds the state through `30` §11.3's
+/// <c>Rehydrate</c> instead of by rewinding a clock.
 /// </para>
 /// <para>
 /// 🔒 <b>It cannot be constructed into <c>default(DateTimeOffset)</c> by accident, and that is a
@@ -98,15 +102,14 @@ public sealed class VirtualClock
                 nameof(by),
                 by,
                 "A VirtualClock only moves FORWARDS. 30 §6 writes this as Advance(...), not as a " +
-                "setter, and the reason it is enforced rather than assumed is carried-forward item " +
-                "20: GameRules.AdvanceTime CLAMPS a backwards clock on the energy path (30 §2.1's " +
-                "P3 — an exception out of Apply is a defect, not a refusal) while " +
-                "Player.MarkApplied THROWS on a NowUtc earlier than LastAppliedAtUtc. Those two are " +
-                "halves of one ruling and they disagree. A harness that could rewind would be the " +
-                "only producer of that state in the repository, and whichever test was written " +
-                "first would settle a ruling nobody made. Skew is still real in production and " +
-                "still reaches Apply through a composition root that is not this type; it is not " +
-                "settled here, it is refused here.");
+                "setter: the harness models a clock the player experiences, and a test that rewound " +
+                "it would assert on a state the HARNESS manufactured rather than one a composition " +
+                "root produces. Host clock skew is real, reaches Apply through composition roots " +
+                "that are not this type, and has been 30 §2.1 P3-safe since M1-12 settled " +
+                "carried-forward item 20 — GameRules.MarkApplied floors the instant it hands the " +
+                "aggregates, so a backwards clock returns a result instead of throwing. To drive " +
+                "skew, build the state through 30 §11.3's Rehydrate and apply a command at an " +
+                "earlier NowUtc; do not rewind the harness.");
         }
 
         if (by > DateTimeOffset.MaxValue - _nowUtc)

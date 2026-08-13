@@ -1,4 +1,7 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
+using Mono.Cecil;
+using Mono.Cecil.Cil;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -39,9 +42,17 @@ namespace SlayIdleRepeat.Architecture.Tests;
 public sealed class SubjectSetFloorTests
 {
     /// <summary>
-    /// Subjects the rules key on that M1 and later create. Each one is absent today, and
-    /// each is the reason some rule is currently vacuous.
+    /// Subjects the rules key on that a later milestone creates. Each one is absent today, and each
+    /// is the reason some rule is currently vacuous — <b>by design, and the milestone that ends it
+    /// is on the row</b>.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>M1-12 corrected "that M1 and later create".</b> M1 is finished and created none of
+    /// these: what is left is <c>GuildView</c> (M14) and <c>GhostSnapshot</c> (M12). The distinction
+    /// this array now carries is the one M1-12's brief turns on — a rule whose subject arrives in
+    /// M2–M16 is <em>correctly</em> documented as vacuous, and deleting that note would be as wrong
+    /// as leaving a false one.
+    /// </remarks>
     /// <remarks>
     /// 🔒 Deleting an entry when the subject arrives is not optional — the rule below fails
     /// on a declared-pending subject that exists. That is the whole mechanism: it converts
@@ -52,8 +63,27 @@ public sealed class SubjectSetFloorTests
     {
         new("GuildView", SubjectKind.CoreType, "M14",
             "IsolationTests.GuildView_is_a_read_only_projection"),
+        // 🔴 M1-12 CORRECTED THIS ROW'S CITATION, and the correction is the first thing
+        // Every_tracked_subject_name_is_read_by_a_rule_and_every_cited_rule_exists found. The row
+        // said IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot, and that rule does
+        // NOT key on this constant: it selects `t.Name.Contains("Ghost")`, deliberately, so that it
+        // catches a GhostLoadout or a GhostBuild as well as the snapshot. Renaming
+        // Domain.GhostSnapshotType would therefore have left that rule working exactly as before,
+        // while the row promised it was the thing at risk — steering S4's known limit, in the one
+        // file whose job is to stop a subject going untracked.
+        //
+        // What actually reads the name is GapRegister, in two places, and both now read the CONSTANT
+        // rather than a hand-typed copy of it: the M12-01 deferral and 30 §4.1's WorldSlice
+        // transcription. Those are real mechanisms — No_deferral_outlives_the_type_that_gives_it_
+        // meaning and Every_subject_the_design_docs_enumerate_is_authored_or_declared_deferred are
+        // both stated over them — so the constant is load-bearing after all, just not where the row
+        // said.
         new("GhostSnapshot", SubjectKind.CoreType, "M12",
-            "IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
+            "GapRegister.Deferred (the M12-01 entry) and GapRegister.Surfaces (30 §4.1's " +
+            "WorldSlice row) — the only two readers of this name, both keyed on the constant. " +
+            "⚠️ NOT IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot, which this row " +
+            "cited until M1-12: that rule selects by name CONTAINING 'Ghost' and is unaffected by a " +
+            "rename of the constant"),
     };
 
     /// <summary>
@@ -454,10 +484,13 @@ public sealed class SubjectSetFloorTests
         // a Layer row to append to — in the direction M1-06's Commands row had to be widened for: a
         // production type naming the test harness is a cycle under every reading.
         //
-        // ⚠️ WHAT THAT ROW DOES NOT REACH, so this note does not promise more than the rule: it
-        // permits Testing -> Model, and must (30 §11.3's Rehydrate), so a harness calling an
-        // aggregate's INTERNAL mutator bypasses Apply exactly as calling a handler would and no
-        // namespace rule sees it. The row itself carries that limit in full.
+        // 🔒 WHAT THAT ROW DOES NOT REACH — CLOSED IN M1-12. It permits Testing -> Model, and must
+        // (30 §11.3's Rehydrate), so a harness calling an aggregate's INTERNAL mutator bypasses Apply
+        // exactly as calling a handler would, and no namespace rule can see it: both references go to
+        // the same namespace and differ only in the visibility of the member reached. That is now
+        // AccessibilityBoundaryTests.The_harness_drives_the_aggregates_through_their_public_seam_only,
+        // which is an accessibility rule rather than a layering row for exactly that reason — and
+        // this namespace is its subject set, so the row below carries it too.
         new(Domain.InMemoryGameType, SubjectKind.CoreType, "M1-11",
             "DomainPurityTests.The_whole_game_is_playable_from_Core_alone (the rule's NAME is stated " +
             "over this type: its public-harness arm had never run before this commit, and M1-11 " +
@@ -468,9 +501,12 @@ public sealed class SubjectSetFloorTests
             "that has named this namespace since M0-08, through Domain.PermittedCoreNamespaces — " +
             "though it governed an EMPTY region until this commit, and the Pending row this replaces " +
             "cited a different rule that did not key on it at all, which M1-09 flagged), " +
-            "AccessibilityBoundaryTests.Core_internal_layering_holds (LIVE from this commit, when the " +
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (LIVE from M1-11, when the " +
             "Testing row was added: the harness may not name Rules or Handlers, and nothing beneath " +
-            "it — root included — may name the harness)"),
+            "it — root included — may name the harness), " +
+            "AccessibilityBoundaryTests.The_harness_drives_the_aggregates_through_their_public_seam_only " +
+            "(M1-12 — this namespace is that rule's whole subject set, and it closes the half no " +
+            "layering row can express: Testing -> Model is permitted, but only to PUBLIC members)"),
     };
 
     // ---------------------------------------------------------------- floors
@@ -495,6 +531,15 @@ public sealed class SubjectSetFloorTests
     private const int CoreTypeFloor = 110;           // Il.AllTypes over SlayIdleRepeat.Core
     private const int PortFloor = 1;                 // IContentSourcePort (M0-09)
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
+
+    // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and
+    // therefore the rows whose citation the truth arm actually checks: one per register row, with
+    // IClockPort excepted (30 §3 makes it the name that must never appear, so it is correctly in
+    // neither register). Deliberately NOT restated as "N of M constants" — M1-12's own review caught
+    // that transcription wrong by one on the commit that corrected two other stale counts, which is
+    // the S4 known limit landing inside the sentence describing it. Floored so that a row rewritten
+    // into prose this assembly cannot resolve is a build failure rather than a quiet exemption (S3).
+    private const int CitedConstantRowFloor = 9;
 
     /// <summary>
     /// `23` §6 — the subject sets these rules quantify over are the ones they were written
@@ -646,6 +691,368 @@ public sealed class SubjectSetFloorTests
         ArchRule.Empty(
             offenders,
             "Every rule subject is present, or declared pending with the milestone that creates it (23 §6, 30 §11.4).");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §6 / carried-forward item (b) — every name <c>Domain</c> declares is <b>read</b> by
+    /// something, and every rule a register row cites <b>exists</b>. The other half of
+    /// <see cref="Every_rule_subject_is_present_or_declared_pending"/>: that one asks whether a
+    /// constant is tracked, this one asks whether tracking it buys anything.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The finding this closes.</b> <c>Domain.GameContextType</c> was declared, referenced by
+    /// no rule, and in neither register — and it was caught only because a human read the file. The
+    /// register half of that was closed when the untracked-subject check below started reading
+    /// <see cref="TypeNameConstants"/>; the <em>referenced</em> half is this rule. A constant nothing
+    /// reads is not a subject the suite keys on — it is a name that looks like enforcement, and the
+    /// register row beside it is a claim about a rule that is not there.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Read by <c>ldstr</c>, which is not an implementation detail but the only thing there is
+    /// to read.</b> These are <c>const string</c>s, so the compiler inlines each one at its use site
+    /// and <em>no field reference to <c>Domain</c> survives into IL</em> — the same inlining that
+    /// made <c>Core_internal_layering_holds</c> blind to a cross-layer constant for three
+    /// milestones. A rule that looked for a <c>ldsfld</c> on <c>Domain.GhostSnapshotType</c> would
+    /// therefore find nothing and report success over every constant in the file.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b><see cref="SubjectSetFloorTests"/> itself is excluded from the reader set, and that is
+    /// the whole point.</b> Every constant is named in <see cref="Live"/> or <see cref="Pending"/>
+    /// by construction — the check below enforces it — so counting this file as a reader would make
+    /// the rule trivially true. What has to exist is a reader somewhere <em>else</em>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The second arm is the citation check, and it is the one that found something.</b> A
+    /// register row's <c>UsedBy</c> is prose, and prose goes stale silently — steering <b>S4</b>'s
+    /// documented known limit, which this milestone hit in M1-08 (three <c>Live</c> rows not
+    /// recording a second rule keyed on them), in M1-11 (four more) and here. Any
+    /// <c>SomethingTests.Some_rule</c> spelled in a row is now resolved against this assembly's
+    /// real <c>[Fact]</c> methods: a rename, a typo or a rule that never existed fails the build.
+    /// Cross-suite citations — <c>SnapshotFieldOrderPinTests</c> lives in
+    /// <c>SlayIdleRepeat.Core.Tests</c> — are skipped rather than guessed at, because this assembly
+    /// cannot see them and inventing a resolution would be worse than the gap.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_tracked_subject_name_is_read_by_a_rule_and_every_cited_rule_exists()
+    {
+        var offenders = new List<string>();
+        var constants = TypeNameConstants();
+
+        Floor(offenders, "Domain type-name constants", constants.Length, TypeConstantFloor,
+            "This rule is stated over that set. Read off Domain's const fields by the 'Type'/'Event' " +
+            "suffix, so a renamed constant drops out of the inventory and stops having to be read at all.");
+
+        foreach (var (constant, value) in constants)
+        {
+            var readers = ReadersOf(value);
+
+            if (readers.Length == 0)
+            {
+                offenders.Add(
+                    $"Domain.{constant} = '{value}' is read by nothing outside {nameof(SubjectSetFloorTests)}. " +
+                    "It is tracked in a register and keyed on by no rule, which is the shape " +
+                    "Domain.GameContextType had when a human — not this suite — found it. Either point a " +
+                    "rule at it or delete the constant and its register row together.");
+            }
+        }
+
+        var facts = SuiteFactNames();
+
+        foreach (var subject in Pending.Concat(Live))
+        {
+            // 🔒 A disclaimer withdraws every citation after it, from both arms. Reported rather
+            // than applied silently: a row losing checked citations to a stray "NOT" is the same
+            // silence this rule exists to break. Naming one rule as NOT keying on the subject is
+            // legitimate — the GhostSnapshot row does exactly that — so this is an offender only
+            // when the tail still carries a citation the arms would otherwise have checked.
+            var discarded = AffirmativeAndDiscarded(subject.UsedBy).Discarded;
+
+            offenders.AddRange(
+                CitedRules(discarded)
+                    .Skip(1)
+                    .Select(lost =>
+                        $"'{subject.Name}' names {lost} AFTER a 'NOT' disclaimer, so it is read as commentary " +
+                        "and neither arm checks it. A disclaimer withdraws everything that follows — put the " +
+                        "citations this row is CLAIMING before it, and keep the disclaimer last."));
+
+            foreach (var citation in CitedRules(subject.UsedBy).Where(IsRuleCitation))
+            {
+                if (!facts.Contains(citation, StringComparer.Ordinal))
+                {
+                    offenders.Add(
+                        $"'{subject.Name}' cites '{citation}', which is not a [Fact] in this suite. A register " +
+                        "row is the only place that records WHICH rules a subject's absence would silence, " +
+                        "and a citation naming a rule that does not exist records nothing (S4).");
+                }
+            }
+        }
+
+        // 🔒 THE ARM THAT DECIDES WHETHER A CITATION IS TRUE, not merely well-spelled. Scoped to the
+        // constants, because those are the subjects looked up BY NAME — a row for `Player` is keyed
+        // on a namespace selection instead and has no literal for this to find, which is why the
+        // rows are not all treated alike.
+        // ⚠️ Grouped, not ToDictionary. A subject COPIED into Live instead of MOVED out of Pending —
+        // precisely the mistake this file polices — would otherwise kill this rule with
+        // "An item with the same key has already been added" instead of reporting an offender, and a
+        // rule that throws where it should fail is a rule whose message nobody reads.
+        var rows = Pending.Concat(Live)
+            .GroupBy(s => s.Name, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+
+        offenders.AddRange(
+            rows.Where(r => r.Value.Length > 1)
+                .Select(r => $"'{r.Key}' appears {r.Value.Length} times across Pending and Live. A subject that " +
+                             "has arrived is MOVED, never copied — two rows mean one of them is describing a " +
+                             "state the repository is not in."));
+
+        var checkedRows = 0;
+
+        foreach (var (constant, value) in constants)
+        {
+            // IClockPort is deliberately in neither register (30 §3: it must never exist), so the
+            // lookup below already skips it. Not spelled as a second condition, because a reader
+            // would go looking for the case it handles.
+            if (!rows.TryGetValue(value, out var matches))
+            {
+                continue;
+            }
+
+            var row = matches[0];
+
+            var citedTypes = CitedRules(row.UsedBy)
+                .Select(c => c.Split('.')[0])
+                .ToArray();
+
+            if (citedTypes.Length == 0)
+            {
+                continue;
+            }
+
+            checkedRows++;
+
+            var readerTypes = ReaderTypesOf(value);
+
+            // 🔒 EVERY cited RULE class must read it, not merely one of them. An `Any` overlap lets a
+            // row accumulate false citations indefinitely so long as one is right — which is the same
+            // silence this rule exists to break, one indirection out. Non-`Tests` citations
+            // (GapRegister) are held to the weaker bar in the check below, because a register is a
+            // container of names rather than a rule with a subject set.
+            var falseRuleCitations = citedTypes
+                .Where(t => t.EndsWith("Tests", StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .Where(t => !readerTypes.Contains(t, StringComparer.Ordinal))
+                .ToArray();
+
+            offenders.AddRange(
+                falseRuleCitations.Select(t =>
+                    $"Domain.{constant} = '{value}' cites {t}, which does not read it — the name is read by " +
+                    $"[{string.Join(", ", readerTypes.OrderBy(r => r, StringComparer.Ordinal))}]. Renaming the " +
+                    "constant would leave that rule working exactly as before, so the row promises a " +
+                    "consequence that would not happen. Cite the mechanism that reads it, or say plainly that " +
+                    "the rule does NOT key on it (everything after the first 'NOT ' is read as commentary)."));
+
+            if (!citedTypes.Any(t => readerTypes.Contains(t, StringComparer.Ordinal)))
+            {
+                offenders.Add(
+                    $"Domain.{constant} = '{value}' is cited by [{string.Join(", ", citedTypes.Distinct(StringComparer.Ordinal))}] " +
+                    $"but is READ by [{string.Join(", ", readerTypes.OrderBy(t => t, StringComparer.Ordinal))}] — no " +
+                    "overlap at all. Nothing the row names would notice this constant being renamed.");
+            }
+        }
+
+        Floor(offenders, "register rows with an in-suite citation", checkedRows, CitedConstantRowFloor,
+            "The citation-truth arm is stated over that set. If it shrinks, rows are being written with " +
+            "prose citations this assembly cannot resolve, and the arm is passing over them rather than " +
+            "checking them.");
+
+        ArchRule.Empty(
+            offenders,
+            "Every name Domain declares is read by a rule, and every register row cites a rule that both " +
+            "exists and reads it (23 §6).");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §6 — the teeth of the three arms above (steering <b>S1</b>). Each is a set-membership
+    /// check over a set this file builds, and any of them could be built empty — at which point the
+    /// rule reports success over every constant and every citation in the file.
+    /// </summary>
+    [Fact]
+    public void The_reader_and_citation_lookups_recognise_a_real_name_and_refuse_an_invented_one()
+    {
+        Assert.True(
+            ReadersOf(Domain.InMemoryGameType).Length > 0,
+            "the ldstr scan finds nothing for a name the suite demonstrably reads — " +
+            "The_whole_game_is_playable_from_Core_alone keys on it. If this is empty the reader arm " +
+            "is reporting every constant unread, or (worse, once someone 'fixes' that) reporting " +
+            "nothing at all.");
+
+        // 🔒 The negatives are CASE VARIANTS of real names, not invented ones. An invented string can
+        // only fail if the lookup returned a wildcard, which nobody will ever write; the actual
+        // fragile assumption in both lookups is the StringComparer.Ordinal, and only a case variant
+        // fails the moment either is loosened to IgnoreCase.
+        Assert.False(
+            ReadersOf(Domain.InMemoryGameType.ToLowerInvariant()).Length > 0,
+            "the reader scan matched a lower-cased 'inmemorygame'. The comparison is Ordinal on " +
+            "purpose: a case-insensitive one would let a renamed-only-in-case constant read as still " +
+            "keyed on, which is the silence this rule exists to break.");
+
+        var facts = SuiteFactNames();
+
+        Assert.Contains(
+            nameof(AccessibilityBoundaryTests) + "." + nameof(AccessibilityBoundaryTests.Core_internal_layering_holds),
+            facts);
+
+        Assert.DoesNotContain(
+            "accessibilityboundarytests.core_internal_layering_holds",
+            facts);
+
+        // The citation PARSER, separately: a row naming no rule must yield nothing, or the arm above
+        // quantifies over an empty set on every row and its failure mode is silence.
+        Assert.Empty(CitedRules("the 14 §16.6 field-order pin in SlayIdleRepeat.Core.Tests"));
+
+        Assert.Equal(
+            new[] { "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged" },
+            CitedRules("DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (LIVE since M1-04)"));
+
+        // 🔒 And the disclaimer half, which is what the GhostSnapshot row needs and what a bare regex
+        // over prose gets wrong: a name introduced as the rule that does NOT read the constant must
+        // not come back as an affirmative citation.
+        Assert.Equal(
+            new[] { "GapRegisterTests.The_stale_check_is_silent_while_the_type_it_waits_for_is_absent" },
+            CitedRules(
+                "GapRegisterTests.The_stale_check_is_silent_while_the_type_it_waits_for_is_absent " +
+                "⚠️ NOT IsolationTests.GuildView_is_a_read_only_projection, which selects by name"));
+    }
+
+    /// <summary>
+    /// Every method in this suite that loads <paramref name="value"/> as a literal, outside this
+    /// file. A <c>const string</c> is inlined at its use site, so the literal is the only trace.
+    /// </summary>
+    private static string[] ReadersOf(string value) =>
+        ReadingMethods(value)
+            .Select(m => $"{m.DeclaringType.Name}::{m.Name}")
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>
+    /// The <b>declaring test classes</b> of everything that reads <paramref name="value"/>, walked
+    /// out to the outermost type.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The walk is what makes this usable. A rule's <c>Where(t =&gt; t.Name.Equals(Domain.X))</c>
+    /// lambda compiles into a nested <c>&lt;&gt;c</c> closure class, so the literal is read by
+    /// <c>IsolationTests/&lt;&gt;c</c> and not by <c>IsolationTests</c> — and a comparison against
+    /// the citation would never match for any rule that reads its constant inside a lambda, which is
+    /// most of them. Compared at TYPE level rather than method level for the same kind of reason:
+    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c> reads its constant through the
+    /// private <c>ConstructsADeterministicRng</c> predicate, which is a true citation of the rule.
+    /// </remarks>
+    private static string[] ReaderTypesOf(string value) =>
+        ReadingMethods(value)
+            .Select(m => OutermostName(m.DeclaringType))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    private static IEnumerable<MethodDefinition> ReadingMethods(string value) =>
+        Il.AllTypes(SuiteAssembly.Module)
+          .Where(t => !OutermostName(t).Equals(nameof(SubjectSetFloorTests), StringComparison.Ordinal))
+          .SelectMany(t => t.Methods)
+          .Where(m => Il.Instructions(m).Any(i =>
+              i.OpCode == OpCodes.Ldstr && (i.Operand as string)?.Equals(value, StringComparison.Ordinal) == true));
+
+    /// <summary>Every <c>Type.Method</c> in this suite carrying <c>[Fact]</c>.</summary>
+    private static HashSet<string> SuiteFactNames() =>
+        typeof(SubjectSetFloorTests).Assembly
+            .GetTypes()
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            .Where(m => m.GetCustomAttributes(typeof(FactAttribute), inherit: true).Length > 0)
+            .Select(m => $"{m.DeclaringType!.Name}.{m.Name}")
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The <c>SomeTests.Some_rule</c> citations in a register row's prose, restricted to types this
+    /// assembly declares — a citation into <c>SlayIdleRepeat.Core.Tests</c> is not this suite's to
+    /// resolve.
+    /// </summary>
+    private static IEnumerable<string> CitedRules(string usedBy)
+    {
+        var suiteTypes = typeof(SubjectSetFloorTests).Assembly
+            .GetTypes()
+            .Select(t => t.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (Match match in Regex.Matches(Affirmative(usedBy), @"\b([A-Z]\w*)\.([A-Za-z_]\w*)\b"))
+        {
+            if (suiteTypes.Contains(match.Groups[1].Value))
+            {
+                yield return $"{match.Groups[1].Value}.{match.Groups[2].Value}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The part of a register row that <b>claims</b> something, with the disclaimer removed.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The GhostSnapshot row is why this exists, and it was found by review rather than by the
+    /// rule.</b> M1-12 rewrote that row to record which rule does <em>not</em> read the constant —
+    /// <c>"⚠️ NOT IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"</c> — and a bare
+    /// regex over the prose then extracted that very name as an affirmative citation, which the truth
+    /// arm accepted. So the one row in the repository documenting a false citation had reintroduced
+    /// it in a form the mechanism reported as true. Everything from the first <c>NOT</c> onward is
+    /// therefore commentary, not a claim.
+    /// </remarks>
+    private static string Affirmative(string usedBy) => AffirmativeAndDiscarded(usedBy).Affirmative;
+
+    /// <summary>
+    /// A row's prose split into the part that <b>claims</b> and the part a <c>NOT</c> disclaimer
+    /// withdraws, so the discarded tail can be reported rather than silently dropped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <c>\bNOT\s</c>, not <c>IndexOf("NOT ")</c> — the substring also matches inside
+    /// <c>CANNOT</c>, and in a file written like this one that word is likely.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>And the truncation is reported, because otherwise it is a silent kill-switch on the
+    /// mechanism it serves.</b> Everything after the disclaimer is dropped from BOTH arms, so a row
+    /// whose prose grew an emphatic <c>NOT</c> mid-sentence would quietly stop having its later
+    /// citations checked — the exact S4 shape this rule exists to break, one indirection out. The
+    /// <c>CitedConstantRowFloor</c> only notices a row falling to ZERO citations, not one falling
+    /// from three to one. So a row that discards citations says so.
+    /// </para>
+    /// </remarks>
+    private static (string Affirmative, string Discarded) AffirmativeAndDiscarded(string usedBy)
+    {
+        var disclaimer = Regex.Match(usedBy, @"\bNOT\s");
+
+        return disclaimer.Success
+            ? (usedBy[..disclaimer.Index], usedBy[disclaimer.Index..])
+            : (usedBy, string.Empty);
+    }
+
+    /// <summary>
+    /// True for a citation this assembly can resolve to a <c>[Fact]</c> — a rule class, not a
+    /// register. <c>GapRegister</c> is a legitimate thing for a row to cite (it is the mechanism
+    /// that carries some names) and it declares no <c>[Fact]</c>, so its members are outside the
+    /// existence arm and inside the truth arm. Stated rather than silently skipped, because a
+    /// citation nobody checks in either direction is the gap this rule exists to close.
+    /// </summary>
+    private static bool IsRuleCitation(string citation) =>
+        citation.Split('.')[0].EndsWith("Tests", StringComparison.Ordinal);
+
+    /// <summary>The outermost declaring type's name, so a nested fixture is attributed to its host.</summary>
+    private static string OutermostName(TypeDefinition type)
+    {
+        var outer = type;
+        while (outer.DeclaringType is not null)
+        {
+            outer = outer.DeclaringType;
+        }
+
+        return outer.Name;
     }
 
     /// <summary>

@@ -361,15 +361,24 @@ public sealed class BeginSessionIdempotenceTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>The M1-09 code review predicted this case, and driving it found something the review had
-    /// not: the "clock corrected backwards" leg is UNREACHABLE.</b>
-    /// <c>Player.MarkApplied</c> refuses a <c>NowUtc</c> earlier than <c>LastAppliedAtUtc</c>
-    /// outright, so a corrected clock does not quietly lose a day — <c>Apply</c> raises
-    /// <c>ArgumentOutOfRangeException</c> before any handler decides anything. That is asserted below
-    /// rather than assumed, and it is <b>carried forward</b>: M1-08 clamped the <em>energy</em>
-    /// backwards-clock path explicitly for `30` §2.1 <b>P3</b> reasons (<em>"a backwards clock costs
-    /// the player nothing and grants them nothing"</em>) and left this one throwing, so the two halves
-    /// of one decision disagree. Neither the guard nor the clamp is M1-09's to move.
+    /// 🔴 <b>The M1-09 code review predicted this case; driving it found that the "clock corrected
+    /// backwards" leg <em>threw</em>; and M1-12 settled which of those was right.</b> M1-09 recorded
+    /// the finding honestly and declined to move it — <em>"M1-08 clamped the <em>energy</em>
+    /// backwards-clock path explicitly for `30` §2.1 <b>P3</b> reasons and left this one throwing, so
+    /// the two halves of one decision disagree… neither the guard nor the clamp is M1-09's to
+    /// move"</em> — and then pinned the throwing behaviour in an assertion, which is how a
+    /// carried-forward contradiction becomes a specification by default. Carried-forward item 20 is
+    /// now closed the way P3 requires: <c>GameRules.MarkApplied</c> floors the instant it hands the
+    /// aggregates, the aggregates go on refusing a backwards anchor, and this leg asserts a
+    /// <em>result</em>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>And the settlement costs this test nothing, which is the interesting part.</b> The
+    /// throw looked like the thing keeping the player from being paid twice; it was not. What keeps
+    /// the second payment away is that the skew pinned <c>DailyPeriodStartUtc</c> FORWARD and
+    /// <c>AdvanceTime</c>'s reset guard is <c>&gt;=</c>, so a corrected clock computes an EARLIER
+    /// boundary and clears nothing. Both facts are asserted below, because "accepted" without them
+    /// would be a weaker test than the one it replaced.
     /// </para>
     /// <para>
     /// 🔒 <b>What that leaves, and it is the direction that matters:</b> nothing is ever granted a
@@ -396,23 +405,49 @@ public sealed class BeginSessionIdempotenceTests
             Worlds.NextDay(BeginSessions.Today),
             "…and the boundary it stored is the later one, which is what pins the day forward.");
 
-        // 🔴 The operator corrects the clock — and this is a DEFECT, not a lost day. Pinned on the
-        // message (steering S2) because several things in Apply raise this exception type.
-        var corrected = Should.Throw<ArgumentOutOfRangeException>(
-            () => BeginSessions.Send(skewed.NewState, BeginSessions.Morning.AddMinutes(1)),
-            "a NowUtc behind LastAppliedAtUtc is refused by Player.MarkApplied before any rule runs.");
+        // 🔒 The operator corrects the clock. SETTLED IN M1-12, the way this test's own remark asked
+        // for: it returns a RESULT. Until then this leg asserted an ArgumentOutOfRangeException out
+        // of Apply and cited its own carried-forward note saying that violated 30 §2.1's P3 —
+        // M1-09 pinned the behaviour it had rather than the behaviour the ruling required, which is
+        // exactly the "whichever test was written first settles a ruling nobody made" that M1-11
+        // declined to do by making VirtualClock forward-only.
+        var corrected = BeginSessions.Send(skewed.NewState, BeginSessions.Morning.AddMinutes(1));
 
-        corrected.Message.ShouldContain(
-            "The last command was applied at",
-            Case.Sensitive,
-            "⚠️ CARRIED FORWARD: 30 §2.1's P3 forbids an exception out of Apply for anything but a " +
-            "caller or domain defect, and M1-08 clamped the ENERGY backwards-clock path for exactly " +
-            "that reason while this guard still throws. The two halves of one ruling disagree; " +
-            "whichever way it is settled, it is M1-05's guard and M1-08's clamp, not M1-09's handler.");
+        corrected.Accepted.ShouldBeTrue(
+            "30 §2.1's P3: every command on every state returns a result. GameRules.MarkApplied now " +
+            "floors the instant it hands the aggregates, the same shape M1-08 gave the energy span " +
+            "and the two reset guards. The aggregates still REFUSE a backwards anchor — see " +
+            "GameRulesBackwardsClockTests for why the invariant stays in the model and the clamp " +
+            "lives in Apply.");
+
+        corrected.Events.Count(IsRefill).ShouldBe(
+            0,
+            "🔒 and the correction pays NOTHING. This is the leg that made the old throw look safe: " +
+            "the skewed command already set this game day's marker, and the corrected clock does not " +
+            "clear it — GameRules.AdvanceTime's reset guard is `dayStart >= DailyPeriodStartUtc`, and " +
+            "a boundary pinned forward by the skew is later than the one a corrected clock computes. " +
+            "Accepting the command is therefore not a second faucet.");
+
+        corrected.NewState.Player.DailyPeriodStartUtc.ShouldBe(
+            Worlds.NextDay(BeginSessions.Today),
+            "…and the boundary stays where the skew put it, rather than being walked backwards. " +
+            "If this regressed to Today, the next command would re-open the day and the refill " +
+            "would be payable a second time — which is the outcome the throw used to prevent by " +
+            "refusing to run at all.");
+
+        corrected.NewState.Player.LastAppliedAtUtc.ShouldBe(
+            skewed.NewState.Player.LastAppliedAtUtc,
+            "the anchor is FLOORED at the stored instant, not moved backwards: 14 §16.3 measures the " +
+            "run TTL from it, so skew must neither hold a run open nor expire one early.");
 
         // Real time reaches the day the skewed command already claimed.
+        //
+        // 🔒 Continued from `corrected`, not from `skewed`. Before M1-12 it had to be `skewed` —
+        // the correction threw, so there was no state to carry forward — and leaving it there would
+        // make the corrected command a dead end that this test's headline claim never passes
+        // through. The chain is now skew → correction → catch-up → recovery, end to end.
         var caughtUp = BeginSessions.Send(
-            skewed.NewState, Worlds.NextDay(BeginSessions.Morning).AddHours(1));
+            corrected.NewState, Worlds.NextDay(BeginSessions.Morning).AddHours(1));
 
         caughtUp.Events.Count(IsRefill).ShouldBe(
             0,

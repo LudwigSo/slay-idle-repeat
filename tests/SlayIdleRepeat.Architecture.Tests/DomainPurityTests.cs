@@ -10,10 +10,45 @@ namespace SlayIdleRepeat.Architecture.Tests;
 
 /// <summary>
 /// `30` §9 — the rules that keep the domain playable in memory.
-/// Every rule here is written against its final subject; the subjects M1 creates
-/// simply yield an empty set today, so each rule turns into a real assertion the
-/// moment the type it names appears.
 /// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>M1-12 deleted the sentence that used to be this summary's second half</b>, and it is worth
+/// recording what it said because it was the most misleading line in the file: <em>"the subjects M1
+/// creates simply yield an empty set today, so each rule turns into a real assertion the moment the
+/// type it names appears."</em> True when M0-08 wrote it, false from the day M1 populated the
+/// subjects, and sitting on the <em>class</em> — so a reader arriving at any rule in this file was
+/// told, before reading it, that the whole file was asleep. Steering <b>S4</b>'s known limit:
+/// <em>"an exemption whose reason went stale while still formally valid is not mechanically
+/// detectable."</em>
+/// </para>
+/// <para>
+/// 🔒 <b>Every rule here quantifies over real subjects, and each was made to fail on purpose, arm
+/// by arm, with the literal output in M1-12's report (steering <b>S1</b>).</b> The counts are
+/// deliberately <em>not</em> transcribed here — that is the mistake the deleted sentence made in
+/// the other direction, and this milestone made it three times over
+/// <c>Core_internal_layering_holds</c>' row count. Read them off the mechanisms that would go red:
+/// <c>SubjectSetFloorTests</c>' <c>CoreTypeFloor</c> and its per-name rows, and each rule's own
+/// identity floor.
+/// </para>
+/// <para>
+/// ⚠️ <b>What remains subject-less, and it is by design rather than by neglect.</b>
+/// <c>Domain_has_no_ambient_time_or_randomness</c>' two <c>IClockPort</c> arms are permanently so
+/// <em>by intent</em>: `30` §3 makes that the name which must NEVER appear in <c>Core</c>, so "no
+/// subject" is the rule succeeding, not a "not yet".
+/// <c>Domain_references_no_port_interface</c>' <c>Application.Ports</c> arm is the same shape —
+/// no <c>Core</c> type declares or names one. ⚠️ It is <b>not</b> unreachable, and an earlier draft
+/// of this paragraph said it was, on the reasoning that a C# TypeRef needs an AssemblyRef to scope
+/// it so the assembly arm would always fire first. That is true only of a port <em>referenced</em>
+/// across assemblies; a port <b>copied into</b> <c>Core</c> under <c>namespace
+/// SlayIdleRepeat.Application.Ports</c> emits no AssemblyRef at all and fires that arm alone —
+/// which is precisely the case the rule's own <c>IsPortShaped</c> clause exists for, six lines
+/// below it. Adding a false claim to the paragraph that inventories vacuity was the wrong direction
+/// for this task and is corrected here rather than left.
+/// The <c>Handlers_and_Rules_are_internal</c> exception list is the last: <c>CombatSimulator</c>
+/// (M2) and <c>PowerCalculator</c> (`29` §1) do not exist, so the exemption exempts nothing yet.
+/// </para>
+/// </remarks>
 public sealed class DomainPurityTests
 {
     /// <summary>Types that make a signature asynchronous. `30` §9 bans all of them from `Core`.</summary>

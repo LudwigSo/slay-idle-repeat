@@ -75,15 +75,21 @@ internal static class BeginSession
     /// recovers at the next boundary.
     /// </para>
     /// <para>
-    /// 🔴 <b>The <em>corrected</em> clock never reaches this handler at all</b>, and that is worth
-    /// stating because it is the first thing a reader assumes otherwise. <c>Player.MarkApplied</c>
-    /// refuses a <c>NowUtc</c> earlier than <c>LastAppliedAtUtc</c> outright, so <c>Apply</c> raises
-    /// <c>ArgumentOutOfRangeException</c> before any rule decides anything. ⚠️ M1-08 clamped the
-    /// <em>energy</em> backwards-clock path explicitly to keep `30` §2.1's <b>P3</b> — <em>"a
-    /// backwards clock costs the player nothing and grants them nothing"</em> — and left this guard
-    /// throwing, so the two halves of one ruling disagree. It is <b>carried forward</b> rather than
-    /// changed here: the guard is M1-05's and the clamp is M1-08's, and
-    /// <c>BeginSessionIdempotenceTests</c> pins the behaviour as it stands.
+    /// 🔒 <b>The <em>corrected</em> clock reaches this handler on every command, and pays nothing —
+    /// M1-12 corrected this paragraph, which said it never reached the handler at all.</b> It used
+    /// to be true: <c>Player.MarkApplied</c> refused a <c>NowUtc</c> earlier than
+    /// <c>LastAppliedAtUtc</c>, so <c>Apply</c> raised <c>ArgumentOutOfRangeException</c> before any
+    /// rule decided anything — which was `30` §2.1's <b>P3</b> violated (carried-forward item 20,
+    /// now settled: <c>GameRules.MarkApplied</c> floors the instant it hands the aggregates).
+    /// </para>
+    /// <para>
+    /// 🔒 <b>What actually keeps the day from being paid twice was never that throw</b>, and this is
+    /// the sentence worth carrying: the skewed command pinned <c>DailyPeriodStartUtc</c>
+    /// <em>forward</em>, and <c>GameRules.AdvanceTime</c>'s reset guard is <c>&gt;=</c> — so a
+    /// corrected clock computes an <em>earlier</em> boundary, clears nothing, and finds this
+    /// handler's daily counter still standing. The refusal was belt over braces that were already
+    /// holding. <c>BeginSessionIdempotenceTests.A_forward_clock_jump_pays_early_and_never_twice</c>
+    /// asserts all four halves of that.
     /// </para>
     /// <para>
     /// 🔒 <b>The persisted-marker design does not avoid this, and that is why the counter stays.</b>

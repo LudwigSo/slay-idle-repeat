@@ -3,12 +3,22 @@ using Mono.Cecil;
 namespace SlayIdleRepeat.Architecture.Tests.Infrastructure;
 
 /// <summary>
-/// The names the rules are written against. Most of these types do not exist yet —
-/// <c>M1</c> creates them (<c>30</c> §11.4). Every rule that needs one looks it up by
-/// name: absent, the rule's subject set is empty and the rule holds; present, the
-/// rule asserts. That is what makes the suite bite the moment M1 lands, without a
-/// single <c>Skip</c>.
+/// The names the rules are written against. Every rule that needs one looks it up by name: absent,
+/// the rule's subject set is empty and the rule holds; present, the rule asserts. That is what made
+/// the suite bite the moment M1 landed, without a single <c>Skip</c>.
 /// </summary>
+/// <remarks>
+/// 🔒 <b>M1-12 corrected "most of these types do not exist yet — M1 creates them".</b> It is now
+/// inverted: of the type-name constants below, exactly <b>two</b> name types that do not exist —
+/// <see cref="GuildViewType"/> (M14) and <see cref="GhostSnapshotType"/> (M12) — and both are
+/// tracked in <c>SubjectSetFloorTests.Pending</c> with the milestone that brings them.
+/// <see cref="ClockPortType"/> is a third absence and a permanent one: `30` §3 makes it the name
+/// that must NEVER appear in <c>Core</c>, so it is correctly in neither register. Everything else
+/// resolves. The count is deliberately not restated as a number in prose beside the list that
+/// carries it — the mistake this milestone made three times over
+/// <c>Core_internal_layering_holds</c>' row count — but "most do not exist" was wrong in
+/// <em>direction</em>, which is worse than being wrong by one.
+/// </remarks>
 internal static class Domain
 {
     internal const string CoreNamespace = "SlayIdleRepeat.Core";

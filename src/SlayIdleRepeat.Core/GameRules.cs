@@ -110,6 +110,19 @@ public static class GameRules
     /// <c>runSeed</c> no scope at all.
     /// </para>
     /// <para>
+    /// ⚠️ <b>And that kind makes it unreachable through any caller today — carried-forward item 22,
+    /// owned by M3-15.</b> <see cref="Execute"/> refuses a <c>CommandKind.Run</c> command on a
+    /// run-less slice <em>before</em> the dispatch branch, and a run-less slice is exactly what
+    /// <c>START_RUN</c> is sent on, because the run it creates does not exist yet: only
+    /// <c>START_RUN</c> can create the <c>Run</c> its own guard demands. Measured rather than
+    /// reasoned — applying it to a <c>WorldSlice(player, null)</c> throws, as do the other 18
+    /// <c>CommandKind.Run</c> rows, while all 30 meta rows answer <c>ILLEGAL_STATE</c>. Nothing is
+    /// broken while the row is <c>Deferred</c>. No architecture rule is written for it, deliberately:
+    /// "this command's precondition is unsatisfiable" is a domain fact no metadata carries, and a
+    /// rule naming <c>START_RUN</c> would transcribe M3-15's ruling into the architecture suite
+    /// before it has been made.
+    /// </para>
+    /// <para>
     /// 🔒 <b>Forty-eight rows are <c>Deferred</c> and one is <c>Handled</c>.</b> M1-09 swapped
     /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which is the one-line edit
     /// this table's shape was designed for and the first time <see cref="Execute"/>'s
@@ -325,6 +338,20 @@ public static class GameRules
         // makes "loading the right slice" the Application layer's job, and 14 §16.2's RUN_NOT_FOUND
         // is a transport-tier value that never reaches Apply. Answering ILLEGAL_STATE here would
         // tell the player a rule refused them and leave the miswired caller running.
+        //
+        // 🔒 IT IS ALSO WHY THROWING HERE IS NOT THE P3 VIOLATION M1-12 FIXED ONE METHOD DOWN, and
+        // the line is worth stating because the two look alike. 30 §2.1's P3 is "every command on
+        // every state returns a result; ILLEGAL MOVES return Rejection". Host clock skew is a state
+        // a correctly-wired composition root legitimately produces, so it must come back as a value
+        // — that is NotBefore. A slice loaded without its run is not a move the player made; it is
+        // a caller defect, and Apply is FORBIDDEN from returning the value that would describe it.
+        //
+        // ⚠️ CARRIED-FORWARD ITEM 22, and this guard is correct for 18 of the 19 CommandKind.Run
+        // rows. START_RUN is the exception: it is the only command that can CREATE a Run, so its
+        // natural slice is the run-less one and this guard makes it unreachable through any caller.
+        // Its row is Deferred, so nothing is broken today. The reclassification — a kind, a second
+        // guard, or a run-less run command — is M3-15's ruling, not this method's; see the
+        // START_RUN paragraph on the dispatch table above.
         if (registration.Kind == CommandKind.Run && state.Run is null)
         {
             throw new InvalidOperationException(
@@ -839,16 +866,76 @@ public static class GameRules
     /// <em>from</em> these anchors: an <c>Apply</c> that never advanced them would have every command
     /// re-accrue from the same instant forever.
     /// </para>
+    /// <para>
+    /// 🔒 <b>THE SECOND CLAMP, and it settles carried-forward item 20.</b> Both aggregates
+    /// <em>throw</em> on an instant before the one they hold, and until M1-12 this method handed them
+    /// <c>context.NowUtc</c> raw — so a host clock behind the persisted anchor came out of
+    /// <see cref="Apply"/> as an <c>ArgumentOutOfRangeException</c>, which `30` §2.1's <b>P3</b>
+    /// forbids. That was a contradiction inside one ruling rather than an open question: <b>the same
+    /// <c>Apply</c></b> already floors the energy span at zero and already writes both reset guards
+    /// as <c>&gt;=</c>, each citing P3 in as many words, and <c>Player.MarkApplied</c>'s own remarks
+    /// already asserted that <c>AdvanceTime</c> <em>"is specified to clamp that rather than pass it
+    /// on"</em> — a protection nothing implemented.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The invariant stays in the aggregate; the flooring happens here.</b> Exactly the shape
+    /// M1-08 chose for energy, and for the reason recorded there: clamping inside the model would
+    /// make a persistence defect — an anchor stored in the future, which never self-corrects —
+    /// indistinguishable from skew. So the aggregates keep refusing a backwards instant, and
+    /// <c>Apply</c> stops producing one.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Floored, not skipped, and the difference is `14` §16.3's TTL.</b> Passing the stored
+    /// value writes the field to what it already held; skipping the call would do the same today and
+    /// would silently stop doing it the moment either aggregate does anything else in
+    /// <c>MarkApplied</c>. A backwards clock therefore costs the player nothing and grants them
+    /// nothing — it cannot hold a run open and cannot expire one early — which is the same sentence
+    /// the energy clamp is written under.
+    /// </para>
     /// </remarks>
     private static void MarkApplied(WorldSlice state, DateTimeOffset nowUtc, CommandKind kind)
     {
-        state.Player.MarkApplied(nowUtc);
+        state.Player.MarkApplied(NotBefore(nowUtc, state.Player.LastAppliedAtUtc));
 
         if (kind == CommandKind.Run)
         {
-            state.Run!.MarkApplied(nowUtc);
+            state.Run!.MarkApplied(NotBefore(nowUtc, state.Run.LastAppliedAtUtc));
         }
     }
+
+    /// <summary>
+    /// 🔒 `30` §2.1's <b>P3</b> clamp for a host clock behind a persisted anchor: the later of the
+    /// two, so an accepted command never asks an aggregate to move <b>this</b> timestamp backwards.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Written once and applied to both aggregates rather than inlined twice: the run's anchor and
+    /// the player's are the same ruling, and two spellings of it would eventually disagree about
+    /// which one skew is allowed to move (steering <b>S4</b>).
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It governs the two <c>LastAppliedAtUtc</c> fields and nothing else.</b>
+    /// <c>DailyPeriodStartUtc</c> and <c>WeeklyPeriodStartUtc</c> are equally backwards-guarded and
+    /// are kept safe by <see cref="AdvanceTime"/>'s <c>&gt;=</c> conditions, not by this helper —
+    /// stated so the sentence above stays true as the aggregates grow anchors.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The door this does NOT close, and it is the one a later milestone will walk through.</b>
+    /// A handler still receives the <em>raw</em> <c>context.NowUtc</c> through
+    /// <c>HandlerInput.Context</c>; the floor is re-derived here, afterwards, from the working slice.
+    /// That is harmless today — <c>BeginSession</c> is the only <c>Handled</c> row and it passes no
+    /// instant to a backwards-guarded mutator, and all 19 <c>CommandKind.Run</c> rows are
+    /// <c>Deferred</c> — but nothing mechanical stops the next handler from passing
+    /// <c>input.Context.NowUtc</c> straight into one and reopening the P3 hole through a new door.
+    /// <b>OWNER: the M3 kickoff</b>, which lands the first run handlers and is therefore the first
+    /// commit where the shape becomes reachable. The two cheap fixes, so it is a decision rather
+    /// than a rediscovery: expose the floored instant on <c>HandlerInput</c> instead of the raw one,
+    /// or add an architecture rule over <c>Core/Handlers/</c> forbidding <c>Context.NowUtc</c> from
+    /// reaching a <c>Core/Model/</c> call.
+    /// </para>
+    /// </remarks>
+    private static DateTimeOffset NotBefore(DateTimeOffset nowUtc, DateTimeOffset stored) =>
+        nowUtc < stored ? stored : nowUtc;
 
     /// <summary>
     /// 🔒 Stamps each event with its ordinal within <b>this</b> <c>CommandResult</c>'s list — the
@@ -960,12 +1047,38 @@ public static class GameRules
     /// </summary>
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// 🔒 The third of <see cref="Execute"/>'s throws, and the one whose second producer is easiest
+    /// to miss: <b>content drift</b>, not only a mutated aggregate.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two states reach this message. One is a rule or a hand-building caller that put the aggregate
+    /// somewhere its own invariants refuse. The other is an <em>unmutated, validly persisted</em>
+    /// player rehydrated against a NEWER <c>ContentSnapshot</c> whose validation it no longer
+    /// satisfies — <c>Player.Rehydrate</c> checks Legend Level against `07` §1.1's authored range,
+    /// so narrowing that range in <c>game-data/</c> makes existing rows fail here.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It stays on the throw side of `30` §2.1's <b>P3</b> line, and this is the reasoning</b>
+    /// (added by M1-12, which drew that line for the clock and did not at first say where this
+    /// case fell). It is the same shape as the run-less-slice guard: choosing a <c>ContentSnapshot</c>
+    /// the persisted state is compatible with is the composition root's job, exactly as `30` §4.1
+    /// makes loading the right slice its job. A player whose stored Legend Level is outside the
+    /// shipped range is not making an illegal move — there is no `14` §16.2 domain-tier value that
+    /// describes "your save predates this content set", and inventing one would tell the player a
+    /// rule refused them. ⚠️ It is a <b>content-authoring</b> defect that the content pipeline is
+    /// supposed to catch before shipping, which is why it is loud here rather than survivable.
+    /// </para>
+    /// </remarks>
     private static string RoundTripFailure(string aggregate, string error) =>
         "The " + aggregate + " in this WorldSlice does not round-trip through its own snapshot: " +
         error + " 30 §2.1's P4 makes Apply copy the slice before a handler touches it — through " +
         "ToSnapshot()/Rehydrate(), which is the one validated construction path 30 §11.3 sanctions " +
         "— so an aggregate that cannot be rebuilt from its own persisted shape is a rule that " +
-        "mutated it into a state its invariants refuse, or a caller that built it by hand. Either " +
-        "way it is a defect and not a player who asked for too much: the same state would fail on " +
-        "the way into Postgres, one command later, with nothing left to say which rule wrote it.";
+        "mutated it into a state its invariants refuse, a caller that built it by hand, or a " +
+        "persisted row validated against a DIFFERENT ContentSnapshot than the one this command was " +
+        "given. All three are defects and none is a player who asked for too much: the same state " +
+        "would fail on the way into Postgres, one command later, with nothing left to say which " +
+        "rule wrote it.";
 }
