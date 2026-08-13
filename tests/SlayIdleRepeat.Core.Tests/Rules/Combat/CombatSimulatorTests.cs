@@ -5,6 +5,7 @@ using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
 using SlayIdleRepeat.Core.Tests.Rules.Stats;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -14,6 +15,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// 🔒 `05`'s three headnote requirements: deterministic, engine-independent, and a full fight in
 /// under 5 ms.
 /// </summary>
+[Collection(WallClockSensitive.Name)]
 public sealed class CombatSimulatorTests
 {
     private readonly ITestOutputHelper _output;

@@ -14,8 +14,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 /// draw.
 /// </summary>
 /// <remarks>
-/// Every fight here is built from <see cref="AuthoredBossScripts"/>, so what is under test is the
-/// shipped content and not a fixture shaped to agree with it.
+/// Every fight here is built from the shipped <c>content/bosses/bosses.json</c>, read off disk
+/// through <see cref="BossCatalogue"/> (see <see cref="ShippedBosses"/>), so what is under test is
+/// the shipped content and not a fixture shaped to agree with it.
 /// </remarks>
 public sealed class AuthoredBossFightTests
 {
@@ -41,7 +42,7 @@ public sealed class AuthoredBossFightTests
     [Fact]
     public void An_authored_phase_mechanic_is_deactivated_at_its_phase_exit_and_the_enrage_is_not()
     {
-        var gulgrot = AuthoredBossScripts.Of("BOSS_GULGROT");
+        var gulgrot = ShippedBosses.Catalogue.Of("BOSS_GULGROT");
         var encounter = BossEncounterBuilder.Build(
             BossTestBench.Request(gulgrot.Script, gulgrot.Effects));
 
@@ -89,7 +90,7 @@ public sealed class AuthoredBossFightTests
     [Fact]
     public void The_authored_Roll_of_Fate_resolves_exactly_one_outcome_per_roll()
     {
-        var dicelord = AuthoredBossScripts.Of("BOSS_DICELORD");
+        var dicelord = ShippedBosses.Catalogue.Of("BOSS_DICELORD");
         var encounter = BossEncounterBuilder.Build(
             BossTestBench.Request(dicelord.Script, dicelord.Effects));
 

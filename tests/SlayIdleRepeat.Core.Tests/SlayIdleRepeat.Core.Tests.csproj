@@ -1,8 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The domain test suite. References SlayIdleRepeat.Core and nothing else — it is
-    the assembly Core grants InternalsVisibleTo (30 §11.3).
+    The domain test suite. It is the assembly Core grants InternalsVisibleTo (30 §11.3),
+    and the only assembly it grants it to.
+
+    It references SlayIdleRepeat.Core and — since M2-16a — tools/BalanceHarness, which is
+    itself pinned to Core with no packages, so the closure is unchanged. See the reference
+    itself for why the loader is consumed rather than restated.
 
     Seeded empty by M0-01, and no longer empty: 799 tests as of the M0 review,
     covering Rng (M0-06), CanonicalStateWriter and the 14 §16.6 field-order pin
@@ -24,6 +28,25 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SlayIdleRepeat.Core\SlayIdleRepeat.Core.csproj" />
+
+    <!--
+      🔒 tools/BalanceHarness, for its GameDataLoader ONLY — the game-data/*.json ->
+      ContentSnapshot composition BossCatalogue is read through here.
+
+      The precedent is SlayIdleRepeat.Application.Tests, which project-references
+      tools/ContentValidator for exactly this reason: the composition lives in a tool that
+      ships, so the suite CONSUMES it rather than restating it. Re-assembling the loader in
+      this tree would leave the shipped one — the one 05 §9's harness actually runs — untested,
+      with every case here still green.
+
+      ⚠️ This does NOT widen what this suite may reach. BalanceHarness is itself pinned to
+      SlayIdleRepeat.Core with no packages (ProjectFileTests.The_simulation_tools_reference_
+      Core_only), so the transitive closure is Core plus the shared framework — the same closure
+      the header above describes. It replaces the EmbeddedResource that reached into
+      ../../game-data/ for bosses.json, which inverted the convention EnemyFixtures and
+      StatFixtures both state.
+    -->
+    <ProjectReference Include="..\..\tools\BalanceHarness\SlayIdleRepeat.BalanceHarness.csproj" />
   </ItemGroup>
 
   <!--
@@ -78,30 +101,15 @@
   </ItemGroup>
 
   <!--
-    M2-13's eight boss scripts and the FTUE row (17 §1.2, §2-9), embedded from game-data rather
-    than copied into this tree. It is the SAME file the content pipeline validates: a second copy
-    would be a fixture that agrees with the shipped data only until somebody edits one of them,
-    and the whole point of these cases is that the AUTHORED data satisfies the encounter builder's
-    eight authoring rules.
+    🔴 M2-13's EmbeddedResource for ..\..\game-data\content\bosses\bosses.json was DELETED by
+    M2-16a, together with the test-side System.Text.Json reader (AuthoredBossScripts) it fed.
 
-    🔴 NOT for the same reason as the four tables above, and the difference matters. Those are
-    determinism pins, generated for this suite, living inside this tree, re-asserted off-host by
-    M5-12. This one reaches out with ..\..\ into game-data/ and M5-12 re-asserts nothing about it.
-    It is embedded because this suite references SlayIdleRepeat.Core and nothing else (30 §11.3),
-    so it has no content loader to read a path with — and because a COPY would be a fixture that
-    agrees with the shipped data only until somebody edits one of them.
-
-    ⚠️ THIS IS THE FIRST EmbeddedResource HERE THAT REACHES INTO game-data/, AND IT INVERTS A
-    CONVENTION THIS REPO WROTE DOWN TWICE. EnemyFixtures.cs and StatFixtures.cs both state it:
-    Core.Tests has no JSON reader, so a shipped file's numbers are RESTATED as a fixture here and
-    the transcription is asserted separately, in SlayIdleRepeat.Application.Tests, which reads the
-    real document. M2-13 reached the opposite conclusion from the same premise because what these
-    cases are about IS the shipped script — that the authored data satisfies BossEncounterBuilder's
-    eight authoring rules, which a restated fixture cannot show. See AuthoredBossScripts.cs for the
-    successor that resolves it and for the two ways this reader already diverges from the pipeline.
+    It was the only EmbeddedResource here that reached into game-data/, and it existed because
+    this suite had no way to read a path: the boss cases are about the SHIPPED script satisfying
+    BossEncounterBuilder's eight authoring rules, which a restated fixture cannot show. The
+    successor is SlayIdleRepeat.Core.Rules.Combat.Bosses.BossCatalogue on EnemyCatalogue's
+    precedent, read through the BalanceHarness GameDataLoader referenced above — so the cases
+    still assert the shipped file, off disk, with no second mapping of it in this tree.
   -->
-  <ItemGroup>
-    <EmbeddedResource Include="..\..\game-data\content\bosses\bosses.json" LogicalName="bosses.json" />
-  </ItemGroup>
 
 </Project>
