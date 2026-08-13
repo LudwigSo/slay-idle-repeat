@@ -155,7 +155,7 @@ internal static class GapRegister
             "would leave a public type with no producer, no consumer and no rule watching it. Keyed on " +
             "the producer rather than on a payload type, because the payload is not what is missing."),
 
-        new("GuildContribution", "M14", "GuildId",
+        new("GuildContribution", "M14-01", "GuildId",
             "30 §7 writes it as (int Sequence, GuildId Guild, string CounterId, long Delta). GuildId is " +
             "M14's. Deferred, not dropped: guilds ship in v1 (milestone kickoff, 2026-08-11)."),
 

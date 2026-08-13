@@ -265,7 +265,7 @@ internal static class EnergyMath
     /// </remarks>
     /// <param name="banks">The two banks before the spend.</param>
     /// <param name="cost">What the action costs. Never negative; zero is a legal no-op.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cost"/> is below 1.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cost"/> is negative.</exception>
     internal static EnergySpend Spend(EnergyBanks banks, int cost)
     {
         if (cost < 0)

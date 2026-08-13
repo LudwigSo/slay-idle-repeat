@@ -164,7 +164,7 @@ public sealed class AmbientApiTests
     /// <see cref="Core_and_Application_contain_no_culture_sensitive_formatting"/> cannot see.
     /// </para>
     /// <para>
-    /// 🔒 <b>Narrower than the events rule, deliberately.</b> Twenty of `14` §2.3's forty-nine
+    /// 🔒 <b>Narrower than the events rule, deliberately.</b> Fifteen of `14` §2.3's forty-nine
     /// commands carry no payload at all and a further thirteen carry only <c>string</c>,
     /// <c>bool</c> or an enum — all of which render identically everywhere — so demanding a
     /// hand-written renderer of them would be noise a future author deletes. The subject set is

@@ -172,7 +172,7 @@ public static class CanonicalStateWriter
     /// <para>
     /// 🔒 <b>What this may and may not cache, and why they are not the same question.</b> A
     /// <see cref="Type"/>'s metadata is immutable and command-independent: <c>RunSnapshot</c> is a
-    /// record with the same eleven fields whichever command is being hashed. Resolving that once
+    /// record of the same shape whichever command is being hashed. Resolving that once
     /// therefore cannot make one command's <c>stateHash</c> depend on the command before it — the
     /// plan is a function of the type alone, and the bytes are a function of the plan and the
     /// value. The <b>buffer</b> is the opposite case and is deliberately <i>not</i> cached: see

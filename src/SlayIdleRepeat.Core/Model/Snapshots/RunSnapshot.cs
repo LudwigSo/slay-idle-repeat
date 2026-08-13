@@ -31,8 +31,9 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <em>never leaves the server</em>, while `14` §16.6 makes the client-mirror <c>stateHash</c> a
 /// hash of the snapshot DTOs — and this field is in the DTO. Those two cannot both be literally
 /// true: either the client hashes a projection that omits the seed, or the seed reaches the client.
-/// <b>M1-06 owns the ruling</b>, because it authors <c>stateHash</c> and <c>CommandResult</c> and is
-/// the first task that has to say what the client actually hashes. It is <b>not</b> resolved here:
+/// <b>The M5 kickoff owns the ruling</b> — reassigned from M1-06 at wave 6, which authors neither the
+/// wire envelope (M5-03) nor the parity test (M5-12) and shipped without touching <c>stateHash</c>
+/// at all. Tracker carry-forward 10. It is <b>not</b> resolved here:
 /// dropping the field would break `14` §8.1's "authoritative run state", and hashing a projection is
 /// a decision about the wire, not about the aggregate.
 /// </para>

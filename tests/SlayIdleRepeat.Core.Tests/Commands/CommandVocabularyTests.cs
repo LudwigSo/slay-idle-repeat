@@ -319,8 +319,9 @@ public sealed class CommandVocabularyTests
     /// deferral's only expiry.
     /// </summary>
     /// <remarks>
-    /// All forty-nine are <c>Deferred</c> on this commit, including <c>BEGIN_SESSION</c>, whose
-    /// handler is M1-09's. The rule is written as "handled <em>or</em> owned" rather than "all
+    /// Forty-eight are <c>Deferred</c>; <c>BEGIN_SESSION</c> has been <c>Handled</c> since M1-09.
+    /// (This said "all forty-nine … including BEGIN_SESSION" until the M1 review — written when it
+    /// was true, and left behind when the same file was corrected twice further down.) The rule is written as "handled <em>or</em> owned" rather than "all
     /// deferred" so that M1-09 swapping one row to <c>Handled</c> is a one-line edit here too —
     /// and so this does not become a count nobody may change.
     /// </remarks>

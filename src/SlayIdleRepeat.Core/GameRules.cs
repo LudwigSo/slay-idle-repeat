@@ -78,9 +78,12 @@ public static class GameRules
     /// <para>
     /// A command whose <em>system</em> arrives later is registered with <c>Deferred</c> and rejects
     /// with <c>ILLEGAL_STATE</c> naming its milestone; swapping it to <c>Handled</c> on the day that
-    /// milestone lands is a one-line edit. Every <c>Deferred</c> row also carries a
-    /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c> entry, which is what makes the deferral
-    /// expire by itself instead of waiting to be noticed.
+    /// milestone lands is a one-line edit. ⚠️ A <c>Deferred</c> row does <b>not</b> carry a
+    /// <c>GapRegister</c> entry, and cannot — see <c>CommandDispatch</c>'s remarks and the corrected
+    /// statement below: the entry's subject would be the command type the row itself registers, so
+    /// <c>GapRegister.Expired</c>'s presence arm would redden the build on the commit that wrote it.
+    /// (This sentence claimed the opposite until the M1 review, ~35 lines from the version that has
+    /// it right, in the same file.)
     /// </para>
     /// <para>
     /// 🔒 <b>M1-09 put the first real handler under <c>Core/Handlers/</c>, and the sentence that used
