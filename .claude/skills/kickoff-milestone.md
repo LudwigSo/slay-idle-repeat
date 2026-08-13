@@ -61,22 +61,39 @@ Build the plan before dispatching anything. For every dispatchable task (⬜, no
 - **Dependencies** within the milestone: task B needs task A's types/data/screens. Spec refs and the task wording tell you; when in doubt, treat it as dependent — a wrong "independent" call costs a merge conflict and a rework loop, a wrong "dependent" call costs only wall-clock.
 - **Footprint**: which projects/directories it will touch. The decisive question: **does it touch the Godot client checkout** (`src/SlayIdleRepeat.Client/`, anything under `res://`, `.tscn`/`.tres`/theme files)?
 
-Then group tasks into **waves**:
+Then group tasks into 🔒 **lanes — not waves**:
+
+> A **wave is a barrier**: everything in it must land before the next starts. A **lane is a dependency
+> chain that runs independently**; lanes run concurrently, and a task starts the moment *its own*
+> predecessor lands, not when a batch does. **Parallelise as much of the milestone as the dependencies
+> allow** — the difference between the two models is pure wasted wall-clock. M1 planned in waves and
+> turned a 5-deep dependency graph into an 11-step queue: `M1-10` depended on nothing the milestone
+> built and still sat in the third wave, purely for batch alignment.
+>
+> Build the map by asking, per task, **"what does *this* task wait on?"** — never "which batch is it
+> in". Two axes, and only one is a real constraint:
+>
+> - **Dependency** — hard. Task B names a type task A declares. It goes later in the same lane.
+> - **File contention** — soft. Two tasks editing one file is a *merge* problem, not an ordering one.
+>   Give each a **distinct edit anchor** in its prompt and let git merge them; M1 did this for
+>   `SubjectSetFloorTests` and the merge was clean. Serialising for contention is the mistake.
+
+Within a lane, the same per-task rules apply:
 
 | Situation | Decision |
 |---|---|
-| Independent tasks with disjoint footprints, none touching the Godot client | **Parallel**, each in its **own worktree** (`isolation: "worktree"`), same wave |
+| Independent tasks with disjoint footprints, none touching the Godot client | **Separate lanes**, each in its **own worktree** (`isolation: "worktree"`), all dispatched at once |
 | Tasks touching the Godot client | **Never in a worktree** (the `.godot/` import cache and editor state are checkout-bound — same reason `feature-oneshot` itself forbids worktrees). Run them **in the main checkout, one at a time**. They may run concurrently *alongside* worktree'd non-client tasks, but never two client tasks at once. |
-| Task depends on another task in this milestone | Later wave — dispatch only after the prerequisite's branch is integrated (Phase 5) |
-| Two tasks would edit the same files/data schemas | Same worktree is not an option (one agent per task); serialize them instead |
-| Shared foundational task everything else builds on (e.g. a schema, a registry, `LuckService`) | Its own wave **first**, alone |
-| Task A **authors** data/schemas/config that task B **validates or consumes** | 🔒 A lands in an **earlier wave** than B — never the same wave, even when their file footprints are disjoint. Footprint disjointness prevents merge *conflicts*; it does nothing about a consumer built against data that does not exist yet. M0 put a CI content-validation job and the data it validates in one wave, and their composition went red on merge. |
+| Task depends on another task in this milestone | **Same lane, later** — dispatch the moment that one prerequisite's branch is integrated, not when everything else does (Phase 5) |
+| Two tasks would edit the same files/data schemas | ⚠️ **Not a reason to serialise.** Keep them in separate lanes and give each prompt a **distinct edit anchor** so git merges the two edits. Serialise only if they genuinely rewrite the same lines |
+| Shared foundational task everything else builds on (e.g. a schema, a registry, `LuckService`) | The **head of every lane that needs it** — dispatch it alone, then fan out |
+| Task A **authors** data/schemas/config that task B **validates or consumes** | 🔒 A comes **earlier in B's lane** — never concurrent with it, even when their file footprints are disjoint. Footprint disjointness prevents merge *conflicts*; it does nothing about a consumer built against data that does not exist yet. M0 put a CI content-validation job and the data it validates in one wave, and their composition went red on merge. |
 
 🔒 **Do not patch a component an in-flight agent is scheduled to replace.** Queue the fix until that agent lands, or both mechanisms will exist. In M0 the conductor patched a CI script an in-flight agent was already replacing; the duplicate mechanism broke 30 tests at merge.
 
 **No in-flight cap.** Dispatch every task in a wave at once — there is no limit on how many agents a conductor may have in flight. The only limits on a wave are the ones above: dependencies, footprint overlap, producer→consumer ordering, and the one-client-task-at-a-time rule. Prefer fewer, larger waves over many small ones. Sequential-only is a perfectly good plan when the milestone is a dependency chain — say so and don't force parallelism.
 
-Record the wave plan in the kickoff record and echo it to the user in one compact block (wave → tasks → parallel/sequential + why) before dispatching. This is informational; do not wait for approval.
+Record the **lane map** in the kickoff record and echo it to the user in one compact block (lane → its tasks in order → what each waits on) before dispatching. This is informational; do not wait for approval.
 
 ## Phase 5 — Dispatch and integrate
 
@@ -99,7 +116,7 @@ On dispatch, set the task 🔄 in the tracker (you, the conductor, own the track
 1. Read the agent's report. If it failed or came back with red tests, decide: retry with a sharpened prompt (once), reassign as sequential in the main checkout, or mark ⛔ with the reason. Don't loop more than twice per task.
 2. If green: merge the feature branch into `milestone/M<N>` (resolve trivial conflicts yourself; a non-trivial conflict means the wave plan was wrong — serialize the remainder). Re-run the three unit suites on the integration branch after each merge; a merge that goes red gets fixed before anything else is merged.
 3. Update the tracker: task → 🔍 (branch merged to `milestone/M<N>`, awaiting human review) with the branch name in a note. Commit tracker updates on the integration branch as you go.
-4. When a wave fully lands, **immediately dispatch the next wave in the same turn** (its agents base off the now-updated `milestone/M<N>`). Do not report, summarise or hand back between waves — a wave landing is a mid-run checkpoint, not an endpoint.
+4. After **every** merge, re-read the lane map and dispatch every task whose own predecessor has now landed — **in the same turn** (its agents base off the now-updated `milestone/M<N>`). Do not report, summarise or hand back between waves — a wave landing is a mid-run checkpoint, not an endpoint.
 5. Clean up merged worktrees.
 
 **Run the whole milestone, not one wave.** Phase 5 is a loop, and it exits only into Phase 6. After every merge, re-read the wave plan in the kickoff record and ask: *is any dispatchable task still ⬜ or 🔄?* If yes, the run continues — dispatch the next wave now. Ending your turn while a ⬜ task remains dispatchable is an incomplete run, no matter how much was accomplished. The only legitimate exits are:
