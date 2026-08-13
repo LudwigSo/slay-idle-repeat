@@ -14,10 +14,16 @@ public sealed class PlaceholderOutputTests
     [Fact]
     public void A_path_under_artifacts_is_accepted()
     {
-        var accepted = PlaceholderOutput.RequireArtifactsPath(
-            Path.Combine(PlaceholderFiles.RepositoryRoot, "artifacts", "placeholders"));
+        var expected = Path.Combine(PlaceholderFiles.RepositoryRoot, "artifacts", "placeholders");
 
-        accepted.ShouldEndWith("placeholders");
+        PlaceholderOutput.RequireArtifactsPath(expected).ShouldBe(expected);
+
+        // 🔒 The guard's own remarks say the segment comparison is ORDINAL, because `.gitignore`
+        // ignores lower-case `artifacts/` and, on a case-sensitive filesystem, `Artifacts/` is a
+        // different and tracked directory.
+        Should.Throw<InvalidOperationException>(() => PlaceholderOutput.RequireArtifactsPath(
+                Path.Combine(PlaceholderFiles.RepositoryRoot, "Artifacts", "placeholders")))
+            .Message.ShouldContain("is not under 'artifacts/'", Case.Sensitive);
     }
 
     [Fact]
@@ -68,11 +74,20 @@ public sealed class PlaceholderOutputTests
     [Fact]
     public void A_batch_that_was_pointed_outside_artifacts_refuses_before_it_draws_anything()
     {
-        Should.Throw<InvalidOperationException>(() => new PlaceholderBatch(
-            new PlaceholderBatchOptions(
-                Path.Combine(PlaceholderFiles.RepositoryRoot, "assets", "placeholders"),
-                Commit,
-                ThresholdSet.Uncalibrated())));
+        var output = Path.Combine(PlaceholderFiles.RepositoryRoot, "assets", "placeholders");
+
+        var thrown = Should.Throw<InvalidOperationException>(() => new PlaceholderBatch(
+            new PlaceholderBatchOptions(output, Commit, ThresholdSet.Uncalibrated())));
+
+        // 🔒 Steering S2. RequireArtifactsPath has three separate refusals and they all throw
+        // InvalidOperationException, and so does WriteProvenance on a malformed record — pinning
+        // the type alone would accept any of them.
+        thrown.Message.ShouldContain("is under 'assets/'", Case.Sensitive);
+
+        // 🔒 And "before it draws": the guard is in the constructor, so a refused batch must not
+        // have created its output directory. That is what makes this a refusal rather than a late
+        // cleanup.
+        Directory.Exists(output).ShouldBeFalse();
     }
 
     [Fact]

@@ -27,6 +27,29 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     private readonly PlaceholderBatchReport report = batch.Report;
 
     [Fact]
+    public void The_sample_still_covers_every_branch_the_batch_cases_are_written_against()
+    {
+        var rows = SampleRows.Generatable.Select(SampleRows.Require).ToArray();
+
+        // 🔒 S3 over the SAMPLE, not over the register. Eight batch cases and four renderer cases
+        // quantify over SampleRows.Generatable, so it is this suite's entire subject set — and a row
+        // quietly dropped from it narrows twelve assertions at once while every one stays green.
+        // Every claim in SampleRows' own remarks is asserted here rather than described there.
+        rows.Select(row => row.RequireDeliverySize()).Distinct().Count().ShouldBe(8);
+        rows.Select(row => row.Pivot)
+            .Distinct()
+            .ShouldBe([Doc15Pivots.Center, Doc15Pivots.BottomCenter], ignoreOrder: true);
+        rows.Count(row => row.Biome is not null).ShouldBeGreaterThan(0);
+        rows.Count(row => row.Biome is null).ShouldBeGreaterThan(0);
+        rows.Count(row => row.Atlas is null).ShouldBe(1);
+        rows.Select(row => row.Atlas)
+            .Where(atlas => atlas is not null)
+            .Distinct()
+            .Count()
+            .ShouldBeGreaterThan(1);
+    }
+
+    [Fact]
     public void Every_generatable_row_in_the_sample_produced_a_placeholder()
     {
         report.Generated.Count.ShouldBe(SampleRows.Generatable.Count);
@@ -38,6 +61,10 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void Nothing_failed()
     {
+        // 🔒 S3 floor. "Nothing failed" over a run that attempted nothing is vacuously true, and a
+        // typo in one SampleRows id produces exactly that.
+        report.Accounted.ShouldBe(SampleRows.Generatable.Count + SampleRows.Skippable.Count);
+
         report.Failed.ShouldBeEmpty(
             "a failure here is a defect in this generator or in `15` §B4's steps, never a hole in " +
             $"the doc: [{string.Join("; ", report.Failed.Select(f => $"{f.AssetId} {f.Message}"))}].");
@@ -92,6 +119,13 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
         // are uncut. Audio is out of scope for M8-10 (no licence, no capability), so the universe
         // here is the 942 uncut ART rows. The report carries both totals so that arithmetic is
         // checkable rather than remembered.
+        //
+        // 🔒 S3 floor first. Every equality below reads both sides off the same loaded register, so
+        // 0 == 0 satisfies all of them — which is exactly what a reader that silently returned no
+        // rows would produce. The two counts are measured against the committed files, 2026-08-14.
+        PlaceholderFiles.Shipped.Art.Assets.Count.ShouldBe(974);
+        PlaceholderFiles.Shipped.Audio.Assets.Count.ShouldBe(106);
+
         report.ArtRowsInRegister.ShouldBe(PlaceholderFiles.Shipped.Art.Assets.Count);
         report.AudioRowsInRegister.ShouldBe(PlaceholderFiles.Shipped.Audio.Assets.Count);
         (report.ArtRowsInRegister + report.AudioRowsInRegister).ShouldBe(
@@ -140,14 +174,16 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void Doc_15_A4_silhouette_item_reports_uncalibrated_for_every_asset_and_never_passes()
     {
-        var verdicts = report.Generated
+        var outcomes = report.Generated
             .SelectMany(placeholder => placeholder.Qa.Outcomes)
             .Where(outcome => outcome.ItemNumber == 1)
-            .Select(outcome => outcome.Verdict)
-            .Distinct()
             .ToArray();
 
-        verdicts.ShouldBe([QaVerdict.Uncalibrated]);
+        // 🔒 Floored before the Distinct(). Item 1 is graded once per generated placeholder, so
+        // nine of the ten silently losing it would leave a single Uncalibrated verdict behind and
+        // satisfy an assertion whose name says "every asset".
+        outcomes.Length.ShouldBe(SampleRows.Generatable.Count);
+        outcomes.Select(outcome => outcome.Verdict).Distinct().ShouldBe([QaVerdict.Uncalibrated]);
     }
 
     [Fact]
@@ -169,8 +205,15 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
         // makes step 5's resample uniform, so the contradiction M8-06 declared against a square
         // canvas never fires — including for the 512×384 mount in the sample, which is the row it
         // was declared about.
+        // 🔒 S3 floor: ShouldNotContain over an empty dictionary is vacuous, and an empty
+        // Contradictions is the shape of a run that tallied none at all. Step 7 emits the page-cap
+        // contradiction on every pack, so its presence proves the tally is live.
+        report.Contradictions.Keys.ShouldContain(AtlasPackStep.PageCapContradictionId);
         report.Contradictions.Keys.ShouldNotContain(ResizeStep.DeliveryAspectContradictionId);
 
+        // 🔒 And the row the ruling was declared about really was in this run. Asserting only that
+        // the register still says 512×384 proves nothing about what was generated.
+        report.Generated.Select(placeholder => placeholder.AssetId).ShouldContain(SampleRows.Mount);
         SampleRows.Require(SampleRows.Mount).DeliverySize.ShouldBe(new PixelSize(512, 384));
     }
 

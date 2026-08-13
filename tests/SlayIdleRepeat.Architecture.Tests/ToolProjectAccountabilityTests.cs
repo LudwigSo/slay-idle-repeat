@@ -400,9 +400,18 @@ public sealed class ToolProjectAccountabilityTests
     /// rule would wave through.
     /// </para>
     /// <para>
-    /// 🔒 Two floors, both steering S3. An empty category quantifies over nothing and passes
-    /// forever while still handing out a free pass in the accountability rule above; a category
-    /// naming a project with no <c>.csproj</c> governs a project that is not there.
+    /// 🔒 Three guards, and they are not the same kind of thing. <b>An empty
+    /// <see cref="PipelineConsumerToolNames"/></b> is steering S3: the loop below would quantify
+    /// over nothing. (It would <em>also</em> turn the accountability rule above red, because the
+    /// tool would drop out of <c>governed</c> — so this is belt and braces, not the only line of
+    /// defence.) <b>A category naming a project with no <c>.csproj</c></b> governs a project that is
+    /// not there. <b>The size check on
+    /// <see cref="PipelineConsumerPermittedReferences"/></b> is a tripwire rather than a floor:
+    /// emptying it fails loudly anyway, because the "reaches nothing else" half would then flag
+    /// every real reference — what it actually catches is the set shrinking to two <em>in step
+    /// with</em> the <c>.csproj</c> dropping the same reference, which both halves of this rule
+    /// would otherwise wave through, and the set growing to four, which the "nothing else" half
+    /// would then permit.
     /// </para>
     /// </remarks>
     [Fact]
@@ -416,20 +425,21 @@ public sealed class ToolProjectAccountabilityTests
             offenders.Add(
                 "PipelineConsumerToolNames is empty, so this rule quantifies over nothing. Either a tool " +
                 "belongs in the category or the category should be deleted along with its entry in " +
-                "`governed` above — leaving it empty means the accountability rule hands out a free pass.");
+                "`governed` above.");
         }
 
-        // S3 — and the permitted set can empty just as silently, which would turn the "reaches
-        // nothing else" half into "reaches nothing at all" and the "references all three" half into
-        // a loop over no names.
+        // A tripwire on the permitted set's SIZE, not a floor: with zero permitted references the
+        // "reaches nothing else" half below already fails loudly on every real reference. What this
+        // catches is the set shrinking to two in step with the .csproj dropping the same reference —
+        // which both halves would otherwise pass — and the set growing to four.
         if (PipelineConsumerPermittedReferences.Length != 3)
         {
             offenders.Add(
                 $"PipelineConsumerPermittedReferences names {PipelineConsumerPermittedReferences.Length} " +
                 "projects and the category is defined over exactly three — M8-09's register, M8-06's " +
-                "pipeline and M8-01a's provenance format. Adding a fourth is a decision about what an " +
-                "asset-production tool may reach, and it belongs in this rule's remarks, not in a list " +
-                "that grew by one.");
+                "pipeline and M8-01a's provenance format. Widening or narrowing what an " +
+                "asset-production tool may reach is a decision that belongs in this rule's remarks, " +
+                "not in a list that changed length.");
         }
 
         foreach (var tool in PipelineConsumerToolNames)

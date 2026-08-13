@@ -34,7 +34,8 @@ public sealed class PlaceholderRendererTests
             var (spec, canvas) = Sample(id);
             using var drawn = PlaceholderRenderer.Draw(spec, canvas);
 
-            var partial = Pixels(drawn).Count(pixel => pixel.Alpha is not (0 or byte.MaxValue));
+            var all = Inspected(drawn, canvas, id);
+            var partial = all.Count(pixel => pixel.Alpha is not (0 or byte.MaxValue));
 
             partial.ShouldBe(
                 0,
@@ -55,7 +56,7 @@ public sealed class PlaceholderRendererTests
             // 🔒 BackgroundRemovalStep keys against the most common OPAQUE colour on the border. An
             // opaque border pixel would hand step 1 a key colour that also occurs in the subject,
             // and the flood fill would eat the card.
-            var opaqueBorder = Pixels(drawn)
+            var opaqueBorder = Inspected(drawn, canvas, id)
                 .Where(pixel => pixel.Alpha > 0)
                 .Where(pixel => pixel.X == 0
                                 || pixel.Y == 0
@@ -78,7 +79,7 @@ public sealed class PlaceholderRendererTests
             var (spec, canvas) = Sample(id);
             using var drawn = PlaceholderRenderer.Draw(spec, canvas);
 
-            var opaque = Pixels(drawn).Where(pixel => pixel.Alpha > 0).ToArray();
+            var opaque = Inspected(drawn, canvas, id).Where(pixel => pixel.Alpha > 0).ToArray();
             opaque.Length.ShouldBeGreaterThan(0, $"'{id}' was drawn entirely transparent.");
 
             var left = opaque.Min(pixel => pixel.X);
@@ -130,7 +131,7 @@ public sealed class PlaceholderRendererTests
             SKColor.Parse(asset.PaletteColours.Base),
             PlaceholderRenderer.InnerEdgeBlend);
 
-        var offPalette = Pixels(drawn)
+        var offPalette = Inspected(drawn, canvas, SampleRows.BiomeEnemy)
             .Where(pixel => pixel.Alpha > 0)
             .Select(pixel => new SKColor(pixel.Red, pixel.Green, pixel.Blue))
             .Distinct()
@@ -176,6 +177,30 @@ public sealed class PlaceholderRendererTests
     {
         var spec = AssetSpec.Resolve(SampleRows.Require(id));
         return (spec, GenerationCanvas.For(spec.TargetSize));
+    }
+
+    /// <summary>
+    /// Every pixel of a drawn placeholder, with an S3 floor on how many were actually inspected.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Every case below asserts an <em>absence</em> — no partial alpha, no opaque border pixel —
+    /// and an absence over an empty sweep is vacuously true. <see cref="Pixels"/> is a hand-rolled
+    /// stride walk over <see cref="SKBitmap.Bytes"/>, so a buffer that came back empty or loop
+    /// bounds that regressed would leave all three cases green while claiming to have looked at four
+    /// million pixels.
+    /// </remarks>
+    /// <param name="drawn">The placeholder.</param>
+    /// <param name="canvas">The canvas it should cover, exactly.</param>
+    /// <param name="id">The asset id, for the failure message.</param>
+    private static IReadOnlyList<(int X, int Y, byte Red, byte Green, byte Blue, byte Alpha)> Inspected(
+        SKBitmap drawn, PixelSize canvas, string id)
+    {
+        var all = Pixels(drawn).ToArray();
+
+        all.Length.ShouldBe(
+            canvas.Width * canvas.Height, $"'{id}' yielded {all.Length} pixels to inspect.");
+
+        return all;
     }
 
     /// <summary>

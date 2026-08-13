@@ -99,7 +99,8 @@ public sealed class StampFontTests
         Should.Throw<ArgumentOutOfRangeException>(() => StampFont.Ink('a', StampFont.GlyphWidth, 0))
             .Message.ShouldContain("outside a", Case.Sensitive);
 
-        Should.Throw<ArgumentOutOfRangeException>(() => StampFont.Ink('a', 0, -1));
+        Should.Throw<ArgumentOutOfRangeException>(() => StampFont.Ink('a', 0, -1))
+            .Message.ShouldContain("outside a", Case.Sensitive);
     }
 
     private static IEnumerable<(int X, int Y)> Cells() =>
