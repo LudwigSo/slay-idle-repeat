@@ -170,17 +170,23 @@ public sealed class IntraRulesLayeringRuleTests
             "what a trigger most wants to reach.");
 
         // 🔒 The root namespace's OWN types, not the prefix. See the remarks.
-        var atTheRoot = Il.TypesUnder(ProductionAssemblies.CoreModule, EffectsNamespace)
-                          .Count(t => !Domain.IsCompilerGenerated(t) &&
-                                      Il.NamespaceOf(t).Equals(EffectsNamespace, StringComparison.Ordinal));
+        RootFloor(offenders, EffectsNamespace, EffectsRootFloor,
+            "A prefix floor cannot see this shrink, and `18` §4/§5's interpreter moving out is " +
+            "exactly what would shrink it.");
 
-        if (atTheRoot < EffectsRootFloor)
-        {
-            offenders.Add(
-                $"types declared directly in {EffectsNamespace}: found {atTheRoot}, floor is " +
-                $"{EffectsRootFloor}. A prefix floor cannot see this shrink, and `18` §4/§5's " +
-                "interpreter moving out is exactly what would shrink it.");
-        }
+        // 🔴 The SAME argument, in the direction it had not been applied. Found by measuring every
+        //    floor in this file against the tree: CombatFloor is 4 against 88 types under
+        //    Rules.Combat, of which 47 are in Bosses/, Enemies/ and Status/. The combat log — the
+        //    thing CombatFloor's own message says it is there for, "the one that matters, because
+        //    the combat log is what a trigger most wants to reach" — could be deleted along with
+        //    the whole of Rules/Combat/'s root, and a prefix floor of 4 stays satisfied by the boss
+        //    engine next door. That is precisely the hazard the remarks above identify for
+        //    Rules.Effects and close with EffectsRootFloor; Rules.Combat was left on the bare prefix.
+        RootFloor(offenders, CombatNamespace, CombatRootFloor,
+            "`05` §7's combat log, `05` §4's attack pipeline and `05` §3's tick loop are declared " +
+            "directly here, and they are the forbidden set the Effects -> Combat and Stats -> " +
+            "Combat edges exist to protect. A prefix floor over Rules.Combat is satisfied by " +
+            "Bosses/, Enemies/ and Status/ alone, so it cannot see them go.");
 
         // 🔒 The three restated namespace constants are the ones Domain declares. Not editing
         // Domain.cs was deliberate (M1-12 holds it, steering S12), but the two statements can still
@@ -319,6 +325,13 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>Types declared directly in <c>Rules.Effects</c>, not in a sub-namespace.</summary>
     private const int EffectsRootFloor = 6;
 
+    /// <summary>
+    /// Types declared directly in <c>Rules.Combat</c>, not in <c>Bosses/</c>, <c>Enemies/</c> or
+    /// <c>Status/</c> — `05` §3's loop, §4's pipeline, §4.1's ward pool and §7's log. 41 on the
+    /// commit this floor landed; set well below so adding or removing one is not a test edit.
+    /// </summary>
+    private const int CombatRootFloor = 20;
+
     /// <summary>`18` §3's trigger model.</summary>
     private const int TriggersFloor = 8;
 
@@ -333,6 +346,27 @@ public sealed class IntraRulesLayeringRuleTests
 
     private static int Count(string ns) =>
         Il.TypesUnder(ProductionAssemblies.CoreModule, ns).Count(t => !Domain.IsCompilerGenerated(t));
+
+    /// <summary>
+    /// The floor over a namespace's <b>own</b> types, excluding everything in a sub-namespace.
+    /// </summary>
+    /// <remarks>
+    /// <c>Il.TypesUnder</c> matches by prefix, so a floor stated with it is satisfied by any one
+    /// sub-namespace. This is the companion that watches the root itself.
+    /// </remarks>
+    private static void RootFloor(List<string> offenders, string ns, int floor, string consequence)
+    {
+        var found = Il.TypesUnder(ProductionAssemblies.CoreModule, ns)
+                      .Count(t => !Domain.IsCompilerGenerated(t) &&
+                                  Il.NamespaceOf(t).Equals(ns, StringComparison.Ordinal));
+
+        if (found < floor)
+        {
+            offenders.Add(
+                $"types declared directly in {ns}: found {found}, floor is {floor}. {consequence} " +
+                "If this shrank on purpose, lower the floor in the same commit and say why.");
+        }
+    }
 
     private static void Floor(List<string> offenders, string ns, int floor, string consequence)
     {
