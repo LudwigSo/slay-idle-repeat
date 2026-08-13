@@ -91,12 +91,31 @@ public sealed class PaletteConformanceCheck : IQaCheck
 
         return
         [
-            .. palette.Hues.Select(SKColor.Parse),
+            .. palette.Hues.Select(Raster.ParseColour),
             Doc15Authorised.OutlineColour,
             .. subject.Thresholds
                 .RequireColours(ThresholdKeys.PaletteNeutrals)
-                .Select(SKColor.Parse),
+                .Select(Raster.ParseColour),
         ];
+    }
+
+    /// <summary>The distance from a colour to the nearest of the permitted set.</summary>
+    /// <remarks>
+    /// 🔒 A loop rather than <c>permitted.Min(hue =&gt; …)</c>. This runs once per visible pixel, and
+    /// M8-10 drives roughly 942 assets through it: a LINQ enumerator and a closure per pixel is a
+    /// quarter of a billion allocations across a batch for an answer a five-line loop gives for free.
+    /// </remarks>
+    /// <param name="permitted">The permitted set. Never empty — it always holds §A3's outline colour.</param>
+    /// <param name="colour">The pixel's colour.</param>
+    private static double NearestDistance(IReadOnlyList<SKColor> permitted, SKColor colour)
+    {
+        var nearest = double.PositiveInfinity;
+        for (var index = 0; index < permitted.Count; index++)
+        {
+            nearest = Math.Min(nearest, Raster.RgbDistance(colour, permitted[index]));
+        }
+
+        return nearest;
     }
 
     /// <summary>Counts the visible pixels no permitted colour accounts for.</summary>
@@ -118,8 +137,7 @@ public sealed class PaletteConformanceCheck : IQaCheck
                     continue;
                 }
 
-                var colour = image.ColourAt(x, y);
-                var nearest = permitted.Min(hue => Raster.RgbDistance(colour, hue));
+                var nearest = NearestDistance(permitted, image.ColourAt(x, y));
                 worst = Math.Max(worst, nearest);
                 offPalette += nearest > tolerance ? 1 : 0;
             }

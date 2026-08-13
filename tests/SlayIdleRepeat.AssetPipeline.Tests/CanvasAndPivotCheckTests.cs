@@ -92,6 +92,50 @@ public sealed class CanvasAndPivotCheckTests
     }
 
     /// <summary>
+    /// 🔒 Content whose dimension has the OPPOSITE PARITY to the canvas — the case every other
+    /// fixture here misses, because 32 and 24 on a 64 px canvas are all even and centre exactly.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A 31 px subject on a 64 px canvas cannot be centred: 33 px of padding does not halve.
+    /// <c>TrimToCanvasStep</c> pads with integer division, so the odd pixel goes right and bottom
+    /// and the content lands at 16, not 16.5. Item 7 briefly computed the expected origin in
+    /// floating point and demanded 16.5, which no image the pipeline itself produces can satisfy —
+    /// so item 7 was unsatisfiable for roughly half of the 974 shipped rows, on assets that were
+    /// in fact correct. The two must agree, and this case is what holds them together.
+    /// </para>
+    /// <para>
+    /// Both pivots are driven because they divide on different axes: <c>center</c> halves the
+    /// padding vertically as well, while <c>bottom-center</c> subtracts and only the horizontal
+    /// axis can disagree.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(Doc15Pivots.Center)]
+    [InlineData(Doc15Pivots.BottomCenter)]
+    public void Evaluate_passes_odd_parity_content_centred_the_way_step_2_centres_it(string pivot)
+    {
+        const int OddContentWidth = 31;
+        const int OddContentHeight = 25;
+
+        // The premise of the case: both dimensions must genuinely fail to halve against this
+        // canvas, or it degenerates into a duplicate of the even-parity cases above.
+        ((Canvas - OddContentWidth) % 2).ShouldBe(1);
+        ((Canvas - OddContentHeight) % 2).ShouldBe(1);
+
+        var fixture = SyntheticAsset.PivotedSubject(Canvas, OddContentWidth, OddContentHeight, pivot);
+        var subject = Subject(fixture.Image, pivot);
+
+        var outcome = new CanvasAndPivotCheck().Evaluate(subject);
+
+        outcome.ItemNumber.ShouldBe(7);
+        outcome.Verdict.ShouldBe(QaVerdict.Pass);
+        outcome.Measurements
+            .Single(m => m.Key == CanvasAndPivotCheck.PivotOffsetMeasurement)
+            .Value.ShouldBe(0d);
+    }
+
+    /// <summary>
     /// 🔒 Item 7 reads nothing out of <see cref="ThresholdSet"/>, so an entirely uncalibrated set
     /// must not change its answer. A mechanical item that went <see cref="QaVerdict.Uncalibrated"/>
     /// would make the two items that can actually conclude something depend on a calibration nobody

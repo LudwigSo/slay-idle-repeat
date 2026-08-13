@@ -71,9 +71,18 @@ public interface IPipelineStep
 /// `15` §B4 steps 1-6: one asset in, one asset out.
 /// </summary>
 /// <remarks>
+/// <para>
 /// 🔒 Each implementation is independently constructible and independently runnable. A failure in
 /// step 4 must be diagnosable without re-running 1-3, which is why no step takes the orchestrator
 /// and no step reads another step's state.
+/// </para>
+/// <para>
+/// 🔒 <b>The ownership convention, one line: a step owns nothing it did not create.</b>
+/// <see cref="AssetStepInput.Image"/> is read through <see cref="Raster.From"/>, which copies, so it
+/// is never mutated and never disposed here; <see cref="AssetStepResult.Image"/> is a fresh bitmap
+/// the caller owns, except on a skip, where it is the input instance handed straight back. Any
+/// bitmap a step allocates for itself along the way is disposed by the step.
+/// </para>
 /// </remarks>
 public interface IAssetStep : IPipelineStep
 {
@@ -110,7 +119,10 @@ public sealed record AssetStepInput(SKBitmap Image, AssetSpec Spec, ThresholdSet
 /// <param name="Id">The step's slug.</param>
 /// <param name="Outcome">Applied, or which kind of skip.</param>
 /// <param name="Image">
-/// The step's output — and, when the outcome is a skip, the input bitmap unchanged.
+/// The step's output — and, when the outcome is a skip, <b>the input bitmap itself</b>, the same
+/// instance, not a copy. The caller owns it either way: a step never disposes and never mutates
+/// what it was handed, so a caller that disposes its own input must not also dispose a skipping
+/// step's result.
 /// </param>
 /// <param name="Reason">Why, when skipped or when a deviation was taken. Empty otherwise.</param>
 /// <param name="Measurements">Numbers the step measured, as evidence.</param>

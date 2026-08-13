@@ -44,6 +44,14 @@ public sealed class OutlineRepairStep : IAssetStep
     public string DocReference => "15 §B4 step 4";
 
     /// <summary>The measurement key this step records the measured outline width under.</summary>
+    /// <remarks>
+    /// 🔒 The same key as `15` Part F item 3's, and deliberately not the same number: this one
+    /// measures depth inside the frame, so an outline running along the canvas edge reads as twice
+    /// as thick here, while item 3 pads the frame and treats its edge as an outside boundary. Item 3
+    /// grades width against §A3 and needs the true one; this step only needs a width to restore its
+    /// own bridge to, and the bridge is never at the canvas edge. Compare the two across a step and a
+    /// check and they will disagree on a full-bleed asset — by construction, not by accident.
+    /// </remarks>
     public const string OutlineWidthMeasurement = "outlineWidthPx";
 
     /// <summary>The measurement key for how many pixels closing a break added.</summary>
@@ -143,14 +151,14 @@ public sealed class OutlineRepairStep : IAssetStep
                 continue;
             }
 
-            if (!sealedOff.Except(Enclosed(outline, proposed.Except(group))).Pixels().Any())
+            if (!sealedOff.Except(Enclosed(outline, proposed.Without(group))).Pixels().Any())
             {
                 // Everything stays shut away without this group, so it was never holding a break
                 // shut: it is a rounded concavity, or a shape the disc simply filled in.
                 continue;
             }
 
-            foreach (var (x, y) in group.Pixels())
+            foreach (var (x, y) in group)
             {
                 bridge[x, y] = true;
             }
@@ -207,11 +215,11 @@ public sealed class OutlineRepairStep : IAssetStep
         return widened;
     }
 
-    /// <summary>True when any pixel of one mask is 4-adjacent to the other.</summary>
-    /// <param name="group">The mask to test.</param>
+    /// <summary>True when any pixel of a group is 4-adjacent to a mask.</summary>
+    /// <param name="group">The pixels to test.</param>
     /// <param name="other">The mask to test against.</param>
-    private static bool Touches(PixelMask group, PixelMask other) =>
-        group.Pixels().Any(pixel =>
+    private static bool Touches(IReadOnlyList<(int X, int Y)> group, PixelMask other) =>
+        group.Any(pixel =>
             other[pixel.X - 1, pixel.Y]
             || other[pixel.X + 1, pixel.Y]
             || other[pixel.X, pixel.Y - 1]
@@ -226,12 +234,20 @@ public sealed class OutlineRepairStep : IAssetStep
         return free.Except(free.FloodFromBorder());
     }
 
-    /// <summary>The mask's 8-connected components, in row-major discovery order.</summary>
+    /// <summary>
+    /// The mask's 8-connected components, in row-major discovery order, each as its own pixels.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Pixel lists, not masks. A closing around a real subject proposes a group at every concavity
+    /// — a hundred of them is unremarkable — and a full-frame <see cref="PixelMask"/> per group would
+    /// allocate a hundred frames to hold a few hundred pixels, and would make <see cref="Touches"/>
+    /// scan the whole frame to look at three of them. M8-10 drives roughly 942 assets through this.
+    /// </remarks>
     /// <param name="mask">The mask to group.</param>
-    private static IReadOnlyList<PixelMask> Groups(PixelMask mask)
+    private static IReadOnlyList<IReadOnlyList<(int X, int Y)>> Groups(PixelMask mask)
     {
         var assigned = new PixelMask(mask.Width, mask.Height);
-        var groups = new List<PixelMask>();
+        var groups = new List<IReadOnlyList<(int X, int Y)>>();
 
         foreach (var (startX, startY) in mask.Pixels())
         {
@@ -240,15 +256,16 @@ public sealed class OutlineRepairStep : IAssetStep
                 continue;
             }
 
-            var group = new PixelMask(mask.Width, mask.Height);
+            var group = new List<(int X, int Y)>();
             var queue = new Queue<(int X, int Y)>();
             assigned[startX, startY] = true;
-            group[startX, startY] = true;
             queue.Enqueue((startX, startY));
 
             while (queue.Count > 0)
             {
                 var (x, y) = queue.Dequeue();
+                group.Add((x, y));
+
                 for (var offsetY = -1; offsetY <= 1; offsetY++)
                 {
                     for (var offsetX = -1; offsetX <= 1; offsetX++)
@@ -261,7 +278,6 @@ public sealed class OutlineRepairStep : IAssetStep
                         }
 
                         assigned[nextX, nextY] = true;
-                        group[nextX, nextY] = true;
                         queue.Enqueue((nextX, nextY));
                     }
                 }

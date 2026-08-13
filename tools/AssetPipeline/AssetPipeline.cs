@@ -7,11 +7,14 @@ namespace SlayIdleRepeat.AssetPipeline;
 public sealed record PipelineOptions
 {
     /// <summary>
-    /// Keeps the bitmap after each step, in step order, on <see cref="PipelineRun.Intermediates"/>.
+    /// Lists the bitmap after each step, in step order, on <see cref="PipelineRun.Intermediates"/>.
     /// </summary>
     /// <remarks>
-    /// Opt-in because M8-10 drives roughly 942 assets through this and holding six extra bitmaps
-    /// per asset is not free. On for a single asset under diagnosis.
+    /// 🔒 A convenience view, <b>not</b> a retention switch. Every step's output is already on
+    /// <see cref="PipelineRun.Steps"/> as <see cref="AssetStepResult.Image"/> whatever this is set
+    /// to, so turning it on costs six references and no bitmaps — see <see cref="PipelineRun"/> for
+    /// who owns them. It exists so an asset under diagnosis can be walked step by step without
+    /// projecting the results.
     /// </remarks>
     public bool CaptureIntermediates { get; init; }
 
@@ -20,6 +23,23 @@ public sealed record PipelineOptions
 }
 
 /// <summary>The record of one asset's trip through `15` §B4 steps 1-6.</summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>The caller owns every bitmap on this record.</b> A step never disposes what it was handed
+/// and never mutates it — <see cref="Raster.From"/> copies on the way in — so the input bitmap is
+/// the caller's throughout, and each step's output is the caller's from the moment it is returned.
+/// Nothing here is disposed by the pipeline, because the whole point of keeping
+/// <see cref="Steps"/> is that a failure in step 4 is diagnosable against step 3's pixels.
+/// </para>
+/// <para>
+/// 🔒 <b>Dispose distinct instances, not every reference.</b> A step that skips returns the bitmap
+/// it was given (`15` §B4 step 3 on a non-biome row does exactly this), and
+/// <see cref="Intermediates"/> lists the same objects <see cref="Steps"/> already holds, so one
+/// bitmap can appear several times across this record and <see cref="Output"/> is always the last
+/// step's. M8-10 drives roughly 942 assets: disposing per run matters, and disposing the same
+/// native surface twice is how that goes wrong.
+/// </para>
+/// </remarks>
 /// <param name="AssetId">The asset's `15` §D1 id.</param>
 /// <param name="Outcome">
 /// <see cref="StepOutcome.Applied"/>, or <see cref="StepOutcome.SkippedCutByRuling"/> when a ruling
@@ -30,7 +50,8 @@ public sealed record PipelineOptions
 /// <param name="Steps">Every step's result, in `15` §B4 order. Empty for a cut asset.</param>
 /// <param name="Intermediates">
 /// The bitmap after each step, in step order, when
-/// <see cref="PipelineOptions.CaptureIntermediates"/> is set. Empty otherwise.
+/// <see cref="PipelineOptions.CaptureIntermediates"/> is set. Empty otherwise. These are the same
+/// instances <see cref="Steps"/> carries, not copies of them.
 /// </param>
 public sealed record PipelineRun(
     string AssetId,

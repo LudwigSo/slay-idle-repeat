@@ -51,11 +51,13 @@ public sealed class ReadabilityCheck : IQaCheck
     /// size the doc itself attaches to readability, and the size this measurement downscales to.
     /// </summary>
     /// <remarks>
-    /// 🔒 An authorised number, not an invented one — but it is the size a <em>detail</em> is judged
-    /// at, not "the smallest in-game display size", which `15` never states per row. The measurement
-    /// is therefore evidence about detail survival and not an answer to item 2.
+    /// 🔒 An authorised number, not an invented one — so it lives in <see cref="Doc15Authorised"/>
+    /// with the sentence that states it, and this is an alias rather than a second copy. It is the
+    /// size a <em>detail</em> is judged at, not "the smallest in-game display size", which `15` never
+    /// states per row. The measurement is therefore evidence about detail survival and not an answer
+    /// to item 2.
     /// </remarks>
-    private const int DetailBudgetSize = 64;
+    private const int DetailBudgetSize = Doc15Authorised.DetailBudgetSize;
 
     /// <inheritdoc/>
     public QaOutcome Evaluate(QaSubject subject)

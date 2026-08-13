@@ -59,6 +59,17 @@ public static class Doc15Authorised
     public const int SilhouetteMaskSize = 64;
 
     /// <summary>
+    /// `15` §A3 detail budget: <em>"If a detail is not readable at 64 px, remove it."</em>
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The same number as <see cref="SilhouetteMaskSize"/> and a different statement: §A4 scales
+    /// the <em>silhouette</em> to 64 px, §A3 judges a <em>detail</em> at 64 px. Kept apart so that a
+    /// day when one of the two sentences changes does not silently move the other, and kept here
+    /// rather than inside the check that reads it so that every number `15` states lives in one file.
+    /// </remarks>
+    public const int DetailBudgetSize = 64;
+
+    /// <summary>
     /// The authorised outline-width band at an arbitrary canvas width, scaled proportionally from
     /// the §A3 statement at <see cref="OutlineWidthReferenceCanvas"/>.
     /// </summary>

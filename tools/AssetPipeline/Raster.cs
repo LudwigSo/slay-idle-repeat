@@ -215,6 +215,23 @@ internal sealed class Raster
         return Math.Sqrt((red * red) + (green * green) + (blue * blue));
     }
 
+    /// <summary>
+    /// Parses a hex colour as the manifest and the threshold register spell them, or fails loudly
+    /// naming the text that is not one.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 One parser for both readers of these strings — `15` §B4 step 3 and Part F item 5 read the
+    /// same six hues and the same stated neutrals, and <c>SKColor.Parse</c> on its own throws without
+    /// saying which of the two lists the bad text came out of or what it was.
+    /// </remarks>
+    /// <param name="hex">A hex colour, e.g. <c>#231A2E</c>.</param>
+    internal static SKColor ParseColour(string hex) => SKColor.TryParse(hex, out var colour)
+        ? colour
+        : throw new InvalidOperationException(
+            $"'{hex}' is not a colour `15` §A5's palette or the stated neutrals can be read from. " +
+            "The manifest and assets/pipeline/thresholds.json spell a colour as hex, e.g. " +
+            $"'{Doc15Authorised.OutlineColourHex}'.");
+
     /// <summary>A 0-255 channel from a double, rounded away from zero and clamped.</summary>
     /// <param name="value">The value to quantise.</param>
     internal static byte ToChannel(double value) =>
@@ -224,8 +241,11 @@ internal sealed class Raster
     {
         if (!Contains(x, y))
         {
+            // The out-of-range coordinate is named, not always the first one: "x was out of range"
+            // on a call whose y is the problem sends a reader to the wrong half of the expression.
             throw new ArgumentOutOfRangeException(
-                nameof(x), $"({x}, {y}) is outside a {Width}×{Height} raster.");
+                x >= 0 && x < Width ? nameof(y) : nameof(x),
+                $"({x}, {y}) is outside a {Width}×{Height} raster.");
         }
 
         return ((y * Width) + x) * BytesPerPixel;

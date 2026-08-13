@@ -54,13 +54,32 @@ internal sealed class PixelMask
         }
     }
 
-    /// <summary>Reads or writes one cell.</summary>
+    /// <summary>
+    /// Reads or writes one cell. Reading outside the mask yields false — every neighbourhood loop in
+    /// this project relies on that — but writing outside it is a loud failure.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The asymmetry is deliberate. "Nothing is set beyond the frame" is a true and useful answer
+    /// to a read; there is no correspondingly true write, and the row-major index is not injective
+    /// across the edges — <c>[-1, y]</c> lands on the last cell of row <c>y - 1</c>, so an unguarded
+    /// write would silently corrupt a neighbouring row instead of failing.
+    /// </remarks>
     /// <param name="x">The column.</param>
     /// <param name="y">The row.</param>
     internal bool this[int x, int y]
     {
         get => Contains(x, y) && cells[(y * Width) + x];
-        set => cells[(y * Width) + x] = value;
+
+        set
+        {
+            if (!Contains(x, y))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(x), $"({x}, {y}) is outside a {Width}×{Height} mask.");
+            }
+
+            cells[(y * Width) + x] = value;
+        }
     }
 
     /// <summary>Every set pixel, row-major — the one enumeration order this project relies on.</summary>
@@ -107,6 +126,26 @@ internal sealed class PixelMask
         }
 
         return new PixelMask(result, Width, Height);
+    }
+
+    /// <summary>This mask without the listed pixels.</summary>
+    /// <remarks>
+    /// 🔒 The list overload exists because <see cref="Except(PixelMask)"/> costs a whole frame per
+    /// call, and `15` §B4 step 4 subtracts one small connected group at a time from a proposal that
+    /// can hold a hundred of them.
+    /// </remarks>
+    /// <param name="pixels">The pixels to clear. Each must be inside the mask.</param>
+    internal PixelMask Without(IReadOnlyList<(int X, int Y)> pixels)
+    {
+        ArgumentNullException.ThrowIfNull(pixels);
+
+        var result = new PixelMask((bool[])cells.Clone(), Width, Height);
+        foreach (var (x, y) in pixels)
+        {
+            result[x, y] = false;
+        }
+
+        return result;
     }
 
     /// <summary>

@@ -43,6 +43,18 @@ public sealed class ExportStep : IAssetStep
     /// <summary>What `15` §B4 step 6 asks for, quoted in every deviation this step emits.</summary>
     private const string Requirement = "Export to PNG-32, then compress with pngquant (quality 80-95).";
 
+    /// <summary>
+    /// The quality argument <c>SKBitmap.Encode</c> requires and PNG ignores.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Not a tuning number and not an S6 hole. PNG is lossless, so Skia's PNG encoder does not
+    /// read this at all — the overload simply has no format-agnostic way to say "not applicable".
+    /// The top of the range is passed so nobody reading the call has to wonder whether the export is
+    /// throwing away quality somewhere; `15` §B4 step 6's <em>lossy</em> stage is pngquant's, and it
+    /// is the one this step declares a deviation for.
+    /// </remarks>
+    private const int LosslessEncodeQuality = 100;
+
     /// <inheritdoc/>
     public int Number => 6;
 
@@ -113,7 +125,7 @@ public sealed class ExportStep : IAssetStep
         // 🔒 SKBitmap.Encode, not SKImage.FromBitmap(...).Encode: the bitmap carries
         // SKAlphaType.Unpremul and encoding it directly writes those bytes as they stand, which is
         // what makes the round trip bit-exact for a semi-transparent pixel.
-        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100)
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, LosslessEncodeQuality)
             ?? throw new InvalidOperationException(
                 $"Skia encoded no PNG for a {image.Width}×{image.Height} image.");
 

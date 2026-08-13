@@ -121,18 +121,11 @@ public sealed class PaletteQuantiseStep : IAssetStep
 
         return
         [
-            .. palette.Hues.Select(Parse),
+            .. palette.Hues.Select(Raster.ParseColour),
             Doc15Authorised.OutlineColour,
-            .. neutrals.Select(Parse),
+            .. neutrals.Select(Raster.ParseColour),
         ];
     }
-
-    /// <summary>Parses a hex colour, or fails loudly naming the text that is not one.</summary>
-    /// <param name="hex">A hex colour, as the manifest and the threshold file spell them.</param>
-    private static SKColor Parse(string hex) => SKColor.TryParse(hex, out var colour)
-        ? colour
-        : throw new InvalidOperationException(
-            $"'{hex}' is not a colour `15` §A5's palette or the stated neutrals can be read from.");
 
     /// <summary>The nearest authorised colour in RGB, and how far away it is.</summary>
     /// <param name="authorised">The closed set of colours §B4 step 3 may produce.</param>

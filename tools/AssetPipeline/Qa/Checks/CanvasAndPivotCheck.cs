@@ -118,9 +118,19 @@ public sealed class CanvasAndPivotCheck : IQaCheck
     /// distance between where its top-left corner is and where it would be.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 Measured against the content, not against a declaration. §C says the pivot is "declared in
     /// the atlas metadata", and a declaration that disagrees with where the subject actually sits is
     /// the failure this item exists to catch.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The centring tie is broken the same way <see cref="TrimToCanvasStep"/> breaks it</b> —
+    /// integer division, so the odd pixel goes to the right and to the bottom. An asset whose content
+    /// is one pixel narrower or shorter than the canvas in parity cannot be centred exactly, and
+    /// expecting a half-pixel here would make item 7 unsatisfiable for every such row rather than
+    /// exact for any of them. This is not a tolerance: the comparison is still an exact integer one,
+    /// against the placement `15` §B4 step 2 actually produces.
+    /// </para>
     /// </remarks>
     /// <param name="image">The processed image.</param>
     /// <param name="content">The content's bounding box.</param>
@@ -133,11 +143,11 @@ public sealed class CanvasAndPivotCheck : IQaCheck
         }
 
         // Horizontally centred for both of `15` §C's pivots; only the vertical rule differs.
-        var expectedLeft = (image.Width - content.Width) / 2d;
+        var expectedLeft = (image.Width - content.Width) / 2;
         var expectedTop = pivot switch
         {
-            Doc15Pivots.Center => (image.Height - content.Height) / 2d,
-            Doc15Pivots.BottomCenter => image.Height - (double)content.Height,
+            Doc15Pivots.Center => (image.Height - content.Height) / 2,
+            Doc15Pivots.BottomCenter => image.Height - content.Height,
             _ => throw new InvalidOperationException(
                 $"`15` §C authorises {string.Join(" and ", Doc15Pivots.All)} and nothing else, and " +
                 $"this row declares '{pivot}'. There is no third convention to measure against."),
