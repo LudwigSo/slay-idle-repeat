@@ -51,6 +51,52 @@ internal enum EnemyArchetype
 }
 
 /// <summary>
+/// 🔒 `05` §6.1's closed vocabulary, read from an authored name — <b>the parse, stated once</b>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>Why this exists.</b> Two call sites read an archetype out of authored text —
+/// <c>EnemyCatalogue.ParseArchetype</c> (from <c>content/enemies/enemies.json</c>) and
+/// <c>Bosses.BossSummonSource.ArchetypeOf</c> (from `18` §2.4's <c>archetype</c> key on a
+/// <c>SUMMON</c>) — and each wrote its own <c>Enum.TryParse</c> + <c>Enum.IsDefined</c> pair. They
+/// had already drifted: one spelled <c>ignoreCase: false</c> and the other relied on the overload's
+/// default for it. Two statements of one closed table is the shape this milestone keeps finding, and
+/// a ninth shape would have had to be right in both places with nothing tying them together.
+/// </para>
+/// <para>
+/// ⚠️ <b>The callers keep their own failure types, and that is not a second statement of the
+/// rule.</b> <c>EnemyCatalogue</c> throws a <c>ContentTypeMismatchException</c> naming the JSON
+/// pointer; <c>BossSummonSource</c> throws an <c>EffectContextException</c> naming the summoning
+/// effect. Both messages are load-bearing — steering S2 asks which rule fired — and neither is the
+/// parse. What is consolidated here is the <b>predicate</b>.
+/// </para>
+/// <para>
+/// 🔒 <b>A numeric name is refused.</b> <see cref="Enum.TryParse{TEnum}(string, bool, out TEnum)"/>
+/// accepts the underlying number as well as the name, so an authored <c>"7"</c> would have loaded as
+/// <c>LEECH</c> through both former copies — a wire value leaking into a place the documents spell
+/// with a name, and one that would silently follow a renumbering this enum's own remarks forbid.
+/// </para>
+/// </remarks>
+internal static class EnemyArchetypes
+{
+    /// <summary>
+    /// True when <paramref name="name"/> is exactly one of `05` §6.1's eight names, case-sensitively.
+    /// </summary>
+    internal static bool TryParse(string name, out EnemyArchetype archetype)
+    {
+        archetype = default;
+
+        return !string.IsNullOrEmpty(name) &&
+            !char.IsAsciiDigit(name[0]) && name[0] != '-' && name[0] != '+' &&
+            Enum.TryParse(name, ignoreCase: false, out archetype) &&
+            Enum.IsDefined(archetype);
+    }
+
+    /// <summary>`05` §6.1's eight names, for a failure message that shows the closed table.</summary>
+    internal static string Names => string.Join(", ", Enum.GetNames<EnemyArchetype>());
+}
+
+/// <summary>
 /// 🔒 `05` §6.1a — which on-hit parameter set an archetype carries.
 /// </summary>
 /// <remarks>

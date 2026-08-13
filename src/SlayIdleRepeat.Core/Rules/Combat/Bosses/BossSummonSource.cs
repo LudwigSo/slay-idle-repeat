@@ -1,4 +1,3 @@
-using System.Globalization;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 using SlayIdleRepeat.Core.Rules.Effects;
@@ -125,15 +124,18 @@ internal sealed class BossSummonSource : ISummonSource
     }
 
     /// <summary>`05` §6.1's eight shapes, by the name `18` §2.4's <c>archetype</c> key authors.</summary>
+    // 🔒 The predicate is EnemyArchetypes.TryParse's, stated once; the message is this reader's.
     private static EnemyArchetype ArchetypeOf(string archetype, string sourceEffectId) =>
-        Enum.TryParse<EnemyArchetype>(archetype, out var parsed) && Enum.IsDefined(parsed)
+        EnemyArchetypes.TryParse(archetype, out var parsed)
             ? parsed
             : throw new EffectContextException(
                 sourceEffectId,
-                $"it summons '{archetype}', which is not one of `05` §6.1's archetypes",
+                $"it summons '{archetype}', which is not one of `05` §6.1's eight archetypes " +
+                $"({EnemyArchetypes.Names})",
                 "`17` §1: 'adds use standard archetypes from `05` §6.1'. Spawning nothing instead " +
                 "would delete Thornmaw's phase-3 fight without a single event to show for it, and " +
                 "guessing an archetype would spawn a shape nobody authored.");
 
-    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+    // 🔒 The convention, not a second statement of it — see Primitives/InvariantText.
+    private static string Format(double value) => InvariantText.Text(value);
 }

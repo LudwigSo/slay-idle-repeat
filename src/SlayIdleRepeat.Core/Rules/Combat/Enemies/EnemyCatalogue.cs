@@ -136,8 +136,10 @@ internal sealed record EnemyCatalogue(
             "05 §1.1's rounding is the locked determinism rule and StatRounding is its one " +
             "implementation. This file records the rule it was written under; it cannot retune it.");
 
+        var modifiersPerElite = content.ReadInt32(ModifiersPerElitePointer);
+
         RequireAgreement(
-            ModifiersPerElitePointer, content.ReadInt32(ModifiersPerElitePointer), 1,
+            ModifiersPerElitePointer, modifiersPerElite, 1,
             "05 §6.2 gives an Elite exactly one modifier and EliteModifierDraw.Draw returns one. A " +
             "second would need a draw that excludes the first, which 05 §6.2 does not state — so " +
             "authoring 2 here has to fail rather than be quietly ignored.");
@@ -149,7 +151,7 @@ internal sealed record EnemyCatalogue(
             ReadOnHit(content, Document + "#/onHit/wardenSunder", casterRow: false),
             ReadCasterRows(content),
             content.ReadDouble(ElitePowerMultiplierPointer),
-            content.ReadInt32(ModifiersPerElitePointer),
+            modifiersPerElite,
             content.ReadBoolean(NoRepeatPointer),
             ReadModifiers(content),
             ReadIdentities(content),
@@ -422,13 +424,14 @@ internal sealed record EnemyCatalogue(
 
     // ------------------------------------------------------------------ vocabulary parsing
 
+    // 🔒 The predicate is EnemyArchetypes.TryParse's, stated once; the message is this reader's.
     private static EnemyArchetype ParseArchetype(string name, string pointer) =>
-        Enum.TryParse<EnemyArchetype>(name, ignoreCase: false, out var archetype) && Enum.IsDefined(archetype)
+        EnemyArchetypes.TryParse(name, out var archetype)
             ? archetype
             : throw new ContentTypeMismatchException(
                 pointer, ContentValueKind.Text,
                 $"'{name}', which is not one of 05 §6.1's eight archetypes " +
-                $"({string.Join(", ", Enum.GetNames<EnemyArchetype>())}). The table is closed: a ninth " +
+                $"({EnemyArchetypes.Names}). The table is closed: a ninth " +
                 "shape is a design decision, not a data edit");
 
     private static ArchetypeOnHit ParseOnHit(string name, string pointer) => name switch

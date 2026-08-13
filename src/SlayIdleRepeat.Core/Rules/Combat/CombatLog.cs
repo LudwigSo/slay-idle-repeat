@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -535,5 +534,7 @@ internal sealed class CombatLog
         }
     }
 
-    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+    // 🔒 The convention, not a second statement of it — see Primitives/InvariantText. This one is
+    //    the load-bearing case: its output reaches `11` §6's LogHash.
+    private static string Format(double value) => InvariantText.Text(value);
 }

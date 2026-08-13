@@ -1,4 +1,4 @@
-using System.Globalization;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 
@@ -55,7 +55,8 @@ internal sealed record ArchetypeRow(
     public override string ToString() =>
         $"{Id} hp×{Format(HpCoef)} atk×{Format(AtkCoef)} def×{Format(DefCoef)} aspd×{Format(AspdCoef)} " +
         $"crit {Format(Crit)} cdmg {Format(CritDamage)} dodge {Format(Dodge)} ls {Format(Lifesteal)} " +
-        $"×{UnitsPerDraw.ToString(CultureInfo.InvariantCulture)} units, onHit {OnHit}";
+        $"×{InvariantText.Text(UnitsPerDraw)} units, onHit {OnHit}";
 
-    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+    // 🔒 The convention, not a second statement of it — see Primitives/InvariantText.
+    private static string Format(double value) => InvariantText.Text(value);
 }
