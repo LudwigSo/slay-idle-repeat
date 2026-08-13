@@ -93,17 +93,69 @@ public static class HarnessRun
         }
 
         var report = new StringBuilder();
-        var exitCode = Execute(options, report);
+        int exitCode;
+
+        // 🔴 The buffered report survives ANY fault below, not only a diagnostics one.
+        //    TryWriteDiagnosticsAndExperiments covers the one path M2-16a knew about; every other
+        //    line of Execute — the loader, the sweep, and the report writers themselves — was still
+        //    able to discard a finished half-hour sweep by throwing before `report` reached a writer.
+        //    This is the outermost statement of the same rule: what was measured gets written.
+        try
+        {
+            exitCode = Execute(options, report);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Header(report, "🔴 HARNESS FAULT — the report below is everything that had been measured");
+            report.AppendLine(
+                "This is NOT a balance finding. The harness could not run to completion; whatever is");
+            report.AppendLine(
+                "printed above this line was already measured and stands. The exit code is non-zero.");
+            report.AppendLine($"{exception.GetType().Name}: {exception.Message}");
+            exitCode = ExitGuardrailBreach;
+        }
 
         var text = report.ToString();
         output.Write(text);
 
-        if (options.OutputPath is not null)
+        if (options.OutputPath is not null && !TryWriteOutputFile(options.OutputPath, text, output))
         {
-            File.WriteAllText(options.OutputPath, text);
+            // 🔴 The report reached stdout but not the file the caller asked for. A nightly job
+            //    diffing the artefact would otherwise compare against a stale file and call it
+            //    "no change" — the quietest possible way for this tool to be wrong.
+            exitCode = exitCode == ExitSuccess ? ExitGuardrailBreach : exitCode;
         }
 
         return exitCode;
+    }
+
+    /// <summary>
+    /// Writes the report to <c>--out</c>, reporting a filesystem refusal rather than throwing it.
+    /// </summary>
+    /// <remarks>
+    /// A missing parent directory or a read-only path is a fact about the caller's arguments, not a
+    /// finding about the game, and it arrives AFTER the report has already been written to stdout —
+    /// so letting it propagate would replace one of the three documented exit codes with an unhandled
+    /// exception, over a failure that cost the run nothing.
+    /// </remarks>
+    private static bool TryWriteOutputFile(string path, string text, TextWriter output)
+    {
+        try
+        {
+            File.WriteAllText(path, text);
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            output.WriteLine();
+            output.WriteLine(
+                $"🔴 --out '{path}' could not be written ({exception.GetType().Name}: " +
+                $"{exception.Message}). The report above went to stdout and is complete; only the " +
+                "file copy is missing, and the exit code is non-zero so a job cannot mistake a stale " +
+                "artefact for this run's.");
+            return false;
+        }
     }
 
     private static int Execute(HarnessOptions options, StringBuilder report)
@@ -257,7 +309,7 @@ public static class HarnessRun
             $"CONTENDED   ({sweep.DegreeOfParallelism} threads, median-of-cell-medians): " +
             $"{CellResult.Percentile(contendedMedian, 0.50) / 1000.0:0.000} ms · " +
             $"p90 {CellResult.Percentile(contendedMedian, 0.90) / 1000.0:0.000} ms · " +
-            $"max {sweep.Cells.Max(c => c.MaxCostMicroseconds) / 1000.0:0.000} ms");
+            $"max {Ms(MaxOverCells(sweep, c => c.MaxCostMicroseconds) / 1000.0)}");
         report.AppendLine(
             "⚠️ the contended numbers are what a parallel sweep measures, not what 05's budget is about.");
 
@@ -407,8 +459,8 @@ public static class HarnessRun
             $"{string.Join(", ", sweep.Cells.Select(c => c.BossId).Distinct().Order(StringComparer.Ordinal))}");
         report.AppendLine(
             $"🔴 highest boss phase reached anywhere in the sweep: " +
-            $"{sweep.Cells.Max(c => c.MaxBossPhaseReached)} (17 §1's phases are HP bands: phase 2 at 66% " +
-            "boss HP, phase 3 at 33%)");
+            $"{Phase(MaxOverCells(sweep, c => c.MaxBossPhaseReached))} (17 §1's phases are HP bands: " +
+            "phase 2 at 66% boss HP, phase 3 at 33%)");
 
         return probes;
     }
@@ -494,4 +546,46 @@ public static class HarnessRun
     private static string Sec(double seconds) =>
         double.IsNaN(seconds) ? "n/a" : seconds.ToString("0.00", CultureInfo.InvariantCulture) + "s";
 
+    private static string Ms(double milliseconds) =>
+        double.IsNaN(milliseconds)
+            ? NoCells
+            : milliseconds.ToString("0.000", CultureInfo.InvariantCulture) + " ms";
+
+    private static string Phase(double phase) =>
+        double.IsNaN(phase) ? NoCells : ((int)phase).ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// 🔴 The maximum of a per-cell reading, or <see cref="double.NaN"/> when the sweep produced no
+    /// cell at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Every cell can fault.</b> <c>SweepRunner.TryRunCell</c> records a fault and drops the
+    /// cell, so a systemic engine regression or a <c>--data</c> snapshot that breaks every fight
+    /// leaves <c>sweep.Cells</c> empty while <c>sweep.Faults</c> is full. <c>Enumerable.Max</c> on
+    /// that throws <em>"Sequence contains no elements"</em> — a message that names neither the rule
+    /// nor the input, from inside the writer of a report whose whole purpose at that moment is to
+    /// show the faults. <c>CellResult.Percentile</c> already answers <c>NaN</c> for the same reason
+    /// and this is the same answer for the same question.
+    /// </para>
+    /// </remarks>
+    private static double MaxOverCells(SweepResult sweep, Func<CellResult, double> reading)
+    {
+        var max = double.NaN;
+
+        foreach (var cell in sweep.Cells)
+        {
+            var value = reading(cell);
+
+            if (double.IsNaN(max) || value > max)
+            {
+                max = value;
+            }
+        }
+
+        return max;
+    }
+
+    /// <summary>What a reading over zero cells reads as — never a number that looks measured.</summary>
+    private const string NoCells = "n/a — every swept cell faulted";
 }

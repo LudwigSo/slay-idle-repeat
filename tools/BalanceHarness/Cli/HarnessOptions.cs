@@ -146,6 +146,8 @@ public sealed record HarnessOptions
             index = 1;
         }
 
+        var given = new HashSet<string>(StringComparer.Ordinal);
+
         for (; index < args.Count; index++)
         {
             var name = args[index];
@@ -153,6 +155,31 @@ public sealed record HarnessOptions
             if (string.Equals(name, "--help", StringComparison.Ordinal))
             {
                 return options with { ShowUsage = true };
+            }
+
+            // 🔒 `--flag=value` is refused by NAME rather than falling through to the value handling
+            // below, which would otherwise report "expects a value" about an option this harness does
+            // not have — a message that says the flag is real and the value is missing when neither is
+            // true, and that does not name the actual fix.
+            var equals = name.IndexOf('=', StringComparison.Ordinal);
+            if (equals > 0 && name.StartsWith("--", StringComparison.Ordinal))
+            {
+                error =
+                    $"'{name}' uses --flag=value, which this harness does not read. Pass the value as " +
+                    $"its own argument: '{name[..equals]} {name[(equals + 1)..]}'.";
+                return null;
+            }
+
+            // 🔒 A repeated option is refused, not last-wins. `--fights 10000 --fights 200` is a
+            // copy-paste left over from local testing, and silently running the last one is the same
+            // "a mistyped flag became a silently wrong number" failure the unknown-option case refuses
+            // one token earlier — except here the flag is real, so nothing else would ever say so.
+            if (!given.Add(name))
+            {
+                error =
+                    $"'{name}' was given more than once. Only the last would have taken effect, which " +
+                    "is indistinguishable from a copy-paste that meant two different options.";
+                return null;
             }
 
             if (index + 1 >= args.Count)
@@ -217,6 +244,12 @@ public sealed record HarnessOptions
                         chapters.Add(chapter);
                     }
 
+                    if (Repeated(chapterParts) is { } repeatedChapter)
+                    {
+                        error = RepeatedEntry(name, value, repeatedChapter);
+                        return null;
+                    }
+
                     options = options with { Chapters = chapters };
                     break;
 
@@ -242,6 +275,12 @@ public sealed record HarnessOptions
                         tiers.Add(tier);
                     }
 
+                    if (Repeated(tiers.Select(t => t.ToString()).ToArray()) is { } repeatedTier)
+                    {
+                        error = RepeatedEntry(name, value, repeatedTier);
+                        return null;
+                    }
+
                     options = options with { Tiers = tiers };
                     break;
 
@@ -250,6 +289,12 @@ public sealed record HarnessOptions
                     if (archetypeParts.Length == 0)
                     {
                         error = EmptyList(name, value);
+                        return null;
+                    }
+
+                    if (Repeated(archetypeParts) is { } repeatedArchetype)
+                    {
+                        error = RepeatedEntry(name, value, repeatedArchetype);
                         return null;
                     }
 
@@ -304,6 +349,38 @@ public sealed record HarnessOptions
 
     private static string[] Split(string value) =>
         value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>The first entry that appears twice in a list, or <c>null</c> when all are distinct.</summary>
+    private static string? Repeated(IReadOnlyList<string> entries)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var entry in entries)
+        {
+            if (!seen.Add(entry))
+            {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 🔒 A repeated list entry is refused, because the second copy is not a second measurement.
+    /// </summary>
+    /// <remarks>
+    /// <c>--chapters 1,1,4</c> builds the <c>(chapter, tier, archetype)</c> cell twice, and
+    /// <c>SweepSeeds.CellSeed</c> is a pure function of that key — so both copies run the SAME seeded
+    /// fights and the per-cell table prints the identical line twice. It reads as two cells agreeing
+    /// with each other, which is the one thing it cannot be, and it doubles the sweep's cost for it.
+    /// This is <see cref="EmptyList"/>'s rule on the other side: a subject set that is not the one the
+    /// caller believes they asked for is refused where it is still nameable.
+    /// </remarks>
+    private static string RepeatedEntry(string name, string value, string entry) =>
+        $"{name} '{value}' lists '{entry}' more than once. The repeat sweeps the same cell under the " +
+        "same key with the same seeds, so it prints a duplicate row that reads as corroboration and " +
+        "is the identical run — drop it rather than paying twice for it.";
 
     /// <summary>
     /// 🔒 An empty list narrows the sweep to nothing rather than to everything.

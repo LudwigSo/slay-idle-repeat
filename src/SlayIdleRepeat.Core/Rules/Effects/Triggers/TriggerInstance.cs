@@ -467,7 +467,7 @@ internal sealed class TriggerInstance
                 throw new EffectContextException(
                     TriggerKind.ON_LOW_HP.ToString(),
                     $"'{Effect.Id}' was activated at an HP fraction of " +
-                    $"{fraction.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}",
+                    $"{InvariantText.Text(fraction)}",
                     "An HP fraction is 0..1 (`18` §4's SELF_HP_PCT). A NaN would silently start the " +
                     "instance disarmed, because every comparison against it is false.");
             }

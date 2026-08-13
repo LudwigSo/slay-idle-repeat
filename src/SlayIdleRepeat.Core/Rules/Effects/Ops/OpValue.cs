@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Effects.Values;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
@@ -50,7 +51,10 @@ internal static class OpValue
         var mode = ModeOf(effect, rules);
         var scaled = context.Seams.Values.ScaledValue(effect);
 
-        return OpRounding.Round(scaled * Basis(effect, context, target, mode), effect.Id, $"{mode} value");
+        return OpRounding.Round(
+            ValueModeEvaluator.Resolve(mode, scaled, SubjectsFor(context, target, mode), effect.Id),
+            effect.Id,
+            $"{mode} value");
     }
 
     /// <summary>
@@ -75,61 +79,47 @@ internal static class OpValue
                 "(steering S6).");
     }
 
-    /// <summary>What the mode makes <c>value</c> a multiple of.</summary>
-    private static double Basis(
-        EffectDefinition effect, EffectOpContext context, IEffectActorView? target, ValueMode mode) =>
-        mode switch
+    /// <summary>
+    /// 🔒 The subjects `18` §2.2's modes read, gathered from this op's firing context for
+    /// <see cref="ValueModeEvaluator.Resolve"/> — <b>which is the one statement of the eight-mode
+    /// table</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why this is a gatherer and not a second switch.</b> M2-06 wrote
+    /// <see cref="ValueModeEvaluator"/> as `18` §2.2's evaluator and M2-03, running in parallel, wrote
+    /// a complete second copy of the same eight-way switch here — down to a second private
+    /// <c>MissingHp</c> helper with the same floor and the same rationale. Two statements of one table
+    /// is the milestone's recurring defect shape (see <c>Primitives.DeterminismRounding</c> for the
+    /// rounding instance of it): each arm was a place the §2.2 basis, the missing-HP floor or the
+    /// <c>ON_HEAL</c>-only restriction could drift, and the evaluator's own tests would have stayed
+    /// green while the shipped ops diverged, because nothing called it. The switch now lives once, in
+    /// the type `18` §2.2 belongs to, and this method supplies it with the op layer's readings.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b><see cref="ValueModeSubjects.SourceAttack"/> is read only for <c>ATK_MULT</c>.</b> The
+    /// bundle is eager where the old switch was lazy, and the ATK read crosses
+    /// <see cref="IResolvedStatReader"/> — a `18` §8 resolution, not a field. Gathering it for a
+    /// <c>FLAT</c> or an <c>OVERHEAL_AMOUNT</c> op would make every op pay for a seam call no mode
+    /// reads, against `05`'s per-fight budget. This is a <em>read</em> and not an RNG draw, so making
+    /// it conditional carries none of the stream-position consequence a conditional draw would.
+    /// </para>
+    /// </remarks>
+    private static ValueModeSubjects SubjectsFor(
+        EffectOpContext context, IEffectActorView? target, ValueMode mode) =>
+        new()
         {
-            // 🔒 The source's ATK, read through the snapshot seam — R17 keeps Rules.Stats out of
-            // reach, and 18 §2.2's "the source's ATK" is the holder's, never the target's.
-            ValueMode.ATK_MULT => context.Seams.Stats.FinalStat(context.Holder, StatId.ATK),
-
-            ValueMode.FLAT => 1.0,
-
-            ValueMode.SELF_MAXHP_PCT => context.Holder.MaxHp,
-
-            ValueMode.TARGET_MAXHP_PCT => Targeted(effect, target, mode).MaxHp,
-
-            // 🔒 Missing HP, floored at zero. A target healed above its own Max HP by a mid-tick
-            // grant would otherwise give a NEGATIVE missing fraction, and a "damage" op would heal.
-            ValueMode.TARGET_MISSING_HP_PCT => MissingHp(Targeted(effect, target, mode)),
-
-            ValueMode.DAMAGE_DEALT_PCT => context.DamageDealt ?? throw Missing(
-                effect, mode, "the firing event dealt no damage",
-                "05 §4 step 8's on-damage basis exists only inside a resolved hit. M2-04's on-hit " +
-                "family supplies it; outside one there is no damage to take a percentage of, and 0 " +
-                "would spell 'the hit was fully absorbed' — which 05 §4.1 says a leech still heals off."),
-
-            ValueMode.HEAL_AMOUNT => context.HealAmount ?? throw Missing(
-                effect, mode, "the context is not an ON_HEAL context",
-                "18 §2.2: HEAL_AMOUNT and OVERHEAL_AMOUNT 'exist only inside ON_HEAL contexts (05 §4.3)'."),
-
-            ValueMode.OVERHEAL_AMOUNT => context.OverhealAmount ?? throw Missing(
-                effect, mode, "the context is not an ON_HEAL context",
-                "18 §2.2: HEAL_AMOUNT and OVERHEAL_AMOUNT 'exist only inside ON_HEAL contexts (05 §4.3)'. " +
-                "0 would silently delete PK_TRANSFUSION's shield rather than reporting that the " +
-                "trigger did not carry the reading."),
-
-            _ => throw new EffectContextException(
-                effect.Id,
-                $"valueMode {mode} is not one of 18 §2.2's eight",
-                "18 §2.2: ATK_MULT · FLAT · SELF_MAXHP_PCT · TARGET_MAXHP_PCT · " +
-                "TARGET_MISSING_HP_PCT · DAMAGE_DEALT_PCT · HEAL_AMOUNT · OVERHEAL_AMOUNT."),
+            // 🔒 18 §2.2's "the source's ATK" is the holder's, never the target's — and it is read
+            //    through the snapshot seam, because R17 keeps Rules.Stats out of reach from here.
+            SourceAttack = mode == ValueMode.ATK_MULT
+                ? context.Seams.Stats.FinalStat(context.Holder, StatId.ATK)
+                : null,
+            Source = context.Holder,
+            Target = target,
+            DamageDealt = context.DamageDealt,
+            HealAmount = context.HealAmount,
+            OverhealAmount = context.OverhealAmount,
         };
-
-    private static double MissingHp(IEffectActorView actor) => Math.Max(0.0, actor.MaxHp - actor.CurrentHp);
-
-    private static IEffectActorView Targeted(
-        EffectDefinition effect, IEffectActorView? target, ValueMode mode) =>
-        target ?? throw Missing(
-            effect, mode, "the op resolved against no actor",
-            "18 §2.2's two target-relative modes read the actor the op is applying to; an op with no " +
-            "target has nothing to read. 05 §3.1 keeps a dead actor out of every set token (18 §5), " +
-            "so an empty target set is a legitimate outcome — but it never reaches a value.");
-
-    private static EffectContextException Missing(
-        EffectDefinition effect, ValueMode mode, string missing, string reference) =>
-        new(effect.Id, $"valueMode {mode} has no basis — {missing}", reference);
 }
 
 /// <summary>

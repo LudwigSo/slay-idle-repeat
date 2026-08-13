@@ -1,5 +1,5 @@
-using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
@@ -593,7 +593,8 @@ internal static class BossEncounterBuilder
             "lands, and two wind-ups become indistinguishable in a log that IS the replay (`05` §7).");
     }
 
-    private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
+    private static string Number(int value) => InvariantText.Text(value);
 
-    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+    // 🔒 The convention, not a second statement of it — see Primitives/InvariantText.
+    private static string Format(double value) => InvariantText.Text(value);
 }

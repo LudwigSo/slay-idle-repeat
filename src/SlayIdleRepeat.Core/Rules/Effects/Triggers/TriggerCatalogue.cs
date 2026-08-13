@@ -1,5 +1,5 @@
-using System.Globalization;
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 
@@ -422,7 +422,8 @@ internal static class TriggerCatalogue
         _ => parameter.ToString(),
     };
 
-    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+    // 🔒 The convention, not a second statement of it — see Primitives/InvariantText.
+    private static string Format(double value) => InvariantText.Text(value);
 
-    private static string Format(int value) => value.ToString(CultureInfo.InvariantCulture);
+    private static string Format(int value) => InvariantText.Text(value);
 }
