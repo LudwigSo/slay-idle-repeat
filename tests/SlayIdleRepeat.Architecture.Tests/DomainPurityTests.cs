@@ -32,14 +32,21 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// identity floor.
 /// </para>
 /// <para>
-/// ⚠️ <b>What remains vacuous, and it is by design rather than by neglect.</b> Three arms have no
-/// subject and must not: <c>Domain_has_no_ambient_time_or_randomness</c>' two <c>IClockPort</c> arms
-/// (that name must NEVER appear in <c>Core</c> — permanently subject-less by intent, not "not
-/// yet"), and <c>Domain_references_no_port_interface</c>' <c>Application.Ports</c> arm, which is
-/// unreachable because the assembly-reference arm one line above it fires first and a C# TypeRef
-/// cannot exist without an AssemblyRef to scope it. The
-/// <c>Handlers_and_Rules_are_internal</c> exception list is the fourth: <c>CombatSimulator</c> (M2)
-/// and <c>PowerCalculator</c> (`29` §1) do not exist, so the exemption exempts nothing yet.
+/// ⚠️ <b>What remains subject-less, and it is by design rather than by neglect.</b>
+/// <c>Domain_has_no_ambient_time_or_randomness</c>' two <c>IClockPort</c> arms are permanently so
+/// <em>by intent</em>: `30` §3 makes that the name which must NEVER appear in <c>Core</c>, so "no
+/// subject" is the rule succeeding, not a "not yet".
+/// <c>Domain_references_no_port_interface</c>' <c>Application.Ports</c> arm is the same shape —
+/// no <c>Core</c> type declares or names one. ⚠️ It is <b>not</b> unreachable, and an earlier draft
+/// of this paragraph said it was, on the reasoning that a C# TypeRef needs an AssemblyRef to scope
+/// it so the assembly arm would always fire first. That is true only of a port <em>referenced</em>
+/// across assemblies; a port <b>copied into</b> <c>Core</c> under <c>namespace
+/// SlayIdleRepeat.Application.Ports</c> emits no AssemblyRef at all and fires that arm alone —
+/// which is precisely the case the rule's own <c>IsPortShaped</c> clause exists for, six lines
+/// below it. Adding a false claim to the paragraph that inventories vacuity was the wrong direction
+/// for this task and is corrected here rather than left.
+/// The <c>Handlers_and_Rules_are_internal</c> exception list is the last: <c>CombatSimulator</c>
+/// (M2) and <c>PowerCalculator</c> (`29` §1) do not exist, so the exemption exempts nothing yet.
 /// </para>
 /// </remarks>
 public sealed class DomainPurityTests

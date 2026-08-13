@@ -762,6 +762,21 @@ public sealed class SubjectSetFloorTests
 
         foreach (var subject in Pending.Concat(Live))
         {
+            // 🔒 A disclaimer withdraws every citation after it, from both arms. Reported rather
+            // than applied silently: a row losing checked citations to a stray "NOT" is the same
+            // silence this rule exists to break. Naming one rule as NOT keying on the subject is
+            // legitimate — the GhostSnapshot row does exactly that — so this is an offender only
+            // when the tail still carries a citation the arms would otherwise have checked.
+            var discarded = AffirmativeAndDiscarded(subject.UsedBy).Discarded;
+
+            offenders.AddRange(
+                CitedRules(discarded)
+                    .Skip(1)
+                    .Select(lost =>
+                        $"'{subject.Name}' names {lost} AFTER a 'NOT' disclaimer, so it is read as commentary " +
+                        "and neither arm checks it. A disclaimer withdraws everything that follows — put the " +
+                        "citations this row is CLAIMING before it, and keep the disclaimer last."));
+
             foreach (var citation in CitedRules(subject.UsedBy).Where(IsRuleCitation))
             {
                 if (!facts.Contains(citation, StringComparer.Ordinal))
@@ -989,14 +1004,33 @@ public sealed class SubjectSetFloorTests
     /// it in a form the mechanism reported as true. Everything from the first <c>NOT</c> onward is
     /// therefore commentary, not a claim.
     /// </remarks>
-    private static string Affirmative(string usedBy)
+    private static string Affirmative(string usedBy) => AffirmativeAndDiscarded(usedBy).Affirmative;
+
+    /// <summary>
+    /// A row's prose split into the part that <b>claims</b> and the part a <c>NOT</c> disclaimer
+    /// withdraws, so the discarded tail can be reported rather than silently dropped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <c>\bNOT\s</c>, not <c>IndexOf("NOT ")</c> — the substring also matches inside
+    /// <c>CANNOT</c>, and in a file written like this one that word is likely.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>And the truncation is reported, because otherwise it is a silent kill-switch on the
+    /// mechanism it serves.</b> Everything after the disclaimer is dropped from BOTH arms, so a row
+    /// whose prose grew an emphatic <c>NOT</c> mid-sentence would quietly stop having its later
+    /// citations checked — the exact S4 shape this rule exists to break, one indirection out. The
+    /// <c>CitedConstantRowFloor</c> only notices a row falling to ZERO citations, not one falling
+    /// from three to one. So a row that discards citations says so.
+    /// </para>
+    /// </remarks>
+    private static (string Affirmative, string Discarded) AffirmativeAndDiscarded(string usedBy)
     {
-        // ⚠️ `\bNOT\s`, not IndexOf("NOT ") — the substring also matches inside CANNOT, and one such
-        // word in a row's prose would silently discard every citation after it and let the truth arm
-        // pass over the whole row. In a file written like this one, CANNOT is likely.
         var disclaimer = Regex.Match(usedBy, @"\bNOT\s");
 
-        return disclaimer.Success ? usedBy[..disclaimer.Index] : usedBy;
+        return disclaimer.Success
+            ? (usedBy[..disclaimer.Index], usedBy[disclaimer.Index..])
+            : (usedBy, string.Empty);
     }
 
     /// <summary>

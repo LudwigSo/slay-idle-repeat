@@ -456,6 +456,12 @@ public sealed class AccessibilityBoundaryTests
     ///   namespace aliases into <see cref="QualifiedPrefix"/>, which is a second mechanism for a
     ///   shape nobody has written — and a clause nobody can show working is the defect this whole
     ///   file is about.</item>
+    ///   <item>The alias and static-import arms match on the target's <b>simple name</b> and ignore
+    ///   its namespace, so <c>using static System.Math;</c> would read as a violation if an upper
+    ///   layer ever declared a const-carrying <c>Math</c>. Loud direction; no collision today.</item>
+    ///   <item>Two same-named types in different layers — one permitted to this layer, one not —
+    ///   are indistinguishable to a simple-name match, so the permitted read would be reported.
+    ///   Loud direction; <c>Core</c> declares no duplicate simple names.</item>
     /// </list>
     /// <para>
     /// What it cannot do is prove the <em>absence</em> of a const read in a file outside <c>Core</c>'s
@@ -915,22 +921,26 @@ public sealed class AccessibilityBoundaryTests
             .Select(r =>
                 $"{r.Caller} calls the non-public {r.Member}. 30 §11.2 makes GameRules.Apply the only " +
                 "public way to change state, and 30 §6's harness is the artefact that DEMONSTRATES " +
-                "it — a harness reaching an aggregate's internal mutator drives the domain behind " +
-                "Apply's back, past the P4 clone, past 30 §2.3's catch-up, past the 14 §8.1 RNG fold " +
-                "and past the 30 §7 event stamping, and every claim it makes about 'the rules decided " +
-                "this' becomes a claim about the harness. 30 §11.3's Rehydrate/ToSnapshot pair is " +
-                "public precisely so this is not a cost: build the state through it and send a " +
-                "command.");
+                "it. Reaching an AGGREGATE's internal mutator drives the domain behind Apply's back, " +
+                "past the P4 clone, past 30 §2.3's catch-up, past the 14 §8.1 RNG fold and past the " +
+                "30 §7 event stamping. Reaching an internal member of the CORE ROOT is worse: " +
+                "GameRules.Execute takes a CommandDispatch, so a harness calling it drives the domain " +
+                "against a fabricated command table, past all 49 of 14 §2.3's rows. Either way, every " +
+                "claim the harness makes about 'the rules decided this' becomes a claim about the " +
+                "harness. 30 §11.3's Rehydrate/ToSnapshot pair and 30 §11.2's Apply are public " +
+                "precisely so this is not a cost: build the state through them and send a command.");
 
         ArchRule.Empty(
             offenders,
-            "The 30 §6 harness reaches Core/Model/ through its public seam only — it drives the " +
-            "aggregates through GameRules.Apply, never through their internal mutators (30 §6, 30 §11.2).");
+            "The 30 §6 harness reaches Core/Model/ and the Core root through their public seam only " +
+            "— it drives the " +
+            "domain through GameRules.Apply, never through an aggregate's internal mutator nor " +
+            "through an internal seam of the transition function itself (30 §6, 30 §11.2).");
     }
 
     /// <summary>
-    /// Every <c>Core/Model/</c> member a <c>Core/Testing/</c> method names in its IL, with whether
-    /// that member is public.
+    /// Every <c>Core/Model/</c> or <c>SlayIdleRepeat.Core</c>-root member a <c>Core/Testing/</c>
+    /// method names in its IL, with whether that member is publicly reachable.
     /// </summary>
     /// <remarks>
     /// Methods and fields both: an <c>internal</c> field written directly is the same bypass as an
@@ -948,7 +958,10 @@ public sealed class AccessibilityBoundaryTests
                 {
                     switch (instruction.Operand)
                     {
-                        case MethodReference call when IsUnderModel(call.DeclaringType):
+                        case MethodReference call when IsSanctionedHarnessRead(call):
+                            break;
+
+                        case MethodReference call when IsBehindTheSeam(call.DeclaringType):
                             if (call.Resolve() is { } target)
                             {
                                 yield return (
@@ -959,7 +972,7 @@ public sealed class AccessibilityBoundaryTests
 
                             break;
 
-                        case FieldReference field when IsUnderModel(field.DeclaringType):
+                        case FieldReference field when IsBehindTheSeam(field.DeclaringType):
                             if (field.Resolve() is { } resolved)
                             {
                                 yield return (
@@ -1002,10 +1015,57 @@ public sealed class AccessibilityBoundaryTests
         return true;
     }
 
-    /// <summary>True when a type reference names a type under <c>Core/Model/</c>.</summary>
-    private static bool IsUnderModel(TypeReference reference) =>
+    /// <summary>
+    /// 🔒 True when a type reference names something the harness must reach through a
+    /// <b>public</b> door: a <c>Core/Model/</c> aggregate, or a type in the
+    /// <c>SlayIdleRepeat.Core</c> root.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The root is here because it holds the sharper bypass, and an earlier draft of this rule
+    /// missed it.</b> <c>GameRules.Execute</c> is <c>internal static</c> and lives in the root, and
+    /// <c>Core_internal_layering_holds</c>' <c>Testing</c> row deliberately permits
+    /// <c>Testing → root</c> — so a harness calling <c>GameRules.Execute(someFabricatedDispatch, …)</c>
+    /// would drive the domain against a <em>made-up</em> command table, past all 49 production rows,
+    /// and every rule in this suite would stay green. That is worse than reaching an aggregate's
+    /// mutator, because it replaces the transition function's own dispatch rather than one write.
+    /// <c>GameRules.Apply</c> is <c>public</c>, which is the whole point: `30` §11.2 makes it the one
+    /// public way to change state, so "public only" leaves the harness exactly the door §6 gives it.
+    /// </remarks>
+    private static bool IsBehindTheSeam(TypeReference reference) =>
         reference.Resolve() is { } resolved &&
-        Il.IsUnder(Il.NamespaceOf(resolved), Domain.ModelNamespace);
+        (Il.IsUnder(Il.NamespaceOf(resolved), Domain.ModelNamespace) ||
+         IsCoreRootType(resolved.FullName));
+
+    /// <summary>
+    /// The internal root members `30` §6's harness is sanctioned to <b>read</b>, named rather than
+    /// pattern-matched.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>One question, two members.</b> <c>InMemoryGame.Send</c> asks the production dispatch
+    /// table for a command's <c>CommandKind</c> — <c>GameRules.RegistrationFor(t)?.Kind</c> — so it
+    /// can decide whether `30` §3's meta-only <c>CommandSeed</c> belongs on the context. Asking the
+    /// real table is strictly better than the alternative the harness would otherwise need (guessing
+    /// from the command's type name), and it writes nothing. Both halves of that one expression are
+    /// listed, because the widened rule caught the second the moment it caught the first.
+    /// </para>
+    /// <para>
+    /// ⚠️ Exempted by <b>NAME</b>, not by a predicate over "reads that look harmless": a third
+    /// internal root member is a build failure and therefore a decision, which is the whole reason
+    /// this rule was widened past <c>Core/Model/</c> in the first place. Nothing here is a mutation
+    /// path — <c>Execute</c>, the member that would be, is deliberately absent.
+    /// </para>
+    /// </remarks>
+    private static readonly (string Type, string Member)[] SanctionedHarnessReads =
+    {
+        (Domain.GameRulesType, "RegistrationFor"),
+        ("CommandRegistration", "get_Kind"),
+    };
+
+    private static bool IsSanctionedHarnessRead(MethodReference reference) =>
+        SanctionedHarnessReads.Any(s =>
+            reference.DeclaringType.Name.Equals(s.Type, StringComparison.Ordinal) &&
+            reference.Name.Equals(s.Member, StringComparison.Ordinal));
 
     /// <summary>
     /// `30` §11.3 — 🔒 `InternalsVisibleTo` names exactly one assembly,

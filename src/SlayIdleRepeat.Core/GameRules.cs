@@ -110,6 +110,19 @@ public static class GameRules
     /// <c>runSeed</c> no scope at all.
     /// </para>
     /// <para>
+    /// ⚠️ <b>And that kind makes it unreachable through any caller today — carried-forward item 22,
+    /// owned by M3-15.</b> <see cref="Execute"/> refuses a <c>CommandKind.Run</c> command on a
+    /// run-less slice <em>before</em> the dispatch branch, and a run-less slice is exactly what
+    /// <c>START_RUN</c> is sent on, because the run it creates does not exist yet: only
+    /// <c>START_RUN</c> can create the <c>Run</c> its own guard demands. Measured rather than
+    /// reasoned — applying it to a <c>WorldSlice(player, null)</c> throws, as do the other 18
+    /// <c>CommandKind.Run</c> rows, while all 30 meta rows answer <c>ILLEGAL_STATE</c>. Nothing is
+    /// broken while the row is <c>Deferred</c>. No architecture rule is written for it, deliberately:
+    /// "this command's precondition is unsatisfiable" is a domain fact no metadata carries, and a
+    /// rule naming <c>START_RUN</c> would transcribe M3-15's ruling into the architecture suite
+    /// before it has been made.
+    /// </para>
+    /// <para>
     /// 🔒 <b>Forty-eight rows are <c>Deferred</c> and one is <c>Handled</c>.</b> M1-09 swapped
     /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which is the one-line edit
     /// this table's shape was designed for and the first time <see cref="Execute"/>'s
@@ -325,6 +338,20 @@ public static class GameRules
         // makes "loading the right slice" the Application layer's job, and 14 §16.2's RUN_NOT_FOUND
         // is a transport-tier value that never reaches Apply. Answering ILLEGAL_STATE here would
         // tell the player a rule refused them and leave the miswired caller running.
+        //
+        // 🔒 IT IS ALSO WHY THROWING HERE IS NOT THE P3 VIOLATION M1-12 FIXED ONE METHOD DOWN, and
+        // the line is worth stating because the two look alike. 30 §2.1's P3 is "every command on
+        // every state returns a result; ILLEGAL MOVES return Rejection". Host clock skew is a state
+        // a correctly-wired composition root legitimately produces, so it must come back as a value
+        // — that is NotBefore. A slice loaded without its run is not a move the player made; it is
+        // a caller defect, and Apply is FORBIDDEN from returning the value that would describe it.
+        //
+        // ⚠️ CARRIED-FORWARD ITEM 22, and this guard is correct for 18 of the 19 CommandKind.Run
+        // rows. START_RUN is the exception: it is the only command that can CREATE a Run, so its
+        // natural slice is the run-less one and this guard makes it unreachable through any caller.
+        // Its row is Deferred, so nothing is broken today. The reclassification — a kind, a second
+        // guard, or a run-less run command — is M3-15's ruling, not this method's; see the
+        // START_RUN paragraph on the dispatch table above.
         if (registration.Kind == CommandKind.Run && state.Run is null)
         {
             throw new InvalidOperationException(
@@ -1020,12 +1047,38 @@ public static class GameRules
     /// </summary>
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// 🔒 The third of <see cref="Execute"/>'s throws, and the one whose second producer is easiest
+    /// to miss: <b>content drift</b>, not only a mutated aggregate.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two states reach this message. One is a rule or a hand-building caller that put the aggregate
+    /// somewhere its own invariants refuse. The other is an <em>unmutated, validly persisted</em>
+    /// player rehydrated against a NEWER <c>ContentSnapshot</c> whose validation it no longer
+    /// satisfies — <c>Player.Rehydrate</c> checks Legend Level against `07` §1.1's authored range,
+    /// so narrowing that range in <c>game-data/</c> makes existing rows fail here.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It stays on the throw side of `30` §2.1's <b>P3</b> line, and this is the reasoning</b>
+    /// (added by M1-12, which drew that line for the clock and did not at first say where this
+    /// case fell). It is the same shape as the run-less-slice guard: choosing a <c>ContentSnapshot</c>
+    /// the persisted state is compatible with is the composition root's job, exactly as `30` §4.1
+    /// makes loading the right slice its job. A player whose stored Legend Level is outside the
+    /// shipped range is not making an illegal move — there is no `14` §16.2 domain-tier value that
+    /// describes "your save predates this content set", and inventing one would tell the player a
+    /// rule refused them. ⚠️ It is a <b>content-authoring</b> defect that the content pipeline is
+    /// supposed to catch before shipping, which is why it is loud here rather than survivable.
+    /// </para>
+    /// </remarks>
     private static string RoundTripFailure(string aggregate, string error) =>
         "The " + aggregate + " in this WorldSlice does not round-trip through its own snapshot: " +
         error + " 30 §2.1's P4 makes Apply copy the slice before a handler touches it — through " +
         "ToSnapshot()/Rehydrate(), which is the one validated construction path 30 §11.3 sanctions " +
         "— so an aggregate that cannot be rebuilt from its own persisted shape is a rule that " +
-        "mutated it into a state its invariants refuse, or a caller that built it by hand. Either " +
-        "way it is a defect and not a player who asked for too much: the same state would fail on " +
-        "the way into Postgres, one command later, with nothing left to say which rule wrote it.";
+        "mutated it into a state its invariants refuse, a caller that built it by hand, or a " +
+        "persisted row validated against a DIFFERENT ContentSnapshot than the one this command was " +
+        "given. All three are defects and none is a player who asked for too much: the same state " +
+        "would fail on the way into Postgres, one command later, with nothing left to say which " +
+        "rule wrote it.";
 }
