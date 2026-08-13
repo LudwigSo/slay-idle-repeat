@@ -204,6 +204,83 @@ public sealed class IntraRulesLayeringRuleTests
     }
 
     /// <summary>
+    /// 🔒 `30` §11.4 / `23` §6 — <b>R17 is a total order over the sub-namespaces of
+    /// <c>Core.Rules</c>, so the set it orders must be the set that exists.</b> A fourth
+    /// sub-namespace appearing with no declared edge is not
+    /// a rule failure today and never becomes one: <see cref="ForbiddenEdges"/> is a hand-written
+    /// whitelist of three ordered pairs, and a namespace named in none of them is governed by
+    /// nothing, in either direction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>This is not hypothetical, and the name is already written down.</b>
+    /// <c>SubjectSetFloorTests</c>' <c>LuckService</c> entry (M4-01) says in as many words that the
+    /// `05` §6.2 no-repeat seam's implementation must not live on <c>LuckService</c> itself <em>"or
+    /// <c>Rules.Luck</c> ends up naming <c>Rules.Combat</c> and R17 has no edge for it"</em>. That
+    /// sentence is a correct diagnosis of a hole this file did not close: with
+    /// <c>Rules/Luck/</c> on disk, <see cref="Rules_Effects_is_the_bottom_of_the_intra_Rules_layering"/>
+    /// quantifies over three namespaces that do not include it and stays green over the cycle.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>What this asserts, and what it deliberately does not.</b> It does not guess where a new
+    /// namespace belongs — that is a milestone-level decision, exactly as M2-05 said of
+    /// <c>IEffectActorView</c>. It asserts only that the decision was <em>taken</em>: every namespace
+    /// directly beneath <c>Core.Rules</c> appears in <see cref="ForbiddenEdges"/> as a subject, as a
+    /// forbidden target, or both. Adding <c>Rules/Luck/</c> therefore fails here, in a message that
+    /// names the pairs to add, rather than passing silently two milestones from now.
+    /// </para>
+    /// <para>
+    /// ⚠️ Stated over the namespaces that <b>hold a type</b>, not over the directories: an empty
+    /// folder emits nothing into the assembly and there is nothing for an ordering to govern.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_namespace_under_Rules_has_a_declared_place_in_R17()
+    {
+        var governed = ForbiddenEdges
+            .SelectMany(edge => new[] { edge.Subject, edge.Forbidden })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        // The namespaces that actually exist directly under Core.Rules, by the segment that follows
+        // it — Il.TypesUnder is a PREFIX match, so a type in Rules.Combat.Bosses reports "Combat".
+        var present = Il.TypesUnder(ProductionAssemblies.CoreModule, Domain.RulesNamespace)
+            .Where(t => !Domain.IsCompilerGenerated(t))
+            .Select(t => Il.NamespaceOf(t))
+            .Where(ns => ns.Length > Domain.RulesNamespace.Length + 1)
+            .Select(ns => Domain.RulesNamespace + "." + ns[(Domain.RulesNamespace.Length + 1)..].Split('.')[0])
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(ns => ns, StringComparer.Ordinal)
+            .ToArray();
+
+        var offenders = present
+            .Where(ns => !governed.Contains(ns, StringComparer.Ordinal))
+            .Select(ns =>
+                $"{ns} holds types but appears in no R17 edge. The layering is a hand-written list of " +
+                "ordered pairs, so a namespace named in none of them is unordered against all three " +
+                "of Rules.Combat, Rules.Stats and Rules.Effects — a cycle through it passes " +
+                "Rules_Effects_is_the_bottom_of_the_intra_Rules_layering with nothing going red. " +
+                "Decide where it sits in `30` §11.4's Rules row and add its edges to ForbiddenEdges " +
+                "in the same commit; do not widen this rule to ignore it.")
+            .ToList();
+
+        // S3 — the other direction. A governed namespace that holds nothing is a rule quantifying
+        // over an empty set, which the floors above catch for the three named ones; this catches an
+        // edge added for a namespace that was then never created.
+        offenders.AddRange(
+            governed
+                .Where(ns => !present.Contains(ns, StringComparer.Ordinal))
+                .Select(ns =>
+                    $"{ns} is an R17 edge endpoint but no type is declared under it. The edge governs " +
+                    "nothing. If the namespace was renamed, rename it here too."));
+
+        ArchRule.Empty(
+            offenders,
+            "R17 orders every sub-namespace of Core.Rules that exists, and every namespace it orders " +
+            "exists (30 §11.4, R17).");
+    }
+
+    /// <summary>
     /// 🔒 `23` §6 — the floors above are below the counts on the commit that wrote them, so none of
     /// them is already breached and reporting a false pass.
     /// </summary>

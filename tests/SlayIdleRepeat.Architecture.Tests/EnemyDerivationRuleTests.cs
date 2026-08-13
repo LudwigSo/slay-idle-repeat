@@ -128,13 +128,25 @@ public sealed class EnemyDerivationRuleTests
     /// ⚠️ Test assemblies are deliberately out of scope. <c>EnemiesDataTests</c> asserts all sixteen
     /// ids by name, which is exactly what a transcription test is for.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Scoped to all of <c>Core/Rules/</c>, not to <c>Rules.Combat.Enemies</c>.</b> It was
+    /// written over <see cref="Subjects"/> — the namespace the other two rules in this file govern —
+    /// which meant an <c>"EL_…"</c> literal in the tick loop, the damage pipeline or a DSL op passed.
+    /// That is precisely the asymmetry <c>BossEngineRuleTests.No_boss_identity_is_named_in_code</c>
+    /// argues against in its own remarks: <em>"an <c>if (boss.Id == "BOSS_RIMEHOLD")</c> in the tick
+    /// loop … would be exactly as bespoke"</em>. The same sentence is true with <c>EL_</c> in it, and
+    /// the id space belongs to `05` §6.2 wherever it is named. Widening costs nothing today —
+    /// <c>Rules/</c> holds no <c>EL_</c> literal at all — and the sibling
+    /// <see cref="No_elite_modifier_is_named_in_code_outside_the_enemy_namespace"/> covers the half a
+    /// string scan structurally cannot see.
+    /// </para>
     /// </remarks>
     [Fact]
     public void No_elite_identity_is_named_in_code()
     {
         var offenders = new List<string>();
 
-        foreach (var type in Subjects())
+        foreach (var type in RulesWideSubjects())
         {
             foreach (var method in Il.AllMethods(type))
             {
@@ -158,6 +170,102 @@ public sealed class EnemyDerivationRuleTests
         ArchRule.Empty(
             offenders,
             "05 §6.2: the sixteen elite identities are data. No production code names one.");
+    }
+
+    /// <summary>
+    /// 🔒 `18`'s headnote, over the half <see cref="No_elite_identity_is_named_in_code"/> cannot
+    /// reach — <b>no type outside <c>Rules/Combat/Enemies/</c> names
+    /// <c>EliteModifier</c></b>, so `05` §6.2's eight modifiers cannot be branched on from the tick
+    /// engine, the damage pipeline or a DSL op.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ═══ 🔒 <b>WHY A STRING SCAN IS STRUCTURALLY BLIND HERE</b> ═══
+    /// </para>
+    /// <para>
+    /// <c>SubjectSetFloorTests</c>' <c>EliteModifierEffects</c> entry states the hole exactly and
+    /// then leaves it open: <em>"the path of least resistance is <c>switch (modifier)</c> in the tick
+    /// engine … and <c>No_elite_identity_is_named_in_code</c> cannot see it: <c>EliteModifier</c> is
+    /// an <b>ENUM</b>, so a switch over it emits no string literal."</em> That is right — a C# switch
+    /// over an enum compiles to <c>ldc.i4</c> constants and a jump table, and no <c>ldstr</c> ever
+    /// appears. `05` §6.2's modifiers are authored as <em>named parameter numbers</em> with a
+    /// different key vocabulary per row (<c>atkMult</c>+<c>belowHpFraction</c>, <c>lifesteal</c>,
+    /// <c>thorns</c>, …), so the first consumer has every incentive to write the switch.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>What an enum <em>does</em> emit is a reference to its declaring type</b> — in the
+    /// method's signature, in a local's type, or in the <c>box</c>/field access that reaches it. That
+    /// is what this scans, and it is why the rule bites the switch the string scan misses.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>This is not a wall, it is a decision point.</b> The register's note says whoever writes
+    /// the first consumer owes <em>"ONE table from <c>EliteModifier</c> to its `18` §1 effects, in
+    /// <c>Rules/Combat/Enemies/</c>"</em>. A table in that directory is exactly what this rule
+    /// permits: the namespace is the exemption. A consumer elsewhere reads the authored parameters
+    /// generically, or moves its table here and says why in the diff.
+    /// </para>
+    /// <para>
+    /// 🔒 Green on the commit it lands: the only mentions of <c>EliteModifier</c> outside the
+    /// namespace today are XML remarks, which emit no metadata.
+    /// <see cref="The_elite_modifier_type_this_rule_governs_exists"/> is its S3 floor — the rule is
+    /// "no type outside N names T", which passes vacuously the moment T is renamed.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void No_elite_modifier_is_named_in_code_outside_the_enemy_namespace()
+    {
+        var offenders =
+            from type in Il.TypesUnder(ProductionAssemblies.CoreModule, Domain.CoreNamespace)
+            where !Domain.IsCompilerGenerated(type)
+            where !Il.IsUnder(Il.NamespaceOf(type), EnemiesNamespace)
+            from referenced in Il.ReferencedTypeNames(type)
+            where referenced.Equals(EliteModifierTypeName, StringComparison.Ordinal)
+            select
+                $"{type.FullName} names {EliteModifierTypeName}. 05 §6.2's eight modifiers are " +
+                "authored as named parameter numbers with a different key vocabulary per row, so a " +
+                "consumer that can see the enum can `switch` on it — which is the per-enemy code 18's " +
+                "headnote forbids, and No_elite_identity_is_named_in_code cannot see it because an " +
+                "enum switch emits no string literal. Read the row's parameters generically, or put " +
+                "the modifier -> 18 §1 effect table in " + EnemiesNamespace + " where the register " +
+                "(SubjectSetFloorTests' EliteModifierEffects entry) says it belongs.";
+
+        ArchRule.Empty(
+            offenders.ToList(),
+            "18's headnote: 05 §6.2's elite modifiers are branched on nowhere. Only " +
+            "Rules/Combat/Enemies/ names the enum.");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §6 — the subject of the rule above exists. Steering S3: <em>"no type outside N names
+    /// T"</em> is trivially satisfied by a repository in which <c>T</c> was renamed, and the
+    /// obligation the register records would go with it.
+    /// </summary>
+    [Fact]
+    public void The_elite_modifier_type_this_rule_governs_exists()
+    {
+        var offenders = new List<string>();
+
+        var declared = Domain.CoreTypes.SingleOrDefault(
+            t => t.FullName.Equals(EliteModifierTypeName, StringComparison.Ordinal));
+
+        if (declared is null)
+        {
+            offenders.Add(
+                $"{EliteModifierTypeName} does not exist. " +
+                $"{nameof(No_elite_modifier_is_named_in_code_outside_the_enemy_namespace)} then " +
+                "reports success over a name nothing can name. If 05 §6.2's modifier identity was " +
+                "renamed, rename it here in the same commit.");
+        }
+        else if (!declared.IsEnum)
+        {
+            offenders.Add(
+                $"{EliteModifierTypeName} is no longer an enum. The rule above exists BECAUSE it is " +
+                "one — an enum switch emits no string literal, which is what makes the EL_ scan " +
+                "blind to it. If the identity became a string id, No_elite_identity_is_named_in_code " +
+                "covers it and this pair should be reconsidered rather than left half-true.");
+        }
+
+        ArchRule.Empty(offenders, "The elite-modifier rule's subject is present and is still an enum (23 §6).");
     }
 
     /// <summary>
@@ -225,6 +333,24 @@ public sealed class EnemyDerivationRuleTests
 
     /// <summary>`05` §6.2's identity prefix — the id space <c>enemies.json</c> declares.</summary>
     private const string EliteIdPrefix = "EL_";
+
+    /// <summary>`05` §6.2's eight modifiers, as the enum <c>enemies.json</c>'s rows are parsed into.</summary>
+    private const string EliteModifierTypeName = EnemiesNamespace + ".EliteModifier";
+
+    /// <summary>
+    /// The subject set of <see cref="No_elite_identity_is_named_in_code"/> — all of
+    /// <c>Core/Rules/</c>, on <c>BossEngineRuleTests</c>' precedent. See that rule's remarks.
+    /// </summary>
+    /// <remarks>
+    /// Non-vacuity is covered by
+    /// <see cref="The_namespace_these_rules_govern_is_the_one_under_Rules_Combat"/>'s floor over
+    /// <see cref="EnemiesNamespace"/>, which is a subset of this set: a <c>Rules/</c> that satisfied
+    /// the narrower floor cannot be empty here.
+    /// </remarks>
+    private static IReadOnlyList<TypeDefinition> RulesWideSubjects() =>
+        Il.TypesUnder(ProductionAssemblies.CoreModule, Domain.RulesNamespace)
+          .Where(t => !Domain.IsCompilerGenerated(t))
+          .ToArray();
 
     private static IReadOnlyList<TypeDefinition> Subjects() =>
         Il.TypesUnder(ProductionAssemblies.CoreModule, EnemiesNamespace)

@@ -31,13 +31,18 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   </item>
 /// </list>
 /// <para>
-/// ⚠️ <b>The rule is stated over the names that <em>exist</em>, and that is deliberate.</b>
-/// <c>PowerCalculator</c> is in <c>Domain.PublicRuleTypes</c> and is declared pending in
-/// <c>SubjectSetFloorTests</c> (M2-07 owns <c>Rules/Stats/</c>, and the type is not there yet).
-/// Requiring every listed name to exist would duplicate that register in a second file with a
-/// different expiry — S4's <em>"one mechanism per repo"</em>. What is asserted here is the other
-/// half, which nothing else asserts: a listed name that <b>does</b> resolve names a <b>public</b>
-/// type.
+/// ⚠️ <b>The rule is stated over the names that <em>exist</em>, and that is deliberate.</b> When it
+/// was written, <c>PowerCalculator</c> was in <c>Domain.PublicRuleTypes</c> and declared pending in
+/// <c>SubjectSetFloorTests</c>; requiring every listed name to exist would have duplicated that
+/// register in a second file with a different expiry — S4's <em>"one mechanism per repo"</em>. What
+/// is asserted here is the other half, which nothing else asserts: a listed name that <b>does</b>
+/// resolve names a <b>public</b> type.
+/// </para>
+/// <para>
+/// 🔒 <b>M2-16a landed <c>PowerCalculator</c> and discharged that pending entry, so all six names
+/// now resolve</b> and <see cref="ResolvedPublicRuleTypeFloor"/> was raised to match. The split of
+/// responsibilities is unchanged — <c>SubjectSetFloorTests</c> is still the one register — but the
+/// floor no longer carries a unit of slack it was never meant to keep.
 /// </para>
 /// </remarks>
 public sealed class PublicRuleTypeFloorTests
@@ -46,13 +51,24 @@ public sealed class PublicRuleTypeFloorTests
     /// How many of <c>Domain.PublicRuleTypes</c> must resolve to a real <c>Core</c> type.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Five on the commit R16 landed: <c>CombatSimulator</c>, <c>SimulationResult</c>,
-    /// <c>CombatEvent</c>, <c>CombatEventType</c> and <c>ActorStats</c>. <c>PowerCalculator</c> is the
-    /// sixth and does not exist yet. A floor rather than an equality so that landing it is not a test
-    /// edit; lowering this one is a deliberate decision that belongs in the same commit as the
-    /// deletion forcing it.
+    /// <c>CombatEvent</c>, <c>CombatEventType</c> and <c>ActorStats</c>. A floor rather than an
+    /// equality so that landing one is not a test edit; lowering this one is a deliberate decision
+    /// that belongs in the same commit as the deletion forcing it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Six since M2-16a landed <c>PowerCalculator</c>, and raising it is the point.</b> The
+    /// number is the count of names that must <em>resolve</em>, and while it sat at five with six
+    /// names resolving it had a permanent unit of slack: `29` §1's power readout could be renamed or
+    /// deleted, taking its exemption in <c>Handlers_and_Rules_are_internal</c> with it, and every
+    /// rule in this file would still pass. A floor with headroom over the tree it guards is not a
+    /// floor — steering S9, and the same argument
+    /// <c>IntraRulesLayeringRuleTests.The_floors_are_below_the_counts_the_rule_was_written_against</c>
+    /// makes about its own numbers, applied in the direction that had gone stale.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 5;
+    private const int ResolvedPublicRuleTypeFloor = 6;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
