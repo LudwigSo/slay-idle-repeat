@@ -144,7 +144,14 @@ public sealed class StatLine
     }
 
     /// <summary>The fourteen values in <see cref="Order"/>, for reporting.</summary>
-    public IReadOnlyList<double> Values => _values;
+    /// <remarks>
+    /// 🔒 A wrapper, not the backing array — <c>ContentSnapshot.DocumentPaths</c>' precedent and its
+    /// reason: an <c>IReadOnlyList&lt;double&gt;</c> that <em>is</em> a <c>double[]</c> can be cast back
+    /// to <c>double[]</c> and written through, and this type is copy-on-write everywhere else
+    /// (<see cref="With"/> and <see cref="ScaledBy"/> both clone). A caller mutating a statline in place
+    /// would move a hero the sweep had already scaled to par, and no seed would explain the result.
+    /// </remarks>
+    public IReadOnlyList<double> Values => Array.AsReadOnly(_values);
 
     /// <inheritdoc />
     public override string ToString() =>

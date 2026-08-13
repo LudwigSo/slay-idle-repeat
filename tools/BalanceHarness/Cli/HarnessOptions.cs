@@ -163,6 +163,19 @@ public sealed record HarnessOptions
 
             var value = args[++index];
 
+            // 🔒 An option name is never a value. Without this, `--out --help` silently writes a report
+            // to a file called "--help" and `--data --parallel 8` runs against a data root that does not
+            // exist — the same failure class the type remarks refuse for an unknown option, arriving one
+            // token later. The numeric options happen to catch it because "--parallel" is not a number;
+            // --data, --out and --archetypes take any string and would not.
+            if (value.StartsWith("--", StringComparison.Ordinal))
+            {
+                error =
+                    $"'{name}' expects a value and '{value}' is an option name. If it were taken as the " +
+                    $"value, '{value}' would also be silently dropped as an option.";
+                return null;
+            }
+
             switch (name)
             {
                 case "--fights":
@@ -185,8 +198,15 @@ public sealed record HarnessOptions
                     break;
 
                 case "--chapters":
+                    var chapterParts = Split(value);
+                    if (chapterParts.Length == 0)
+                    {
+                        error = EmptyList(name, value);
+                        return null;
+                    }
+
                     var chapters = new List<int>();
-                    foreach (var part in Split(value))
+                    foreach (var part in chapterParts)
                     {
                         if (!int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var chapter))
                         {
@@ -201,8 +221,15 @@ public sealed record HarnessOptions
                     break;
 
                 case "--tiers":
+                    var tierParts = Split(value);
+                    if (tierParts.Length == 0)
+                    {
+                        error = EmptyList(name, value);
+                        return null;
+                    }
+
                     var tiers = new List<Tier>();
-                    foreach (var part in Split(value))
+                    foreach (var part in tierParts)
                     {
                         if (!Enum.TryParse<Tier>(part, ignoreCase: true, out var tier))
                         {
@@ -219,7 +246,14 @@ public sealed record HarnessOptions
                     break;
 
                 case "--archetypes":
-                    options = options with { Archetypes = Split(value) };
+                    var archetypeParts = Split(value);
+                    if (archetypeParts.Length == 0)
+                    {
+                        error = EmptyList(name, value);
+                        return null;
+                    }
+
+                    options = options with { Archetypes = archetypeParts };
                     break;
 
                 case "--experiment":
@@ -270,4 +304,18 @@ public sealed record HarnessOptions
 
     private static string[] Split(string value) =>
         value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>
+    /// 🔒 An empty list narrows the sweep to nothing rather than to everything.
+    /// </summary>
+    /// <remarks>
+    /// <c>--chapters ,,</c> splits to zero entries, and a zero-length <c>Chapters</c> is NOT the same as
+    /// the <c>null</c> that means "every authored one": it produces a scope of zero cells, so every
+    /// guardrail comes back <see cref="Guardrails.GuardrailVerdict.Inconclusive"/> over a subject set
+    /// nobody chose. That is the same failure the Inconclusive verdict exists to make loud, so it is
+    /// refused at the argument boundary where it is still nameable.
+    /// </remarks>
+    private static string EmptyList(string name, string value) =>
+        $"{name} '{value}' lists nothing. An empty list sweeps zero cells rather than all of them — " +
+        $"leave {name} off to sweep every authored one.";
 }

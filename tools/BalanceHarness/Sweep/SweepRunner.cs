@@ -161,9 +161,17 @@ public sealed class SweepRunner
             // 🔴 The highest phase the boss entered, off the log's own PhaseChange events. Phase 1 is
             // entered in the pre-tick and is not logged as a change, so the floor is 1. See
             // FightOutcome's remarks for why this is measured at all.
+            //
+            // ⚠️ Indexed, not foreach. SimulationResult.Log is an IReadOnlyList<CombatEvent>, so a
+            // foreach here allocates a boxed enumerator through the interface — once per fight, which is
+            // 1.2 M heap allocations over `05` §9's full sweep, all of them garbage. The log itself is
+            // NOT retained: only the six fields of FightOutcome survive the iteration, which is what
+            // keeps a 1.2 M-fight sweep inside memory at all.
             var maxPhase = 1;
-            foreach (var logEvent in result.Log)
+            var log = result.Log;
+            for (var e = 0; e < log.Count; e++)
             {
+                var logEvent = log[e];
                 if (logEvent.Type == CombatEventType.PhaseChange && logEvent.Value > maxPhase)
                 {
                     maxPhase = (int)logEvent.Value;

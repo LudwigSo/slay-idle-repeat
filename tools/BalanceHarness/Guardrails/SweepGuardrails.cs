@@ -47,6 +47,11 @@ public static class SweepGuardrails
     {
         ArgumentNullException.ThrowIfNull(sweep);
 
+        // 🔒 The band in the NAME is the band that was asserted, not a transcription of it. `05` §9's
+        // 0.62/0.78 live in par_power.json and arrive as parameters; a hardcoded "[62%, 78%]" here would
+        // go on naming those numbers after a retune, so the report's headline and its own detail lines
+        // would disagree about what was measured.
+        var name = $"Clear rate at par in [{Pct(minimum)}, {Pct(maximum)}] per (chapter, tier, archetype)";
         var details = new List<string>();
         var breaches = 0;
 
@@ -68,7 +73,7 @@ public static class SweepGuardrails
         {
             return new GuardrailResult(
                 1,
-                "Clear rate at par in [62%, 78%] per (chapter, tier, archetype)",
+                name,
                 GuardrailVerdict.Inconclusive,
                 "no cells were swept, so nothing was measured",
                 details,
@@ -80,7 +85,7 @@ public static class SweepGuardrails
 
         return new GuardrailResult(
             1,
-            "Clear rate at par in [62%, 78%] per (chapter, tier, archetype)",
+            name,
             breaches == 0 ? GuardrailVerdict.Pass : GuardrailVerdict.Fail,
             $"{Int(breaches)}/{Int(sweep.Count)} cells outside [{Pct(minimum)}, {Pct(maximum)}]; " +
             $"lowest {Pct(lowest.ClearRate)} at {lowest.Key}, highest {Pct(highest.ClearRate)} at {highest.Key}",

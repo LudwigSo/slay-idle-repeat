@@ -43,12 +43,7 @@ public static class BalanceExperiments
     /// missing decay curve. The difference between the two arms is an upper bound on what authoring
     /// any decay could change.
     /// </para>
-    /// </remarks>
-    /// <param name="runner">The sweep runner.</param>
-    /// <param name="dataRoot">The <c>game-data</c> root the override is layered over.</param>
-    /// <param name="tier">The tier to measure at.</param>
-    /// <param name="fights">Fights per arm. The two arms share seeds, so the comparison is paired.</param>
-    /// <remarks>
+    /// <para>
     /// 🔴 <b>Why the multiple is a parameter and why it must not always be 1.0.</b> `17` §1's phases
     /// are HP bands — phase 2 at 66% boss HP, phase 3 at 33% — so a hero that dies having removed 14%
     /// of the boss's health never reaches the phase the <c>RAGE</c> lives in, and the A/B measures a
@@ -57,7 +52,12 @@ public static class BalanceExperiments
     /// asks and which reports the null result together with its cause; and once at the multiple where
     /// the build actually reaches phase 3, which is the only place the question <em>"how much is the
     /// undecayed RAGE worth?"</em> has an answer at all.
+    /// </para>
     /// </remarks>
+    /// <param name="runner">The sweep runner.</param>
+    /// <param name="dataRoot">The <c>game-data</c> root the override is layered over.</param>
+    /// <param name="tier">The tier to measure at.</param>
+    /// <param name="fights">Fights per arm. The two arms share seeds, so the comparison is paired.</param>
     /// <param name="multipleFor">
     /// The multiple of par for a <c>(chapter, archetype)</c>. Pass <c>(_, _) =&gt; 1.0</c> for the par
     /// arm; pass a <see cref="Diagnostics.ShortfallLookup"/>'s for the phase-reaching arm.
@@ -119,16 +119,16 @@ public static class BalanceExperiments
     /// midpoint, and M2-13 recorded the choice as <em>"the harness's to retune"</em>. This measures
     /// the clear-rate and median-duration sensitivity across the band and reports it. It changes
     /// nothing: `21` §3.2 keeps tuning out of code, and the decision is design's.
+    /// <para>
+    /// 🔴 The same reason as <see cref="Rage"/>'s: four of the five summons are <c>ON_PHASE_ENTER</c>
+    /// phase 2 or 3, so at par they never fire and all three fractions measure identically. Run at
+    /// par <b>and</b> at the multiple that reaches the later phases.
+    /// </para>
     /// </remarks>
     /// <param name="runner">The sweep runner.</param>
     /// <param name="dataRoot">The <c>game-data</c> root the override is layered over.</param>
     /// <param name="tier">The tier to measure at.</param>
     /// <param name="fights">Fights per arm; all three arms share seeds.</param>
-    /// <remarks>
-    /// 🔴 The same reason as <see cref="Rage"/>'s: four of the five summons are <c>ON_PHASE_ENTER</c>
-    /// phase 2 or 3, so at par they never fire and all three fractions measure identically. Run at
-    /// par <b>and</b> at the multiple that reaches the later phases.
-    /// </remarks>
     /// <param name="multipleFor">Per-<c>(chapter, archetype)</c> multiple of par. See <see cref="Rage"/>.</param>
     /// <param name="multipleLabel">How the multiple is described in the title.</param>
     public static ExperimentComparison AddsFraction(

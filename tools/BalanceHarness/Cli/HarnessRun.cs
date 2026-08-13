@@ -135,6 +135,7 @@ public static class HarnessRun
         };
 
         var sporequeen = SweepGuardrails.SporequeenBand(sweep.Cells);
+        var diagnosticsFaulted = false;
 
         if (options.Command == HarnessCommand.Assert)
         {
@@ -142,7 +143,8 @@ public static class HarnessRun
         }
         else
         {
-            WriteFullReport(report, options, runner, scope, sweep, guardrails, sporequeen, content);
+            diagnosticsFaulted = WriteFullReport(
+                report, options, runner, scope, sweep, guardrails, sporequeen, content);
         }
 
         totalStopwatch.Stop();
@@ -152,7 +154,8 @@ public static class HarnessRun
         // 🔴 An engine fault counts as a non-pass. A sweep that could not simulate some of its cells
         // has graded its guardrails over a subject set nobody chose, and a nightly job that went green
         // on that is exactly the failure the Inconclusive verdict exists to prevent.
-        var breached = guardrails.Any(g => !g.Passed) || !sporequeen.Passed || sweep.Faults.Count > 0;
+        var breached = guardrails.Any(g => !g.Passed) || !sporequeen.Passed || sweep.Faults.Count > 0
+            || diagnosticsFaulted;
 
         return breached ? ExitGuardrailBreach : ExitSuccess;
     }
@@ -182,7 +185,8 @@ public static class HarnessRun
             $"[{sporequeen.Verdict.ToString().ToUpperInvariant(),-12}] {sporequeen.Name} — {sporequeen.Summary}");
     }
 
-    private static void WriteFullReport(
+    /// <summary>Writes the full report. Returns true when the diagnostics section faulted.</summary>
+    private static bool WriteFullReport(
         StringBuilder report,
         HarnessOptions options,
         SweepRunner runner,
@@ -264,7 +268,40 @@ public static class HarnessRun
 
         Guardrail(report, sporequeen);
 
-        if (options.Command == HarnessCommand.Sweep)
+        return options.Command == HarnessCommand.Sweep
+            && TryWriteDiagnosticsAndExperiments(report, options, runner, scope, sweep);
+    }
+
+    /// <summary>
+    /// 🔴 The diagnostics and the two experiments, with an engine fault REPORTED rather than thrown.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Everything above this point is a completed measurement, and an exception here would throw
+    /// all of it away.</b> The report is accumulated into a <see cref="StringBuilder"/> and only written
+    /// to stdout and to <c>--out</c> after <c>Execute</c> returns, so an unhandled fault in a diagnostic
+    /// discards a finished 10 000-fight-per-cell sweep — 120 cells and roughly half an hour of
+    /// simulation — and leaves a stack trace in its place. That is precisely the failure
+    /// <see cref="SweepRunner.TryRunCell"/> exists to prevent one layer down, and the diagnostics were
+    /// the one path still uncovered: <c>StatElasticity.Measure</c> calls <c>RunCell</c> directly, and
+    /// <c>ClearRateCalibration</c>'s own remarks record that raising a hero's power is exactly what
+    /// walks a fight into the boss phase where a script faults.
+    /// </para>
+    /// <para>
+    /// 🔒 The fault is a non-pass, so <c>Execute</c> still exits non-zero: a run whose report is
+    /// incomplete must not look like a run that had nothing to report. The catch filter is
+    /// <see cref="SweepRunner.TryRunCell"/>'s, for its reason — an <see cref="OutOfMemoryException"/> is
+    /// not a finding about the game and there is nothing useful to write after one.
+    /// </para>
+    /// </remarks>
+    private static bool TryWriteDiagnosticsAndExperiments(
+        StringBuilder report,
+        HarnessOptions options,
+        SweepRunner runner,
+        SweepScope scope,
+        SweepResult sweep)
+    {
+        try
         {
             var probes = WriteDiagnostics(report, runner, scope, sweep);
 
@@ -273,6 +310,19 @@ public static class HarnessRun
             // otherwise the effect under test never fires and the A/B reports a difference of zero
             // that reads like "it does not matter" and means "it never happened".
             WriteExperiments(report, options, runner, new ShortfallLookup(probes));
+
+            return false;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Header(report, "🔴 DIAGNOSTICS FAULT — the sweep and every guardrail above are complete");
+            report.AppendLine(
+                "This is NOT a balance finding and it does not change a guardrail verdict. A diagnostic");
+            report.AppendLine(
+                "or an experiment could not run to completion; everything printed above it stands.");
+            report.AppendLine($"{exception.GetType().Name}: {exception.Message}");
+
+            return true;
         }
     }
 
