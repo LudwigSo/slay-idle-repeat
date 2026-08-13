@@ -394,7 +394,7 @@ after it.
 | M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | 🔍 merged to `milestone/M8` · `feature-M8-09-asset-manifest` — **974 art + 106 audio rows**, 208-test suite, schema-validated at build time. 11 doc discrepancies recorded as data, none reconciled (see below) |
 | M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | 🔍 merged to `milestone/M8` · `feature-M8-01a-provenance` — 102 tests, own CI job. Gate reads **1080 register ids / 1048 uncut / 32 cut**, 0 delivered, **licences confirmed 0 of 1**. Coverage is a 3-state enum, so the empty state cannot be mistaken for a populated pass |
 | M8-01b | **Licence confirmations in writing** — Midjourney §G terms; audio tools not yet licensed | 15 §G, 20 §2.1 | ⛔ **product owner owns this** — a legal act, not an engineering task |
-| M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | 🔄 wave 2 · `feature-M8-06-asset-pipeline` |
+| M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | 🔍 merged to `milestone/M8` · `feature-M8-06-asset-pipeline` — 209 tests. All 7 steps independently runnable; **11 QA items classified 2 mechanical / 4 uncalibrated / 5 human**, with `Accepted` structurally unreachable by machinery. **17 thresholds ship `null`** (S6). Two documented deviations: no `pngquant`, no Lanczos |
 | M8-10 | **Placeholder generator** — renders a correctly-named, correctly-sized, correctly-pivoted, ID-stamped placeholder for every runtime slot in M8-09, drives them through M8-06's full pipeline into the §D2 atlases, and asserts the QA gate passes. Output is a **build artifact, never committed** (binary churn, and it must not enter the Godot checkout). Answers M7's open placeholder-asset-policy decision in advance | 15 §C–D, §D2, F | ⬜ |
 | M8-02 | **Style Anchor Sheet** (6 characters in one image) + locked seed family — gates all other art | 15 §B2 | ⛔ **generation** — needs a human Midjourney session |
 | M8-03 | UI kit E17 (12 panels, 18 buttons, frames, bars, tabs, card backs — square corners) — unblocks all screen implementation | 15 §E17 | ⛔ **generation** — blocked behind M8-02 |
@@ -447,6 +447,38 @@ after it.
 - 🔒 **M8-10 must write placeholder output to `artifacts/` (gitignored), never `assets/`.** M8-01a's
   delivery scan reads the filesystem, not the git index, so an uncommitted placeholder run under
   `assets/` would redden the provenance gate for every developer. Carried into the wave-3 prompt.
+  ⚠️ Related: **`assets/` now means two things** — M8-01a's delivery root and M8-06's config home. They
+  do not collide today (config is `.json`), but the first `.png` committed under `assets/pipeline/`
+  fails the provenance gate.
+
+**Carried forward from M8 wave 2** (recorded, not fixed here)
+
+- ✅ **`CON_DELIVERY_ASPECT` — RULED by the conductor, 2026-08-13: the generation canvas takes the
+  delivery aspect, per `15` §B0.** M8-06's architecture review found that a square generation canvas
+  cannot reach §C's non-square delivery sizes (mounts 512×384, backdrops 1080×1440) without distorting,
+  and no section authorises letterboxing or cropping. **Resolution: §C's "1024×1024" is the baseline
+  resolution, not a universal aspect.** §B0 already says *"Lock `--ar` … per category and record them"* —
+  `--ar` is precisely Midjourney's aspect control, so per-category aspect is authorised doc text, and
+  reading §C as forcing square would make §B0's `--ar` dead text (the same argument M8-06 used to split
+  steps 2 and 5). **Mounts generate at `--ar 4:3`, backdrops at `--ar 3:4`, everything else 1:1**, so
+  step 5 is a pure uniform scale. Nothing invented — this is §B0 applied, not a new rule. Fold into the
+  §B0 parameter table at O30/M11-01, and into the anchor-sheet session's recorded parameters (M8-02).
+- **Atlas gutter is zero, and no doc authorises otherwise.** M8-06 declined to add the conventional
+  1–2 px bleed guard because no §D2/§C sentence permits one (**S6**). Harmless for placeholders; **needs
+  a ruling before the first real atlas ships**. Owner: **M11-03**.
+- 🔴 **Two near-synonymous architecture categories, kept deliberately.**
+  `RegisterConsumerToolNames` (M8-01a) and `ManifestConsumerToolNames` (M8-06) both permit exactly one
+  project reference — the register — and differ only on **packages**: the former forbids them, the
+  latter allows an imaging package. Collapsing them turns `Architecture.Tests` red. Kept both at the
+  wave-2 merge with the distinction documented at the declaration site; **renaming them to say
+  package-free vs package-bearing is an M8 milestone-review item.**
+- **`AssetNaming` is the better of two §D1 name→id implementations** — M8-01a derives the id with
+  `Path.GetFileNameWithoutExtension`; M8-06's `AssetNaming` validates the full §D1 grammar and accepts
+  all 974 shipped ids. The architecture rules forbid one consumer referencing another, so consolidation
+  can only go into `tools/AssetManifest`. **Not done during the run** (M8-09's merged component, both
+  consumers in flight). Owner: **M8 milestone-review**, which does exactly this cross-task pass.
+- **`RequireDeliverySize()` throws on 144 size-less and 284 pivot-less register rows** — by design
+  (**S6**), not a defect. M8-10 must handle them explicitly rather than defaulting.
 
 ---
 

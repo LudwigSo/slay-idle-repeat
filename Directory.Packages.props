@@ -70,6 +70,34 @@
   </ItemGroup>
 
   <!--
+    Imaging, for tools/AssetPipeline (M8-06) alone.
+
+    🔒 SkiaSharp, MIT. SixLabors.ImageSharp is the obvious candidate and is
+    REJECTED: from v3.0 it ships under the Six Labors Split License, which
+    requires a paid commercial licence above a revenue threshold. Adding a
+    pay-above-threshold dependency to a commercial game — in the milestone whose
+    first kickoff decision is about commercial licensing — is not happening.
+    This is the same argument that moved the assertion library above, and it is
+    made here before the dependency lands rather than after.
+
+    NativeAssets.Linux is not optional: the base package carries native binaries
+    for Windows and macOS only, CI runs on ubuntu-24.04, and without it every
+    Skia call throws DllNotFoundException on the `test` job.
+
+    🔒 Deliberately NOT allow-listed in build/ci/non-vendor-packages.json.
+    ProjectFileTests.Vendor_package_is_referenced_by_exactly_one_project fires
+    on the SECOND production .csproj to name a package, so leaving these off the
+    allow-list is what keeps a native-binary dependency contained to the one
+    build-time tool that needs it. tests/SlayIdleRepeat.AssetPipeline.Tests gets
+    them transitively through its ProjectReference and names neither, which is
+    why that rule stays green while staying armed.
+  -->
+  <ItemGroup>
+    <PackageVersion Include="SkiaSharp" Version="4.151.1" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.151.1" />
+  </ItemGroup>
+
+  <!--
     Vendor SDKs. 14 §1.1 🔒: each of these belongs to exactly ONE adapter
     project, and Test-VendorPackageUniqueness.ps1 fails the build if a second
     project references one. Listing a version here does not grant anyone the

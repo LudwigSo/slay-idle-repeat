@@ -69,6 +69,29 @@ public sealed class ToolProjectAccountabilityTests
     private static readonly string[] RegisterConsumerToolNames = ["SlayIdleRepeat.AssetProvenance"];
 
     /// <summary>
+    /// Tools that consume the asset-manifest register and reach nothing else in the repository.
+    /// </summary>
+    /// <remarks>
+    /// <c>SlayIdleRepeat.AssetPipeline</c> (M8-06) is `15` §B4's seven-step post-processing
+    /// pipeline plus Part F's acceptance checklist. It is not dependency-free — it takes
+    /// SkiaSharp for imaging and project-references
+    /// <c>SlayIdleRepeat.AssetManifest</c> for the delivery size, pivot and atlas that `15` §C
+    /// and §D2 put in the manifest. It is not <c>CoreOnly</c> either: it references no project
+    /// under <c>src/</c> at all, because no game rule is involved in resizing a PNG. And it
+    /// composes no adapter, so `23` §7 does not describe it.
+    /// <para>
+    /// ⚠️ <b>This category and <see cref="RegisterConsumerToolNames"/> are deliberately separate,
+    /// and the names are close enough to mislead.</b> Both permit exactly one project reference —
+    /// the register. They differ on <i>packages</i>: a register-consumer takes none (M8-01a runs on
+    /// in-box <c>net8.0</c>), a manifest-consumer may take an imaging package (M8-06 takes
+    /// SkiaSharp). Collapsing them turns <c>Architecture.Tests</c> red immediately. Merged at the
+    /// M8 wave-2 integration, 2026-08-13; renaming them to say package-free vs package-bearing is
+    /// an M8 milestone-review item.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] ManifestConsumerToolNames = ["SlayIdleRepeat.AssetPipeline"];
+
+    /// <summary>
     /// `23` §6 / `30` §6 — every project under <c>tools/</c> is named by one of the sets the
     /// dependency rules are stated over. A tool in none of them has no reference rule at all.
     /// </summary>
@@ -84,6 +107,7 @@ public sealed class ToolProjectAccountabilityTests
             .Concat(ProductionAssemblies.ToolCompositionRootNames)
             .Concat(DependencyFreeToolNames)
             .Concat(RegisterConsumerToolNames)
+            .Concat(ManifestConsumerToolNames)
             .ToArray();
 
         var toolProjects = ToolProjectFiles();
@@ -107,8 +131,11 @@ public sealed class ToolProjectAccountabilityTests
                     "ProductionAssemblies.ToolCompositionRootNames (composes an adapter itself, 23 §7), " +
                     "ToolProjectAccountabilityTests.DependencyFreeToolNames (reaches nothing), or " +
                     "ToolProjectAccountabilityTests.RegisterConsumerToolNames (reaches M8-09's asset " +
-                    "register and nothing else) — whichever is true of it. Until then it may reference " +
-                    "Application, or take a vendor package, with a green suite."));
+                    "register and nothing else, and takes no package), or " +
+                    "ToolProjectAccountabilityTests.ManifestConsumerToolNames (reads the asset-manifest " +
+                    "register and nothing else in the repository, but may take an imaging package) — " +
+                    "whichever is true of it. Until then it may reference Application, or take a vendor " +
+                    "package, with a green suite."));
 
         ArchRule.Empty(
             offenders,
@@ -172,7 +199,6 @@ public sealed class ToolProjectAccountabilityTests
     [Fact]
     public void The_register_consumer_tools_reference_the_asset_register_and_nothing_else()
     {
-        const string register = "SlayIdleRepeat.AssetManifest";
         var offenders = new List<string>();
 
         if (RegisterConsumerToolNames.Length == 0)
@@ -197,20 +223,20 @@ public sealed class ToolProjectAccountabilityTests
 
             var references = RepoLayout.ProjectReferences(projectFile);
 
-            if (!references.Contains(register, StringComparer.Ordinal))
+            if (!references.Contains(ManifestProjectName, StringComparer.Ordinal))
             {
                 offenders.Add(
-                    $"{tool} does not reference '{register}'. It is listed as a consumer of M8-09's " +
-                    "register; a consumer that does not reference it is re-parsing " +
+                    $"{tool} does not reference '{ManifestProjectName}'. It is listed as a consumer of " +
+                    "M8-09's register; a consumer that does not reference it is re-parsing " +
                     "game-data/assets/*.json somewhere else, which is the duplicate mechanism S12 " +
                     "exists to prevent.");
             }
 
             offenders.AddRange(
                 references
-                    .Where(r => !r.Equals(register, StringComparison.Ordinal))
+                    .Where(r => !r.Equals(ManifestProjectName, StringComparison.Ordinal))
                     .Select(r => $"{tool} project-references '{r}' — a register consumer reaches " +
-                                 $"'{register}' and nothing else (23 §2.1)"));
+                                 $"'{ManifestProjectName}' and nothing else (23 §2.1)"));
 
             offenders.AddRange(
                 RepoLayout.PackageReferences(projectFile)
@@ -222,6 +248,83 @@ public sealed class ToolProjectAccountabilityTests
             offenders,
             "The register-consumer tools reference SlayIdleRepeat.AssetManifest only (23 §2.1, 30 §6).");
     }
+
+    /// <summary>
+    /// `23` §6 / `30` §6 — a manifest-consumer tool project-references
+    /// <c>SlayIdleRepeat.AssetManifest</c> and <b>nothing else in this repository</b>: no
+    /// <c>Core</c>, no <c>Application</c>, no <c>Contracts</c>, no <c>Adapters.*</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The category exists because M8-06 is the first tool that is neither dependency-free nor
+    /// pinned to <c>Core</c>: `15` §B4 post-processing needs an imaging package and the delivery
+    /// size/pivot/atlas the register carries, and needs no game rule whatsoever. Naming it
+    /// without stating what the name MEANS would be an accountability entry that governs
+    /// nothing — the exact defect the rule above this one exists to prevent — so this is the
+    /// rule that makes the bucket load-bearing.
+    /// </para>
+    /// <para>
+    /// 🔒 The teeth are on <c>Core</c>/<c>Application</c> specifically. A pipeline that reached
+    /// into <c>Application</c> for "just one service" would put a build-time asset tool on the
+    /// game's use-case layer and quietly make `30` §13's "the whole game is playable from Core
+    /// alone" harder to keep true. Package references are deliberately NOT restricted here:
+    /// <c>Vendor_package_is_referenced_by_exactly_one_project</c> already governs those, and
+    /// duplicating it would mean two rules to update for one decision.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_manifest_consumer_tools_reference_the_register_and_nothing_else()
+    {
+        var offenders = new List<string>();
+
+        // S3 — a rule whose subject set can silently empty passes forever.
+        if (ManifestConsumerToolNames.Length == 0)
+        {
+            offenders.Add(
+                "ManifestConsumerToolNames is empty, so this rule quantifies over nothing. Either a tool " +
+                "belongs in the category or the category should be deleted along with its entry in " +
+                "`governed` above — leaving it empty means the accountability rule hands out a free pass.");
+        }
+
+        foreach (var tool in ManifestConsumerToolNames)
+        {
+            var projectFile = ToolProjectFiles().SingleOrDefault(
+                p => RepoLayout.ProjectName(p).Equals(tool, StringComparison.Ordinal));
+
+            if (projectFile is null)
+            {
+                offenders.Add(
+                    $"'{tool}' has no .csproj under tools/. A rule keyed on a project that is not there " +
+                    "governs nothing — remove the entry, or point it at where the project went.");
+                continue;
+            }
+
+            var references = RepoLayout.ProjectReferences(projectFile).ToArray();
+
+            if (!references.Contains(ManifestProjectName, StringComparer.Ordinal))
+            {
+                offenders.Add(
+                    $"{tool} does not project-reference {ManifestProjectName}, but it is categorised as a " +
+                    "consumer of the register. Either it grew its own manifest reader — which 15 §C, §D1 " +
+                    "and §D2 must not be transcribed twice — or it belongs in a different category.");
+            }
+
+            offenders.AddRange(
+                references
+                    .Where(r => !r.Equals(ManifestProjectName, StringComparison.Ordinal))
+                    .Select(r =>
+                        $"{tool} project-references '{r}'. A manifest-consumer tool reaches " +
+                        $"{ManifestProjectName} and nothing else in this repository — no Core, no " +
+                        "Application, no Contracts, no adapter."));
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "Manifest-consumer tools reference SlayIdleRepeat.AssetManifest and nothing else (23 §6, 30 §6).");
+    }
+
+    /// <summary>The register every register- and manifest-consumer tool reads (M8-09).</summary>
+    private const string ManifestProjectName = "SlayIdleRepeat.AssetManifest";
 
     /// <summary>Every production <c>.csproj</c> that lives under <c>tools/</c>.</summary>
     private static IReadOnlyList<string> ToolProjectFiles() =>
