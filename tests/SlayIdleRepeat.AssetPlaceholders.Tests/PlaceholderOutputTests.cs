@@ -90,6 +90,27 @@ public sealed class PlaceholderOutputTests
         Directory.Exists(output).ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData("", "empty")]
+    [InlineData("0123456", "an abbreviated commit")]
+    [InlineData("0123456789ABCDEF0123456789abcdef01234567", "upper-case hex")]
+    [InlineData("0123456789abcdef0123456789abcdef0123456g", "a non-hex character")]
+    public void A_batch_with_no_usable_repository_commit_refuses_before_it_draws_anything(
+        string commit, string why)
+    {
+        // 🔒 Checked in the constructor, not per asset inside M8-01a's validator. A run that
+        // discovered a typo'd commit after each of hundreds of seven-step pipeline runs would spend
+        // the whole batch failing the same way, and the commit is the only reproducibility anchor a
+        // procedural record carries.
+        using var scratch = PlaceholderFiles.Scratch("commit-guard");
+
+        var thrown = Should.Throw<ArgumentException>(() => new PlaceholderBatch(
+            new PlaceholderBatchOptions(scratch.Path, commit, ThresholdSet.Uncalibrated())));
+
+        thrown.Message.ShouldContain("is not a full 40-hex repository commit", Case.Sensitive);
+        Directory.Exists(scratch.Path).ShouldBeFalse($"refused for {why}, so nothing was written.");
+    }
+
     [Fact]
     public void The_provenance_record_is_a_procedural_one_that_M8_01a_validator_accepts()
     {

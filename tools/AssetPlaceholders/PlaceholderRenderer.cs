@@ -82,7 +82,11 @@ public static class PlaceholderRenderer
         }
 
         var colours = PlaceholderPalette.For(spec.PaletteColours);
-        var pixels = new byte[canvas.Width * canvas.Height * 4];
+
+        // 🔒 `checked`. This method is public and takes an arbitrary PixelSize; past roughly
+        // 23,170² the product wraps negative and `new byte[]` throws something that names neither
+        // the canvas nor the asset.
+        var pixels = new byte[checked(canvas.Width * canvas.Height * 4)];
 
         var margin = Math.Max(1, Math.Min(canvas.Width, canvas.Height) / MarginDivisor);
         var card = new SKRectI(margin, margin, canvas.Width - margin, canvas.Height - margin);
@@ -95,10 +99,12 @@ public static class PlaceholderRenderer
                 "by hand.");
         }
 
+        var outline = OutlineWidth(canvas);
+
         Fill(pixels, canvas, card, colours.Fill);
-        DrawCross(pixels, canvas, card, colours.Cross, OutlineWidth(canvas));
-        DrawStamp(pixels, canvas, card, colours.Stamp, spec, OutlineWidth(canvas));
-        DrawOutline(pixels, canvas, card, colours.Outline, colours.Fill, OutlineWidth(canvas));
+        DrawCross(pixels, canvas, card, colours.Cross, outline);
+        DrawStamp(pixels, canvas, card, colours.Stamp, spec, outline);
+        DrawOutline(pixels, canvas, card, colours.Outline, colours.Fill, outline);
 
         return ToBitmap(pixels, canvas);
     }
@@ -108,15 +114,26 @@ public static class PlaceholderRenderer
     /// proportionally"</em>, taken at the band's lower bound.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 The band comes from <see cref="Doc15Authorised.OutlineWidthBandFor"/> rather than from a
     /// number retyped here — `15` states it once and M8-06 already transcribed it once.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Taken on the canvas's WIDTH, because that is the basis `15` Part F item 3 grades
+    /// against</b> (<c>OutlineConformanceCheck</c> reads <c>OutlineWidthBandFor(image.Width)</c> on
+    /// the delivered image). §B4 step 5's downscale is uniform, so a stroke at the band's lower
+    /// bound on a canvas of width <c>W</c> arrives at the band's lower bound on a delivery of width
+    /// <c>w</c> — exactly in §A3's 3-4 px band at every size in the register. Sizing it off the
+    /// short edge instead, as this used to, drew mounts (1024×768 canvas, 512×384 delivery) a third
+    /// under the band by the time they were delivered.
+    /// </para>
     /// </remarks>
     /// <param name="canvas">The generation canvas.</param>
     public static int OutlineWidth(PixelSize canvas)
     {
         ArgumentNullException.ThrowIfNull(canvas);
 
-        var (min, _) = Doc15Authorised.OutlineWidthBandFor(Math.Min(canvas.Width, canvas.Height));
+        var (min, _) = Doc15Authorised.OutlineWidthBandFor(canvas.Width);
         return Math.Max(2, (int)Math.Round(min, MidpointRounding.AwayFromZero));
     }
 
@@ -159,14 +176,29 @@ public static class PlaceholderRenderer
         return lines;
     }
 
+    /// <summary>
+    /// Fills the card with one flat colour: one row built once, then block-copied down.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The card is up to 3.6 M pixels at `15` §C's 2048 canvas and the batch draws hundreds of
+    /// them, so writing four bytes at a time here was the single largest source of per-pixel work in
+    /// a run. The bytes written are identical.
+    /// </remarks>
     private static void Fill(byte[] pixels, PixelSize canvas, SKRectI card, SKColor colour)
     {
+        var row = new byte[card.Width * 4];
+        for (var index = 0; index < row.Length; index += 4)
+        {
+            row[index] = colour.Red;
+            row[index + 1] = colour.Green;
+            row[index + 2] = colour.Blue;
+            row[index + 3] = byte.MaxValue;
+        }
+
         for (var y = card.Top; y < card.Bottom; y++)
         {
-            for (var x = card.Left; x < card.Right; x++)
-            {
-                Write(pixels, canvas, x, y, colour);
-            }
+            Buffer.BlockCopy(
+                row, 0, pixels, (((y * canvas.Width) + card.Left) * 4), row.Length);
         }
     }
 
@@ -191,18 +223,21 @@ public static class PlaceholderRenderer
             return;
         }
 
+        // 🔒 Compared as cross products against a scaled threshold rather than as distances: the
+        // division by `normal` is loop-invariant, and both numerators are affine in x, so each row
+        // steps by ±spanY instead of recomputing. Identical pixels; billions fewer divisions across
+        // a full register run.
+        var limit = halfWidth * normal;
+
         for (var y = card.Top; y < card.Bottom; y++)
         {
-            for (var x = card.Left; x < card.Right; x++)
+            double localY = y - card.Top;
+            var falling = -(localY * spanX);
+            var rising = (spanX * spanY) - (localY * spanX);
+
+            for (var x = card.Left; x < card.Right; x++, falling += spanY, rising -= spanY)
             {
-                double localX = x - card.Left;
-                double localY = y - card.Top;
-
-                // Distance from the point to each diagonal, as the cross product over the length.
-                var falling = Math.Abs((localX * spanY) - (localY * spanX)) / normal;
-                var rising = Math.Abs(((spanX - localX) * spanY) - (localY * spanX)) / normal;
-
-                if (falling <= halfWidth || rising <= halfWidth)
+                if (Math.Abs(falling) <= limit || Math.Abs(rising) <= limit)
                 {
                     Write(pixels, canvas, x, y, colour);
                 }

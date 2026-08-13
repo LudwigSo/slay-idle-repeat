@@ -83,7 +83,12 @@ public static class GenerationCanvas
         // Strictly larger in both axes: without this a delivery size at or above the baseline would
         // land on a canvas of its own size and step 5 would be an identity resample — the exact
         // thing this canvas exists to avoid.
-        while (aspectWidth * multiple <= delivery.Width || aspectHeight * multiple <= delivery.Height)
+        // 🔒 Compared in `long`. PixelSize is an unvalidated record of two ints, and at a large
+        // coprime aspect `aspectWidth * multiple` wraps negative on the second iteration — the
+        // condition then stays true across the wrap and the loop spins through hundreds of millions
+        // of iterations as an apparent hang with no message.
+        while ((long)aspectWidth * multiple <= delivery.Width
+               || (long)aspectHeight * multiple <= delivery.Height)
         {
             multiple++;
         }
@@ -96,7 +101,23 @@ public static class GenerationCanvas
             multiple *= 2;
         }
 
-        return new PixelSize(aspectWidth * multiple, aspectHeight * multiple);
+        var width = (long)aspectWidth * multiple;
+        var height = (long)aspectHeight * multiple;
+
+        // 🔒 A canvas is a native surface this generator is about to allocate hundreds of. A
+        // delivery size large enough to overflow the multiplication would wrap to a negative edge
+        // and hand Skia a nonsense allocation, so it is refused with the arithmetic named.
+        if (width > int.MaxValue || height > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(delivery),
+                delivery,
+                $"A canvas of the same exact aspect, strictly larger than {delivery}, is " +
+                $"{width}×{height} — outside a 32-bit pixel size. `15` §C states nothing this " +
+                "large, so the register the caller read is not §C's.");
+        }
+
+        return new PixelSize((int)width, (int)height);
     }
 
     /// <summary>Euclid's algorithm, on two positive integers.</summary>

@@ -44,7 +44,10 @@ public static class StampFont
     /// <summary>The glyph a character outside the font is drawn as.</summary>
     private const char Fallback = '?';
 
-    private static readonly IReadOnlyDictionary<char, string[]> Glyphs =
+    // 🔒 Declared as the concrete Dictionary, not IReadOnlyDictionary: only Dictionary<,>.Keys is a
+    // collection rather than a bare IEnumerable, and `Characters` returning it should not depend on
+    // an unchecked cast that happens to succeed. The field is private and never mutated.
+    private static readonly Dictionary<char, string[]> Glyphs =
         new Dictionary<char, string[]>
         {
             ['a'] = [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
@@ -94,7 +97,7 @@ public static class StampFont
     /// Every character this font draws as itself. 🔒 Read by the suite as an S3 floor: a font that
     /// silently lost its glyphs would stamp a page of question marks and still report success.
     /// </summary>
-    public static IReadOnlyCollection<char> Characters => (IReadOnlyCollection<char>)Glyphs.Keys;
+    public static IReadOnlyCollection<char> Characters => Glyphs.Keys;
 
     /// <summary>True when this font draws the character as itself rather than as a fallback.</summary>
     /// <param name="character">The character to look up.</param>

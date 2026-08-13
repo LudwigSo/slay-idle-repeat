@@ -63,6 +63,9 @@ public sealed class PlaceholderBatch
     /// </remarks>
     private const string NoAtlasGroup = "(no atlas)";
 
+    /// <summary>A full git object name: 40 hex digits. The shape M8-01a's validator demands.</summary>
+    private const int FullCommitLength = 40;
+
     private readonly PlaceholderBatchOptions options;
     private readonly AssetPipeline.AssetPipeline pipeline = new();
     private readonly AtlasPackStep packer = new();
@@ -76,6 +79,23 @@ public sealed class PlaceholderBatch
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.QaThresholds);
         PlaceholderOutput.RequireArtifactsPath(options.OutputDirectory);
+
+        // 🔒 Checked once, here, rather than 641 times inside M8-01a's validator AFTER each asset
+        // has already been drawn and pushed through all seven `15` §B4 steps. The record's shape is
+        // the validator's to judge; that the run has a commit to record at all is this
+        // constructor's, and a run that discovered a typo per asset would spend eleven minutes
+        // failing the same way 641 times.
+        if (options.RepoCommit is null
+            || options.RepoCommit.Length != FullCommitLength
+            || !options.RepoCommit.All(char.IsAsciiHexDigitLower))
+        {
+            throw new ArgumentException(
+                $"'{options.RepoCommit}' is not a full {FullCommitLength}-hex repository commit. It " +
+                "is the only reproducibility anchor a procedural provenance record carries — for " +
+                "code-drawn art the anchor is the revision of the generator, where `15` §B0 puts " +
+                "the job id and the seed.",
+                nameof(options));
+        }
 
         this.options = options;
     }
@@ -116,7 +136,42 @@ public sealed class PlaceholderBatch
                      .GroupBy(asset => asset.Atlas ?? NoAtlasGroup, StringComparer.Ordinal)
                      .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            RunGroup(group.Key, group, generated, failed, deviations, contradictions, packs, progress);
+            var groupGenerated = new List<GeneratedPlaceholder>();
+            var groupFailed = new List<PlaceholderFailure>();
+
+            try
+            {
+                RunGroup(
+                    group.Key,
+                    group,
+                    groupGenerated,
+                    groupFailed,
+                    deviations,
+                    contradictions,
+                    packs,
+                    progress);
+
+                generated.AddRange(groupGenerated);
+                failed.AddRange(groupFailed);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // 🔒 The same argument as the per-asset catch, one level up. `15` §B4 step 7 and
+                // Part F both run per atlas, and three things after the asset loop throw by design:
+                // a member over §C's 2048 cap, a duplicate §D1 id, and atlas metadata naming an
+                // absent member. Without this, one bad atlas discarded the report for all fourteen
+                // — 640 generated placeholders and their Part F grades, thrown away, with nothing
+                // printed at all.
+                //
+                // 🔒 The group's own partial results are DISCARDED rather than merged: an asset
+                // graded before the throw would otherwise appear in both columns and the report
+                // would account for more rows than the register holds.
+                foreach (var member in group)
+                {
+                    failed.Add(new PlaceholderFailure(
+                        member.Id, member.Section, exception.GetType().Name, exception.Message));
+                }
+            }
         }
 
         return new PlaceholderBatchReport
@@ -136,14 +191,23 @@ public sealed class PlaceholderBatch
     /// Why this row gets no placeholder, or null when it gets one.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 The order matches <see cref="AssetSpec.Resolve"/>'s — cut, then size, then pivot — so a
     /// row missing both a size and a pivot is reported under the same reason the pipeline would have
     /// refused it for. Reporting a row under the second of two true reasons would put 95 of them in
     /// the wrong column of the gap O30 reconciles.
+    /// </para>
+    /// <para>
+    /// 🔒 Public so the CLI's <c>plan</c> command asks this rather than deciding the same three-way
+    /// split with its own switch. Two copies of an ordering whose whole point is that drifting
+    /// misfiles 95 rows is the duplicate mechanism steering S12 exists to prevent.
+    /// </para>
     /// </remarks>
     /// <param name="asset">The register row.</param>
-    private static PlaceholderSkip? SkipFor(ArtAsset asset)
+    public static PlaceholderSkip? SkipFor(ArtAsset asset)
     {
+        ArgumentNullException.ThrowIfNull(asset);
+
         if (asset.Cut is not null)
         {
             return new PlaceholderSkip(
@@ -179,6 +243,24 @@ public sealed class PlaceholderBatch
             : null;
     }
 
+    /// <summary>
+    /// Draws, processes, packs and grades one `15` §D2 atlas's worth of rows.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>The two outcome lists are the group's own, and the caller merges them only on
+    /// success.</b> Everything after the asset loop can throw, and the caller records every member
+    /// of a failed group as failed — appending directly to the batch's lists would then count an
+    /// asset that had already been graded twice, once in each column, and
+    /// <see cref="PlaceholderBatchReport.Reconciles"/> would report a total larger than the register.
+    /// </remarks>
+    /// <param name="groupKey">The `15` §D2 atlas reference, or <see cref="NoAtlasGroup"/>.</param>
+    /// <param name="members">The rows in this group.</param>
+    /// <param name="generated">This group's graded placeholders. Written, never read.</param>
+    /// <param name="failed">This group's per-asset failures. Written, never read.</param>
+    /// <param name="deviations">The batch's deviation tally.</param>
+    /// <param name="contradictions">The batch's contradiction tally.</param>
+    /// <param name="packs">The batch's pack results.</param>
+    /// <param name="progress">Called once per drawn placeholder.</param>
     private void RunGroup(
         string groupKey,
         IEnumerable<ArtAsset> members,
@@ -193,6 +275,9 @@ public sealed class PlaceholderBatch
 
         try
         {
+            // Ordered by id so `processed`, and therefore the atlas metadata and the progress
+            // output, read the same way every run. `15` §B4 step 7 sorts its own entries — that
+            // sort is the packer's determinism contract and this one does not stand in for it.
             foreach (var asset in members.OrderBy(asset => asset.Id, StringComparer.Ordinal))
             {
                 try
@@ -278,48 +363,71 @@ public sealed class PlaceholderBatch
 
         using var drawn = PlaceholderRenderer.Draw(spec, canvas);
         var run = pipeline.Run(drawn, asset, pipelineThresholds);
+        SKBitmap? kept = null;
 
-        if (run.Output is null)
+        try
         {
-            throw new InvalidOperationException(
-                $"`15` §B4 produced no output for '{asset.Id}' ({asset.Section}) and reported " +
-                $"{run.Outcome}: {run.Reason} An uncut row with a size and a pivot reaching this " +
-                "point means the pipeline skipped for a reason this generator did not anticipate.");
-        }
-
-        foreach (var deviation in run.Deviations)
-        {
-            deviations[deviation.Id] = deviations.GetValueOrDefault(deviation.Id) + 1;
-        }
-
-        foreach (var contradiction in run.Contradictions)
-        {
-            contradictions[contradiction.Id] = contradictions.GetValueOrDefault(contradiction.Id) + 1;
-        }
-
-        var encoded = run.Steps[^1].EncodedPng
-            ?? throw new InvalidOperationException(
-                $"`15` §B4 step 6 encoded no PNG for '{asset.Id}'. The export step is the only step " +
-                "that produces a file, and a run whose last step carries no bytes has nothing to " +
-                "deliver.");
-
-        var fileName = asset.Id + AssetNaming.PngExtension;
-        PlaceholderOutput.WriteImage(options.OutputDirectory, fileName, encoded);
-        PlaceholderOutput.WriteProvenance(
-            options.OutputDirectory, asset, spec, canvas, options.RepoCommit);
-
-        // 🔒 DistinctOutputs, and the final output held back. Steps hand the same instance on when
-        // they skip and Intermediates aliases Steps, so disposing per reference is a double free —
-        // and the last step's image is the one Part F item 7 and step 7 are about to read.
-        foreach (var image in run.DistinctOutputs)
-        {
-            if (!ReferenceEquals(image, run.Output) && !ReferenceEquals(image, drawn))
+            if (run.Output is null)
             {
-                image.Dispose();
+                throw new InvalidOperationException(
+                    $"`15` §B4 produced no output for '{asset.Id}' ({asset.Section}) and reported " +
+                    $"{run.Outcome}: {run.Reason} An uncut row with a size and a pivot reaching " +
+                    "this point means the pipeline skipped for a reason this generator did not " +
+                    "anticipate.");
+            }
+
+            if (ReferenceEquals(run.Output, drawn))
+            {
+                throw new InvalidOperationException(
+                    $"`15` §B4 handed this generator's own input straight back for '{asset.Id}': " +
+                    "every one of steps 1-6 skipped. The caller owns that instance and is about to " +
+                    "dispose it, so the atlas pack and Part F would read a freed surface. Nothing " +
+                    "in §B4 skips at position 1 today, and this is what says so out loud if it ever " +
+                    "does.");
+            }
+
+            foreach (var deviation in run.Deviations)
+            {
+                deviations[deviation.Id] = deviations.GetValueOrDefault(deviation.Id) + 1;
+            }
+
+            foreach (var contradiction in run.Contradictions)
+            {
+                contradictions[contradiction.Id] =
+                    contradictions.GetValueOrDefault(contradiction.Id) + 1;
+            }
+
+            var encoded = run.Steps[^1].EncodedPng
+                ?? throw new InvalidOperationException(
+                    $"`15` §B4 step 6 encoded no PNG for '{asset.Id}'. The export step is the only " +
+                    "step that produces a file, and a run whose last step carries no bytes has " +
+                    "nothing to deliver.");
+
+            var fileName = asset.Id + AssetNaming.PngExtension;
+            PlaceholderOutput.WriteImage(options.OutputDirectory, fileName, encoded);
+            PlaceholderOutput.WriteProvenance(
+                options.OutputDirectory, asset, spec, canvas, options.RepoCommit);
+
+            kept = run.Output;
+            return new ProcessedPlaceholder(asset, spec, fileName, encoded.Length, run.Output);
+        }
+        finally
+        {
+            // 🔒 DistinctOutputs, and the survivor held back. Steps hand the same instance on when
+            // they skip and Intermediates aliases Steps, so disposing per reference is a double
+            // free — and the last step's image is the one Part F item 7 and step 7 are about to
+            // read. 🔒 In a `finally`, because five statements above can throw and RunGroup records
+            // the failure and moves to the next asset: without this, every §B4 surface of a failing
+            // asset became unreachable, and a systematically failing run leaked one set per row.
+            // On the throw path `kept` is still null, so nothing survives.
+            foreach (var image in run.DistinctOutputs)
+            {
+                if (!ReferenceEquals(image, kept) && !ReferenceEquals(image, drawn))
+                {
+                    image.Dispose();
+                }
             }
         }
-
-        return new ProcessedPlaceholder(asset, spec, fileName, encoded.Length, run.Output);
     }
 
     /// <summary>Runs `15` §B4 step 7 over one atlas's members.</summary>

@@ -8,7 +8,7 @@ namespace SlayIdleRepeat.AssetPlaceholders;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Two threshold sets, and the split is the whole point.</b> Seven of M8-06's seventeen holes
+/// 🔒 <b>Two threshold sets, and the split is the whole point.</b> Nine of M8-06's seventeen holes
 /// are inputs a §B4 step cannot run without: step 1 needs a key tolerance and a decontamination
 /// strength, step 3 needs a palette tolerance and the neutral list, step 4 needs a colour tolerance
 /// and a closure radius, step 5 needs a sharpen radius, step 6 needs a colour budget and an error
@@ -163,7 +163,7 @@ public static class PlaceholderThresholds
     /// The threshold set `15` Part F is graded against: the shipped register, <b>untouched</b>.
     /// </summary>
     /// <remarks>
-    /// 🔒 Every one of the seventeen keys is null here, including the seven
+    /// 🔒 Every one of the seventeen keys is null here, including the nine
     /// <see cref="ForPipeline"/> states. That is not an oversight and it is not duplication — the
     /// two sets answer two different questions. "What did this generator run the steps with" is a
     /// property of the generator; "what has anybody calibrated the acceptance gate to" is a property

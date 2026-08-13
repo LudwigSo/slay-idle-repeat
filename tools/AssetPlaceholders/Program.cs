@@ -109,15 +109,31 @@ switch (command)
 static string? SectionFilter(string[] args)
 {
     var index = Array.IndexOf(args, "--section");
-    return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
+    if (index < 0)
+    {
+        return null;
+    }
+
+    // A trailing `--section` with no value used to run the WHOLE register instead — a surprise
+    // measured in minutes rather than in seconds.
+    return index + 1 < args.Length
+        ? args[index + 1]
+        : throw new ArgumentException(
+            "--section needs a `15` §E-section to filter to, e.g. --section E12.", nameof(args));
 }
 
-static string PlanReasonFor(ArtAsset asset) => asset switch
+// 🔒 Asks PlaceholderBatch.SkipFor rather than deciding the same three-way split again. The
+// ordering — cut, then size, then pivot — is exactly what would misfile 95 rows if two copies of it
+// drifted (steering S12).
+static string PlanReasonFor(ArtAsset asset) => PlaceholderBatch.SkipFor(asset)?.Reason switch
 {
-    { Cut: not null } => "cut by a ruling",
-    { DeliverySize: null } => "no `15` §C delivery size",
-    { Pivot: null } => "no `15` §C pivot",
-    _ => "generatable",
+    PlaceholderSkipReason.CutByRuling => "cut by a ruling",
+    PlaceholderSkipReason.NoDeliverySize => "no `15` §C delivery size",
+    PlaceholderSkipReason.NoPivot => "no `15` §C pivot",
+    null => "generatable",
+    var reason => throw new InvalidOperationException(
+        $"{reason} is a skip reason this plan does not know how to label. A fourth reason needs a " +
+        "line here, not a default."),
 };
 
 static void Report(PlaceholderBatchReport report)

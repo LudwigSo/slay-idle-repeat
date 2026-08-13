@@ -133,8 +133,7 @@ public sealed record PlaceholderBatchReport
     public QaDecision Decision => Generated.Count > 0
         ? Generated
             .Select(placeholder => placeholder.Qa.Decision)
-            .OrderByDescending(Severity)
-            .First()
+            .MaxBy(Severity)
         : throw new InvalidOperationException(
             "No placeholder was generated, so there is no `15` Part F decision to report. A gate " +
             "decision over an empty batch reads as a clean one, which is exactly how a generator " +

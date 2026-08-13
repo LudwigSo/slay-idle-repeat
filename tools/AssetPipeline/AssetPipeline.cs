@@ -211,16 +211,42 @@ public sealed class AssetPipeline
         var intermediates = new List<SKBitmap>();
         var current = image;
 
-        foreach (var step in Steps)
+        try
         {
-            var result = step.Run(new AssetStepInput(current, spec, thresholds));
-            results.Add(result);
-            current = result.Image;
-
-            if (Options.CaptureIntermediates)
+            foreach (var step in Steps)
             {
-                intermediates.Add(current);
+                var result = step.Run(new AssetStepInput(current, spec, thresholds));
+                results.Add(result);
+                current = result.Image;
+
+                if (Options.CaptureIntermediates)
+                {
+                    intermediates.Add(current);
+                }
             }
+        }
+        catch
+        {
+            // 🔒 A step that throws mid-run leaves no <see cref="PipelineRun"/> for the caller to
+            // dispose through, so "the caller owns every bitmap on this record" governs nothing —
+            // the surfaces steps 1..n-1 already produced are unreachable. Freed here instead.
+            //
+            // Found by M8-10, the pipeline's first real caller: it drives 641 assets and RECORDS a
+            // throw rather than aborting, so one systematically failing step leaked one full set of
+            // native surfaces per row with no diagnostic.
+            //
+            // Reference identity, and never the caller's own input: a skipping step hands that
+            // straight back, and the caller disposes it itself.
+            var seen = new HashSet<object>(ReferenceEqualityComparer.Instance) { image };
+            foreach (var result in results)
+            {
+                if (seen.Add(result.Image))
+                {
+                    result.Image.Dispose();
+                }
+            }
+
+            throw;
         }
 
         return new PipelineRun(asset.Id, StepOutcome.Applied, string.Empty, current, results, intermediates);

@@ -66,11 +66,20 @@ public static class PlaceholderPalette
 
     /// <summary>Euclidean distance between two colours in RGB, ignoring alpha.</summary>
     /// <remarks>
+    /// <para>
     /// 🔒 The same metric <c>Raster.RgbDistance</c> uses, because the numbers this generator reasons
     /// about are the numbers the pipeline's steps will measure. <c>Raster</c> is internal to
     /// <c>SlayIdleRepeat.AssetPipeline</c>, so it cannot be called from here; the formula is three
     /// subtractions and a square root, and the suite pins that the two agree by driving a real
     /// placeholder through the real steps rather than by trusting this comment.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Public for the suite, and nothing in this project calls it.</b> The colour choices in
+    /// <see cref="For"/> are constrained by two measured distances (see this type's remarks), and
+    /// the case that re-derives that arithmetic from the register's live palettes needs the metric.
+    /// Exposing it is cheaper than the alternative — a fourth copy of the formula in the suite,
+    /// where it could drift from the one the steps actually use.
+    /// </para>
     /// </remarks>
     /// <param name="first">One colour.</param>
     /// <param name="second">The other.</param>
