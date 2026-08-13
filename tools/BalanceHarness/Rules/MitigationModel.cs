@@ -23,6 +23,25 @@ namespace SlayIdleRepeat.BalanceHarness.Rules;
 /// chapter"</em> asks for.
 /// </para>
 /// <para>
+/// 🔴 <b>THIS IS A RESTATEMENT, AND IT IS NOT BIT-IDENTICAL TO THE SHIPPED FIGHT.</b> The curve the
+/// fight evaluates is <c>AttackPipeline.Mitigation</c>, which is <c>private</c> inside an
+/// <c>internal</c> type, so this tool cannot call it. That copy applies
+/// <c>StatRounding.Round</c> — `05` §1.1's 4-dp accumulation rounding — at <b>two</b> points this one
+/// does not: to <c>effDef</c> and to the denominator. The two curves therefore differ by up to about
+/// <c>1e-8</c> in the mitigation fraction (a 5e-5 rounding step on quantities in the hundreds to
+/// thousands), and guardrail 5 grades the un-rounded form.
+/// </para>
+/// <para>
+/// 🔒 <b>Un-rounded is the deliberate choice, not an oversight.</b> The exhaustiveness argument below
+/// needs the curve to be <em>strictly</em> increasing in <c>effDef</c>; the rounded form is only
+/// monotone <em>non-decreasing</em>, so mirroring the rounding would weaken the very property that
+/// lets a closed form stand in for a search. The price is that a cell measured within <c>1e-8</c> of
+/// <see cref="Ceiling"/> is inside the tolerance rather than decided by it — no measured cell is
+/// anywhere near that margin, and if one ever is, the verdict to trust is the fight's and this
+/// paragraph is where to start. `05` §4's two dials are <b>not</b> restated (see
+/// <see cref="MitigationDials"/>); only the shape of the expression is.
+/// </para>
+/// <para>
 /// 🔴 <b>ERRATUM — <see cref="Ceiling"/> has no home in <c>game-data/</c>.</b> The 0.85 is `05` §9's
 /// and is authored in no tuning or content file; <c>combat_caps.json</c> carries the two dials and
 /// the six stat caps but no mitigation ceiling. It is stated once, named and cited here, and the gap

@@ -159,11 +159,25 @@ public static class GameDataLoader
     /// <c>path + text</c>, never a constant.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A fixed stamp would make two different data trees indistinguishable, and
     /// <see cref="ContentVersion"/>'s whole reason for existing is that <em>"a replayed command
     /// reproduces its original outcome after a balance patch"</em>. An experiment run through
     /// <see cref="LoadWith"/> must therefore stamp differently from the shipped tree, or the two
     /// runs are one run as far as anything downstream can tell.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>It is NOT the game's <see cref="ContentVersion"/> for the same tree, and the report line
+    /// that prints it must not be matched against a server's.</b> The shipped stamp is
+    /// <c>ContentHashing.Compute</c> in <c>SlayIdleRepeat.Application</c>, which hashes canonical
+    /// bytes behind a canonical-format-version prefix; this one hashes <c>path + "\n" + text + "\n"</c>
+    /// over the raw files. Same tree, two different hexes — deliberately, because reproducing the
+    /// canonical form here would mean a third copy of the canonicaliser in a tool that
+    /// <c>ProjectFileTests.The_simulation_tools_reference_Core_only</c> forbids from referencing
+    /// <c>Application</c>. What this stamp is for is <em>distinguishing harness runs from each other</em>
+    /// (shipped tree vs. <see cref="LoadWith"/> experiment), which it does exactly; what it is not for
+    /// is identifying a content build.
+    /// </para>
     /// </remarks>
     private static ContentVersion Stamp(SortedDictionary<string, string> documents)
     {

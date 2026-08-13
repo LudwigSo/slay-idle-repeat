@@ -2,7 +2,8 @@ namespace SlayIdleRepeat.BalanceHarness.Model;
 
 /// <summary>
 /// 🔒 The ONE restatement of <c>SlayIdleRepeat.Core.Primitives.DeterminismRounding.Round</c> inside
-/// <c>tools/BalanceHarness</c>. Nothing in this tool rounds any other way.
+/// <c>tools/BalanceHarness</c> — the only place `05` §1.1's <b>4</b>-dp accumulation rounding is
+/// written out here.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,6 +24,15 @@ namespace SlayIdleRepeat.BalanceHarness.Model;
 /// ⚠️ This is a restatement, not a second rule. If `05` §1.1's four places ever move, both this and
 /// <c>DeterminismRounding.Decimals</c> move together — the duplication is on the record in the
 /// M2-16a report.
+/// </para>
+/// <para>
+/// 🔴 <b>One other site in this tool writes the same three-part expression, and cannot route through
+/// <see cref="Round"/>.</b> <c>LoadoutScaling.ToPowerIndex</c> rounds `29` §2.5.3's scaling scalar
+/// <c>s</c> to <c>scalarDecimalPlaces</c> — an <b>authored</b> precision read off
+/// <c>tuning/calibration_builds.json</c>, which happens to be 4 today but is a data value this tool
+/// must honour rather than assume. It is a different rule at a data-supplied precision, not a second
+/// copy of `05` §1.1's, so it is spelled out there on purpose. Those two are the whole set: nothing
+/// else in <c>tools/BalanceHarness</c> rounds.
 /// </para>
 /// </remarks>
 public static class HarnessRounding
