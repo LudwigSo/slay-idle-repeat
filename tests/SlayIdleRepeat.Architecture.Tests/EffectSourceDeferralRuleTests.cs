@@ -67,7 +67,7 @@ public sealed class EffectSourceDeferralRuleTests
         var subjects = DeclaredExpirySubjects();
 
         var offenders = subjects
-            .Where(subject => !register.Contains($"\"{subject}\"", StringComparison.Ordinal))
+            .Where(subject => !IsRegisterEntryKey(register, subject))
             .Select(subject =>
                 $"EffectSourceCatalogue advertises '{subject}' as the expiry subject of a 18 §8 step 1 " +
                 $"source, and no entry in {RegisterFile} is keyed on it. That source's deferral now " +
@@ -131,6 +131,42 @@ public sealed class EffectSourceDeferralRuleTests
 
     /// <summary>Ten sources, all pending on the commit this rule landed.</summary>
     private const int ExpirySubjectFloor = 10;
+
+    /// <summary>
+    /// The register holds a <c>Pending</c> <b>entry keyed on</b> <paramref name="subject"/> — not
+    /// merely the word somewhere in the file.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>This was a bare <c>register.Contains($"\"{subject}\"")</c>, and the second probe of this
+    /// rule showed it could not fail.</b> <see cref="RegisterSource"/> returns the register's <b>whole
+    /// source text</b>, comments and XML remarks included, so the quoted name only had to appear
+    /// <em>somewhere</em>. The mutation: rename the live entry <c>new("GearItem", SubjectKind.CoreType,
+    /// …)</c> to <c>"GearItemXX"</c> and leave one comment mentioning <c>"GearItem"</c>. `18` §8 step
+    /// 1's <c>GEAR</c> deferral is then keyed on a type that will never arrive — it expires never,
+    /// which is precisely the first drift path this file's own header enumerates — and the entire
+    /// 79-test suite stayed <b>green</b>.
+    /// </para>
+    /// <para>
+    /// It is not a hypothetical shape: this file, <c>SubjectSetFloorTests</c> and the catalogue all
+    /// discuss the subjects by name in prose, and every failure message in the register quotes one.
+    /// The rule now matches the <b>entry</b> — the <c>new("…", SubjectKind</c> opening that every one
+    /// of the ten register rows is written as — so a name that survives only in a comment is an
+    /// offender, as it always should have been.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is anchored on the register's construction shape rather than on a comment-stripped text,
+    /// deliberately: stripping comments correctly means tokenising C# string literals, and a rule that
+    /// half-parses is a rule with a new hole. Reformatting the register away from this shape fails
+    /// loudly here, which is the right direction — the alternative is failing silently, which is what
+    /// was happening.
+    /// </para>
+    /// </remarks>
+    private static bool IsRegisterEntryKey(string register, string subject) =>
+        register.Contains($"new(\"{subject}\", {SubjectKindPrefix}", StringComparison.Ordinal);
+
+    /// <summary>The register's own entry type, as its rows spell it.</summary>
+    private const string SubjectKindPrefix = "SubjectKind.";
 
     /// <summary>
     /// The <c>PendingSubject</c> literals the catalogue declares, recovered from the IL of its static
