@@ -55,6 +55,29 @@ internal static class StatusFixtures
             [new ContentDocument(StatusCatalogue.Document, root)]);
     }
 
+    /// <summary>
+    /// 🔒 <paramref name="other"/> with `05` §5's catalogue added — the snapshot shape the public
+    /// <c>CombatSimulator.Simulate</c> overload requires.
+    /// </summary>
+    /// <remarks>
+    /// That overload composes its own <c>StatusTimeline</c> (it is `30` §11.2's export for `14` §2.4's
+    /// client, and `05` §6.1a gives a CASTER a biome status, so a fight it cannot apply a status in is
+    /// not a fight the named consumer can run). It therefore reads <b>two</b> documents, and a fixture
+    /// carrying only <c>combat_caps.json</c> now fails loudly at <c>StatusCatalogue.Read</c> — which is
+    /// the intended shape: the parameter is documented as the loaded, schema-validated snapshot, and
+    /// the shipped one carries both.
+    /// </remarks>
+    internal static ContentSnapshot With(ContentSnapshot other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        return new ContentSnapshot(
+            other.Version,
+            other.DocumentPaths
+                 .Select(other.GetDocument)
+                 .Append(Snapshot().GetDocument(StatusCatalogue.Document)));
+    }
+
     /// <summary>`05` §5, read.</summary>
     internal static StatusCatalogue Catalogue(
         decimal bleedMissingHpScaling = 1.0m,
