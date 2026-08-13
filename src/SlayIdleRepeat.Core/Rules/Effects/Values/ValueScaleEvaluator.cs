@@ -55,8 +55,9 @@ internal static class ValueScaleEvaluator
     /// <param name="effect">The effect.</param>
     /// <param name="context">The state <c>fn</c> is read against.</param>
     /// <exception cref="ArgumentNullException"><paramref name="effect"/> or the context is null.</exception>
-    /// <exception cref="ArgumentException">The effect carries no <c>value</c> to scale.</exception>
-    /// <exception cref="EffectContextException">As <see cref="Steps"/>.</exception>
+    /// <exception cref="EffectContextException">
+    /// The effect carries no <c>value</c> to scale, or as <see cref="Steps"/>.
+    /// </exception>
     internal static double EffectiveValue(EffectDefinition effect, EffectEvaluationContext context)
     {
         ArgumentNullException.ThrowIfNull(effect);
@@ -92,10 +93,11 @@ internal static class ValueScaleEvaluator
     /// condition passes, its scale counts steps, and it does nothing. Steering S6: fail loudly.
     /// </remarks>
     private static double Value(EffectDefinition effect) =>
-        effect.Value ?? throw new ArgumentException(
-            $"'{effect.Id}' is a {effect.Op} with no value. 18 §1.1's effectiveValue = value x steps " +
+        effect.Value ?? throw new EffectContextException(
+            effect.Id,
+            $"it is a {effect.Op} with no value",
+            "18 §1.1's effectiveValue = value x steps " +
             "has nothing to scale, and 18 §2.1's stat ops are magnitudes — an absent value is an " +
             "authoring hole, and reading it as 0 would make the effect a no-op that is still visible " +
-            "in the data.",
-            nameof(effect));
+            "in the data.");
 }

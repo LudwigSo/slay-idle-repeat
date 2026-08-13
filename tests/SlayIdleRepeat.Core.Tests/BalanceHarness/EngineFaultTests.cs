@@ -3,6 +3,7 @@ using SlayIdleRepeat.BalanceHarness.Cli;
 using SlayIdleRepeat.BalanceHarness.Content;
 using SlayIdleRepeat.BalanceHarness.Model;
 using SlayIdleRepeat.BalanceHarness.Sweep;
+using SlayIdleRepeat.Core.Rules.Effects;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
@@ -73,7 +74,7 @@ public sealed class EngineFaultTests
 
         // ...and the throwing form still throws, which is what the test suite and the guardrails rely
         // on — with the SAME identity, so a cell that died of something else cannot pass as this.
-        Should.Throw<ArgumentException>(() => ShippedHarness.Runner.RunCell(
+        Should.Throw<EffectContextException>(() => ShippedHarness.Runner.RunCell(
                 2, Tier.NORMAL, archetype.Id, archetype.Stats, fights: 2, broken))
             .Message.ShouldContain("APPLY_STATUS with no value", Case.Sensitive);
     }

@@ -508,36 +508,34 @@ internal sealed class AttackPipeline : IAttackPipeline
     private static double Thorns(BattleActor actor) =>
         StatRounding.Round(actor.Stats[StatId.THORNS] + actor.Flow.ThornsBonus());
 
-    private static void RequireFinite(double value, string sourceEffectId, string what)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            throw new EffectContextException(
-                sourceEffectId,
-                $"its {what} is {value.ToString("R", CultureInfo.InvariantCulture)}",
-                "`05` §4's pipeline produces real quantities. A NaN compares false against every " +
-                "bound in the ten steps — the dodge test, the floor, the ward cap — so it would pass " +
-                "through all of them and be refused by CombatLog three layers later, naming the " +
-                "serialiser rather than the effect that produced it.");
-        }
-    }
-
     /// <summary>
-    /// The roster's own actor behind an `18` §4/§5 view.
+    /// 🔒 `05` §4's pipeline produces real quantities — the refusal, forwarded to
+    /// <see cref="OpRounding.RequireFinite"/>, which is where it is stated.
     /// </summary>
     /// <remarks>
-    /// <c>BattleFlowSink</c>'s guard and its reason: a battle has one roster and one view of it, so a
-    /// foreign implementation means the pipeline is writing HP into a roster the tick loop will never
-    /// read.
+    /// 🔴 <b>A forwarder, not a second statement.</b> This method used to carry its own near-verbatim
+    /// copy of the refusal — same type, same <c>"R"</c> invariant formatting, same rationale, on the
+    /// same values under the same labels. The guard is still needed <em>here</em>: <c>StatusTimeline</c>
+    /// and the boss scripts reach this pipeline directly, without passing through
+    /// <c>Rules.Effects.Ops</c>, so nothing on that path has already rounded the number. What is gone
+    /// is the second wording of the rule.
     /// </remarks>
-    private static BattleActor Actor(IEffectActorView view)
-    {
-        ArgumentNullException.ThrowIfNull(view);
+    /// <param name="value">The pipeline number.</param>
+    /// <param name="sourceEffectId">The effect that produced it — named in the failure message.</param>
+    /// <param name="what">What the number is, in the reader's terms.</param>
+    /// <exception cref="EffectContextException"><paramref name="value"/> is NaN or infinite.</exception>
+    private static void RequireFinite(double value, string sourceEffectId, string what) =>
+        OpRounding.RequireFinite(value, sourceEffectId, what);
 
-        return view as BattleActor ??
-            throw new InvalidOperationException(
-                $"A {view.GetType().Name} reached `05` §4's damage pipeline. A battle has one roster " +
-                "and one view of it (IEffectActorView); a second implementation means the HP, the " +
-                "ward pool and the flow state this pipeline writes belong to a different fight.");
-    }
+    /// <summary>
+    /// The roster's own actor behind an `18` §4/§5 view — forwarded to <see cref="BattleActor.Of"/>,
+    /// which is where the cast and its diagnosis are stated.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <c>BattleFlowSink</c>'s guard and its reason: a battle has one roster and one view of it, so
+    /// a foreign implementation means the pipeline is writing HP into a roster the tick loop will
+    /// never read. This method used to say so in its own words while <c>TargetSelection</c> said it in
+    /// different ones; the sentence now lives in one place.
+    /// </remarks>
+    private static BattleActor Actor(IEffectActorView view) => BattleActor.Of(view);
 }

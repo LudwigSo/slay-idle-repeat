@@ -578,7 +578,7 @@ public sealed class EffectResolverTests
         result.Final[StatId.ATK].ShouldBe(103.0);
 
         // 🔒 And the refusal it replaced is real — proof this test is not passing for free.
-        Should.Throw<NotSupportedException>(() => StatAggregation.Aggregate(
+        Should.Throw<EffectContextException>(() => StatAggregation.Aggregate(
             StatFixtures.Block((StatId.ATK, 100)), resolved.ActiveDefinitions, StatFixtures.Caps(),
             StatAggregationSeams.Strict));
     }

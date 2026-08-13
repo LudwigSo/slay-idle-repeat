@@ -79,11 +79,20 @@ internal sealed record EffectOpContext
 /// may name neither.
 /// </para>
 /// <para>
-/// 🔒 <b>What is left here is the part that was never duplicated: the refusal.</b> A NaN or an
+/// 🔒 <b>What is left here is the refusal</b> — <see cref="OpRounding.RequireFinite"/>. A NaN or an
 /// infinity is not a rounding question, and the useful thing to say about one is <em>which effect
 /// produced it and what the number was meant to be</em> — steering S2. <c>StatRounding</c> keeps its
 /// own, naming the `18` §8 step and the stat instead. Two messages, one rule; the drift hazard was
 /// the <c>4</c>, the midpoint mode and the trailing <c>+ 0.0</c>, and those are now stated once.
+/// </para>
+/// <para>
+/// 🔴 <b>Errata: the refusal WAS duplicated too.</b> This paragraph used to claim the refusal was
+/// <em>"the part that was never duplicated"</em>, and by the end of M2 that was false —
+/// <c>AttackPipeline.RequireFinite</c> was a near-verbatim second copy of it, on the same values
+/// under the same labels ("true damage", "healing", "max-HP-percent damage"). M2 review lifted the
+/// guard into <see cref="OpRounding.RequireFinite"/> and made the pipeline's method a forwarder, so
+/// the wording exists once. The pipeline still needs a guard of its own because
+/// <c>StatusTimeline</c> and the boss scripts reach it without passing through this layer.
 /// </para>
 /// <para>
 /// <c>OpRoundingTests.The_op_rounding_and_the_stat_rounding_are_one_rule</c> still runs both over the
@@ -107,16 +116,39 @@ internal static class OpRounding
     /// <exception cref="EffectContextException"><paramref name="value"/> is NaN or infinite.</exception>
     internal static double Round(double value, string effectId, string what)
     {
+        RequireFinite(value, effectId, what);
+
+        return DeterminismRounding.Round(value);
+    }
+
+    /// <summary>
+    /// 🔒 The refusal itself, <b>stated once</b> — every combat number that reaches a log, a stat or
+    /// an HP bar passes this, whether or not it is being rounded on the way.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Lifted out of <see cref="Round"/> by M2 review.</b> `05` §4's damage pipeline
+    /// (<c>AttackPipeline</c>) had a near-verbatim second copy — same type, same <c>"R"</c> invariant
+    /// formatting, same rationale, on the same values under the same labels. It is reachable without
+    /// passing through this layer at all (<c>StatusTimeline</c> and the boss scripts call the pipeline
+    /// directly), so the guard has to exist there; what it must not be is a second <em>statement</em>
+    /// of the rule.
+    /// </remarks>
+    /// <param name="value">The number.</param>
+    /// <param name="effectId">The effect that produced it — named in the failure message.</param>
+    /// <param name="what">What the number is, in the reader's terms.</param>
+    /// <exception cref="EffectContextException"><paramref name="value"/> is NaN or infinite.</exception>
+    internal static void RequireFinite(double value, string effectId, string what)
+    {
         if (double.IsNaN(value) || double.IsInfinity(value))
         {
             throw new EffectContextException(
                 effectId,
                 $"its {what} came out as {value.ToString("R", CultureInfo.InvariantCulture)}",
-                "05 §1.1's rounding rule has nothing to say about a NaN or an infinity — it is an " +
-                "overflow or a 0/0 in the value the effect authored, and CombatLog would refuse it " +
+                "05 §1.1's rounding rule has nothing to say about a NaN or an infinity, and 05 §4's " +
+                "pipeline produces real quantities — it is an overflow or a 0/0 in the value the " +
+                "effect authored. A NaN compares false against every bound it meets (the dodge test, " +
+                "the floor, the ward cap), so it passes through all of them and CombatLog refuses it " +
                 "three layers later naming the serialiser instead of the effect.");
         }
-
-        return DeterminismRounding.Round(value);
     }
 }

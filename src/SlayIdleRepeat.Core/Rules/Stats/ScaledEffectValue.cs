@@ -54,8 +54,10 @@ internal sealed class ScaledEffectValue : IEffectValueReader
 
         if (effect.ValueMode is { } mode && mode != ValueMode.FLAT)
         {
-            throw new NotSupportedException(
-                $"'{effect.Id}' is a stat op with valueMode {mode}. 18 §2.2's value modes are damage- " +
+            throw new EffectContextException(
+                effect.Id,
+                $"it is a stat op with valueMode {mode}",
+                "18 §2.2's value modes are damage- " +
                 "and heal-relative, and the only stat op in 18 that carries one is 9.1's " +
                 "STAT_SET MAX_HP with FLAT. What the other seven would mean against a stat is written " +
                 "nowhere, so it is refused rather than picked. M2-06 owns the value-mode evaluator " +

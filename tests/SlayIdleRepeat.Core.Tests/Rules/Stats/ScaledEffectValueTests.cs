@@ -99,7 +99,7 @@ public sealed class ScaledEffectValueTests
         var wrong = StatFixtures.Effect("PK_WRONG_MODE", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.12)
             with { ValueMode = ValueMode.TARGET_MAXHP_PCT };
 
-        var thrown = Should.Throw<NotSupportedException>(() => Aggregate(atHpFraction: 1.0, wrong));
+        var thrown = Should.Throw<EffectContextException>(() => Aggregate(atHpFraction: 1.0, wrong));
 
         thrown.Message.ShouldContain("PK_WRONG_MODE", Case.Sensitive);
         thrown.Message.ShouldContain("18 §2.2");

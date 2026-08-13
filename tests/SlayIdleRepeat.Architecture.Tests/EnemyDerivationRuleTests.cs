@@ -1,5 +1,6 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -302,8 +303,7 @@ public sealed class EnemyDerivationRuleTests
     {
         var found = Subjects().Count;
 
-        Assert.True(
-            found >= EnemiesFloor,
+        (found >= EnemiesFloor).ShouldBeTrue(
             $"types under {EnemiesNamespace}: found {found}, floor is {EnemiesFloor}. All three rules " +
             "in this file are stated over them; empty, they report success over nothing and 05 §6's " +
             "derivation is free to hold a seed, cache a catalogue or switch on an elite id again. " +
@@ -312,8 +312,7 @@ public sealed class EnemyDerivationRuleTests
         // 🔒 And the namespace really is beneath the one Domain declares — otherwise a rename in
         // Domain.cs (which M1-12 and M2-08 are both editing) would leave these rules governing a
         // namespace that no longer exists, silently.
-        Assert.True(
-            Il.IsUnder(EnemiesNamespace, Domain.CombatRulesNamespace),
+        (Il.IsUnder(EnemiesNamespace, Domain.CombatRulesNamespace)).ShouldBeTrue(
             $"{EnemiesNamespace} is no longer beneath {Domain.CombatRulesNamespace}.");
     }
 

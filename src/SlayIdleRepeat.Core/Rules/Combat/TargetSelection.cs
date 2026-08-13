@@ -143,20 +143,14 @@ internal static class TargetSelection
     }
 
     /// <summary>
-    /// The roster's own actor type, which is the only implementation a battle ever holds.
+    /// The roster's own actor type, which is the only implementation a battle ever holds — forwarded
+    /// to <see cref="BattleActor.Of"/>, which is where the cast and its diagnosis are stated.
     /// </summary>
     /// <remarks>
-    /// 🔒 A cast with a message rather than a silent one. <c>BattleRoster</c> is typed over
-    /// <see cref="IEffectActorView"/> because `18` §4 and §5 are, but a battle's roster is built by
-    /// <see cref="BattleSimulation"/> out of <see cref="BattleActor"/>s exclusively — see
-    /// <see cref="IEffectActorView"/>'s <em>"two views of one battle are two chances to disagree"</em>.
-    /// A foreign view reaching here is a second roster, which is the defect that remark is about.
+    /// 🔴 A foreign view in `05` §3.2's candidate list means two rosters exist, which is exactly how
+    /// <c>ENEMY_COUNT</c> and <c>ALL_ENEMIES</c> come to disagree about the same fight. This method
+    /// used to say so in its own words while <c>AttackPipeline.Actor</c> said it in different ones;
+    /// the sentence now lives in one place.
     /// </remarks>
-    private static BattleActor AsBattleActor(IEffectActorView view) =>
-        view as BattleActor ??
-        throw new InvalidOperationException(
-            $"`05` §3.2's target selection was handed a {view.GetType().Name} rather than a " +
-            $"{nameof(BattleActor)}. A battle has one roster and one view of it; a second implementation " +
-            "of IEffectActorView in the candidate list means two rosters exist, which is exactly how " +
-            "ENEMY_COUNT and ALL_ENEMIES come to disagree about the same fight.");
+    private static BattleActor AsBattleActor(IEffectActorView view) => BattleActor.Of(view);
 }

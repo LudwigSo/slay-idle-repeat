@@ -690,8 +690,16 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
         Log(receiver, CombatEventType.StatusApplied, definition, granted);
     }
 
-    /// <summary>`05` §5's <c>STUN</c> id, named once rather than spelled at four call sites.</summary>
-    private const string StunId = "STUN";
+    /// <summary>
+    /// `05` §5's <c>STUN</c> id — an alias of <see cref="StatusIds.Stun"/>, which is where it is
+    /// spelled.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 This constant used to hold the literal and claim to be the single naming, while
+    /// <c>BossBuiltIns</c> held its own <c>StunStatusId</c> two directories away with the same claim.
+    /// The word now lives in one place.
+    /// </remarks>
+    private const string StunId = StatusIds.Stun;
 
     private ActorStatuses For(BattleActor actor)
     {

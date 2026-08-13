@@ -1,5 +1,6 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -18,8 +19,12 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// silently stops being read.
 /// </para>
 /// <para>
-/// 🔒 <b>Three names are allowed to spell a status id, and each is narrowed to ONE id by
+/// 🔒 <b>A closed list of types is allowed to spell a status id, and each is narrowed to the ids its
+/// own document rules on by
 /// <see cref="Each_exempted_type_names_only_the_one_status_its_document_rules_on"/>.</b>
+/// 🔴 <c>StatusIds</c> is where the two ids code names — <c>STUN</c> and <c>FREEZE</c> — are
+/// <em>declared</em>; <c>StatusTimeline</c> and <c>BossBuiltIns</c> alias it rather than each holding
+/// their own constant, which is what they did through M2.
 /// <c>StatusLogId</c> is `05` §7's <c>dataId</c> map, which has to name all twelve because the
 /// ordinals are inside <c>LogHash</c> and cannot be derived from a file that may be reordered.
 /// <c>StatusTimeline</c> names exactly one — <c>STUN</c> — because `05` §5 gives that status a rule
@@ -106,8 +111,26 @@ public sealed class StatusCatalogueRuleTests
     /// it to those two ids and nothing else.
     /// </para>
     /// </remarks>
+    /// <remarks>
+    /// 🔴 <b>The fifth entry is M2 review's, and it is the one place the two code-named ids live.</b>
+    /// <c>StatusTimeline</c> and <c>BossBuiltIns</c> each declared their own <c>const</c> spelling
+    /// <c>"STUN"</c>, each documented as the single naming — same assembly, same namespace root, no
+    /// visibility barrier. <c>StatusIds</c> now holds <c>STUN</c> and <c>FREEZE</c> and both of those
+    /// types alias it. It is admitted for the reason they are: `05` §5 gives <c>STUN</c> a rule of
+    /// its own and `17` §1 names the phase-3 immunity pair, so the ids are documents' rather than an
+    /// implementer's.
+    /// <para>
+    /// ⚠️ It is <b>not</b> a transcription of the twelve, deliberately — it names only the two a
+    /// sentence fixes by name, so the rule above still catches the thirteenth branch. And because
+    /// C# inlines a <c>const</c> at its use site, aliasing changes no <c>ldstr</c>: both consumers
+    /// still appear to the scan below naming exactly what they named before, and
+    /// <see cref="Each_exempted_type_names_only_the_one_status_its_document_rules_on"/> still narrows
+    /// them. <c>StatusIds</c> itself has no method bodies and so emits none.
+    /// </para>
+    /// </remarks>
     private static readonly IReadOnlyList<string> Permitted = new List<string>
     {
+        StatusNamespace + ".StatusIds",
         StatusNamespace + ".StatusLogId",
         StatusNamespace + ".StatusTimeline",
         Domain.CombatRulesNamespace + ".Enemies.EnemyCatalogue",
@@ -246,8 +269,7 @@ public sealed class StatusCatalogueRuleTests
                          .Where(t => !Domain.IsCompilerGenerated(t))
                          .ToArray();
 
-        Assert.True(
-            subjects.Length >= StatusTypeFloor,
+        (subjects.Length >= StatusTypeFloor).ShouldBeTrue(
             $"types under {StatusNamespace}: found {subjects.Length}, floor is {StatusTypeFloor}. " +
             "05 §5's catalogue, its cadence, its stun window and its timeline live there; an empty " +
             "or shrunken set means they have moved and this file's rules govern nothing. If this " +
@@ -255,8 +277,7 @@ public sealed class StatusCatalogueRuleTests
 
         foreach (var permitted in Permitted)
         {
-            Assert.True(
-                Domain.CoreTypes.Any(t => Owner(t).Equals(permitted, StringComparison.Ordinal)),
+            (Domain.CoreTypes.Any(t => Owner(t).Equals(permitted, StringComparison.Ordinal))).ShouldBeTrue(
                 $"'{permitted}' is exempted from the status-id rule and does not exist. An exemption " +
                 "for a type that is gone is an exemption that can never expire, and the rule it " +
                 "loosens is looser for nothing (steering S4).");
@@ -274,8 +295,7 @@ public sealed class StatusCatalogueRuleTests
             .Distinct(StringComparer.Ordinal)
             .Count();
 
-        Assert.True(
-            found >= StatusIds.Count,
+        (found >= StatusIds.Count).ShouldBeTrue(
             $"the ldstr scan found {found} of 05 §5's {StatusIds.Count} status ids in Core. It is " +
             "supposed to find all twelve in StatusLogId — fewer means the map has stopped naming " +
             "them, and a scan that matches nothing reports success over every switch statement " +
@@ -294,13 +314,11 @@ public sealed class StatusCatalogueRuleTests
     [Fact]
     public void The_namespace_this_rule_governs_is_the_one_under_Rules_Combat()
     {
-        Assert.True(
-            Il.IsUnder(StatusNamespace, Domain.CombatRulesNamespace),
+        (Il.IsUnder(StatusNamespace, Domain.CombatRulesNamespace)).ShouldBeTrue(
             $"{StatusNamespace} is no longer beneath {Domain.CombatRulesNamespace}, so every rule in " +
             "this file governs a namespace that does not exist.");
 
-        Assert.True(
-            Domain.IsPermittedCoreNamespace(StatusNamespace),
+        (Domain.IsPermittedCoreNamespace(StatusNamespace)).ShouldBeTrue(
             $"{StatusNamespace} is not a permitted 30 §11.4 Core namespace.");
     }
 

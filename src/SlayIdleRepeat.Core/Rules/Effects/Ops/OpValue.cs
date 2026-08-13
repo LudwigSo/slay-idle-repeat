@@ -168,6 +168,9 @@ internal sealed record OpValueRules(
     /// </para>
     /// </remarks>
     internal static OpValueRules Damage { get; } = new(
+        // 🔒 NOT ValueModeEvaluator.DamageAndHealingDefault. This ATK_MULT is a different rule:
+        // `18` §4.2 makes DAMAGE's value BE the AttackMultiplier, so it is the only admitted mode
+        // rather than the section default the author may override.
         ValueMode.ATK_MULT,
         new HashSet<ValueMode> { ValueMode.ATK_MULT },
         "05 §4.2 makes DAMAGE's value the AttackMultiplier itself — ResolveAttack applies " +
@@ -178,7 +181,7 @@ internal sealed record OpValueRules(
     /// <c>ATK_MULT</c>. `05` §4.2: <em>"HP is reduced directly"</em>.
     /// </summary>
     internal static OpValueRules DamageTrue { get; } = new(
-        ValueMode.ATK_MULT, AmountModes,
+        ValueModeEvaluator.DamageAndHealingDefault, AmountModes,
         "18 §2.2: 'value is a multiple of the source's ATK unless valueMode says otherwise', and " +
         "05 §4.2 reduces HP by it directly.");
 
@@ -202,7 +205,7 @@ internal sealed record OpValueRules(
 
     /// <summary><c>HEAL</c> — an HP amount; §2.2's stated default applies, and `05` §4.3 scales by <c>HEAL%</c>.</summary>
     internal static OpValueRules Heal { get; } = new(
-        ValueMode.ATK_MULT, AmountOrHealReadingModes,
+        ValueModeEvaluator.DamageAndHealingDefault, AmountOrHealReadingModes,
         "18 §2.2: 'heal a flat amount or a % of Max HP', with the section's stated ATK_MULT default " +
         "where the author writes neither.");
 
@@ -218,7 +221,7 @@ internal sealed record OpValueRules(
 
     /// <summary><c>SHIELD</c> — a ward amount. Every authored user writes its mode explicitly.</summary>
     internal static OpValueRules Shield { get; } = new(
-        ValueMode.ATK_MULT, AmountOrHealReadingModes,
+        ValueModeEvaluator.DamageAndHealingDefault, AmountOrHealReadingModes,
         "18 §2.2's SHIELD grants 'a WARD absorb of a given size'; §7.4, §7.10's Ossify and " +
         "PK_TRANSFUSION each state their own mode, and the section's default covers the rest.");
 
