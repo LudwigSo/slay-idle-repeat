@@ -44,10 +44,17 @@ internal static class Worlds
 {
     /// <summary>The instant every fixture applies at, one second after the snapshots' anchors.</summary>
     /// <remarks>
-    /// Later than <c>PlayerSnapshots.Midmorning</c> and <c>RunSnapshots.Midmorning</c> on purpose:
-    /// <c>MarkApplied</c> refuses an instant before the one already stored, so a fixture instant
-    /// equal to the anchor would make "the timestamp advanced" untestable and one earlier would make
-    /// every accepted command throw.
+    /// Later than <c>PlayerSnapshots.Midmorning</c> and <c>RunSnapshots.Midmorning</c> on purpose: a
+    /// fixture instant equal to the anchor would make "the timestamp advanced" untestable.
+    /// <para>
+    /// 🔒 <b>M1-12 corrected the other half of this sentence</b>, which read <em>"and one earlier
+    /// would make every accepted command throw"</em>. That was true and it was carried-forward item
+    /// 20 — a `30` §2.1 <b>P3</b> violation — recorded here as a property of the fixture rather than
+    /// as the defect it was. <c>GameRules.MarkApplied</c> now floors the instant it hands the
+    /// aggregates, so an earlier one is accepted and leaves the anchor where it was; see
+    /// <c>GameRulesBackwardsClockTests</c>. This fixture is still later than both anchors, because
+    /// what it is for is testing that the timestamp <em>moves</em>.
+    /// </para>
     /// </remarks>
     internal static readonly DateTimeOffset NowUtc = new(2026, 8, 12, 9, 41, 8, TimeSpan.Zero);
 

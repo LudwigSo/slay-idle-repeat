@@ -533,9 +533,12 @@ public sealed class SubjectSetFloorTests
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and
-    // therefore the rows whose citation the truth arm actually checks. 12 constants today, one of
-    // which (IClockPort) is correctly outside the registers: 11 checked, floored at 9 so a row
-    // rewritten into unresolvable prose is a build failure rather than a quiet exemption (S3).
+    // therefore the rows whose citation the truth arm actually checks: one per register row, with
+    // IClockPort excepted (30 §3 makes it the name that must never appear, so it is correctly in
+    // neither register). Deliberately NOT restated as "N of M constants" — M1-12's own review caught
+    // that transcription wrong by one on the commit that corrected two other stale counts, which is
+    // the S4 known limit landing inside the sentence describing it. Floored so that a row rewritten
+    // into prose this assembly cannot resolve is a build failure rather than a quiet exemption (S3).
     private const int CitedConstantRowFloor = 9;
 
     /// <summary>
@@ -799,14 +802,31 @@ public sealed class SubjectSetFloorTests
 
             var readerTypes = ReaderTypesOf(value);
 
+            // 🔒 EVERY cited RULE class must read it, not merely one of them. An `Any` overlap lets a
+            // row accumulate false citations indefinitely so long as one is right — which is the same
+            // silence this rule exists to break, one indirection out. Non-`Tests` citations
+            // (GapRegister) are held to the weaker bar in the check below, because a register is a
+            // container of names rather than a rule with a subject set.
+            var falseRuleCitations = citedTypes
+                .Where(t => t.EndsWith("Tests", StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .Where(t => !readerTypes.Contains(t, StringComparer.Ordinal))
+                .ToArray();
+
+            offenders.AddRange(
+                falseRuleCitations.Select(t =>
+                    $"Domain.{constant} = '{value}' cites {t}, which does not read it — the name is read by " +
+                    $"[{string.Join(", ", readerTypes.OrderBy(r => r, StringComparer.Ordinal))}]. Renaming the " +
+                    "constant would leave that rule working exactly as before, so the row promises a " +
+                    "consequence that would not happen. Cite the mechanism that reads it, or say plainly that " +
+                    "the rule does NOT key on it (everything after the first 'NOT ' is read as commentary)."));
+
             if (!citedTypes.Any(t => readerTypes.Contains(t, StringComparer.Ordinal)))
             {
                 offenders.Add(
                     $"Domain.{constant} = '{value}' is cited by [{string.Join(", ", citedTypes.Distinct(StringComparer.Ordinal))}] " +
                     $"but is READ by [{string.Join(", ", readerTypes.OrderBy(t => t, StringComparer.Ordinal))}] — no " +
-                    "overlap. The row names rules that do not key on this constant, so renaming the constant " +
-                    "would leave every rule the row names working exactly as before, and would silence " +
-                    "whatever actually reads it without the row saying so. Cite the mechanism that reads it.");
+                    "overlap at all. Nothing the row names would notice this constant being renamed.");
             }
         }
 
@@ -829,10 +849,22 @@ public sealed class SubjectSetFloorTests
     [Fact]
     public void The_reader_and_citation_lookups_recognise_a_real_name_and_refuse_an_invented_one()
     {
-        Assert.NotEmpty(ReadersOf(Domain.InMemoryGameType));
+        Assert.True(
+            ReadersOf(Domain.InMemoryGameType).Length > 0,
+            "the ldstr scan finds nothing for a name the suite demonstrably reads — " +
+            "The_whole_game_is_playable_from_Core_alone keys on it. If this is empty the reader arm " +
+            "is reporting every constant unread, or (worse, once someone 'fixes' that) reporting " +
+            "nothing at all.");
 
-        Assert.Empty(
-            ReadersOf("M1_12_ANameNoRuleCouldPossiblyRead"));
+        // 🔒 The negatives are CASE VARIANTS of real names, not invented ones. An invented string can
+        // only fail if the lookup returned a wildcard, which nobody will ever write; the actual
+        // fragile assumption in both lookups is the StringComparer.Ordinal, and only a case variant
+        // fails the moment either is loosened to IgnoreCase.
+        Assert.False(
+            ReadersOf(Domain.InMemoryGameType.ToLowerInvariant()).Length > 0,
+            "the reader scan matched a lower-cased 'inmemorygame'. The comparison is Ordinal on " +
+            "purpose: a case-insensitive one would let a renamed-only-in-case constant read as still " +
+            "keyed on, which is the silence this rule exists to break.");
 
         var facts = SuiteFactNames();
 
@@ -840,7 +872,9 @@ public sealed class SubjectSetFloorTests
             nameof(AccessibilityBoundaryTests) + "." + nameof(AccessibilityBoundaryTests.Core_internal_layering_holds),
             facts);
 
-        Assert.DoesNotContain("AccessibilityBoundaryTests.M1_12_No_Such_Rule", facts);
+        Assert.DoesNotContain(
+            "accessibilityboundarytests.core_internal_layering_holds",
+            facts);
 
         // The citation PARSER, separately: a row naming no rule must yield nothing, or the arm above
         // quantifies over an empty set on every row and its failure mode is silence.
@@ -849,6 +883,15 @@ public sealed class SubjectSetFloorTests
         Assert.Equal(
             new[] { "DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged" },
             CitedRules("DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged (LIVE since M1-04)"));
+
+        // 🔒 And the disclaimer half, which is what the GhostSnapshot row needs and what a bare regex
+        // over prose gets wrong: a name introduced as the rule that does NOT read the constant must
+        // not come back as an affirmative citation.
+        Assert.Equal(
+            new[] { "GapRegisterTests.The_stale_check_is_silent_while_the_type_it_waits_for_is_absent" },
+            CitedRules(
+                "GapRegisterTests.The_stale_check_is_silent_while_the_type_it_waits_for_is_absent " +
+                "⚠️ NOT IsolationTests.GuildView_is_a_read_only_projection, which selects by name"));
     }
 
     /// <summary>
@@ -908,13 +951,32 @@ public sealed class SubjectSetFloorTests
             .Select(t => t.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (Match match in Regex.Matches(usedBy, @"\b([A-Z]\w*)\.([A-Za-z_]\w*)\b"))
+        foreach (Match match in Regex.Matches(Affirmative(usedBy), @"\b([A-Z]\w*)\.([A-Za-z_]\w*)\b"))
         {
             if (suiteTypes.Contains(match.Groups[1].Value))
             {
                 yield return $"{match.Groups[1].Value}.{match.Groups[2].Value}";
             }
         }
+    }
+
+    /// <summary>
+    /// 🔒 The part of a register row that <b>claims</b> something, with the disclaimer removed.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The GhostSnapshot row is why this exists, and it was found by review rather than by the
+    /// rule.</b> M1-12 rewrote that row to record which rule does <em>not</em> read the constant —
+    /// <c>"⚠️ NOT IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"</c> — and a bare
+    /// regex over the prose then extracted that very name as an affirmative citation, which the truth
+    /// arm accepted. So the one row in the repository documenting a false citation had reintroduced
+    /// it in a form the mechanism reported as true. Everything from the first <c>NOT</c> onward is
+    /// therefore commentary, not a claim.
+    /// </remarks>
+    private static string Affirmative(string usedBy)
+    {
+        var disclaimer = usedBy.IndexOf("NOT ", StringComparison.Ordinal);
+
+        return disclaimer < 0 ? usedBy : usedBy[..disclaimer];
     }
 
     /// <summary>

@@ -88,6 +88,47 @@ public sealed class GameRulesBackwardsClockTests
     }
 
     /// <summary>
+    /// 🔒 `14` §16.3 / `30` §2.1 P3 — the <b>run's</b> anchor is floored too, on a
+    /// <c>CommandKind.Run</c> command.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Without this test the run half of the clamp is untested and reverting it leaves every
+    /// suite green</b> — M1-12's own review caught that, which is steering <b>S1</b> arriving inside
+    /// the fix for a P3 violation. Every other test here drives <c>BEGIN_SESSION</c>, which is
+    /// <c>CommandKind.Meta</c> against a run-less slice, so <c>MarkApplied</c>'s
+    /// <c>if (kind == CommandKind.Run)</c> branch is never entered — and all 19 run rows in the
+    /// production table are <c>Deferred</c> to M3, so no production command can reach it either.
+    /// The fixture table is therefore the only way to drive it today, and it is the sharper of the
+    /// two consequences: `14` §16.3 measures the sliding 48-hour run TTL off <em>this</em> field.
+    /// <para>
+    /// ⚠️ <c>Worlds.Context</c> rather than <c>Worlds.Drawing</c>: `30` §3 makes <c>CommandSeed</c>
+    /// meta-only, and a run command handed one is a different defect with a different fixture.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_clock_behind_the_runs_anchor_is_floored_too()
+    {
+        var slice = Worlds.InARun();
+        var stored = slice.Run!.LastAppliedAtUtc;
+
+        var result = Core.GameRules.Execute(
+            Worlds.RunTable((_, _) => HandlerResult.Accept()),
+            slice,
+            new Worlds.RunFixtureCommand(),
+            Worlds.Context with { NowUtc = Worlds.NowUtc.AddMinutes(-5) });
+
+        result.Accepted.ShouldBeTrue(
+            "30 §2.1's P3 does not stop at the player. Run.MarkApplied throws on a backwards instant " +
+            "exactly as Player.MarkApplied does, and a run command under host clock skew used to " +
+            "carry that throw out of Apply.");
+
+        result.NewState.Run!.LastAppliedAtUtc.ShouldBe(
+            stored,
+            "floored, not moved backwards: 14 §16.3 slides the 48-hour run TTL from this field, so " +
+            "skew walking it backwards would hand a client a way to hold a run open.");
+    }
+
+    /// <summary>
     /// `30` §2.1 P3 / `14` §16.3 — the ordinary forwards case still advances, so the clamp is a floor
     /// and not a freeze.
     /// </summary>

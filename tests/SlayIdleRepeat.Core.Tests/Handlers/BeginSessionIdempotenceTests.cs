@@ -441,8 +441,13 @@ public sealed class BeginSessionIdempotenceTests
             "run TTL from it, so skew must neither hold a run open nor expire one early.");
 
         // Real time reaches the day the skewed command already claimed.
+        //
+        // 🔒 Continued from `corrected`, not from `skewed`. Before M1-12 it had to be `skewed` —
+        // the correction threw, so there was no state to carry forward — and leaving it there would
+        // make the corrected command a dead end that this test's headline claim never passes
+        // through. The chain is now skew → correction → catch-up → recovery, end to end.
         var caughtUp = BeginSessions.Send(
-            skewed.NewState, Worlds.NextDay(BeginSessions.Morning).AddHours(1));
+            corrected.NewState, Worlds.NextDay(BeginSessions.Morning).AddHours(1));
 
         caughtUp.Events.Count(IsRefill).ShouldBe(
             0,

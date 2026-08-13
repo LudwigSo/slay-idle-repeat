@@ -419,13 +419,16 @@ public sealed class AccessibilityBoundaryTests
     /// <c>ldc.i4</c> with the enum type reachable only through whatever declared <c>x</c>.
     /// </para>
     /// <para>
-    /// 🔒 <b>The <c>using</c>-alias hole is closed rather than declared.</b> <c>Il</c>'s own preamble
-    /// says a grep "is defeated by a <c>using</c> alias, a fully-qualified call or an extension
-    /// method". Two of those three do not apply — a fully-qualified read still contains
-    /// <c>EnergyMath.</c>, and there is no such thing as an extension <em>constant</em> — and the
-    /// third is resolved here: every <c>using X = A.B.C;</c> in the file is read out of the same
-    /// stripped text and <c>X</c> is searched for alongside <c>C</c>. Comments and string literals
-    /// are already blanked by <see cref="SourceText"/>, which is what keeps the four
+    /// 🔒 <b>Every way past it is closed rather than declared.</b> <c>Il</c>'s own preamble says a
+    /// grep "is defeated by a <c>using</c> alias, a fully-qualified call or an extension method".
+    /// One of those three does not apply — there is no such thing as an extension <em>constant</em> —
+    /// and the other two are handled: a qualified read is matched through the type's own namespace
+    /// suffixes (see <see cref="QualifiedPrefix"/>), and every <c>using X = A.B.C;</c> is read out of
+    /// the same stripped text so that <c>X</c> is searched for alongside <c>C</c>. <b>A fifth
+    /// spelling that list does not mention</b> — <c>using static A.B.C;</c> then a bare
+    /// <c>MEMBER</c> — leaves neither an IL trace nor a <c>Type.MEMBER</c> pair, and is caught at the
+    /// <em>directive</em> instead: importing a type's statics is naming that type. Comments and
+    /// string literals are already blanked by <see cref="SourceText"/>, which is what keeps the four
     /// <c>GameRules.Apply</c> mentions in <c>Primitives</c>' and <c>Model</c>'s comments from
     /// reading as violations.
     /// </para>
@@ -481,7 +484,7 @@ public sealed class AccessibilityBoundaryTests
     /// Every hit of one of <paramref name="candidates"/> used as a member access, in the source
     /// files of <paramref name="layer"/>, with each file's <c>using</c> aliases resolved.
     /// </summary>
-    private static IEnumerable<string> InlinedReferencesFrom(
+    internal static IEnumerable<string> InlinedReferencesFrom(
         string layer, IReadOnlyCollection<(string Name, string Namespace)> candidates)
     {
         if (candidates.Count == 0)
@@ -489,8 +492,15 @@ public sealed class AccessibilityBoundaryTests
             yield break;
         }
 
+        var wanted = candidates.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+
         foreach (var file in CoreSourceFiles.Value.Where(f => Il.IsUnder(f.Namespace, layer)))
         {
+            foreach (var import in file.StaticImports.Where(wanted.Contains))
+            {
+                yield return $"{RepoLayout.Relative(file.Text.Path)} statically imports {import}";
+            }
+
             foreach (var hit in InlinedMemberAccesses(file.Text.Stripped, candidates, file.Aliases))
             {
                 yield return $"{RepoLayout.Relative(file.Text.Path)} reads {hit}";
@@ -576,7 +586,7 @@ public sealed class AccessibilityBoundaryTests
     /// <summary>
     /// `Core` types under <paramref name="ns"/> that declare a literal field, with their namespaces.
     /// </summary>
-    private static IReadOnlyCollection<(string Name, string Namespace)> InlinableTypesIn(string ns) =>
+    internal static IReadOnlyCollection<(string Name, string Namespace)> InlinableTypesIn(string ns) =>
         Domain.CoreTypesUnder(ns)
               .Where(t => t.Fields.Any(f => f.IsLiteral))
               .Select(t => (t.Name, Namespace: Il.NamespaceOf(t)))
@@ -595,12 +605,12 @@ public sealed class AccessibilityBoundaryTests
               .Distinct()
               .ToArray();
 
-    /// <summary>One `Core` source file, stripped, with its namespace, aliases and declared types.</summary>
+    /// <summary>One `Core` source file, stripped, with its namespace and its <c>using</c> aliases.</summary>
     private sealed record CoreSourceFile(
         SourceText Text,
         string Namespace,
         IReadOnlyDictionary<string, string> Aliases,
-        IReadOnlyList<(string Namespace, string Name)> DeclaredTypes);
+        IReadOnlyList<string> StaticImports);
 
     private static readonly Lazy<IReadOnlyList<CoreSourceFile>> CoreSourceFiles = new(() =>
         RepoLayout.SourceFiles(RepoLayout.ProjectDirectory(ProductionAssemblies.CoreName))
@@ -615,16 +625,21 @@ public sealed class AccessibilityBoundaryTests
             ? m.Groups[1].Value
             : string.Empty;
 
-        var aliases = Regex.Matches(text.Stripped, @"\busing\s+(\w+)\s*=\s*([\w.]+)\s*;")
+        var aliases = Regex.Matches(text.Stripped, @"\busing\s+(?!static\b)(\w+)\s*=\s*([\w.]+)\s*;")
             .Select(x => (Alias: x.Groups[1].Value, Target: x.Groups[2].Value.Split('.').Last()))
             .GroupBy(x => x.Alias, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First().Target, StringComparer.Ordinal);
 
-        var declared = Regex.Matches(text.Stripped, @"\b(?:class|struct|record|interface|enum)\s+(\w+)")
-            .Select(x => (Namespace: ns, Name: x.Groups[1].Value))
+        // 🔒 `using static A.B.C;` followed by a BARE `MEMBER`. The fifth spelling, and the only one
+        // that leaves neither an IL trace nor a `Type.MEMBER` pair for the scan below to find — so it
+        // is caught at the DIRECTIVE instead, which is unambiguous and needs no attribution of bare
+        // identifiers. Importing a type's statics IS naming that type.
+        var staticImports = Regex.Matches(text.Stripped, @"\busing\s+static\s+([\w.]+)\s*;")
+            .Select(x => x.Groups[1].Value.Split('.').Last())
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-        return new CoreSourceFile(text, ns, aliases, declared);
+        return new CoreSourceFile(text, ns, aliases, staticImports);
     }
 
     /// <summary>
@@ -688,7 +703,11 @@ public sealed class AccessibilityBoundaryTests
 
         InlinedMemberAccesses("var x = EnergyMath.MaxBanked;", candidates, none)
             .ShouldHaveSingleItem()
-            .ShouldBe("EnergyMath.MaxBanked");
+            .ShouldBe(
+                "EnergyMath.MaxBanked",
+                "the plain, unqualified read is the shape the whole arm exists for. If this stops " +
+                "matching, nothing else in this method can tell you so — the negatives all pass over " +
+                "a predicate that matches nothing.");
 
         InlinedMemberAccesses("var x = EnergyMath . MaxBanked;", candidates, none)
             .ShouldHaveSingleItem()
@@ -740,6 +759,34 @@ public sealed class AccessibilityBoundaryTests
 
         InlinedMemberAccesses("var x = EM.MaxBanked;", candidates, none)
             .ShouldBeEmpty("an alias nobody declared is just an identifier.");
+
+        // 🔒 AND THE CHAIN, against the real repository. Everything above drives the pure string
+        // function with hand-built text and hand-built candidates — so if CoreSourceFiles' namespace
+        // regex, Il.IsUnder's layer match or InlinableTypesIn ever stopped resolving, every file
+        // would fall out of every layer, InlinedReferencesFrom would yield nothing, and both the arm
+        // and every assertion above would stay green. Driven over a PERMITTED pair — Model may name
+        // Primitives — so it can never become a false failure: Player reads CurrencyId's members,
+        // and CurrencyId is an enum, whose members are literal fields.
+        var live = InlinedReferencesFrom(
+                Domain.ModelNamespace, InlinableTypesIn(Domain.PrimitivesNamespace))
+            .ToArray();
+
+        live.ShouldNotBeEmpty(
+            "the whole chain — Core's source files, their parsed namespaces, the layer match and the " +
+            "literal-field candidate set — resolves against the real repository. Empty here means the " +
+            "arm is scanning nothing, with Core_internal_layering_holds green.");
+
+        live.ShouldContain(
+            hit => hit.Contains("CurrencyId.", StringComparison.Ordinal),
+            "Core/Model/ reads CurrencyId's enum members, and an enum member is a literal field — " +
+            "which is exactly the inlined read this arm exists to see.");
+
+        InlinableTypesIn(Domain.ContentNamespace)
+            .ShouldContain(
+                c => c.Name.Equals("EnergyTuning", StringComparison.Ordinal),
+                "an identity floor beside the count one (S3): the candidate set for a layer must " +
+                "still contain the type M1-10's exploit path is written about, or a count that " +
+                "merely stayed non-empty would hide its loss.");
     }
 
     /// <summary>
@@ -789,10 +836,23 @@ public sealed class AccessibilityBoundaryTests
     {
         var reached = ModelMembersReachedFromTesting().ToArray();
 
-        Assert.NotEmpty(reached);
-        Assert.Contains(
-            reached,
-            r => r.Member.Contains("Rehydrate", StringComparison.Ordinal));
+        Assert.True(
+            reached.Length > 0,
+            "Core/Testing/ names no Core/Model/ member at all, so this rule is quantifying over " +
+            "nothing and will report success forever. 30 §6's harness exists to DRIVE the aggregates; " +
+            "if it has stopped touching them, that is the finding, not this rule's silence.");
+
+        // 🔒 Player::Rehydrate EXACTLY, not "something called Rehydrate". Run.Rehydrate satisfies a
+        // Contains("Rehydrate") just as well, which would leave the floor claiming the harness still
+        // builds a Player while it had stopped — the by-name/by-identity distinction this file makes
+        // about Run::_wallet one rule over. InMemoryGame.CreatePlayer is the only call site.
+        Assert.True(
+            reached.Any(r => r.Member.Contains(
+                "SlayIdleRepeat.Core.Model.Player::Rehydrate", StringComparison.Ordinal)),
+            "the harness no longer calls Player.Rehydrate — 30 §11.3's one validated construction " +
+            "path. Either CreatePlayer has found another way to build an aggregate, which is what " +
+            "this rule exists to forbid, or the harness has stopped building one and the rule's " +
+            "subject set is about to empty.");
 
         var offenders = reached
             .Where(r => !r.IsPublic)
@@ -835,7 +895,10 @@ public sealed class AccessibilityBoundaryTests
                         case MethodReference call when IsUnderModel(call.DeclaringType):
                             if (call.Resolve() is { } target)
                             {
-                                yield return (Il.Describe(method), call.FullName, target.IsPublic);
+                                yield return (
+                                    Il.Describe(method),
+                                    call.FullName,
+                                    target.IsPublic && IsPubliclyVisible(target.DeclaringType));
                             }
 
                             break;
@@ -843,7 +906,10 @@ public sealed class AccessibilityBoundaryTests
                         case FieldReference field when IsUnderModel(field.DeclaringType):
                             if (field.Resolve() is { } resolved)
                             {
-                                yield return (Il.Describe(method), field.FullName, resolved.IsPublic);
+                                yield return (
+                                    Il.Describe(method),
+                                    field.FullName,
+                                    resolved.IsPublic && IsPubliclyVisible(resolved.DeclaringType));
                             }
 
                             break;
@@ -851,6 +917,33 @@ public sealed class AccessibilityBoundaryTests
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// True when a type is visible outside the assembly — public, and publicly nested all the way
+    /// out.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A <c>public</c> member on an <c>internal</c> type is not part of the seam `30` §11.3
+    /// sanctions: an adapter cannot reach it, so the harness reaching it is the same bypass by a
+    /// different spelling. No such type exists under <c>Core/Model/</c> today, which makes this a
+    /// hole closed rather than a defect fixed.
+    /// </remarks>
+    private static bool IsPubliclyVisible(TypeDefinition type)
+    {
+        var current = type;
+
+        while (current is not null)
+        {
+            if (!(current.DeclaringType is null ? current.IsPublic : current.IsNestedPublic))
+            {
+                return false;
+            }
+
+            current = current.DeclaringType;
+        }
+
+        return true;
     }
 
     /// <summary>True when a type reference names a type under <c>Core/Model/</c>.</summary>

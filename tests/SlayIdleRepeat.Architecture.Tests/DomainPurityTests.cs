@@ -23,11 +23,13 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// detectable."</em>
 /// </para>
 /// <para>
-/// 🔒 <b>Every rule here quantifies over real subjects.</b> Measured on this branch, not assumed:
-/// 128 types in <c>Core</c> (117 author-written), 49 concrete <c>GameCommand</c> subtypes against a
-/// two-type dispatch surface, 3 currency-carrying fields, 2 aggregates, 4 types under
-/// <c>Handlers/</c> and <c>Rules/</c>, and a public <c>InMemoryGame</c>. Each rule was made to fail
-/// on purpose, arm by arm, and the literal output is in M1-12's report (steering <b>S1</b>).
+/// 🔒 <b>Every rule here quantifies over real subjects, and each was made to fail on purpose, arm
+/// by arm, with the literal output in M1-12's report (steering <b>S1</b>).</b> The counts are
+/// deliberately <em>not</em> transcribed here — that is the mistake the deleted sentence made in
+/// the other direction, and this milestone made it three times over
+/// <c>Core_internal_layering_holds</c>' row count. Read them off the mechanisms that would go red:
+/// <c>SubjectSetFloorTests</c>' <c>CoreTypeFloor</c> and its per-name rows, and each rule's own
+/// identity floor.
 /// </para>
 /// <para>
 /// ⚠️ <b>What remains vacuous, and it is by design rather than by neglect.</b> Three arms have no
