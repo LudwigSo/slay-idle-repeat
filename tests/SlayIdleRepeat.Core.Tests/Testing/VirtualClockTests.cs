@@ -54,8 +54,7 @@ public sealed class VirtualClockTests
     }
 
     /// <summary>
-    /// 🔒 The clock only goes forwards — carried-forward item <b>20</b>, refused here rather than
-    /// settled here.
+    /// 🔒 The clock only goes forwards, and the refusal names the reason it still does.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -66,10 +65,23 @@ public sealed class VirtualClockTests
     /// fix.
     /// </para>
     /// <para>
-    /// ⚠️ It pins the <em>ruling</em>'s identity too. If a later milestone settles the disagreement
-    /// between <c>Player.MarkApplied</c>'s throw and <c>GameRules.AdvanceTime</c>'s clamp and decides
-    /// a harness may rewind, this test is what has to be deleted deliberately — with that ruling in
-    /// its commit message — rather than quietly relaxed.
+    /// 🔒 <b>M1-12 is the milestone this remark was written for, and this is that deliberate
+    /// edit.</b> The paragraph used to read: <em>"It pins the ruling's identity too. If a later
+    /// milestone settles the disagreement between <c>Player.MarkApplied</c>'s throw and
+    /// <c>GameRules.AdvanceTime</c>'s clamp and decides a harness may rewind, this test is what has
+    /// to be deleted deliberately — with that ruling in its commit message — rather than quietly
+    /// relaxed."</em> Carried-forward item 20 is settled, on `30` §2.1 <b>P3</b>'s side:
+    /// <c>GameRules.MarkApplied</c> floors the instant it hands both aggregates, so a backwards
+    /// clock returns a result. The old fragment (<c>"carried-forward item"</c>) is therefore gone
+    /// from the message and from this assertion.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The rule itself did not change and the test is not relaxed</b> — only the reason it
+    /// gives. Forward-only stands on `30` §6 writing the harness as <c>Advance(...)</c> rather than
+    /// a setter: skew is a thing composition roots produce, not a thing a harness manufactures. So
+    /// the second fragment now pins <c>Rehydrate</c> — the `30` §11.3 path a test must use to build
+    /// skewed state instead — which is what a caller who hit this guard actually needs to be told.
+    /// <c>GameRulesBackwardsClockTests</c> is where that is driven.
     /// </para>
     /// </remarks>
     [Fact]
@@ -82,7 +94,12 @@ public sealed class VirtualClockTests
 
         refusal.ParamName.ShouldBe("by");
         refusal.Message.ShouldContain("only moves FORWARDS", Case.Sensitive);
-        refusal.Message.ShouldContain("carried-forward item", Case.Sensitive);
+        refusal.Message.ShouldContain(
+            "Rehydrate",
+            Case.Sensitive,
+            "the refusal must tell the caller what to do INSTEAD — build skewed state through " +
+            "30 §11.3's Rehydrate — not merely that it will not rewind. This fragment replaced " +
+            "'carried-forward item' when M1-12 settled item 20; see the remarks.");
 
         clock.NowUtc.ShouldBe(
             Harnesses.Start,

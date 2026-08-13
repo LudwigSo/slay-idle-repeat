@@ -419,27 +419,47 @@ public sealed class AccessibilityBoundaryTests
     /// <c>ldc.i4</c> with the enum type reachable only through whatever declared <c>x</c>.
     /// </para>
     /// <para>
-    /// 🔒 <b>Every way past it is closed rather than declared.</b> <c>Il</c>'s own preamble says a
-    /// grep "is defeated by a <c>using</c> alias, a fully-qualified call or an extension method".
-    /// One of those three does not apply — there is no such thing as an extension <em>constant</em> —
-    /// and the other two are handled: a qualified read is matched through the type's own namespace
-    /// suffixes (see <see cref="QualifiedPrefix"/>), and every <c>using X = A.B.C;</c> is read out of
-    /// the same stripped text so that <c>X</c> is searched for alongside <c>C</c>. <b>A fifth
-    /// spelling that list does not mention</b> — <c>using static A.B.C;</c> then a bare
-    /// <c>MEMBER</c> — leaves neither an IL trace nor a <c>Type.MEMBER</c> pair, and is caught at the
-    /// <em>directive</em> instead: importing a type's statics is naming that type. Comments and
-    /// string literals are already blanked by <see cref="SourceText"/>, which is what keeps the four
+    /// 🔒 <b>The spellings a grep is normally defeated by are handled here.</b> <c>Il</c>'s own
+    /// preamble names three: a <c>using</c> alias, a fully-qualified call, an extension method. The
+    /// third does not apply — there is no such thing as an extension <em>constant</em> — and the
+    /// other two do: a qualified read is matched through the type's own namespace suffixes (see
+    /// <see cref="QualifiedPrefix"/>), and every <c>using X = A.B.C;</c> is read out of the same
+    /// stripped text so that <c>X</c> is searched for alongside <c>C</c>. <b>A fourth spelling that
+    /// list does not mention</b> — <c>using static A.B.C;</c> then a bare <c>MEMBER</c> — leaves
+    /// neither an IL trace nor a <c>Type.MEMBER</c> pair, and is caught at the <em>directive</em>
+    /// instead: importing a type's statics is naming that type. Comments and string literals are
+    /// already blanked by <see cref="SourceText"/>, which is what keeps the four
     /// <c>GameRules.Apply</c> mentions in <c>Primitives</c>' and <c>Model</c>'s comments from
-    /// reading as violations.
+    /// reading as violations. ⚠️ Two further spellings are <b>not</b> closed and are listed in the
+    /// residual limits below, rather than left under a claim that everything is.
     /// </para>
     /// <para>
-    /// ⚠️ <b>The residual limit, stated so nobody assumes otherwise</b> (steering <b>S1</b>). This is
-    /// a source rule, so it sees what is compiled <em>into this assembly from these files</em>. A
-    /// const read from a <c>#if</c>-excluded branch reads as a violation here and is not one; that
-    /// direction is safe (it fails loudly rather than passing quietly) and no such branch exists in
-    /// <c>Core</c> today. What it cannot do is prove the <em>absence</em> of a const read written in
-    /// a file outside <c>Core</c>'s project directory — which no file in this assembly is, because
-    /// the SDK globs the directory.
+    /// ⚠️ <b>The residual limits, stated so nobody assumes otherwise</b> (steering <b>S1</b>). All of
+    /// them fail in the <em>loud</em> direction — a false positive whose fix is to move the value —
+    /// except the last two, which are gaps and are listed as such:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>A const read inside a <c>#if</c>-excluded branch reads as a violation and is not one.
+    ///   No such branch exists in <c>Core</c> today.</item>
+    ///   <item>An unqualified access to a member of the <em>enclosing</em> type whose name collides
+    ///   with an upper-layer type — <c>Energy.Total</c> where an upper layer declares an
+    ///   <c>Energy</c> carrying a const — reads as a violation. No such collision exists today
+    ///   (<c>Energy</c> is a <c>Player</c> property; the upper-layer types are <c>EnergyTuning</c>,
+    ///   <c>EnergyMath</c>, <c>EnergyAccrual</c>, <c>EnergySpend</c>).</item>
+    ///   <item><b>GAP.</b> Generic and nested types are excluded from the candidate set — see
+    ///   <see cref="IsSpellableInSource"/>. None declares a literal field in <c>Core</c> today.</item>
+    ///   <item><b>GAP.</b> A <em>namespace</em> alias (<c>using Econ = …Rules.Economy;</c> then
+    ///   <c>Econ.EnergyMath.MaxBanked</c>) and an alias whose target is spelled
+    ///   <c>global::A.B.C</c> are both missed: the alias map keys on the target's last segment being
+    ///   a candidate <em>type</em>, and <c>[\w.]+</c> cannot span <c>::</c>. Neither spelling exists
+    ///   in <c>Core</c>. Written down rather than closed because closing them means resolving
+    ///   namespace aliases into <see cref="QualifiedPrefix"/>, which is a second mechanism for a
+    ///   shape nobody has written — and a clause nobody can show working is the defect this whole
+    ///   file is about.</item>
+    /// </list>
+    /// <para>
+    /// What it cannot do is prove the <em>absence</em> of a const read in a file outside <c>Core</c>'s
+    /// project directory — which no file in this assembly is, because the SDK globs the directory.
     /// </para>
     /// </remarks>
     private static IEnumerable<string> InlinedCrossLayerReferences(
@@ -472,12 +492,16 @@ public sealed class AccessibilityBoundaryTests
         return offenders;
 
         static string Explain(string hit, string layer, string upper) =>
-            $"{hit} — a type in {layer} names {upper} in SOURCE while naming nothing from it in IL, " +
-            "which is the signature of a `const` read: the compiler inlines a constant at its use " +
-            "site, so no type, field or local reference reaches metadata and the scan above is blind " +
-            "to it (30 §11.4). Make it `static readonly` if the layering permits the reference at " +
-            "all — that emits an ldsfld the scan can see — or move the value to a layer this one may " +
-            "name.";
+            $"{hit} — a type in {layer} names {upper} in SOURCE (30 §11.4). If the metadata scan " +
+            "above reported nothing for this file, the reference is an INLINED CONSTANT: the " +
+            "compiler folds a `const` into its use site, so no type, field or local reference " +
+            "reaches metadata and nothing but a source scan can see it. Make it `static readonly` " +
+            "if the layering permits the reference at all — that emits an ldsfld the scan can see — " +
+            "or move the value to a layer this one may name. ⚠️ If the scan above DID report this " +
+            "file, the two lines are one violation seen twice: the candidate set here is 'upper-" +
+            "layer types declaring at least one literal field', which is wider than 'the constant " +
+            "itself', so a type that happens to declare a const is watched by both arms. Fix the " +
+            "reference once.";
     }
 
     /// <summary>
@@ -532,7 +556,7 @@ public sealed class AccessibilityBoundaryTests
             aliases.Where(a => candidates.Any(c => c.Name.Equals(a.Value, StringComparison.Ordinal)))
                    .Select(a => (Name: a.Key, Namespace: string.Empty)));
 
-        foreach (var (name, ns) in wanted.OrderBy(c => c.Name, StringComparer.Ordinal).Distinct())
+        foreach (var (name, ns) in wanted.Distinct().OrderBy(c => c.Name, StringComparer.Ordinal))
         {
             // `Name` followed by a member access. Requiring the DOT AFTER is what makes this a
             // const-read detector rather than a second, weaker copy of the metadata scan: a constant
@@ -545,9 +569,14 @@ public sealed class AccessibilityBoundaryTests
             // lookbehind: `…Rules.Economy.EnergyMath.MaxBanked` has a dot before the name too, and
             // the only thing that tells the two apart is that one prefix is the type's OWN
             // namespace and the other is whatever a local happens to be called.
-            var pattern = new Regex(
-                @"(?<![\w.])" + QualifiedPrefix(ns) + Regex.Escape(name) + @"\s*\.\s*\w+",
-                RegexOptions.None);
+            // Built once per candidate and cached across files: `Testing` alone is a candidate layer
+            // in seven forbidden rows, and Core has ~60 source files. Measured before caching: the
+            // whole rule ran in 533 ms, so this is headroom rather than a fix.
+            var pattern = PatternCache.GetOrAdd(
+                (name, ns),
+                key => new Regex(
+                    @"(?<![\w.])" + QualifiedPrefix(key.Namespace) + Regex.Escape(key.Name) + @"\s*\.\s*\w+",
+                    RegexOptions.None));
 
             foreach (Match match in pattern.Matches(stripped))
             {
@@ -587,11 +616,37 @@ public sealed class AccessibilityBoundaryTests
     /// `Core` types under <paramref name="ns"/> that declare a literal field, with their namespaces.
     /// </summary>
     internal static IReadOnlyCollection<(string Name, string Namespace)> InlinableTypesIn(string ns) =>
-        Domain.CoreTypesUnder(ns)
-              .Where(t => t.Fields.Any(f => f.IsLiteral))
-              .Select(t => (t.Name, Namespace: Il.NamespaceOf(t)))
-              .Distinct()
-              .ToArray();
+        InlinableTypesByNamespace.GetOrAdd(ns, key =>
+            Domain.CoreTypesUnder(key)
+                  .Where(t => t.Fields.Any(f => f.IsLiteral))
+                  .Where(IsSpellableInSource)
+                  .Select(t => (t.Name, Namespace: Il.NamespaceOf(t)))
+                  .Distinct()
+                  .ToArray());
+
+    /// <summary>One compiled <see cref="Regex"/> per (type name, declaring namespace).</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Name, string Namespace), Regex>
+        PatternCache = new();
+
+    /// <summary>Memoised per namespace: <c>Testing</c> alone appears in seven forbidden rows.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyCollection<(string Name, string Namespace)>>
+        InlinableTypesByNamespace = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 🔒 True when a type's Cecil name is the name C# source would spell it by — which generic and
+    /// nested types are not.
+    /// </summary>
+    /// <remarks>
+    /// Cecil spells a generic type <c>Foo`1</c> and a nested one by its bare inner name, so
+    /// <c>Regex.Escape</c> would produce a pattern that can never match source (the backtick) or one
+    /// the <c>(?&lt;![\w.])</c> lookbehind always rejects (<c>Outer.Nested.CONST</c> has a dot before
+    /// the inner name). Excluded <b>explicitly</b> rather than left to fail silently inside the
+    /// escape: no generic or nested <c>Core</c> type declares a literal field today, so this is a
+    /// stated residual limit and not a live gap — and if one ever does, the exclusion is a line
+    /// someone can find rather than a regex nobody suspects.
+    /// </remarks>
+    private static bool IsSpellableInSource(TypeDefinition type) =>
+        !type.HasGenericParameters && type.DeclaringType is null;
 
     /// <summary>
     /// `Core` types declared directly in the <c>SlayIdleRepeat.Core</c> root that declare a literal
@@ -601,6 +656,7 @@ public sealed class AccessibilityBoundaryTests
         Domain.CoreTypes
               .Where(t => Il.NamespaceOf(t).Equals(Domain.CoreNamespace, StringComparison.Ordinal))
               .Where(t => t.Fields.Any(f => f.IsLiteral))
+              .Where(IsSpellableInSource)
               .Select(t => (t.Name, Namespace: Domain.CoreNamespace))
               .Distinct()
               .ToArray();

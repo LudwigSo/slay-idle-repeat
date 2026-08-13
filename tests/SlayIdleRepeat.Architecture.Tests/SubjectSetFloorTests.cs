@@ -778,16 +778,33 @@ public sealed class SubjectSetFloorTests
         // constants, because those are the subjects looked up BY NAME — a row for `Player` is keyed
         // on a namespace selection instead and has no literal for this to find, which is why the
         // rows are not all treated alike.
-        var byName = Pending.Concat(Live).ToDictionary(s => s.Name, StringComparer.Ordinal);
+        // ⚠️ Grouped, not ToDictionary. A subject COPIED into Live instead of MOVED out of Pending —
+        // precisely the mistake this file polices — would otherwise kill this rule with
+        // "An item with the same key has already been added" instead of reporting an offender, and a
+        // rule that throws where it should fail is a rule whose message nobody reads.
+        var rows = Pending.Concat(Live)
+            .GroupBy(s => s.Name, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+
+        offenders.AddRange(
+            rows.Where(r => r.Value.Length > 1)
+                .Select(r => $"'{r.Key}' appears {r.Value.Length} times across Pending and Live. A subject that " +
+                             "has arrived is MOVED, never copied — two rows mean one of them is describing a " +
+                             "state the repository is not in."));
+
         var checkedRows = 0;
 
         foreach (var (constant, value) in constants)
         {
-            if (value.Equals(Domain.ClockPortType, StringComparison.Ordinal) ||
-                !byName.TryGetValue(value, out var row))
+            // IClockPort is deliberately in neither register (30 §3: it must never exist), so the
+            // lookup below already skips it. Not spelled as a second condition, because a reader
+            // would go looking for the case it handles.
+            if (!rows.TryGetValue(value, out var matches))
             {
                 continue;
             }
+
+            var row = matches[0];
 
             var citedTypes = CitedRules(row.UsedBy)
                 .Select(c => c.Split('.')[0])
@@ -974,9 +991,12 @@ public sealed class SubjectSetFloorTests
     /// </remarks>
     private static string Affirmative(string usedBy)
     {
-        var disclaimer = usedBy.IndexOf("NOT ", StringComparison.Ordinal);
+        // ⚠️ `\bNOT\s`, not IndexOf("NOT ") — the substring also matches inside CANNOT, and one such
+        // word in a row's prose would silently discard every citation after it and let the truth arm
+        // pass over the whole row. In a file written like this one, CANNOT is likely.
+        var disclaimer = Regex.Match(usedBy, @"\bNOT\s");
 
-        return disclaimer < 0 ? usedBy : usedBy[..disclaimer];
+        return disclaimer.Success ? usedBy[..disclaimer.Index] : usedBy;
     }
 
     /// <summary>

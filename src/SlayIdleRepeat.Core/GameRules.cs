@@ -878,12 +878,34 @@ public static class GameRules
 
     /// <summary>
     /// 🔒 `30` §2.1's <b>P3</b> clamp for a host clock behind a persisted anchor: the later of the
-    /// two, so an accepted command never asks an aggregate to move its timestamp backwards.
+    /// two, so an accepted command never asks an aggregate to move <b>this</b> timestamp backwards.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Written once and applied to both aggregates rather than inlined twice: the run's anchor and
     /// the player's are the same ruling, and two spellings of it would eventually disagree about
     /// which one skew is allowed to move (steering <b>S4</b>).
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It governs the two <c>LastAppliedAtUtc</c> fields and nothing else.</b>
+    /// <c>DailyPeriodStartUtc</c> and <c>WeeklyPeriodStartUtc</c> are equally backwards-guarded and
+    /// are kept safe by <see cref="AdvanceTime"/>'s <c>&gt;=</c> conditions, not by this helper —
+    /// stated so the sentence above stays true as the aggregates grow anchors.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The door this does NOT close, and it is the one a later milestone will walk through.</b>
+    /// A handler still receives the <em>raw</em> <c>context.NowUtc</c> through
+    /// <c>HandlerInput.Context</c>; the floor is re-derived here, afterwards, from the working slice.
+    /// That is harmless today — <c>BeginSession</c> is the only <c>Handled</c> row and it passes no
+    /// instant to a backwards-guarded mutator, and all 19 <c>CommandKind.Run</c> rows are
+    /// <c>Deferred</c> — but nothing mechanical stops the next handler from passing
+    /// <c>input.Context.NowUtc</c> straight into one and reopening the P3 hole through a new door.
+    /// <b>OWNER: the M3 kickoff</b>, which lands the first run handlers and is therefore the first
+    /// commit where the shape becomes reachable. The two cheap fixes, so it is a decision rather
+    /// than a rediscovery: expose the floored instant on <c>HandlerInput</c> instead of the raw one,
+    /// or add an architecture rule over <c>Core/Handlers/</c> forbidding <c>Context.NowUtc</c> from
+    /// reaching a <c>Core/Model/</c> call.
+    /// </para>
     /// </remarks>
     private static DateTimeOffset NotBefore(DateTimeOffset nowUtc, DateTimeOffset stored) =>
         nowUtc < stored ? stored : nowUtc;
