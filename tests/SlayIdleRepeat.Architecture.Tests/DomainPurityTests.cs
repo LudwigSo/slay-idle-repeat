@@ -843,6 +843,20 @@ public sealed class DomainPurityTests
         {
             offenders.Add($"{harness.FullName} is not public — the harness must be usable from outside Core (30 §6)");
         }
+        else if (!harness.Methods.Any(m => m.IsConstructor && m.IsPublic && !m.IsStatic))
+        {
+            // 🔒 M1 REVIEW. Public-and-uninstantiable passed all three arms: making the constructor
+            // internal keeps the type public, keeps the closure exact, and makes `30` §6's actual
+            // claim — "the only thing tests and the economy simulator need to CONSTRUCT" — false.
+            // tools/BalanceHarness and tools/EconomySim reference Core alone and hold no
+            // InternalsVisibleTo grant, so they could no longer build one; ProjectFileTests checks
+            // their references, not that the object exists for them.
+            offenders.Add(
+                $"{harness.FullName} declares no public instance constructor — 30 §6 makes it the " +
+                "thing tests and the economy simulator CONSTRUCT, and a public type nobody outside " +
+                "Core can instantiate is the closure claim without the artefact. tools/EconomySim " +
+                "and tools/BalanceHarness reference Core alone and have no InternalsVisibleTo grant.");
+        }
 
         ArchRule.Empty(
             offenders,

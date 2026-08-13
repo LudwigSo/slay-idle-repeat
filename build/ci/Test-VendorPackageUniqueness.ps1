@@ -83,8 +83,23 @@ function Test-IsAllowed {
 #                  "no vendor SDK outside an adapter" is a rule about the
 #                  product's dependency graph, not about a scratch project whose
 #                  entire purpose is to try a vendor toolchain.
-$excludedDirectorySegments = @('bin', 'obj', '.nuget', 'artifacts', 'spikes')
-$excludePattern = '[\\/](' + ($excludedDirectorySegments -join '|') + ')[\\/]'
+#   .claude       Agent WORKTREES. .claude/worktrees/<name>/ is a full checkout
+#                  of this repository, so every .csproj in one duplicates a
+#                  .csproj already scanned - and this project's own dispatch
+#                  skill MANDATES worktrees, so any conductor with agents in
+#                  flight made A9-UNIQUE fire on Sentry, Npgsql and every other
+#                  vendor package at once, plus A9-LOCATION on every path that
+#                  does not start with src/adapters/. Measured at the M1 review:
+#                  674 projects scanned with 12 stale worktrees present, 278
+#                  with 7, against 228 real ones. CI on a fresh clone never saw
+#                  it, which is what made it a trap locally.
+$excludedDirectorySegments = @('bin', 'obj', '.nuget', 'artifacts', 'spikes', '.claude')
+
+# The segments are regex-ESCAPED before joining: '.nuget' and '.claude' both
+# carry a metacharacter the old concatenation passed through raw, so '.' matched
+# any character rather than a literal dot.
+$escapedSegments = $excludedDirectorySegments | ForEach-Object { [regex]::Escape($_) }
+$excludePattern = '[\\/](' + ($escapedSegments -join '|') + ')[\\/]'
 
 $projects = @(Get-ChildItem -Path $root -Filter '*.csproj' -Recurse -File |
     Where-Object { $_.FullName -notmatch $excludePattern } |

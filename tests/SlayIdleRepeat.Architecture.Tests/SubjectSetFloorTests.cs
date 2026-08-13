@@ -61,6 +61,17 @@ public sealed class SubjectSetFloorTests
     /// </remarks>
     private static readonly PendingSubject[] Pending =
     {
+        // 🔒 M1 REVIEW. Both were outside every register until the constants inventory was widened
+        // to cover namespace constants — and both are looked up by a live IsolationTests rule that
+        // consequently quantifies over ZERO types with nothing saying so. Guild_state_is_unreachable_
+        // from_the_combat_path is the one most likely to still be asleep when M2 lands: if
+        // CombatSimulator is placed anywhere but Core/Rules/Combat/, 27 §11's hottest-path guarantee
+        // stays unenforced and nothing goes red.
+        new(Domain.CombatRulesNamespace, SubjectKind.CoreNamespace, "M2",
+            "IsolationTests.Guild_state_is_unreachable_from_the_combat_path"),
+        new(Domain.GuildModelNamespace, SubjectKind.CoreNamespace, "M14",
+            "IsolationTests.Guild_state_is_unreachable_from_the_combat_path, IsolationTests.Guild_state_is_unreachable_from_the_ghost_snapshot"),
+
         new("GuildView", SubjectKind.CoreType, "M14",
             "IsolationTests.GuildView_is_a_read_only_projection"),
         // 🔴 M1-12 CORRECTED THIS ROW'S CITATION, and the correction is the first thing
@@ -568,6 +579,16 @@ public sealed class SubjectSetFloorTests
         Floor(offenders, "types in SlayIdleRepeat.Core", Domain.CoreTypes.Count, CoreTypeFloor,
             "Every rule in DomainPurityTests and AccessibilityBoundaryTests quantifies over Core's types.");
 
+        // 🔒 M1 REVIEW. Contracts_never_redeclares_a_domain_type is the ONLY thing enforcing 30
+        // §11.6's one-vocabulary rule, and it quantified over Contracts' single type with no floor:
+        // emptying the project, or renaming its namespace, makes that rule green over zero.
+        Floor(offenders, "types in SlayIdleRepeat.Contracts",
+            Il.AllTypes(ProductionAssemblies.Module(ProductionAssemblies.ContractsName))
+              .Count(t => !Domain.IsCompilerGenerated(t)),
+            1,
+            "Contracts_never_redeclares_a_domain_type is stated over this set. Empty, it is the one " +
+            "guard against a parallel wire hierarchy passing over nothing (30 §11.6).");
+
         Floor(offenders, "ports under " + Domain.PortsNamespace, Domain.Ports.Count, PortFloor,
             "DependencyRuleTests.Every_port_has_at_least_two_implementations and No_port_signature_exposes_a_vendor_type " +
             "are both stated over this set. It has been non-empty since M0-09 landed IContentSourcePort; if it is empty " +
@@ -959,8 +980,18 @@ public sealed class SubjectSetFloorTests
         Il.AllTypes(SuiteAssembly.Module)
           .Where(t => !OutermostName(t).Equals(nameof(SubjectSetFloorTests), StringComparison.Ordinal))
           .SelectMany(t => t.Methods)
+          // 🔒 StartsWith, not Equals — M1 REVIEW. A constant used in a compile-time concatenation is
+          // FOLDED into the result: IsolationTests.IsGuildType writes
+          // `Domain.GuildModelNamespace + "."`, and the compiler emits one ldstr of
+          // "SlayIdleRepeat.Core.Model.Guild." — the constant's own value never appears in the IL at
+          // all. Under Equals this reader was invisible and the rule reported a constant read by
+          // nothing, which is the same const-inlining blind spot that let 62 of 63 rules pass while
+          // Core referenced Contracts. A prefix match sees the folded form; the value is a
+          // fully-qualified name, so a false positive would need a DIFFERENT name that starts with
+          // this one, which the namespace tree makes a real reader anyway.
           .Where(m => Il.Instructions(m).Any(i =>
-              i.OpCode == OpCodes.Ldstr && (i.Operand as string)?.Equals(value, StringComparison.Ordinal) == true));
+              i.OpCode == OpCodes.Ldstr &&
+              (i.Operand as string)?.StartsWith(value, StringComparison.Ordinal) == true));
 
     /// <summary>Every <c>Type.Method</c> in this suite carrying <c>[Fact]</c>.</summary>
     private static HashSet<string> SuiteFactNames() =>
@@ -1068,8 +1099,21 @@ public sealed class SubjectSetFloorTests
         typeof(Domain)
             .GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
             .Where(f => f is { IsLiteral: true, IsInitOnly: false } && f.FieldType == typeof(string))
+            // 🔒 M1 REVIEW — "Namespace" joined "Type" and "Event". The filter covered only the two
+            // type suffixes, so THREE namespace constants sat outside every inventory:
+            // GuildModelNamespace, CombatRulesNamespace and StatsRulesNamespace. The last was read
+            // by NOTHING AT ALL — the precise shape the read-by-a-rule arm below was written to
+            // catch (Domain.GameContextType, deleted at wave 2 only because a human read the file),
+            // and it could not catch it because it too was scoped to this filter.
+            //
+            // PermittedCoreNamespaces and PortsNamespace are excluded: the former is covered
+            // wholesale by the untracked-namespace arm, and the latter names an Application
+            // namespace no Core lookup can find.
             .Where(f => f.Name.EndsWith("Type", StringComparison.Ordinal) ||
-                        f.Name.EndsWith("Event", StringComparison.Ordinal))
+                        f.Name.EndsWith("Event", StringComparison.Ordinal) ||
+                        (f.Name.EndsWith("Namespace", StringComparison.Ordinal) &&
+                         !Domain.PermittedCoreNamespaces.Contains((string)f.GetRawConstantValue()!) &&
+                         f.Name != nameof(Domain.PortsNamespace)))
             .Select(f => (Constant: f.Name, Value: (string)f.GetRawConstantValue()!))
             .OrderBy(c => c.Constant, StringComparer.Ordinal)
             .ToArray();

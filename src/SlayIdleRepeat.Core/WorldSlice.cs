@@ -51,11 +51,25 @@ public sealed record WorldSlice(Player Player, Run? Run)
 {
     private readonly Player _player = RequirePlayer(Player);
 
+    private readonly Run? _run = RequireOwnedRun(Player, Run);
+
     /// <inheritdoc cref="WorldSlice(Player, Run)" path="/param[@name='Player']"/>
     public Player Player
     {
         get => _player;
         init => _player = RequirePlayer(value);
+    }
+
+    /// <inheritdoc cref="WorldSlice(Player, Run)" path="/param[@name='Run']"/>
+    public Run? Run
+    {
+        get => _run;
+
+        // 🔒 Reads the FIELD, not the Player property. The synthesized copy constructor copies
+        // backing fields and then calls the plain init setters, so on the `with` path the parameter
+        // is not yet the slice's player — this is the same ordering hazard RequirePlayer's remarks
+        // describe, one member over.
+        init => _run = RequireOwnedRun(_player, value);
     }
 
     /// <summary>
@@ -75,4 +89,36 @@ public sealed record WorldSlice(Player Player, Run? Run)
             "mutation also touches player state (rewards, XP, pity) — so there is no command in the " +
             "game that touches a run and no player. A null here is the Application layer loading the " +
             "wrong slice (30 §4.1), not a state the domain can be in.");
+
+    /// <summary>
+    /// 🔒 <c>30</c> §4's <b>child-not-peer</b> modelling, enforced rather than described: the run in
+    /// a slice belongs to the player in that slice.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ Until the M1 review this was stated in the type's own doc comment and checked <b>nowhere</b>.
+    /// <c>Apply(new WorldSlice(playerA, runOfPlayerB), …)</c> was a legal public call: it cloned both,
+    /// dispatched, folded RNG positions and stamped <c>MarkApplied</c>, and returned a result pairing
+    /// player A with a mutated run belonging to player B — gold moved, HP written, and no rule of any
+    /// shape able to see it. <c>Apply_is_the_only_public_mutation</c> quantifies over <c>Core/Model/</c>
+    /// and <c>WorldSlice</c> lives in the root, deliberately; nothing keyed on ownership at all.
+    /// </para>
+    /// <para>
+    /// This is the same failure <see cref="RequirePlayer"/> already names — the Application layer
+    /// loading the wrong slice (`30` §4.1) — for the member that had the guard. A cross-player run is
+    /// not a state the domain can be in, so it throws rather than rejecting: `14` §16.2 has no value
+    /// for it, and a caller that built this slice is miswired, not refused.
+    /// </para>
+    /// </remarks>
+    private static Run? RequireOwnedRun(Player player, Run? run) =>
+        run is null || run.PlayerId == player.Id
+            ? run
+            : throw new ArgumentException(
+                "The run in this slice belongs to " + run.PlayerId + ", not to " + player.Id + ". " +
+                "30 §4 models Run as a CHILD of Player — single writer, owned by exactly one player " +
+                "— so a slice pairing one player's run with another player is the Application layer " +
+                "loading the wrong slice (30 §4.1). Apply would otherwise move Gold, write HP, fold " +
+                "RNG stream positions and stamp the run, and return the result as if it belonged to " +
+                "the player named here.",
+                nameof(Run));
 }

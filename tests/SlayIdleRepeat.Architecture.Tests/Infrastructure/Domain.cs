@@ -30,7 +30,6 @@ internal static class Domain
     internal const string GuildModelNamespace = "SlayIdleRepeat.Core.Model.Guild";
     internal const string RulesNamespace = "SlayIdleRepeat.Core.Rules";
     internal const string CombatRulesNamespace = "SlayIdleRepeat.Core.Rules.Combat";
-    internal const string StatsRulesNamespace = "SlayIdleRepeat.Core.Rules.Stats";
     internal const string CommandsNamespace = "SlayIdleRepeat.Core.Commands";
     internal const string EventsNamespace = "SlayIdleRepeat.Core.Events";
     internal const string HandlersNamespace = "SlayIdleRepeat.Core.Handlers";

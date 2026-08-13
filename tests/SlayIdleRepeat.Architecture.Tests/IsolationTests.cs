@@ -121,8 +121,18 @@ public sealed class IsolationTests
     /// </para>
     /// <para>
     /// Neither can cover a predicate renamed into something neutral
-    /// (`if (mode == PremiumMode)`); that remains a review obligation. Vacuous today: no
-    /// `.cs` file under `src/` names any of these flags.
+    /// (`if (mode == PremiumMode)`); that remains a review obligation.
+    /// <para>
+    /// ⚠️ <b>M1 REVIEW — this said "vacuous today: no `.cs` file under `src/` names any of these
+    /// flags", and that stopped being true at M1-07</b>, which declared
+    /// <c>Entitlements.HasPlus</c>. The SOURCE arm is still subject-less (no <c>if</c> names the
+    /// flag), but the IL arm now has real subjects — <c>get_HasPlus</c> and the constructor both
+    /// read the member — so the rule is <em>more</em> live than its own remark claimed. Second-order
+    /// hazard worth knowing before it surprises somebody: <c>EntitlementBranchesInIl</c> treats any
+    /// <c>FieldReference</c> operand as a read, so adding a validating <c>if</c> to
+    /// <c>Entitlements</c>' own constructor would make this rule fire on
+    /// <c>Entitlements..ctor</c>. That is the loud direction, but it is not obvious from the
+    /// message.</para>
     /// </para>
     /// </remarks>
     [Fact]

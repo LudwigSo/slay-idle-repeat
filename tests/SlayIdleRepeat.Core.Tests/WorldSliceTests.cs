@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
 
@@ -119,5 +120,51 @@ public sealed class WorldSliceTests
             .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
             .Select(p => p.Name)
             .ShouldBe(new[] { nameof(WorldSlice.Player), nameof(WorldSlice.Run) }, ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// 🔒 `30` §4's <b>child-not-peer</b> modelling: a slice may not pair one player with another
+    /// player's run.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Until the M1 review this was described in <c>WorldSlice</c>'s doc comment and enforced
+    /// nowhere, so <c>Apply(new WorldSlice(playerA, runOfPlayerB), …)</c> was a legal public call
+    /// that moved Gold, wrote HP, folded RNG positions and stamped a run belonging to somebody else.
+    /// No architecture rule of any shape could have caught it —
+    /// <c>Apply_is_the_only_public_mutation</c> quantifies over <c>Core/Model/</c> and
+    /// <c>WorldSlice</c> is deliberately in the root — which is why it is a domain invariant here
+    /// rather than a rule over there.
+    /// </remarks>
+    [Fact]
+    public void A_slice_refuses_a_run_belonging_to_another_player()
+    {
+        var somebodyElsesRun = Worlds.NewRun(RunSnapshots.With(playerId: new PlayerId("PLAYER_SOMEBODY_ELSE")));
+
+        var thrown = Should.Throw<ArgumentException>(
+            () => new WorldSlice(Worlds.NewPlayer(), somebodyElsesRun));
+
+        thrown.ParamName.ShouldBe(nameof(WorldSlice.Run));
+        thrown.Message.ShouldContain(
+            "PLAYER_SOMEBODY_ELSE",
+            Case.Sensitive,
+            "the message names WHOSE run it is — a caller debugging a mis-loaded slice needs the id, " +
+            "not just the fact that two ids differed.");
+    }
+
+    /// <summary>…and the guard runs on the <c>with</c> path, which is where a slice is most easily
+    /// given a foreign run.</summary>
+    /// <remarks>
+    /// The property initialiser runs only in the primary constructor; the synthesized copy
+    /// constructor copies backing fields and then calls the plain <c>init</c> setters. This is the
+    /// same hazard M1-07 shipped and review caught on <c>GameContext</c> — three null guards
+    /// bypassed by one <c>with</c> expression.
+    /// </remarks>
+    [Fact]
+    public void The_ownership_guard_survives_a_with_expression()
+    {
+        var slice = Worlds.OutsideARun();
+        var somebodyElsesRun = Worlds.NewRun(RunSnapshots.With(playerId: new PlayerId("PLAYER_SOMEBODY_ELSE")));
+
+        Should.Throw<ArgumentException>(() => slice with { Run = somebodyElsesRun });
     }
 }

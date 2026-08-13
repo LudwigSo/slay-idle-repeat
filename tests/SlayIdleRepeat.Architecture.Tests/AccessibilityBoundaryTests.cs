@@ -159,10 +159,18 @@ public sealed class AccessibilityBoundaryTests
             // harness is therefore a cycle under every reading, which is the settled direction; the
             // row of its own below is the other half, and the root's own loop after the table is the
             // third (the root has no Layer row, so it needed a check rather than an entry).
-            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
-            (Domain.ContentNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
-            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.PrimitivesNamespace, new[] { Domain.ContentNamespace, Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.EventsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.ContentNamespace, new[] { Domain.RngNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.EventsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
+            (Domain.RngNamespace, new[] { Domain.ContentNamespace, Domain.ModelNamespace, Domain.RulesNamespace, Domain.CommandsNamespace, Domain.EventsNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
 
+            // 🔒 M1 REVIEW. Events was in NO row's forbidden list until now — the same ungoverned
+            // region M1-06 found for Commands and M1-11 for Testing, arriving a third time. A
+            // Primitives, Content or Rng type gaining a CurrencyChanged-typed member passed 67/67.
+            // Rules and Handlers are added to the Events row for the reason Testing already was: a
+            // handler CONSTRUCTS the event, so an event naming BeginSession or EnergyMath is a cycle
+            // under every reading. Content -> Rng was likewise one-directional (Rng could not name
+            // Content, Content could name Rng); they are peers, so the row is now symmetric.
+            //
             // ⚠️ Model and Rules deliberately carry NO Commands entry, and that is the open half
             // rather than an oversight. A handler consumes a command and reads the model, so
             // Handlers -> Commands is required; whether a Rules calculator or an aggregate may name
@@ -206,7 +214,7 @@ public sealed class AccessibilityBoundaryTests
             // contested under any reading: Apply PRODUCES the event list and the harness CONSUMES
             // Apply, so an event naming InMemoryGame is a cycle. Measured before this row existed: a
             // `typeof(InMemoryGame)` field added to CurrencyChanged passed 63/63.
-            (Domain.EventsNamespace, new[] { Domain.TestingNamespace }),
+            (Domain.EventsNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
 
             // 🔒 M1-11, `30` §6 + `30` §11.2. Core/Testing/ was an ungoverned region until this
             // commit — the same shape M1-06 found for Commands and M1-03 for Events, and the same
@@ -1031,10 +1039,35 @@ public sealed class AccessibilityBoundaryTests
     /// <c>GameRules.Apply</c> is <c>public</c>, which is the whole point: `30` §11.2 makes it the one
     /// public way to change state, so "public only" leaves the harness exactly the door §6 gives it.
     /// </remarks>
+    /// <remarks>
+    /// 🔒 <b>M1 REVIEW — Rng and Events joined Model and the root.</b> The predicate covered two of
+    /// <c>Core</c>'s ten namespaces, so the rule's name outran its subject set. <c>Core/Rng/</c> is
+    /// the one that mattered: <c>RunRngScope</c> accumulates the draw positions <c>Apply</c> folds
+    /// back, so a harness constructing a scope directly and committing fabricated positions is the
+    /// same class of bypass as reaching <c>player.AccrueEnergy</c> — and
+    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c> catches a <c>newobj</c> on the
+    /// generator, not on the scope.
+    /// <para>
+    /// ⚠️ <c>Primitives</c> and <c>Content</c> are deliberately NOT behind the seam, and that is a
+    /// decision rather than a silence: <c>VirtualClock</c> and <c>InMemoryGame</c> already read
+    /// <c>GameCalendar</c>, which is <c>internal static</c> under <c>Primitives</c>, to place the
+    /// game-day and game-week boundaries. Those are stateless calendar arithmetic — no aggregate is
+    /// mutated and no transition is driven — so the harness reading them is not a bypass of anything.
+    /// <see cref="SanctionedCalendarReads"/> names them, so a third such read is a build failure.
+    /// </para>
+    /// </remarks>
     private static bool IsBehindTheSeam(TypeReference reference) =>
         reference.Resolve() is { } resolved &&
         (Il.IsUnder(Il.NamespaceOf(resolved), Domain.ModelNamespace) ||
+         Il.IsUnder(Il.NamespaceOf(resolved), Domain.RngNamespace) ||
+         Il.IsUnder(Il.NamespaceOf(resolved), Domain.EventsNamespace) ||
          IsCoreRootType(resolved.FullName));
+
+    /// <summary>
+    /// The <c>Core/Primitives/</c> type the `30` §6 harness is sanctioned to reach, named rather
+    /// than left to a namespace exemption — the identity floor under the note above.
+    /// </summary>
+    internal static IReadOnlyList<string> SanctionedCalendarReads { get; } = new[] { "GameCalendar" };
 
     /// <summary>
     /// The internal root members `30` §6's harness is sanctioned to <b>read</b>, named rather than
