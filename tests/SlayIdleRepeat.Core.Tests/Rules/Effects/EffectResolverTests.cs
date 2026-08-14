@@ -7,14 +7,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
-/// <summary>
-/// 🔒 `18` §8 <b>steps 1 and 2</b>, and the composition into M2-07's steps 3-10.
-/// </summary>
+/// <summary>🔒 `18` §8 <b>steps 1 and 2</b>, and the composition into steps 3-10.</summary>
 /// <remarks>
-/// The tests that compose run <c>StatAggregation.Aggregate</c> for real. R17 forbids
-/// <c>Rules.Effects</c> naming <c>Rules.Stats</c> in production; this assembly can see both, which is
-/// exactly where the composition claim belongs — the seam between them is a list of effects in a
-/// defined order, and the only way to show that is enough is to hand it over.
+/// The composing tests run <c>StatAggregation.Aggregate</c> for real. R17 forbids
+/// <c>Rules.Effects</c> naming <c>Rules.Stats</c> in production; this assembly sees both, which is
+/// where the composition claim belongs — the seam is a list of effects in a defined order, and the
+/// only way to show that is enough is to hand it over.
 /// </remarks>
 public sealed class EffectResolverTests
 {
@@ -107,14 +105,13 @@ public sealed class EffectResolverTests
 
     /// <summary>
     /// 🔒 <b>The holding survives the whole pass.</b> `18` §3's <c>everyNth</c> counters live on the
-    /// effect <em>instance</em>, and <c>TriggerRegistry.Register</c> refuses a duplicate — so a
-    /// consumer of a resolution pass must be able to tell two copies of one authored effect apart
-    /// without deriving an identity of its own.
+    /// effect <em>instance</em> and <c>TriggerRegistry.Register</c> refuses a duplicate, so a consumer
+    /// must be able to tell two copies of one authored effect apart without inventing an identity.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The ordering pair <c>(Source, IndexInSource)</c> is <b>not</b> that identity: it is
-    /// per-pass and renumbers when the build changes, where an <c>EffectInstanceId</c> must survive
-    /// battle boundaries for <c>PK_MIDAS</c>. Both are asserted here so the two cannot be conflated.
+    /// ⚠️ <c>(Source, IndexInSource)</c> is <b>not</b> that identity: it is per-pass and renumbers when
+    /// the build changes, where an <c>EffectInstanceId</c> must survive battle boundaries for
+    /// <c>PK_MIDAS</c>. Both are asserted so the two cannot be conflated.
     /// </remarks>
     [Fact]
     public void The_holding_each_effect_came_from_survives_into_the_resolved_set()
@@ -172,10 +169,9 @@ public sealed class EffectResolverTests
     /// </summary>
     /// <remarks>
     /// <c>Collect</c> iterates the catalogue, so an out-of-catalogue source would be stored, never
-    /// visited and contribute nothing — silently, which is the precise failure
-    /// <c>EffectSourceSet</c>'s remarks say it exists to prevent. <c>ListEffectSource</c> validates in
-    /// its own constructor, but <see cref="IEffectSource"/> is the extension point for ten
-    /// implementations by seven later milestones and none of them is obliged to.
+    /// visited and contribute nothing — silently. <c>ListEffectSource</c> validates in its own
+    /// constructor, but <see cref="IEffectSource"/> is an extension point for ten implementations by
+    /// seven later milestones, none of them obliged to.
     /// </remarks>
     [Fact]
     public void A_source_whose_kind_is_outside_the_ten_is_refused_rather_than_silently_skipped()
@@ -245,26 +241,20 @@ public sealed class EffectResolverTests
     // ══════════════════════════════════════════════════════ the duplicate-id ruling
 
     /// <summary>
-    /// 🔴 <b>The duplicate-id ruling, proved where it is observable.</b> Two effects sharing one id
-    /// — the same authored affix from two gear slots — resolve in a documented order rather than in
-    /// arrival order. `18` §8 step 8 is <em>"<c>STAT_SET</c>, last writer wins"</em>, so a pair that
-    /// would otherwise resolve differently is exactly a same-id <c>STAT_SET</c> pair at two values.
+    /// 🔴 The duplicate-id ruling, proved where it is observable: two effects sharing one id — the same
+    /// affix from two gear slots — resolve in a documented order rather than arrival order. `18` §8
+    /// step 8 is "last writer wins", so a same-id <c>STAT_SET</c> pair at two values is the shape that
+    /// would otherwise resolve differently.
     /// </summary>
     /// <remarks>
+    /// 🔒 Runs the <b>real</b> <c>StatAggregation.Aggregate</c>: the claim is that the ruling survives
+    /// the handoff into steps 3-10, which depends on that method's re-sort being stable.
     /// <para>
-    /// 🔒 This runs the <b>real</b> <c>StatAggregation.Aggregate</c>, not the comparer alone: the
-    /// claim is that the ruling survives the handoff into `18` §8 steps 3-10, which depends on that
-    /// method's re-sort being stable.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>This test alone does NOT prove the tiebreak works</b>, and it is labelled so nobody
-    /// reads it as though it did. Removing the tiebreak entirely (steering S1) left it <b>green</b>:
-    /// <c>EffectSourceSet.Collect</c> already walks the catalogue in `18` §8 step 1's order, so the
-    /// argument order to <c>Of</c> is normalised before the sort ever runs, and two elements are
-    /// below <c>Array.Sort</c>'s insertion-sort threshold anyway. What it does pin is <b>which</b>
-    /// source wins, which is spec content in its own right. The tiebreak itself is held by
-    /// <see cref="The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements"/>
-    /// and <see cref="The_resolution_order_never_calls_two_distinct_collected_effects_equal"/>.
+    /// ⚠️ <b>This test alone does not prove the tiebreak works.</b> Removing the tiebreak entirely left
+    /// it green — <c>Collect</c> already walks in step 1's order, and two elements are below
+    /// <c>Array.Sort</c>'s insertion-sort threshold. What it pins is <b>which</b> source wins. The
+    /// tiebreak is held by
+    /// <see cref="The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements"/>.
     /// </para>
     /// </remarks>
     [Fact]
@@ -302,24 +292,16 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// 🔴 <b>The test that actually holds the duplicate-id ruling.</b> Twenty effects sharing one id,
-    /// which is above <c>Array.Sort</c>'s insertion-sort threshold — so the sort genuinely permutes
-    /// equal elements, and only a <em>total</em> comparer can put them back in `18` §8 step 1's
-    /// documented order.
+    /// 🔴 The test that actually holds the duplicate-id ruling: twenty effects sharing one id, above
+    /// <c>Array.Sort</c>'s insertion-sort threshold, so the sort genuinely permutes equal elements and
+    /// only a <em>total</em> comparer restores step 1's order.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Twenty, and the number is load-bearing.</b> .NET's introsort runs insertion sort at 16
-    /// elements or fewer, which is stable in practice; below that threshold a broken tiebreak is
-    /// invisible because arrival order survives and arrival order happens to be the right answer.
-    /// This was found by removing the tiebreak on purpose (steering S1) and watching the two-element
-    /// tests stay green.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Deterministic, not probabilistic.</b> <c>Array.Sort</c> is a pure function of its input
-    /// and its comparer, so this test does not flake: with the tiebreak it is right every time, and
-    /// without it, it is wrong every time.
-    /// </para>
+    /// 🔒 Twenty is load-bearing: .NET's introsort runs insertion sort at 16 or fewer, which is stable
+    /// in practice, so below that a broken tiebreak is invisible because arrival order survives and
+    /// happens to be right. Found by removing the tiebreak and watching the two-element tests stay
+    /// green. Deterministic, not probabilistic — <c>Array.Sort</c> is a pure function of its input and
+    /// comparer.
     /// </remarks>
     [Fact]
     public void The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements()
