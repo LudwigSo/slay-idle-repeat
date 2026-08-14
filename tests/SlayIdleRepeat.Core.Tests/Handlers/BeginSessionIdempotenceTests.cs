@@ -8,66 +8,33 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
-/// 🔒 `30` §2.3 — <em>"otherwise: succeeds as a no-op. <b>Its daily effects are idempotent per game
-/// day.</b>"</em>
+/// 🔒 `30` §2.3 — <em>"succeeds as a no-op. <b>Its daily effects are idempotent per game day.</b>"</em>
 /// </summary>
 /// <remarks>
+/// 🔴 A handler that re-grants on every command of the day and one that grants exactly once are
+/// <b>indistinguishable</b> to any test sending one command per day — and that shape would leave a
+/// free player receiving a full Energy refill several times an hour, against `10` §3.2's whole
+/// free-player budget. So these tests send <em>many</em> commands inside one game day.
 /// <para>
-/// 🔴 <b>The failure mode this file exists to make impossible, stated first because every test below
-/// is shaped by it.</b> A handler that re-grants on every command of the day and one that grants
-/// exactly once are <b>indistinguishable</b> to any test that sends one command per day. That is not
-/// a hypothetical: it is the natural way to write this suite, it would leave a free player receiving
-/// a full Energy refill several times an hour, and `10` §3.2's whole free-player budget rests on the
-/// refill being <b>1/day</b>. So the tests here send <em>many</em> commands inside one game day, and
-/// each one names what it would fail on.
+/// 🔒 Measured, not claimed (steering <b>S1</b>): with the early-return deleted, five of the seven
+/// go red. The two that stay green are about a <b>new</b> game day — they assert the counter is
+/// <em>cleared</em>, which is what stops a "fix" that simply never grants at all.
 /// </para>
 /// <para>
-/// 🔒 <b>Which of these fail if idempotence is removed — MEASURED, not claimed</b> (steering
-/// <b>S1</b>). The early-return in <c>BeginSession.Handle</c> was deleted, the suite run, the output
-/// recorded, and the mutation reverted. <b>Five of the seven</b> go red:
-/// <see cref="A_second_BEGIN_SESSION_in_the_same_game_day_grants_nothing"/>,
-/// <see cref="Ten_commands_in_one_game_day_pay_one_refill"/> (<c>refills should be 1 but was 10</c>),
-/// <see cref="The_second_call_of_the_day_produces_no_events_at_all"/>,
-/// <see cref="A_repeat_call_does_not_advance_the_calendar_a_second_time"/> and
-/// <see cref="Energy_spent_during_the_day_is_not_topped_back_up"/> (<c>should be EnergyBanks { 4
-/// (+0) } but was EnergyBanks { 120 (+0) }</c>) — the last being the defect as a player would exploit
-/// it rather than as a counter.
-/// </para>
-/// <para>
-/// 🔴 <b>Two of those five only bite because the first measurement caught them not biting.</b> The
-/// original <see cref="A_second_BEGIN_SESSION_in_the_same_game_day_grants_nothing"/> compared the two
-/// Energy banks and stayed <b>green</b> under the mutation — the first call fills the bar and
-/// <c>EnergyMath.RefillToFull</c> is deficit-only, so the second grant is <em>zero</em> and the banks
-/// compare equal. The original
-/// <see cref="A_repeat_call_does_not_advance_the_calendar_a_second_time"/> stayed green too, because
-/// `19` G's own pause rule stops the second advance whether or not idempotence exists. Both now carry
-/// the assertion that separates them, and each says so at the line. <b>This is what a suite looks
-/// like before S1 is applied to it: two tests whose names were exactly right and whose assertions
-/// were true of the defect.</b>
-/// </para>
-/// <para>
-/// The two that stay green are the ones about a <b>new</b> game day, and that asymmetry is the point:
-/// they assert the counter is <em>cleared</em>, which is the opposite direction and is what stops a
-/// "fix" that simply never grants at all.
-/// </para>
-/// <para>
-/// 🔒 <b>The keying is not arbitrary and the tests know it.</b> M1-08's catch-up <b>clears the daily
-/// counters before the handler runs</b>, so the counter this keys on is only usable because the
-/// handler sets it <em>itself</em>, after the catch-up, in the same command —
-/// <see cref="The_marker_is_set_by_the_handler_and_cleared_by_the_day_boundary"/> asserts both halves
-/// of that directly rather than leaving it inferred from behaviour.
+/// 🔒 The keying is legal only because M1-08's catch-up clears the daily counters <em>before</em> the
+/// handler runs, so the handler sets the marker itself, after the catch-up, in the same command —
+/// see <see cref="The_marker_is_set_by_the_handler_and_cleared_by_the_day_boundary"/>.
 /// </para>
 /// </remarks>
 public sealed class BeginSessionIdempotenceTests
 {
-    /// <summary>
-    /// 🔒 The headline: a second <c>BEGIN_SESSION</c> in the same game day grants <b>nothing</b>.
-    /// </summary>
-    /// <remarks>
-    /// Driven through <c>GameRules.Apply</c> over the production table, and the second command is
-    /// applied to the <b>first's result</b> — re-sending against the original slice would be two
-    /// first commands, which is exactly the shape that cannot see this defect.
-    /// </remarks>
+/// <summary>
+/// 🔒 The headline: a second <c>BEGIN_SESSION</c> in the same game day grants <b>nothing</b>.
+/// </summary>
+/// <remarks>
+/// The second command is applied to the <b>first's result</b> — re-sending against the original
+/// slice would be two first commands, the one shape that cannot see this defect.
+/// </remarks>
     [Fact]
     public void A_second_BEGIN_SESSION_in_the_same_game_day_grants_nothing()
     {
@@ -99,16 +66,14 @@ public sealed class BeginSessionIdempotenceTests
             "the energy comparison above, because a refill to a full bar is a grant of zero.");
     }
 
-    /// <summary>
-    /// 🔒 <b>Ten</b> commands inside one game day pay <b>one</b> refill, and the intermediate ones
-    /// are spread across the day rather than sent in one instant.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ The clock advances between commands and stays inside the 05:00 UTC day, which is what makes
-    /// this different from the pair above: it rules out an implementation that keyed idempotence on
-    /// the <em>instant</em> rather than on the game day, and one that keyed it on
-    /// <c>LastAppliedAtUtc</c> not having moved.
-    /// </remarks>
+/// <summary>
+/// 🔒 <b>Ten</b> commands inside one game day pay <b>one</b> refill, spread across the day rather
+/// than sent in one instant.
+/// </summary>
+/// <remarks>
+/// ⚠️ The clock advances between commands and stays inside the 05:00 UTC day, ruling out an
+/// implementation keyed on the <em>instant</em>, or on <c>LastAppliedAtUtc</c> not having moved.
+/// </remarks>
     [Fact]
     public void Ten_commands_in_one_game_day_pay_one_refill()
     {
@@ -138,17 +103,15 @@ public sealed class BeginSessionIdempotenceTests
             "block ten times and the counter was merely being incremented alongside it.");
     }
 
-    /// <summary>
-    /// 🔒 The repeat call is a no-op <b>in the event list too</b>, not merely in the state.
-    /// </summary>
-    /// <remarks>
-    /// `14` §2.4 replays the list as the animation script and `14` §7.1 appends it to the economy log.
-    /// A no-op that still published a zero-delta refill row would put a "free refill" line in front of
-    /// the player several times a day and a phantom row in `21` §8.3's <c>income_attribution.csv</c>.
-    /// ⚠️ Note this is the opposite ruling from <b>A6</b>'s zero-delta <c>energy_regen</c> row, and
-    /// deliberately: there the accrual <em>ran</em> and moved the anchor, here the daily block did not
-    /// run at all.
-    /// </remarks>
+/// <summary>
+/// 🔒 The repeat call is a no-op <b>in the event list too</b>, not merely in the state.
+/// </summary>
+/// <remarks>
+/// A no-op that still published a zero-delta refill row would put a "free refill" line in front of
+/// the player several times a day and a phantom row in `21` §8.3's <c>income_attribution.csv</c>.
+/// ⚠️ The opposite ruling from <b>A6</b>'s zero-delta <c>energy_regen</c> row, and deliberately:
+/// there the accrual ran and moved the anchor, here the daily block did not run at all.
+/// </remarks>
     [Fact]
     public void The_second_call_of_the_day_produces_no_events_at_all()
     {
@@ -160,27 +123,21 @@ public sealed class BeginSessionIdempotenceTests
             "a no-op moved nothing, so there is no 21 §8.3 row to write and no 14 §2.4 beat to play.");
     }
 
-    /// <summary>
-    /// 🔒 The calendar advances <b>at most once per game day</b> (`19` G), even when the player
-    /// claims the newly opened day and re-sends <c>BEGIN_SESSION</c> the same day.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 <b>The second half is the whole test, and S1 is how that was discovered.</b> The natural
-    /// version — advance once, re-send, assert the day did not move — was measured against a handler
-    /// with the early-return deleted and stayed <b>green</b>: the advance clears
-    /// <c>LoginCalendarDayClaimed</c>, so `19` G's own pause rule stops the second advance whether
-    /// or not the idempotence exists. That is genuinely two independent guards over one rule, which
-    /// is good — and it means the natural test proves the <em>calendar's</em> guard and says nothing
-    /// about the <em>day's</em>.
-    /// </para>
-    /// <para>
-    /// So the second half re-claims. A player whose calendar day is open <b>and claimed</b> inside a
-    /// game day the handler has already run is the only state where the two guards disagree, and it
-    /// is reachable the moment <c>CLAIM_CALENDAR</c> lands (M4-09): claim in the morning, re-open the
-    /// app in the evening. Without per-game-day idempotence that player advances twice in one day.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 The calendar advances <b>at most once per game day</b> (`19` G), even when the player claims
+/// the newly opened day and re-sends <c>BEGIN_SESSION</c>.
+/// </summary>
+/// <remarks>
+/// 🔴 The re-claim is the whole test. The natural version — advance once, re-send, assert the day did
+/// not move — stayed green with the early-return deleted, because the advance clears
+/// <c>LoginCalendarDayClaimed</c> and `19` G's own pause rule stops the second advance regardless.
+/// That proves the <em>calendar's</em> guard and says nothing about the <em>day's</em>.
+/// <para>
+/// A player whose calendar day is open <b>and claimed</b> inside a game day the handler already ran
+/// is the only state where the two guards disagree — reachable the moment <c>CLAIM_CALENDAR</c>
+/// lands (M4-09): claim in the morning, re-open the app in the evening.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_repeat_call_does_not_advance_the_calendar_a_second_time()
     {
@@ -219,17 +176,15 @@ public sealed class BeginSessionIdempotenceTests
             "…and the claim they made is still theirs to be paid for, untouched.");
     }
 
-    /// <summary>
-    /// 🔒 The player-visible shape of the defect: Energy <b>spent</b> during the day is not topped
-    /// back up by re-sending <c>BEGIN_SESSION</c>.
-    /// </summary>
-    /// <remarks>
-    /// The four tests above would all still pass against a handler that re-granted only when there
-    /// was a deficit — because they leave the bar full, and <c>EnergyMath.RefillToFull</c> is
-    /// deficit-only, so a repeat grant of zero is invisible in both the state and the event list. This
-    /// is the one that sees it: the fixture opens <b>below</b> maximum on the second call, which is
-    /// where a real player is after a run, and a re-grant would be free Energy on demand.
-    /// </remarks>
+/// <summary>
+/// 🔒 The player-visible shape of the defect: Energy <b>spent</b> during the day is not topped back
+/// up by re-sending <c>BEGIN_SESSION</c>.
+/// </summary>
+/// <remarks>
+/// The four tests above all pass against a handler that re-granted only on a deficit, because they
+/// leave the bar full and <c>EnergyMath.RefillToFull</c> is deficit-only. This fixture opens
+/// <b>below</b> maximum on the second call — where a real player is after a run.
+/// </remarks>
     [Fact]
     public void Energy_spent_during_the_day_is_not_topped_back_up()
     {
@@ -261,15 +216,14 @@ public sealed class BeginSessionIdempotenceTests
 
     // ------------------------------------------------------------------ the other direction: a new day
 
-    /// <summary>
-    /// 🔒 A <c>BEGIN_SESSION</c> on the <b>next</b> game day grants again — so "idempotent per game
-    /// day" is not "granted once ever".
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ <b>This is the test that stays green if idempotence is removed</b>, and that is why it is
-    /// here: without it, the whole file could be satisfied by a handler that granted <em>nothing</em>,
-    /// and "the second call grants nothing" would be trivially true.
-    /// </remarks>
+/// <summary>
+/// 🔒 A <c>BEGIN_SESSION</c> on the <b>next</b> game day grants again — "idempotent per game day" is
+/// not "granted once ever".
+/// </summary>
+/// <remarks>
+/// ⚠️ The test that stays green if idempotence is removed, and that is why it is here: without it the
+/// file could be satisfied by a handler that granted <em>nothing</em>.
+/// </remarks>
     [Fact]
     public void A_BEGIN_SESSION_on_the_next_game_day_grants_again()
     {
@@ -298,26 +252,18 @@ public sealed class BeginSessionIdempotenceTests
             "the marker was cleared at the boundary and set again, so it counts THIS day's calls.");
     }
 
-    /// <summary>
-    /// 🔒 The mechanism itself, asserted directly: the marker is written by the handler and cleared
-    /// by the 05:00 UTC boundary.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔒 It is asserted rather than inferred because M1-08's finding — <b>catch-up clears the daily
-    /// counters before the handler runs</b> — is the one fact that makes this key legal, and the
-    /// legality is not visible in the behavioural tests above. Both halves are checked: the boundary
-    /// clears it (so a new day grants), and a command that crosses no boundary leaves it standing (so
-    /// the same day does not).
-    /// </para>
-    /// <para>
-    /// ⚠️ The "preserved" half is driven by a <b>non-BEGIN_SESSION</b> command as well, because the
-    /// catch-up runs on every command and a counter cleared by some other command's catch-up would
-    /// re-open the day. There is no other handled command in M1, so it is driven through the
-    /// <c>internal</c> <c>GameRules.Execute</c> door the domain suite uses — the same table shape
-    /// <c>GameRulesCatchUpTests</c> drives.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 The mechanism itself: the marker is written by the handler and cleared by the 05:00 UTC
+/// boundary.
+/// </summary>
+/// <remarks>
+/// Asserted rather than inferred because catch-up clearing the daily counters before the handler
+/// runs is the fact that makes this key legal, and that is invisible in the behavioural tests above.
+/// <para>
+/// ⚠️ The "preserved" half is driven by a <b>non-BEGIN_SESSION</b> command too, because the catch-up
+/// runs on every command and a counter cleared by another command's catch-up would re-open the day.
+/// </para>
+/// </remarks>
     [Fact]
     public void The_marker_is_set_by_the_handler_and_cleared_by_the_day_boundary()
     {
@@ -355,44 +301,25 @@ public sealed class BeginSessionIdempotenceTests
             "'correctness never depends on BEGIN_SESSION arriving'.");
     }
 
-    /// <summary>
-    /// 🔒 A host clock that jumps <b>forward</b> across 05:00 UTC pays the player <b>early</b>, never
-    /// <b>twice</b> — and the day it was wrong about is answered as a no-op when real time reaches it.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 <b>The M1-09 code review predicted this case; driving it found that the "clock corrected
-    /// backwards" leg <em>threw</em>; and M1-12 settled which of those was right.</b> M1-09 recorded
-    /// the finding honestly and declined to move it — <em>"M1-08 clamped the <em>energy</em>
-    /// backwards-clock path explicitly for `30` §2.1 <b>P3</b> reasons and left this one throwing, so
-    /// the two halves of one decision disagree… neither the guard nor the clamp is M1-09's to
-    /// move"</em> — and then pinned the throwing behaviour in an assertion, which is how a
-    /// carried-forward contradiction becomes a specification by default. Carried-forward item 20 is
-    /// now closed the way P3 requires: <c>GameRules.MarkApplied</c> floors the instant it hands the
-    /// aggregates, the aggregates go on refusing a backwards anchor, and this leg asserts a
-    /// <em>result</em>.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>And the settlement costs this test nothing, which is the interesting part.</b> The
-    /// throw looked like the thing keeping the player from being paid twice; it was not. What keeps
-    /// the second payment away is that the skew pinned <c>DailyPeriodStartUtc</c> FORWARD and
-    /// <c>AdvanceTime</c>'s reset guard is <c>&gt;=</c>, so a corrected clock computes an EARLIER
-    /// boundary and clears nothing. Both facts are asserted below, because "accepted" without them
-    /// would be a weaker test than the one it replaced.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>What that leaves, and it is the direction that matters:</b> nothing is ever granted a
-    /// second time. A forward skew pays the day it believes it is in, and real time arriving at that
-    /// day finds the marker already set. The cost is one day's grants received early rather than on
-    /// the day; the loop recovers at the next boundary.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>It is not a property of the idempotence key.</b> What the skew pins forward is
-    /// <c>Player.DailyPeriodStartUtc</c>, so a persisted "the game day I last ran on" compared against
-    /// that field behaves identically — at the cost of a <c>SchemaVersion</c> field. Asserted here so
-    /// whoever revisits the key can see the alternative buys nothing.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 A host clock that jumps <b>forward</b> across 05:00 UTC pays the player <b>early</b>, never
+/// <b>twice</b> — and the day it was wrong about is a no-op when real time reaches it.
+/// </summary>
+/// <remarks>
+/// 🔒 What keeps the second payment away is not a throw: the skew pins <c>DailyPeriodStartUtc</c>
+/// forward and <c>AdvanceTime</c>'s reset guard is <c>&gt;=</c>, so a corrected clock computes an
+/// <em>earlier</em> boundary and clears nothing. Both facts are asserted, because "accepted" alone
+/// would be weaker than the throwing assertion this replaced.
+/// <para>
+/// The cost is one day's grants received early; the loop recovers at the next boundary.
+/// </para>
+/// <para>
+/// ⚠️ Not a property of the idempotence key — what the skew pins forward is
+/// <c>Player.DailyPeriodStartUtc</c>, so a persisted "game day I last ran on" behaves identically, at
+/// the cost of a <c>SchemaVersion</c> field. Asserted so whoever revisits the key sees the
+/// alternative buys nothing.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_forward_clock_jump_pays_early_and_never_twice()
     {

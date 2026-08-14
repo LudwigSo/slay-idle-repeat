@@ -13,48 +13,27 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// quest slate (`19` B) and the Daily shop block (`10` §5.1) will both be drawn from.
 /// </summary>
 /// <remarks>
+/// 🔒 Both draws are deferred to M4-09: no quest schema exists, the Daily-shop offer model is M4-09's,
+/// and `14` §8.1's stream registry carries <em>no row</em> for either. Three inventions would be
+/// needed, which steering <b>S6</b> forbids. What is tested is the <b>seam</b> — that
+/// <c>BEGIN_SESSION</c> demands its seed, that the regime it reaches is deterministic in and
+/// sensitive to that seed, and that entering it moves <b>no run stream position</b>.
 /// <para>
-/// 🔒 <b>The two draws are deferred to M4-09 and this file does not pretend otherwise.</b>
-/// <c>content/quests/</c> is empty, no quest schema exists, the Daily-shop offer model is M4-09's,
-/// and — the half that is easiest to miss — `14` §8.1's stream registry is complete for the <b>run</b>
-/// streams and carries <em>no row</em> for either draw, while saying a system needing randomness
-/// <em>"draws from one of these streams or gets a new row here"</em>. Three inventions would be
-/// needed, which steering <b>S6</b> forbids. Both are <c>GapRegister</c> entries
-/// (<c>QuestSlate</c>/M4-09, <c>DailyShopStock</c>/M4-09) whose reasons M1-09 rewrote to say exactly
-/// this.
-/// </para>
-/// <para>
-/// 🔒 <b>So what is tested is the SEAM</b>: that <c>BEGIN_SESSION</c> demands its seed, that the
-/// regime it reaches is deterministic in that seed and sensitive to it, and — the claim that matters
-/// most for `14` §8.1 — that entering it moves <b>no run stream position</b>. The algebra itself is
-/// <c>MetaDrawScopeTests</c>'.
-/// </para>
-/// <para>
-/// ⚠️ <b>Determinism is asserted over the whole <c>Apply</c>, not over the scope.</b> A scope test
-/// proves the hash; only a command test proves the <em>handler</em> reaches that scope and nothing
-/// else — a handler that quietly drew from <c>Player.Id</c> or from the clock would pass every scope
-/// test in the repository.
+/// ⚠️ Determinism is asserted over the whole <c>Apply</c>, not over the scope: a scope test proves the
+/// hash, but only a command test proves the <em>handler</em> reaches that scope and nothing else.
 /// </para>
 /// </remarks>
 public sealed class BeginSessionDrawSeamTests
 {
-    /// <summary>
-    /// 🔒 `14` §2.3 marks <c>BEGIN_SESSION</c> ⚄, so a context with <b>no</b> <c>CommandSeed</c> is a
-    /// <b>defect</b> — not a rejection.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The same line `30` §2.1's <b>P3</b> draws for a run command whose slice carries no run: an
-    /// exception out of <c>Apply</c> means the caller or the domain is wrong, never that the player
-    /// asked for something they cannot have. A ⚄ row arriving unseeded is a miswired composition root.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It is asserted on the message fragment, not only on the type</b> (steering <b>S2</b>).
-    /// Several things in <c>Apply</c> throw <c>InvalidOperationException</c> — a slice that will not
-    /// round-trip, a handler that stamped its own sequence, a handler that wrote an RNG position —
-    /// and a test pinning the type alone would pass while a completely different rule fired.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 `14` §2.3 marks <c>BEGIN_SESSION</c> ⚄, so a context with <b>no</b> <c>CommandSeed</c> is a
+/// <b>defect</b> — a miswired composition root, not a rejection.
+/// </summary>
+/// <remarks>
+/// 🔒 Asserted on the message fragment, not only the type (steering <b>S2</b>): several things in
+/// <c>Apply</c> throw <c>InvalidOperationException</c>, and a type-only test would pass while a
+/// completely different rule fired.
+/// </remarks>
     [Fact]
     public void A_BEGIN_SESSION_with_no_CommandSeed_is_a_defect_and_names_the_regime()
     {
@@ -70,17 +49,15 @@ public sealed class BeginSessionDrawSeamTests
             "the fix is the host that built the context, not a rule and not the player.");
     }
 
-    /// <summary>
-    /// 🔒 The seed is demanded on the <b>first</b> call of the game day and not on the repeats — the
-    /// day's draws happen once, so the seed is needed once.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ This is the one place the ⚄ contract and the idempotence rule interact, and the interaction
-    /// is worth pinning rather than discovering at M4-09: a second <c>BEGIN_SESSION</c> that still
-    /// demanded a seed would make `30` §2.3's "succeeds as a no-op" conditional on the host, and a
-    /// client sending its day-boundary <c>BEGIN_SESSION</c> twice would get a 500 rather than a
-    /// no-op.
-    /// </remarks>
+/// <summary>
+/// 🔒 The seed is demanded on the <b>first</b> call of the game day and not on repeats — the day's
+/// draws happen once, so the seed is needed once.
+/// </summary>
+/// <remarks>
+/// ⚠️ The one place the ⚄ contract and the idempotence rule interact: a second <c>BEGIN_SESSION</c>
+/// that still demanded a seed would make `30` §2.3's "succeeds as a no-op" conditional on the host,
+/// and a client sending its day-boundary call twice would get a 500 rather than a no-op.
+/// </remarks>
     [Fact]
     public void The_repeat_call_of_the_day_needs_no_seed_because_it_draws_nothing()
     {
@@ -102,30 +79,22 @@ public sealed class BeginSessionDrawSeamTests
 
     // ------------------------------------------------------------------ determinism in the seed
 
-    /// <summary>
-    /// 🔒 Two applications of one seed produce one state, byte for byte — asserted on the
-    /// <c>stateHash</c>, which is `14` §16.6's canonical encoding of the whole aggregate.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The hash rather than a field-by-field comparison, because the claim is about <b>everything</b>
-    /// the command wrote: a draw that landed in some field this test forgot to name would be exactly
-    /// the non-determinism the assertion is for.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>Today this is a guard against AMBIENT non-determinism — a clock read, a
-    /// <c>Guid.NewGuid()</c>, a <c>Random.Shared</c> — and not yet a claim about the seed</b>, and
-    /// the M1-09 review was right to ask. Its sibling
-    /// <see cref="Two_different_CommandSeeds_address_different_draws"/> asserts the hashes are equal
-    /// for two <em>different</em> seeds, because nothing is drawn yet, which makes "equal for the same
-    /// seed" trivially true as well. Both invert together at M4-09: on the commit that lands the
-    /// draws, this case starts distinguishing "deterministic in the seed" from "the seed is ignored",
-    /// and that one starts requiring two slates. It is kept rather than folded in because the ambient
-    /// guard is worth having on its own — `14` §8.1's ban on <c>System.Random</c> and
-    /// <c>DateTime.Now</c> is enforced by a grep, and a grep does not see a handler that read
-    /// <c>Player.Id.GetHashCode()</c>.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 Two applications of one seed produce one state, byte for byte — asserted on the
+/// <c>stateHash</c>, `14` §16.6's canonical encoding of the whole aggregate.
+/// </summary>
+/// <remarks>
+/// The hash rather than field-by-field, because the claim is about <b>everything</b> the command
+/// wrote: a draw landing in a field this test forgot to name is exactly the non-determinism it is
+/// for.
+/// <para>
+/// ⚠️ Today this guards <b>ambient</b> non-determinism — a clock read, a <c>Guid.NewGuid()</c>, a
+/// <c>Random.Shared</c> — and not yet the seed, because nothing is drawn until M4-09. Kept separate
+/// from <see cref="Two_different_CommandSeeds_address_different_draws"/> because the ambient guard is
+/// worth having alone: `14` §8.1's ban is enforced by a grep, and a grep does not see a handler that
+/// read <c>Player.Id.GetHashCode()</c>.
+/// </para>
+/// </remarks>
     [Fact]
     public void The_same_CommandSeed_produces_the_same_state()
     {
@@ -141,23 +110,15 @@ public sealed class BeginSessionDrawSeamTests
             "moved between two applications of one seed could never be reproduced for a bug report.");
     }
 
-    /// <summary>
-    /// 🔒 …and the seed <b>reaches</b> the domain: two different seeds address different draws.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// ⚠️ <b>This test cannot assert differing state today, and saying so is the honest form of it</b>
-    /// (steering <b>S1</b>): nothing is drawn yet, so the two states are identical and always will be
-    /// until M4-09. Asserting "the states differ" would be a test that must fail, and asserting "the
-    /// states are the same" would be an assertion true of a handler that ignored the seed entirely —
-    /// which is the very defect this seam exists to prevent.
-    /// </para>
-    /// <para>
-    /// So the claim is made where it is decidable: at the scope the handler actually reaches. Two
-    /// seeds, one stream, one draw index — different values. When M4-09 lands the draws, the state
-    /// assertion becomes available and belongs here; the <c>GapRegister</c> entries name it.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 …and the seed <b>reaches</b> the domain: two different seeds address different draws.
+/// </summary>
+/// <remarks>
+/// ⚠️ It cannot assert differing <em>state</em> today (steering <b>S1</b>): nothing is drawn until
+/// M4-09, so "the states differ" would be a test that must fail and "the states are the same" would
+/// be true of a handler that ignored the seed entirely. So the claim is made where it is decidable —
+/// two seeds, one stream, one draw index, different values.
+/// </remarks>
     [Fact]
     public void Two_different_CommandSeeds_address_different_draws()
     {
@@ -184,27 +145,20 @@ public sealed class BeginSessionDrawSeamTests
 
     // ------------------------------------------------------------------ 14 §8.1 · the other regime
 
-    /// <summary>
-    /// 🔒 <b>No run stream position moves.</b> The meta regime is a different regime, and a
-    /// <c>BEGIN_SESSION</c> sent mid-run must not touch the run's `14` §8.1 counters.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔒 <b>Why this is the sharpest claim in the file.</b> `14` §8.1 makes <em>the persisted stream
-    /// position the draw counter</em>. A meta command that advanced one would consume a draw the run
-    /// can never see again — the board, the dice or the drops would silently skip an index — and
-    /// nothing would throw: the numbers would still look random and the run would simply replay
-    /// differently for the rest of its life. `14` §13's client/server parity test would then be
-    /// comparing two universes and reporting on neither.
-    /// </para>
-    /// <para>
-    /// ⚠️ The slice deliberately carries a <b>run with non-zero positions</b>. A run at all-zero
-    /// counters would make "the positions did not move" true of a command that reset them, and a
-    /// slice with no run at all would make the assertion unreachable — a meta command is dispatched
-    /// perfectly happily with a run in the slice (a player can open the shop without leaving), which
-    /// is exactly why <c>GameRules.FoldRngPositions</c> runs its check on meta commands too.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 <b>No run stream position moves.</b> A <c>BEGIN_SESSION</c> sent mid-run must not touch the
+/// run's `14` §8.1 counters.
+/// </summary>
+/// <remarks>
+/// 🔒 The persisted stream position <em>is</em> the draw counter, so a meta command that advanced one
+/// would consume a draw the run can never see again — and nothing would throw. The run would simply
+/// replay differently for the rest of its life, and `14` §13's parity test would be comparing two
+/// universes.
+/// <para>
+/// ⚠️ The slice carries a run with <b>non-zero</b> positions: at all-zero, "the positions did not
+/// move" is also true of a command that reset them.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_BEGIN_SESSION_mid_run_moves_no_run_stream_position()
     {
@@ -230,32 +184,21 @@ public sealed class BeginSessionDrawSeamTests
             "the run would replay differently for the rest of its life with nothing going red.");
     }
 
-    /// <summary>
-    /// 🔒 A <c>CommandKind.Meta</c> handler that writes the run <b>at all</b> is a defect — not only
-    /// one that moves its `14` §8.1 counters.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 <b>Found by M1-09's architecture review, and it is the "what can a future handler do that
-    /// nothing would catch" question answered.</b> Until <c>Core/Handlers/</c> had an occupant the
-    /// hole was unreachable, and <c>FoldRngPositions</c> guards <em>only</em> the stream positions —
-    /// its own message says a meta command "may READ the run it was handed mid-run and must never
-    /// move its counters", which left Gold, HP, Position and the per-run ad uses writable. Worse
-    /// silently: <c>MarkApplied</c> deliberately does not stamp <c>Run.LastAppliedAtUtc</c> for a meta
-    /// command, so the run would have come back changed while its own `14` §16.3 timestamp said
-    /// nothing had happened to it.
-    /// </para>
-    /// <para>
-    /// ⚠️ Driven through the <c>internal</c> <c>GameRules.Execute</c> door with a fixture handler,
-    /// because the shape must <b>never</b> be committed to the production table — the same
-    /// construction <c>GameRulesRngTests</c> uses for the hand-written-position case, and the reason
-    /// <c>Execute</c> takes its table as a parameter at all.
-    /// </para>
-    /// <para>
-    /// 🔒 The message is pinned, not just the type (steering <b>S2</b>): a meta handler that wrote a
-    /// stream position trips the <em>other</em> guard, and the two send a reader to different files.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 A <c>CommandKind.Meta</c> handler that writes the run <b>at all</b> is a defect — not only one
+/// that moves its `14` §8.1 counters.
+/// </summary>
+/// <remarks>
+/// 🔴 <c>FoldRngPositions</c> guards only the stream positions, leaving Gold, HP, Position and the
+/// per-run ad uses writable. Worse silently: <c>MarkApplied</c> deliberately does not stamp
+/// <c>Run.LastAppliedAtUtc</c> for a meta command, so the run would come back changed while its own
+/// `14` §16.3 timestamp said nothing had happened to it.
+/// <para>
+/// ⚠️ Driven through the <c>internal</c> <c>GameRules.Execute</c> door with a fixture handler, because
+/// the shape must never be committed to the production table. 🔒 The message is pinned, not just the
+/// type: a meta handler that wrote a stream position trips the <em>other</em> guard.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_meta_handler_that_writes_the_run_is_a_defect()
     {
@@ -278,34 +221,26 @@ public sealed class BeginSessionDrawSeamTests
             "hand-written-position guard already owns the determinism half and the fixes differ.");
     }
 
-    /// <summary>
-    /// 🔒 A meta handler that touches nothing is accepted over a run that <b>has watched an ad</b> —
-    /// the case the ownership guard used to reject, accusing a handler that had written nothing.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// ⚠️ <b>The non-empty <c>AdUses</c> is the whole test.</b> The guard compared two
-    /// <c>RunSnapshot</c> records, and a synthesized record <c>Equals</c> compares its
-    /// <c>IReadOnlyDictionary</c> components <b>by reference</b> — while <c>Run.CopyAdUses</c>
-    /// allocates a fresh <c>ReadOnlyDictionary</c> whenever the map is non-empty. So two
-    /// <c>ToSnapshot()</c> calls on an untouched run were unequal the moment it held one ad use, and
-    /// every accepted meta command over that slice threw.
-    /// </para>
-    /// <para>
-    /// A player mid-run who had watched a single rewarded ad — `12` §4.3 has thirteen in-run
-    /// placements — could send no meta command at all: a `30` §2.1 <b>P3</b> violation for a state a
-    /// correctly-wired composition root produces routinely. Every suite stayed green because
-    /// <c>CopyAdUses</c> short-circuits an <em>empty</em> map to a shared singleton, which is the
-    /// only case every other fixture here builds, including
-    /// <c>A_meta_handler_that_only_reads_the_run_is_fine</c> directly below.
-    /// </para>
-    /// <para>
-    /// 🔒 The fix compares `14` §16.6's <b>canonical bytes</b>, which is the one encoding whose
-    /// contract is "two states differing in anything encode differently". Reverting
-    /// <c>GameRules.RequireRunUntouched</c> to <c>untouched == working.ToSnapshot()</c> turns this
-    /// test red and leaves the rest of the suite green.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 A meta handler that touches nothing is accepted over a run that <b>has watched an ad</b> — the
+/// case the ownership guard used to reject, accusing a handler that had written nothing.
+/// </summary>
+/// <remarks>
+/// ⚠️ The non-empty <c>AdUses</c> is the whole test. The guard compared two <c>RunSnapshot</c>
+/// records, and a synthesized record compares its <c>IReadOnlyDictionary</c> components <b>by
+/// reference</b>, while <c>Run.CopyAdUses</c> allocates a fresh map whenever it is non-empty — so two
+/// <c>ToSnapshot()</c> calls on an untouched run were unequal the moment it held one ad use.
+/// <para>
+/// A player mid-run who had watched a single rewarded ad could send no meta command at all: a `30`
+/// §2.1 <b>P3</b> violation for a state a correct composition root produces routinely. Every suite
+/// stayed green because <c>CopyAdUses</c> short-circuits an <em>empty</em> map to a shared singleton,
+/// which is the only case every other fixture builds.
+/// </para>
+/// <para>
+/// 🔒 The fix compares `14` §16.6's canonical bytes, the one encoding whose contract is "two states
+/// differing in anything encode differently".
+/// </para>
+/// </remarks>
     [Fact]
     public void A_meta_command_is_accepted_over_a_run_that_has_watched_an_ad()
     {
@@ -328,15 +263,15 @@ public sealed class BeginSessionDrawSeamTests
             "through rather than being satisfied by something having reset it.");
     }
 
-    /// <summary>
-    /// 🔒 …and a meta handler that only <b>reads</b> the run is fine, so the guard above is not
-    /// "a meta command may not be handed a run".
-    /// </summary>
-    /// <remarks>
-    /// The negative case, and it is load-bearing: `14` §2.3 dispatches meta commands with a run in
-    /// the slice on purpose — a player can open the shop without leaving — and a guard that refused
-    /// the <em>read</em> would make <c>HandlerInput.Run</c> unusable for the thing it exists for.
-    /// </remarks>
+/// <summary>
+/// 🔒 …and a meta handler that only <b>reads</b> the run is fine, so the guard above is not "a meta
+/// command may not be handed a run".
+/// </summary>
+/// <remarks>
+/// Load-bearing: `14` §2.3 dispatches meta commands with a run in the slice on purpose — a player can
+/// open the shop without leaving — and a guard refusing the <em>read</em> would make
+/// <c>HandlerInput.Run</c> unusable for the thing it exists for.
+/// </remarks>
     [Fact]
     public void A_meta_handler_that_only_reads_the_run_is_fine()
     {
@@ -356,26 +291,19 @@ public sealed class BeginSessionDrawSeamTests
         seenGold.ShouldBeGreaterThanOrEqualTo(0, "the handler really did read the run.");
     }
 
-    /// <summary>
-    /// 🔒 A <c>CommandKind.Run</c> handler that reaches for the <b>meta</b> draw regime is a defect.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 The mirror of <c>HandlerInput.Rng</c>'s guard, and the second hole M1-09's architecture
-    /// review found. A run handler drawing from <c>GameContext.CommandSeed</c> would open streams at
-    /// index 0 with <b>no persisted counter</b>, and nothing else in the repository would notice:
-    /// <c>FoldRngPositions</c> looks for a <em>moved</em> position and would see none, and
-    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c> is satisfied because the
-    /// construction happens inside <c>Core/Rng/</c>. The run would replay differently for the rest of
-    /// its life with every suite green — the exact failure `14` §8.1's counter model exists to make
-    /// impossible.
-    /// </para>
-    /// <para>
-    /// ⚠️ The fixture context carries a seed, so the refusal below is about the <b>kind</b> and not
-    /// about a missing seed. Those are opposite defects with opposite fixes (steering <b>S2</b>) and
-    /// the messages are pinned apart.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 A <c>CommandKind.Run</c> handler that reaches for the <b>meta</b> draw regime is a defect.
+/// </summary>
+/// <remarks>
+/// 🔴 A run handler drawing from <c>GameContext.CommandSeed</c> would open streams at index 0 with
+/// <b>no persisted counter</b>, and nothing would notice: <c>FoldRngPositions</c> looks for a
+/// <em>moved</em> position and sees none, and the construction-site rule is satisfied because it
+/// happens inside <c>Core/Rng/</c>. The run would replay differently for life with every suite green.
+/// <para>
+/// ⚠️ The fixture context carries a seed, so the refusal is about the <b>kind</b> and not a missing
+/// seed — opposite defects with opposite fixes, pinned apart by message.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_run_handler_that_reaches_for_the_meta_regime_is_a_defect()
     {
@@ -400,16 +328,14 @@ public sealed class BeginSessionDrawSeamTests
             "here HAS one. Two defects, two fixes, two messages.");
     }
 
-    /// <summary>
-    /// 🔒 …and the run's `14` §16.3 sliding TTL does not move either, which is the same asymmetry
-    /// M1-05 added a second timestamp for.
-    /// </summary>
-    /// <remarks>
-    /// A meta command must not keep a run alive because its owner opened the shop — or, here, because
-    /// their client sent its start-of-day <c>BEGIN_SESSION</c>. It is asserted beside the stream
-    /// positions because both are "what a meta command may not touch on a run", and a reader looking
-    /// for one will look for the other.
-    /// </remarks>
+/// <summary>
+/// 🔒 …and the run's `14` §16.3 sliding TTL does not move either.
+/// </summary>
+/// <remarks>
+/// A meta command must not keep a run alive because its owner opened the shop — or here, because
+/// their client sent its start-of-day <c>BEGIN_SESSION</c>. Asserted beside the stream positions
+/// because both are "what a meta command may not touch on a run".
+/// </remarks>
     [Fact]
     public void A_BEGIN_SESSION_mid_run_does_not_slide_the_runs_TTL()
     {

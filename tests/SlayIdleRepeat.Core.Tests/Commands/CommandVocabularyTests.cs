@@ -11,25 +11,16 @@ namespace SlayIdleRepeat.Core.Tests.Commands;
 /// literal list, in both directions.
 /// </summary>
 /// <remarks>
+/// 🔒 The set, not the count: forty-nine <em>wrong</em> names also count forty-nine, and a count
+/// never catches a rename — which on this table is a wire break, since `14` §16.2 makes the registry
+/// appendable but never renamed.
 /// <para>
-/// 🔒 <b>The set, not the count, and the difference is the whole file.</b> Forty-nine <em>wrong</em>
-/// names also count forty-nine. A count pin catches "someone dropped <c>REVIVE</c>" only if nobody
-/// added anything in the same commit, and it never catches a rename — which on this table is a wire
-/// break: `14` §16.2's forward-compatibility rule ("appendable, never renamed or reused") applies
-/// to the registry, so a renamed row is a command every deployed client stops being able to send.
+/// 🔒 The literal lists are transcribed from the document, not derived from the registry: a list read
+/// off <see cref="GameRules"/> would say the registry is right because the registry says so.
 /// </para>
 /// <para>
-/// 🔒 <b>The literal lists are transcribed from the document, not derived from the registry</b>, and
-/// that is what makes the comparison mean anything: a list read off <see cref="GameRules"/> would
-/// say the registry is right because the registry says so. Counted off `14` §2.3 before the
-/// vocabulary was written — <b>19 run rows and 30 meta rows</b>, against a table header that says
-/// "Meta commands (29)" and a tracker that used to say 48. The M1 kickoff (2026-08-11) ruled both to
-/// be miscounts of a correct table: errata, not a scope change.
-/// </para>
-/// <para>
-/// ⚠️ <b>Every rule here is floored</b> (steering <b>S3</b>). Two empty sets compare equal, so the
-/// transcription's own size and identity are asserted first, as literals: a set comparison over an
-/// emptied list is the failure this file exists to prevent, not a mechanism it may rest on.
+/// ⚠️ Every rule here is floored (steering <b>S3</b>) — two empty sets compare equal, so the
+/// transcription's own size and identity are asserted first, as literals.
 /// </para>
 /// </remarks>
 public sealed class CommandVocabularyTests
@@ -38,9 +29,8 @@ public sealed class CommandVocabularyTests
     /// 🔒 `14` §2.3's <b>Run commands (19)</b> table, transcribed by hand in the document's order.
     /// </summary>
     /// <remarks>
-    /// The endpoint is <c>POST /run/{runId}/command</c> with the sequence per run —
-    /// <c>START_RUN</c> excepted, which is submitted on the player endpoint because no
-    /// <c>runId</c> exists yet. That exception is about the URL and not about the kind; see
+    /// <c>START_RUN</c> is submitted on the player endpoint because no <c>runId</c> exists yet — an
+    /// exception about the URL, not the kind. See
     /// <see cref="START_RUN_is_a_run_command_even_though_it_is_sent_to_the_player_endpoint"/>.
     /// </remarks>
     public static readonly string[] RunCommandWireNames =
@@ -110,15 +100,13 @@ public sealed class CommandVocabularyTests
     // ------------------------------------------------------------------ the floor under everything
 
     /// <summary>
-    /// 🔒 Steering <b>S3</b> — the floor under every comparison below: the transcription is the
-    /// right <b>size</b> and carries the right <b>members</b>, both asserted as literals.
+    /// 🔒 Steering <b>S3</b> — the floor under every comparison below: the transcription is the right
+    /// <b>size</b> and carries the right <b>members</b>, both as literals.
     /// </summary>
     /// <remarks>
-    /// Without this, emptying either list would make the two set comparisons hold vacuously and this
-    /// whole file would go green over a registry it had stopped reading. The identity anchors are
-    /// chosen for what they catch: <c>SHOP_BUY</c> and <c>SHOP_PURCHASE</c> are the pair `14` §2.3
-    /// warns are distinct, and <c>START_RUN</c> is the row whose classification is the easiest to get
-    /// wrong.
+    /// Without it, emptying either list makes the set comparisons hold vacuously. The identity
+    /// anchors are chosen for what they catch: <c>SHOP_BUY</c>/<c>SHOP_PURCHASE</c> are the pair `14`
+    /// §2.3 warns are distinct, and <c>START_RUN</c> is the easiest row to misclassify.
     /// </remarks>
     [Fact]
     public void The_transcription_is_the_nineteen_and_thirty_the_document_lists()
@@ -167,15 +155,12 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 `14` §2.3 — <b>direction two</b>, and the one a count pin cannot express: nothing is
-    /// registered that the document does not list. <em>"A command not listed here does not
-    /// exist."</em>
+    /// 🔒 `14` §2.3 direction two, which a count cannot express: nothing is registered that the
+    /// document does not list. <em>"A command not listed here does not exist."</em>
     /// </summary>
     /// <remarks>
-    /// This is the half that catches a rename: <c>ROLL_DICE</c> spelled <c>ROLLDICE</c> leaves the
-    /// count at 49 and fails both directions at once, naming the old name here and the new one above.
-    /// Adding a command is a decision logged in `16` and landed in `14` §2.3 <em>first</em>; this
-    /// rule is what makes the order mandatory rather than customary.
+    /// The half that catches a rename: <c>ROLL_DICE</c> spelled <c>ROLLDICE</c> leaves the count at 49
+    /// and fails both directions at once, naming the old name here and the new one above.
     /// </remarks>
     [Fact]
     public void Nothing_is_registered_that_the_document_does_not_list()
@@ -218,11 +203,10 @@ public sealed class CommandVocabularyTests
     /// <c>CommandKind.Meta</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>The kind is correctness, not bookkeeping.</b> It decides whether <c>Apply</c> opens a
-    /// <c>RunRngScope</c> over the run's `14` §8.1 counters and whether the run's `14` §16.3 sliding
-    /// TTL moves. M1-06 found the hole it protects: a <c>CommandKind.Meta</c> handler <em>is</em>
-    /// dispatched with a run in the slice, so a run command misfiled as meta would be handed the run
-    /// and no scope — able to reach the counters with nothing folding them back.
+    /// ⚠️ The kind decides whether <c>Apply</c> opens a <c>RunRngScope</c> over the run's `14` §8.1
+    /// counters and whether the run's TTL moves. A meta handler <em>is</em> dispatched with a run in
+    /// the slice, so a run command misfiled as meta gets the run and no scope — able to reach the
+    /// counters with nothing folding them back.
     /// </remarks>
     [Fact]
     public void Every_row_is_registered_under_the_kind_its_table_gives_it()
@@ -252,16 +236,14 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 The one row worth naming on its own: <c>START_RUN</c> is a <b>run</b> command even though
-    /// `14` §2.3 submits it to the <b>player</b> endpoint.
+    /// 🔒 <c>START_RUN</c> is a <b>run</b> command even though `14` §2.3 submits it to the
+    /// <b>player</b> endpoint.
     /// </summary>
     /// <remarks>
-    /// The exception in the document is about the URL — there is no <c>runId</c> yet, so the server
-    /// allocates one and the run's sequence starts at 1. Classifying the command <c>Meta</c> to match
-    /// its endpoint would hand the one command that commits <c>runSeed</c> (`02` §2) no
-    /// <c>RunRngScope</c> at all, and would leave the run it created ageing off a `14` §16.3 TTL that
-    /// nothing had advanced. Pinned separately from the table sweep above because the sweep would
-    /// pass just as happily with both halves of the mistake made together.
+    /// Classifying it <c>Meta</c> to match its endpoint would hand the one command that commits
+    /// <c>runSeed</c> (`02` §2) no <c>RunRngScope</c>, and leave the run it created ageing off a TTL
+    /// nothing had advanced. Pinned separately because the table sweep passes just as happily with
+    /// both halves of the mistake made together.
     /// </remarks>
     [Fact]
     public void START_RUN_is_a_run_command_even_though_it_is_sent_to_the_player_endpoint()
@@ -288,16 +270,13 @@ public sealed class CommandVocabularyTests
     // ------------------------------------------------------------------------- the rows themselves
 
     /// <summary>
-    /// 🔒 `30` §11.2 / `30` §11.4 — every registered type is a <b>public, concrete, sealed</b>
+    /// 🔒 `30` §11.2 / §11.4 — every registered type is a <b>public, concrete, sealed</b>
     /// <c>GameCommand</c> declared directly under <c>SlayIdleRepeat.Core.Commands</c>.
     /// </summary>
     /// <remarks>
-    /// Public because `30` §11.2 makes the hierarchy the wire protocol as well as the input
-    /// vocabulary. Sealed because a command that could be subclassed would be a command whose
-    /// dispatch row does not decide which rule runs. And the namespace is asserted <b>exactly</b>:
-    /// `30` §11.4's list is closed, a sub-namespace is not on it, and
-    /// <c>Every_Core_type_lives_under_a_documented_namespace</c> is what would notice — from the
-    /// other suite, which is a worse place to find it than here.
+    /// Public because the hierarchy is the wire protocol as well as the input vocabulary; sealed
+    /// because a subclassable command is one whose dispatch row does not decide which rule runs. The
+    /// namespace is asserted exactly — `30` §11.4's list is closed and a sub-namespace is not on it.
     /// </remarks>
     [Fact]
     public void Every_registered_type_is_a_public_sealed_command_in_the_commands_namespace()
@@ -319,11 +298,9 @@ public sealed class CommandVocabularyTests
     /// deferral's only expiry.
     /// </summary>
     /// <remarks>
-    /// Forty-eight are <c>Deferred</c>; <c>BEGIN_SESSION</c> has been <c>Handled</c> since M1-09.
-    /// (This said "all forty-nine … including BEGIN_SESSION" until the M1 review — written when it
-    /// was true, and left behind when the same file was corrected twice further down.) The rule is written as "handled <em>or</em> owned" rather than "all
-    /// deferred" so that M1-09 swapping one row to <c>Handled</c> is a one-line edit here too —
-    /// and so this does not become a count nobody may change.
+    /// Written as "handled <em>or</em> owned" rather than "all deferred" so that swapping one row to
+    /// <c>Handled</c> is a one-line edit here too, and so this does not become a count nobody may
+    /// change.
     /// </remarks>
     [Fact]
     public void Every_row_is_handled_or_names_the_task_that_will_handle_it()
@@ -361,25 +338,15 @@ public sealed class CommandVocabularyTests
 
     /// <summary>
     /// 🔒 `30` §2.1's <b>P3</b> over the <b>real</b> table: all forty-nine commands are constructible
-    /// and every one of them is <em>refused</em> — not thrown — while its milestone is unbuilt.
+    /// and every one is <em>refused</em> — not thrown — while its milestone is unbuilt.
     /// </summary>
     /// <remarks>
+    /// The end-to-end half of <c>Every_command_type_is_handled_by_Apply</c>, which reads metadata; this
+    /// builds each type and hands it to <c>GameRules.Apply</c>, so the row resolves at runtime rather
+    /// than only in IL.
     /// <para>
-    /// This is the end-to-end half of <c>Every_command_type_is_handled_by_Apply</c>. That rule reads
-    /// metadata and says a dispatch row <em>names</em> each type; this builds each type and hands it
-    /// to <c>GameRules.Apply</c>, so the row is resolved at runtime rather than only in IL.
-    /// </para>
-    /// <para>
-    /// The slice carries a run, which is legal for both kinds: a run command needs one, and a meta
-    /// command is dispatched perfectly happily with one (a player can open the shop without leaving).
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It branches on <c>IsHandled</c> rather than asserting every row is deferred.</b> All 49
-    /// are today; M1-09 makes <c>BEGIN_SESSION</c> the first that is not, and a rule that hard-coded
-    /// "all deferred" would go red on that commit and invite a weakening edit instead of a one-line
-    /// one — the same reason
-    /// <see cref="Every_row_is_handled_or_names_the_task_that_will_handle_it"/> is written the way it
-    /// is. The floor below is what keeps the deferred arm from silently becoming empty.
+    /// 🔒 It branches on <c>IsHandled</c> rather than asserting every row is deferred, so the commit
+    /// that handles a row is a one-line edit rather than a red test inviting a weakening one.
     /// </para>
     /// </remarks>
     [Fact]
@@ -424,15 +391,14 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 `30` §4.1 — the <b>behavioural</b> half of the kind: every <c>CommandKind.Run</c> row
-    /// refuses a slice with no run, and every <c>CommandKind.Meta</c> row is content with one.
+    /// 🔒 `30` §4.1 — the <b>behavioural</b> half of the kind: every run row refuses a slice with no
+    /// run, and every meta row is content with one.
     /// </summary>
     /// <remarks>
-    /// <see cref="Every_row_is_registered_under_the_kind_its_table_gives_it"/> reads the kind off the
-    /// registration and compares it to a transcription — metadata against metadata. This is the only
-    /// rule where the kind of all forty-nine rows is <em>observed</em>: a run command misfiled as
-    /// <c>Meta</c> reaches a handler here instead of the loading-defect guard, and a meta command
-    /// misfiled as <c>Run</c> becomes unsendable outside a run, which is how a player would find it.
+    /// The only rule where the kind of all forty-nine rows is <em>observed</em> rather than read off
+    /// the registration: a run command misfiled as <c>Meta</c> reaches a handler instead of the
+    /// loading-defect guard, and a meta command misfiled as <c>Run</c> becomes unsendable outside a
+    /// run — which is how a player would find it.
     /// </remarks>
     [Fact]
     public void Outside_a_run_every_run_command_is_a_loading_defect_and_every_meta_command_is_not()
@@ -487,14 +453,13 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 A real run command with no run in the slice is a <b>loading defect</b>, and the message
-    /// names the command by its wire name.
+    /// 🔒 A real run command with no run in the slice is a <b>loading defect</b>, and the message names
+    /// the command by its wire name.
     /// </summary>
     /// <remarks>
-    /// M1-06 pinned this against a fixture; this pins it against the vocabulary, which is where it
-    /// will actually be hit. `14` §16.2's <c>RUN_NOT_FOUND</c> is transport tier, so a run command
-    /// that reached the domain without its run is the Application layer loading the wrong slice
-    /// (`30` §4.1) rather than a player asking for something they cannot have.
+    /// `14` §16.2's <c>RUN_NOT_FOUND</c> is transport tier, so a run command reaching the domain
+    /// without its run is the Application layer loading the wrong slice (`30` §4.1), not a player
+    /// asking for something they cannot have.
     /// </remarks>
     [Fact]
     public void A_real_run_command_without_a_run_names_itself_in_the_defect()
@@ -509,17 +474,13 @@ public sealed class CommandVocabularyTests
     // ---------------------------------------------------------------------------- the table's guards
 
     /// <summary>
-    /// 🔒 `14` §2.3 is <b>one</b> vocabulary — two commands claiming <c>SHOP_BUY</c> must not
-    /// silently win. Driven against two of the real forty-nine rather than fixtures.
+    /// 🔒 `14` §2.3 is <b>one</b> vocabulary — two commands claiming <c>SHOP_BUY</c> must not silently
+    /// win. Driven against two of the real forty-nine rather than fixtures.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>The general uniqueness guard is <c>GameRulesDispatchTests</c>'s</b>
-    /// (<c>One_command_type_and_one_wire_name_each</c>,
-    /// <c>A_refused_registration_leaves_the_table_untouched</c>) and this does not restate it — the
-    /// production table's uniqueness is structural, a <c>Dictionary.Add</c>. What is only asserted
-    /// here is that the refusal names <b>both</b> claimants, over two real rows of `14` §2.3, so a
-    /// reader who hits it does not have to grep for the other one. That is also the mutation this
-    /// task used to prove the guard bites against the real vocabulary rather than against fixtures.
+    /// ⚠️ The general uniqueness guard is <c>GameRulesDispatchTests</c>'; what is only asserted here is
+    /// that the refusal names <b>both</b> claimants, so a reader who hits it need not grep for the
+    /// other.
     /// </remarks>
     [Fact]
     public void Two_commands_cannot_both_claim_SHOP_BUY()
@@ -538,15 +499,14 @@ public sealed class CommandVocabularyTests
     // ------------------------------------------------------------------------- payload value shapes
 
     /// <summary>
-    /// 🔒 `14` §3.2 — the three list-carrying commands compare <b>by value</b>, which the synthesized
+    /// 🔒 `14` §3.2 — the three list-carrying commands compare <b>by value</b>, which synthesized
     /// record equality would not have done.
     /// </summary>
     /// <remarks>
-    /// <see cref="GameCommand"/>'s own remarks make value equality the contract that lets a repeated
-    /// command replay its stored outcome. A record compares an <c>IReadOnlyList&lt;string&gt;</c>
-    /// member by reference, so without the hand-written <c>Equals</c> these three would be the only
-    /// commands in the registry for which that promise silently did not hold — and the two lists on
-    /// <c>RETUNE_ITEM</c> make it the sharpest case.
+    /// A record compares an <c>IReadOnlyList&lt;string&gt;</c> member by reference, so without the
+    /// hand-written <c>Equals</c> these three would be the only commands for which the replay-the-
+    /// stored-outcome promise silently did not hold. <c>RETUNE_ITEM</c>'s two lists are the sharpest
+    /// case.
     /// </remarks>
     [Fact]
     public void The_list_carrying_commands_compare_by_value()
@@ -585,17 +545,13 @@ public sealed class CommandVocabularyTests
 
     /// <summary>
     /// 🔒 `14` §16.3 — the equality that matters is the one reached through the <b>base</b> type,
-    /// because that is how an idempotency cache will hold these: <c>Dictionary&lt;GameCommand, …&gt;</c>.
+    /// because that is how an idempotency cache holds these: <c>Dictionary&lt;GameCommand, …&gt;</c>.
     /// </summary>
     /// <remarks>
-    /// The rules above route through <c>IEquatable&lt;T&gt;</c> on the concrete type and prove
-    /// nothing about <c>Equals(object?)</c>, <c>==</c>, or a <c>GameCommand</c>-typed comparison.
-    /// The compiler is <em>supposed</em> to emit
-    /// <c>public sealed override bool Equals(GameCommand? other) =&gt; Equals(other as TSelf)</c> on
-    /// each sealed record, so the hand-written method is reached — but a hand-written
-    /// <c>Equals</c> beside compiler-synthesized plumbing is exactly the arrangement worth checking
-    /// rather than assuming, and a dictionary round-trip exercises the base-typed path,
-    /// <c>Equals(object?)</c> and <c>GetHashCode</c> in one assertion.
+    /// The rules above route through <c>IEquatable&lt;T&gt;</c> on the concrete type and prove nothing
+    /// about <c>Equals(object?)</c>, <c>==</c>, or a base-typed comparison. A hand-written
+    /// <c>Equals</c> beside compiler-synthesized plumbing is worth checking rather than assuming, and
+    /// a dictionary round-trip exercises all three paths in one assertion.
     /// </remarks>
     [Fact]
     public void A_list_carrying_command_survives_a_base_typed_dictionary_round_trip()
@@ -627,16 +583,14 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 `14` §8.2 — a command renders identically under every culture, including one whose
-    /// negative sign is not <c>-</c>.
+    /// 🔒 `14` §8.2 — a command renders identically under every culture, including one whose negative
+    /// sign is not <c>-</c>.
     /// </summary>
     /// <remarks>
     /// The behavioural half of
     /// <c>AmbientApiTests.Every_command_with_a_culture_sensitive_member_declares_an_invariant_PrintMembers</c>,
-    /// which proves only that the hook is <em>declared</em>. Modelled on
-    /// <c>Events.CurrencyChangedTests.ToString_renders_identically_under_any_culture</c> and using
-    /// <c>sv-SE</c> for the reason M1-06 recorded: German renders a negative integer with an ordinary
-    /// hyphen, so a <c>de-DE</c> test would prove nothing.
+    /// which proves only that the hook is declared. <c>sv-SE</c> rather than <c>de-DE</c>: German
+    /// renders a negative integer with an ordinary hyphen, so a German test proves nothing.
     /// </remarks>
     [Fact]
     public void A_command_renders_identically_under_any_culture()
@@ -701,22 +655,16 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 <b>Every</b> list payload is copied on the way in, so a caller cannot rewrite the command
-    /// after it was built — and the copy does not cast back to the array behind it.
+    /// 🔒 <b>Every</b> list payload is copied on the way in, and the copy does not cast back to the
+    /// array behind it.
     /// </summary>
     /// <remarks>
+    /// A command whose contents can change after construction is a command whose `14` §16.3
+    /// idempotency key describes something other than what was applied.
     /// <para>
-    /// The same hole M1-05 closed on the aggregates: a bare <c>string[]</c> handed out through an
-    /// <c>IReadOnlyList&lt;string&gt;</c> casts straight back. A command whose contents can change
-    /// after construction is a command whose `14` §16.3 idempotency key describes something other
-    /// than what was applied.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>All four properties, not one.</b> The first version of this rule exercised only
-    /// <c>SalvageCommand.ItemIds</c>, and a review measured what that left uncovered: dropping the
-    /// copy from <c>RetuneItemCommand</c>'s two lists <em>and</em> from
-    /// <c>ClaimInboxCommand.MessageIds</c> kept the whole Core suite green. The sweep is over a
-    /// literal list of the four so a fifth list payload is a deliberate addition here.
+    /// ⚠️ All four properties, not one: dropping the copy from <c>RetuneItemCommand</c>'s two lists
+    /// <em>and</em> from <c>ClaimInboxCommand.MessageIds</c> kept the whole Core suite green when only
+    /// <c>SalvageCommand.ItemIds</c> was exercised.
     /// </para>
     /// </remarks>
     [Fact]
@@ -754,15 +702,14 @@ public sealed class CommandVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 The list properties are <b>get-only</b>, never <c>init</c> — the one thing that stops a
-    /// <c>with</c> expression handing the command the caller's own array and bypassing the copy.
+    /// 🔒 The list properties are <b>get-only</b>, never <c>init</c> — the one thing stopping a
+    /// <c>with</c> expression from handing the command the caller's own array and bypassing the copy.
     /// </summary>
     /// <remarks>
-    /// The defence is a compile-time affordance, so nothing runtime can catch its removal: a review
-    /// measured that changing <c>{ get; }</c> to <c>{ get; init; }</c> on
-    /// <c>SalvageCommand.ItemIds</c> left the entire suite green. This is the reflection pin that
-    /// closes it. (The same shape M1-03 recorded for <c>CurrencyChanged.Reason</c>: an <c>init</c> is
-    /// assignable through <c>with</c>, and that assignment does not re-run the constructor.)
+    /// A compile-time affordance, so nothing runtime catches its removal: changing <c>{ get; }</c> to
+    /// <c>{ get; init; }</c> on <c>SalvageCommand.ItemIds</c> left the entire suite green. An
+    /// <c>init</c> is assignable through <c>with</c>, and that assignment does not re-run the
+    /// constructor.
     /// </remarks>
     [Fact]
     public void A_list_payload_has_no_setter_so_with_cannot_bypass_the_copy()
@@ -803,15 +750,11 @@ public sealed class CommandVocabularyTests
 
     // ------------------------------------------------------------------------------------ helpers
 
-    /// <summary>
-    /// A milestone <b>task</b> id: <c>M3-15</c>, <c>M12-04</c>.
-    /// </summary>
+    /// <summary>A milestone <b>task</b> id: <c>M3-15</c>, <c>M12-04</c>.</summary>
     /// <remarks>
-    /// ⚠️ Stricter than <c>GapRegister</c>'s, which also accepts a bare milestone (<c>M14</c>)
-    /// because a deferral may legitimately name one before the milestone has task rows. A dispatch
-    /// row may not: every one of the 49 owners is a row in <c>IMPLEMENTATION_TRACKER.md</c>, and the
-    /// failure message below says so — a pattern that accepted <c>M4</c> would contradict its own
-    /// complaint.
+    /// ⚠️ Stricter than <c>GapRegister</c>'s, which also accepts a bare milestone (<c>M14</c>). A
+    /// dispatch row may not: every one of the 49 owners is a row in <c>IMPLEMENTATION_TRACKER.md</c>,
+    /// and a pattern accepting <c>M4</c> would contradict its own failure message.
     /// </remarks>
     private static readonly System.Text.RegularExpressions.Regex TaskId =
         new(@"^M\d{1,2}-\d{2}$", System.Text.RegularExpressions.RegexOptions.Compiled);
@@ -875,33 +818,19 @@ public sealed class CommandVocabularyTests
 
     /// <summary>
     /// 🔒 The <c>GameContext</c> a command of this wire name may legally be applied with — a
-    /// server-issued <c>CommandSeed</c> for the nine ⚄ rows of `14` §2.3, and <c>null</c> for the
-    /// other forty.
+    /// server-issued <c>CommandSeed</c> for the nine ⚄ rows of `14` §2.3, <c>null</c> for the other
+    /// forty.
     /// </summary>
     /// <remarks>
+    /// ⚠️ Nothing in <em>production</em> refuses a mispairing: <c>Apply</c> has no ⚄ column on the
+    /// dispatch row, and <c>CommandSeedPin</c> lives in this test assembly. The consequence is
+    /// one-sided — a ⚄ command handed no seed <b>is</b> caught (its handler asks for the scope and
+    /// gets the defect), while a non-drawing command handed a seed is silently ignored. Making it
+    /// symmetric means declaring the ⚄ column on <c>CommandRegistration</c>, a forty-nine-row edit and
+    /// the natural companion to <b>M5-03</b>'s wire envelope.
     /// <para>
-    /// 🔒 <b>This discharges half of the tripwire <c>CommandSeedPin</c> carries against M1-09.</b> Its
-    /// remarks record that M1-02 wired <c>CommandSeedPin.Violations</c> over the forty-nine wire
-    /// <em>names</em>, and that what was still unasserted was the invariant "where a
-    /// <c>GameContext</c> is actually paired with a command" — because until M1-09 no row had a
-    /// handler, so no pairing was ever consumed. It is consumed here: the sweeps above now apply real
-    /// commands with the context their classification demands, and a ⚄ row handed no seed reaches
-    /// <c>HandlerInput.MetaDraws</c>' defect rather than a silent unseeded draw.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>What is still not asserted, named rather than left for the next reader.</b> Nothing in
-    /// <em>production</em> refuses a mispairing: <c>Apply</c> has no ⚄ column on the dispatch row to
-    /// check against, and <c>CommandSeedPin.SeedBearingMetaCommands</c> lives in this test assembly.
-    /// The consequence is one-sided and worth stating — a ⚄ command handed no seed <b>is</b> caught
-    /// (its handler asks for the scope and gets the defect), while a non-drawing command handed a
-    /// seed is silently ignored. Making it symmetric means declaring the ⚄ column on
-    /// <c>CommandRegistration</c>, which is a forty-nine-row edit and the natural companion to
-    /// <b>M5-03</b>'s wire envelope, which needs the same column to route the two endpoints.
-    /// </para>
-    /// <para>
-    /// The seed is a fixed arbitrary constant: these sweeps are about <em>reachability</em>, not
-    /// about what any particular seed draws. The determinism claims are
-    /// <c>MetaDrawScopeTests</c>' and <c>BeginSessionDrawSeamTests</c>'.
+    /// The seed is a fixed arbitrary constant: these sweeps are about <em>reachability</em>. The
+    /// determinism claims are <c>MetaDrawScopeTests</c>' and <c>BeginSessionDrawSeamTests</c>'.
     /// </para>
     /// </remarks>
     private static GameContext ContextFor(string wireName) =>
@@ -912,15 +841,11 @@ public sealed class CommandVocabularyTests
     /// <summary>The seed the ⚄ rows are swept with. Arbitrary, fixed, and not a claim about a draw.</summary>
     private const ulong SweepSeed = 0xC0FFEE_1234_5678UL;
 
-    /// <summary>
-    /// One instance of a command type, built from its declared constructor.
-    /// </summary>
+    /// <summary>One instance of a command type, built from its declared constructor.</summary>
     /// <remarks>
-    /// Reflective rather than a hand-written list of forty-nine <c>new</c> expressions, and that is
-    /// the point: a hand-written list is a second transcription of the vocabulary, and the day it
-    /// went out of date it would silently stop driving whichever command it had forgotten. The values
-    /// are deliberately trivial — no rule reads a payload today, and one that did would be tested
-    /// against its own fixtures rather than these.
+    /// Reflective rather than forty-nine hand-written <c>new</c> expressions, which would be a second
+    /// transcription of the vocabulary that silently stopped driving whichever command it forgot. The
+    /// values are trivial: no rule reads a payload today.
     /// </remarks>
     private static GameCommand Build(Type commandType)
     {
