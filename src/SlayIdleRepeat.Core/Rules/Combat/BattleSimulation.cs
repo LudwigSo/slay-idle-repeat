@@ -143,7 +143,7 @@ internal sealed class BattleSimulation
         _plan = plan.Validated();
 
         Log = new CombatLog();
-        Rng = new DeterministicRng(_plan.BattleSeed, RngStreams.Combat);
+        Rng = new DeterministicRng(_plan.BattleSeed, RngStreams.Combat, _plan.RngPosition);
         Triggers = new TriggerRegistry(_plan.RunCounters);
 
         _services = new BattleServices(this);

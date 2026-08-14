@@ -39,6 +39,30 @@ internal sealed record BattlePlan
     public required ulong BattleSeed { get; init; }
 
     /// <summary>
+    /// 🔒 The combat stream's opening position — <c>0</c> for every fight that draws nothing before
+    /// the battle starts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `05` §6.2's Elite Modifier draw (and, for an encounter, the archetype/elite-identity draws
+    /// that pick the roster in the first place) happen <b>before</b> a <see cref="BattlePlan"/>
+    /// exists — <see cref="BattleSimulation"/> opens its own <c>new DeterministicRng(BattleSeed,
+    /// RngStreams.Combat)</c> at construction, always starting at position <c>0</c>. Without this,
+    /// a caller that pre-draws on a separate <see cref="DeterministicRng"/> instance over the same
+    /// <c>(BattleSeed, "combat")</c> pair and then hands the plan to the simulator would have the
+    /// fight's own stream <b>re-consume the same draw indices</b> the pre-draw already spent — two
+    /// different questions answered from one draw.
+    /// </para>
+    /// <para>
+    /// Defaulted to <c>0</c> so every existing caller — the plain <c>Simulate</c> overload,
+    /// <c>BossFight</c>, every test bench in the repository — is byte-identical after this member
+    /// was added: none of them draws before the plan exists, so none of them needs to move the
+    /// pointer.
+    /// </para>
+    /// </remarks>
+    public ulong RngPosition { get; init; }
+
+    /// <summary>
     /// Every actor, in `05` §3.1 order: hero, pets in slot order, then enemies by index.
     /// </summary>
     public required IReadOnlyList<ActorPlan> Actors { get; init; }
