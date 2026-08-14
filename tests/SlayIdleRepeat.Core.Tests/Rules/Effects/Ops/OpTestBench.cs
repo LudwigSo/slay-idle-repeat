@@ -110,6 +110,21 @@ internal sealed class OpTestBench
         return this;
     }
 
+    /// <summary>
+    /// 🔒 M2-R3 — the status ids <c>IStatusEngine.HasFixedPotency</c> answers <c>true</c> for on this
+    /// bench, standing in for <c>StatusCatalogue.Of(id).FixedPotency is not null</c> — `05` §5's
+    /// FREEZE, in the shipped data.
+    /// </summary>
+    private readonly HashSet<string> _fixedPotencyStatuses = new(StringComparer.Ordinal);
+
+    /// <summary>Marks a status id as carrying its own literal potency, as FREEZE does in `05` §5.</summary>
+    internal OpTestBench WithFixedPotency(string statusId)
+    {
+        _fixedPotencyStatuses.Add(statusId);
+
+        return this;
+    }
+
     /// <summary>The seam set, with every member recording.</summary>
     internal EffectOpSeams Seams => new(
         AuthoredScaledValue.Instance,
@@ -215,6 +230,8 @@ internal sealed class OpTestBench
             IEffectActorView applier, IEffectActorView target, string statusId, double potency,
             EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
             bench.Record($"{nameof(Apply)}:{statusId}", target.Id, potency, sourceEffectId, duration, stacking);
+
+        public bool HasFixedPotency(string statusId) => bench._fixedPotencyStatuses.Contains(statusId);
 
         public void Remove(IEffectActorView target, string statusId, string sourceEffectId) =>
             bench.Record($"{nameof(Remove)}:{statusId}", target.Id, 0.0, sourceEffectId);

@@ -31,16 +31,23 @@ internal static class StatusOps
 {
     /// <summary>`18` §2.3 — <c>APPLY_STATUS</c>. The value is the status's own potency (its X in `05` §5).</summary>
     /// <remarks>
+    /// <para>
     /// The potency is <b>not</b> passed through <see cref="OpValue"/>: `05` §5 types every X as the
     /// status's own unit — <em>"X% of attacker ATK per second"</em>, <em>"−X% ASPD"</em>,
     /// <em>"−X% DEF"</em> — so the status decides what its number means and a value mode here would
     /// be a second, disagreeing answer. `18` §1.1's <c>valueScale</c> still applies, because that
     /// scales the authored number rather than reinterpreting it.
+    /// </para>
+    /// <para>
+    /// 🔒 M2-R3 — <see cref="Potency"/> is what makes a value-less <c>APPLY_STATUS</c> possible at
+    /// all, for exactly `05` §5's FREEZE shape (a status stated as a literal, not as an authored X).
+    /// See that method's remarks.
+    /// </para>
     /// </remarks>
     internal static double Apply(EffectDefinition effect, EffectOpContext context)
     {
         var statusId = RequireStatusId(effect);
-        var potency = OpRounding.Round(context.Seams.Values.ScaledValue(effect), effect.Id, "potency");
+        var potency = Potency(effect, context, statusId);
 
         foreach (var target in OpTargets.Resolve(effect, context))
         {
@@ -53,6 +60,46 @@ internal static class StatusOps
         }
 
         return potency;
+    }
+
+    /// <summary>
+    /// 🔒 M2-R3 — the effect's potency, or the sentinel <c>0.0</c> when the named status supplies its
+    /// own (`05` §5's FREEZE — <em>"−50% ASPD"</em>, a literal, not an authored X).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="ValueScaleEvaluator.Value"/> refuses a value-less effect for every op, and must not
+    /// simply stop doing that: for the other five `18` §2.3 status ops, and for a value-less
+    /// <c>APPLY_STATUS</c> naming a status with no <c>StatusCatalogue.FixedPotency</c>, an
+    /// absent value is still exactly the authoring hole steering S6 says it is. What narrows is only
+    /// this one case: a value-less <c>APPLY_STATUS</c> whose <see cref="IStatusEngine.HasFixedPotency"/>
+    /// answers yes.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Why the guard could not simply move into <see cref="ValueScaleEvaluator.Value"/> itself.</b>
+    /// R17 makes <c>Rules.Effects</c> — where that evaluator lives — the bottom of the intra-<c>Rules</c>
+    /// layering; <c>StatusCatalogue</c> lives one layer up, in <c>Rules.Combat.Status</c>, so the
+    /// evaluator has no legal way to ask "does this status carry its own number". The seam already
+    /// exists for the identical reason on the <c>STAT_COPY</c> side (<see cref="IResolvedStatReader"/>),
+    /// so <see cref="IStatusEngine.HasFixedPotency"/> follows the same shape: the question is asked
+    /// through a seam the op layer already holds, one layer down from where the answer lives, rather
+    /// than by widening what the shared value-scale evaluator may reach into.
+    /// </para>
+    /// <para>
+    /// ⚠️ The <c>0.0</c> returned when a FixedPotency backs the status is a sentinel, not a computed
+    /// number: <c>StatusTimeline.Apply</c>'s <c>definition.FixedPotency ?? …</c> never reads the
+    /// <c>potency</c> parameter when <c>FixedPotency</c> is set, so nothing downstream ever sees this
+    /// value. It documents "unused" rather than "computed and (coincidentally or not) correct".
+    /// </para>
+    /// </remarks>
+    private static double Potency(EffectDefinition effect, EffectOpContext context, string statusId)
+    {
+        if (effect.Value is null && context.Seams.Statuses.HasFixedPotency(statusId))
+        {
+            return 0.0;
+        }
+
+        return OpRounding.Round(context.Seams.Values.ScaledValue(effect), effect.Id, "potency");
     }
 
     /// <summary>

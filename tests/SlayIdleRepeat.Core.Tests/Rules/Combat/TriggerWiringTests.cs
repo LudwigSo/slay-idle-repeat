@@ -480,6 +480,9 @@ internal sealed class TickCapturingStatusEngine : IStatusEngine
         _ticks.Add(_services.Tick);
 
     /// <inheritdoc />
+    public bool HasFixedPotency(string statusId) => false;
+
+    /// <inheritdoc />
     public void Remove(IEffectActorView target, string statusId, string sourceEffectId)
     {
     }

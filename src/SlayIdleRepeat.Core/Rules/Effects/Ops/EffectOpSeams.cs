@@ -209,6 +209,29 @@ internal interface IStatusEngine
         IEffectActorView applier, IEffectActorView target, string statusId, double potency,
         EffectDuration? duration, EffectStacking? stacking, string sourceEffectId);
 
+    /// <summary>
+    /// 🔒 M2-R3 — whether <paramref name="statusId"/> carries `05` §5's own literal potency (e.g.
+    /// FREEZE's fixed −50% ASPD), rather than taking one from the applying effect's <c>value</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The seam that lets <c>StatusOps.Apply</c> (<c>Rules.Effects.Ops</c>, the bottom of R17's
+    /// intra-<c>Rules</c> layering) know a fact that only <c>StatusCatalogue</c>
+    /// (<c>Rules.Combat.Status</c>, one layer up) holds, without <c>Rules.Effects</c> naming
+    /// <c>Rules.Combat</c> directly — the same seam-not-a-direct-reference shape as
+    /// <see cref="IResolvedStatReader"/> for <c>STAT_COPY</c>'s start-of-tick snapshot.
+    /// </para>
+    /// <para>
+    /// A value-less <c>APPLY_STATUS</c> is, by default, exactly as much an authoring hole as a
+    /// value-less stat op (steering S6) — <see cref="ValueScaleEvaluator.Value"/>'s guard refuses it.
+    /// The one narrowed exception is a status whose own row supplies the number, and this member is
+    /// how the op layer learns that <b>before</b> deciding whether to demand a value at all, rather
+    /// than after the guard has already thrown.
+    /// </para>
+    /// </remarks>
+    /// <param name="statusId">One of `05` §5's twelve.</param>
+    bool HasFixedPotency(string statusId);
+
     /// <summary>`18` §2.3 — <c>REMOVE_STATUS</c>, the <c>statusId</c> form.</summary>
     void Remove(IEffectActorView target, string statusId, string sourceEffectId);
 
@@ -499,6 +522,10 @@ internal sealed class UnwiredStatusEngine : IStatusEngine
         IEffectActorView applier, IEffectActorView target, string statusId, double potency,
         EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
         throw Unwired(sourceEffectId, nameof(Apply));
+
+    /// <inheritdoc />
+    public bool HasFixedPotency(string statusId) =>
+        throw Unwired(nameof(EffectOp.APPLY_STATUS), nameof(HasFixedPotency));
 
     /// <inheritdoc />
     public void Remove(IEffectActorView target, string statusId, string sourceEffectId) =>
