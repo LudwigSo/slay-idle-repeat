@@ -2,15 +2,11 @@ using System.Collections.ObjectModel;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
-/// <summary>
-/// The shapes <c>CanonicalStateWriter</c> must <b>refuse</b>, one record per shape.
-/// </summary>
+/// <summary>The shapes <c>CanonicalStateWriter</c> must <b>refuse</b>, one record per shape.</summary>
 /// <remarks>
-/// 🔒 `14` §16.6: *"No unordered container is ever hashed as-is."* The writer enforces that
-/// by dispatching over a <b>closed allowlist</b> with no <c>IEnumerable</c> fallback, so a
-/// container with no defined order — and a scalar with no pinned encoding — has nowhere to
-/// land except a hard failure. These records are what proves the allowlist is still closed:
-/// if one of them ever starts hashing, some fallback branch grew back.
+/// 🔒 `14` §16.6: <em>"No unordered container is ever hashed as-is."</em> The writer dispatches over a
+/// <b>closed allowlist</b> with no <c>IEnumerable</c> fallback. These records prove the allowlist is
+/// still closed: if one ever starts hashing, some fallback branch grew back.
 /// </remarks>
 internal static class UnsupportedSnapshots
 {
@@ -79,17 +75,14 @@ internal static class UnsupportedSnapshots
     internal sealed record Empty;
 
     /// <summary>
-    /// 🔒 A positional record carrying a public property <b>outside</b> its primary constructor —
-    /// the one shape whose fields the writer could silently drop.
+    /// 🔒 A positional record carrying a public property <b>outside</b> its primary constructor — the
+    /// one shape whose fields the writer could silently drop.
     /// </summary>
     /// <remarks>
-    /// The field list is the constructor's parameter list, so <c>RevivesUsed</c> would contribute
-    /// zero bytes: <c>{ RevivesUsed = 0 }</c> and <c>{ RevivesUsed = 99 }</c> would share a
-    /// <c>stateHash</c> while record equality correctly reported them different, and
-    /// <c>CanonicalFieldOrder</c> — asking the same question — would never pin the field at all.
-    /// <c>record</c> + <c>{ get; init; }</c> is exactly what an optional member of
-    /// <c>PlayerSnapshot</c>/<c>RunSnapshot</c> reaches for, so the refusal is the guard rail that
-    /// has to exist before those records do.
+    /// The field list is the constructor's parameter list, so <c>RevivesUsed</c> contributes zero
+    /// bytes: <c>{ RevivesUsed = 0 }</c> and <c>{ RevivesUsed = 99 }</c> would share a
+    /// <c>stateHash</c> while record equality correctly reported them different. <c>record</c> +
+    /// <c>{ get; init; }</c> is exactly what an optional snapshot member reaches for.
     /// </remarks>
     internal sealed record WithPropertyOutsideTheConstructor(int SchemaVersion, int ChapterId)
     {
@@ -98,19 +91,14 @@ internal static class UnsupportedSnapshots
     }
 
     /// <summary>
-    /// 🔴 A positional record carrying a public <b>field</b> outside its primary constructor — the
-    /// same defect as <see cref="WithPropertyOutsideTheConstructor"/> through a door M0-07 left
-    /// open.
+    /// 🔴 A positional record carrying a public <b>field</b> outside its primary constructor — the same
+    /// defect as <see cref="WithPropertyOutsideTheConstructor"/> through a door the property check
+    /// cannot watch.
     /// </summary>
     /// <remarks>
-    /// <c>CanonicalProperties</c> compared <c>GetProperties()</c> against the parameter list and
-    /// never looked at <c>GetFields()</c>, so this shape — <c>public int RevivesUsed;</c>, one
-    /// keyword-pair away from the record above and the first thing a hand-written DTO reaches for —
-    /// was accepted as a canonical record and its field contributed <b>zero bytes</b>.
-    /// <c>{ RevivesUsed = 0 }</c> and <c>{ RevivesUsed = 99 }</c> shared a <c>stateHash</c> while
-    /// record equality correctly reported them different, and the <c>SchemaVersion</c> field-order
-    /// pin never saw the field at all. Latent since M0-07 and harmless only while no snapshot
-    /// record existed; M1-04 authors the first one, so M1-04 closes it.
+    /// <c>CanonicalProperties</c> compared <c>GetProperties()</c> against the parameter list and never
+    /// looked at <c>GetFields()</c>, so <c>public int RevivesUsed;</c> — one keyword-pair away from the
+    /// record above — was accepted and contributed zero bytes.
     /// </remarks>
     internal sealed record WithPublicField(int SchemaVersion, int ChapterId)
     {
@@ -121,25 +109,17 @@ internal static class UnsupportedSnapshots
     }
 
     /// <summary>
-    /// 🔒 A positional record carrying public <b>fields</b> outside its primary constructor — the
-    /// same zero-byte defect as <see cref="WithPropertyOutsideTheConstructor"/>, reached by the door
-    /// the property check cannot watch. A second, independent shape from <see cref="WithPublicField"/>
-    /// above: more than one field, and named after the real-world case that motivated it.
+    /// 🔒 A positional record carrying public <b>fields</b> outside its primary constructor: a second,
+    /// independent shape from <see cref="WithPublicField"/> — more than one field, and named after the
+    /// real case that motivated it.
     /// </summary>
     /// <remarks>
-    /// <para>
     /// A field is neither a primary-constructor parameter nor a property, so it falls through both
-    /// halves of the writer's shape check: the parameter loop never looks for it, and the
-    /// <c>GetProperties().Length != parameters.Length</c> converse cannot see it either. Before
-    /// M2-15 closed it, this record hashed <b>only <c>Tick</c></b>, and two instances differing in
-    /// <c>SourceId</c> and <c>Value</c> shared a hash.
-    /// </para>
+    /// halves of the shape check. Before this was closed, the record hashed <b>only <c>Tick</c></b>.
     /// <para>
-    /// ⚠️ It is not a hypothetical shape. `05` §7 declares <c>CombatEvent</c> — the record behind
-    /// the battle <c>LogHash</c> — as six public fields, which is why the fixture is named after it.
-    /// Nothing else in the repository would have noticed: <c>AccessibilityBoundaryTests</c>' public-
-    /// mutable-field rule exempts <c>readonly</c> fields, and every test written over such a hash
-    /// passes.
+    /// ⚠️ Not hypothetical: `05` §7 declares <c>CombatEvent</c> — the record behind the battle
+    /// <c>LogHash</c> — as six public fields. Nothing else would have noticed, since the public-mutable-
+    /// field rule exempts <c>readonly</c> fields and every test over such a hash passes.
     /// </para>
     /// </remarks>
     internal sealed record CombatEventAsDocumented(int Tick)

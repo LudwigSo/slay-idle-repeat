@@ -16,45 +16,25 @@ namespace SlayIdleRepeat.Core.Tests;
 /// Hermetic <see cref="WorldSlice"/> and command fixtures for the <c>GameRules.Apply</c> suite.
 /// </summary>
 /// <remarks>
-/// <para>
 /// Aggregates are built the only way `30` §11.3 allows — through <c>Rehydrate</c> over the snapshot
-/// fixtures M1-04 and M1-05 authored — so nothing here invents a starting state. The content
-/// snapshot is <c>TuningDocuments.Shipped</c>: <c>Player.Rehydrate</c> validates the Legend Level
-/// against `07` §1.1's authored range, and M1-09's <c>BEGIN_SESSION</c> is the first command to read
-/// a <em>second</em> tuning document (`19` G's calendar cycle, in <c>tuning/currencies.json</c>).
+/// fixtures — so nothing here invents a starting state.
+/// <para>
+/// 🔒 <see cref="Context"/> carries no <c>CommandSeed</c>, which is correct for every fixture command
+/// here; a command that <em>draws</em> takes <see cref="Drawing"/>. Sharing one fixture would let a
+/// test pass on the wrong one of two opposite defects.
 /// </para>
 /// <para>
-/// 🔒 <b><see cref="Context"/> carries no <c>CommandSeed</c>, and that is correct for every fixture
-/// command in this file</b> — `30` §3 makes the seed meta-only and `14` §2.3 marks only nine rows ⚄,
-/// none of which these fixtures impersonate. A command that <em>draws</em> takes
-/// <see cref="Drawing"/> instead, which is the one door that pairs a seed with a command here
-/// (steering <b>S2</b>: "a run command was handed a seed" and "a meta draw was handed none" are
-/// opposite defects with opposite fixes, and sharing one fixture would let a test pass on the wrong
-/// one).
-/// </para>
-/// <para>
-/// ⚠️ <b>The command fixtures are deliberately not any of `14` §2.3's 49 rows.</b> The vocabulary is
-/// M1-02's; a fixture that borrowed a real name would read as a claim about it (steering S6). They
-/// are named for the <em>shape</em> each one drives — a handler that draws, a handler that
-/// hand-writes a counter — and their wire names are spelled so no reader mistakes them for the
-/// registry.
+/// ⚠️ The command fixtures are deliberately not any of `14` §2.3's 49 rows — a fixture borrowing a
+/// real name would read as a claim about it. They are named for the <em>shape</em> each drives.
 /// </para>
 /// </remarks>
 internal static class Worlds
 {
     /// <summary>The instant every fixture applies at, one second after the snapshots' anchors.</summary>
     /// <remarks>
-    /// Later than <c>PlayerSnapshots.Midmorning</c> and <c>RunSnapshots.Midmorning</c> on purpose: a
-    /// fixture instant equal to the anchor would make "the timestamp advanced" untestable.
-    /// <para>
-    /// 🔒 <b>M1-12 corrected the other half of this sentence</b>, which read <em>"and one earlier
-    /// would make every accepted command throw"</em>. That was true and it was carried-forward item
-    /// 20 — a `30` §2.1 <b>P3</b> violation — recorded here as a property of the fixture rather than
-    /// as the defect it was. <c>GameRules.MarkApplied</c> now floors the instant it hands the
-    /// aggregates, so an earlier one is accepted and leaves the anchor where it was; see
-    /// <c>GameRulesBackwardsClockTests</c>. This fixture is still later than both anchors, because
-    /// what it is for is testing that the timestamp <em>moves</em>.
-    /// </para>
+    /// Later than the anchors on purpose: a fixture instant equal to one would make "the timestamp
+    /// advanced" untestable. An <em>earlier</em> instant is now accepted — <c>GameRules.MarkApplied</c>
+    /// floors it and leaves the anchor where it was; see <c>GameRulesBackwardsClockTests</c>.
     /// </remarks>
     internal static readonly DateTimeOffset NowUtc = new(2026, 8, 12, 9, 41, 8, TimeSpan.Zero);
 
@@ -67,13 +47,11 @@ internal static class Worlds
         TestSupport.GameContexts.NoKillSwitchThrown);
 
     /// <summary>
-    /// 🔒 The context a ⚄ command gets: <see cref="Context"/> plus a server-issued
-    /// <c>CommandSeed</c>.
+    /// 🔒 The context a ⚄ command gets: <see cref="Context"/> plus a server-issued <c>CommandSeed</c>.
     /// </summary>
     /// <param name="commandSeed">
     /// The seed. ⚠️ Required rather than defaulted — a default would make "which seed did this test
-    /// use" invisible at the call site, and every determinism assertion in this suite is a claim
-    /// about <em>that</em> value.
+    /// use" invisible at the call site, and every determinism assertion here is a claim about it.
     /// </param>
     /// <param name="nowUtc">When the command is applied. Defaults to <see cref="NowUtc"/>.</param>
     internal static GameContext Drawing(ulong commandSeed, DateTimeOffset? nowUtc = null) =>

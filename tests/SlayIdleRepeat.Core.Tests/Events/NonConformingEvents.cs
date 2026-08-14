@@ -7,19 +7,13 @@ namespace SlayIdleRepeat.Core.Tests.Events;
 /// bite without a violation ever being committed to <c>SlayIdleRepeat.Core</c>.
 /// </summary>
 /// <remarks>
+/// 🔒 These live in <c>Core.Tests</c>, never in <c>Core</c>: every rule reads its subject set out of
+/// <c>typeof(DomainEvent).Assembly</c>, so nothing here is ever in that set.
 /// <para>
-/// 🔒 These live in <c>SlayIdleRepeat.Core.Tests</c>, never in <c>Core</c>. Every rule in
-/// <c>DomainEventTests</c> reads its subject set out of <c>typeof(DomainEvent).Assembly</c>, so
-/// nothing here is ever in that set — which is the point: the rules govern the real hierarchy and
-/// these prove the rules can fail.
-/// </para>
-/// <para>
-/// ⚠️ The nested types and their members are <c>public</c> on purpose. The predicates under test
-/// read <c>BindingFlags.Public</c>, so an <c>internal</c> fixture would be invisible to them and
-/// every self-test below would pass by reflecting over nothing — a teeth-check with no teeth. The
-/// enclosing class is <c>internal</c>, so none of this is visible outside the test assembly, and
-/// <c>Type.IsPublic</c> is <c>false</c> for a nested type regardless, which is what keeps these
-/// out of the real subject set.
+/// ⚠️ The nested types and their members are <c>public</c> on purpose — the predicates read
+/// <c>BindingFlags.Public</c>, so an <c>internal</c> fixture would be invisible and every self-test
+/// would pass by reflecting over nothing. The enclosing class is <c>internal</c> and
+/// <c>Type.IsPublic</c> is <c>false</c> for a nested type, which keeps these out of the real set.
 /// </para>
 /// </remarks>
 internal static class NonConformingEvents
@@ -45,16 +39,14 @@ internal static class NonConformingEvents
     public sealed record SelfStamped(int Sequence, DateTime OccurredAt) : DomainEvent(Sequence);
 
     /// <summary>
-    /// Stamps itself with clock readings the check has to reach <i>through</i> a nullable, a
-    /// generic argument and an array element — the three shapes <c>DomainEventShape.Flatten</c>
-    /// exists for, and the four <c>ClockReadings</c> entries <see cref="SelfStamped"/> leaves
-    /// unexercised (`30` §3).
+    /// Stamps itself with clock readings the check must reach <i>through</i> a nullable, a generic
+    /// argument and an array element — the three shapes <c>DomainEventShape.Flatten</c> exists for.
     /// </summary>
     /// <remarks>
-    /// A payload wrapping its time in a nullable or a list is not a contrived shape — it is the
-    /// ordinary one. If <c>Flatten</c> stopped unwrapping any of these, the clock rule would go
-    /// silent on exactly the events most likely to carry a timestamp, and
-    /// <see cref="SelfStamped"/>'s bare <c>DateTime</c> would keep the rule looking healthy.
+    /// A payload wrapping its time in a nullable or a list is the ordinary shape, not a contrived one.
+    /// If <c>Flatten</c> stopped unwrapping any of these, the clock rule would go silent on exactly the
+    /// events most likely to carry a timestamp, and <see cref="SelfStamped"/>'s bare
+    /// <c>DateTime</c> would keep it looking healthy.
     /// </remarks>
     public sealed record SelfStampedIndirectly(
         int Sequence,
