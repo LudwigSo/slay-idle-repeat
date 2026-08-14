@@ -10,22 +10,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `30` §11.3 — <c>Player.Rehydrate</c> is <em>"one validated entry point for every persisted
-/// state in the game — a corrupt row fails loudly at the seam rather than silently three rules
-/// later."</em> This file is that sentence, one assertion per way a row can be wrong.
+/// 🔒 `30` §11.3 — <c>Player.Rehydrate</c> is <em>"one validated entry point for every persisted state
+/// in the game — a corrupt row fails loudly at the seam rather than silently three rules later."</em>
+/// One assertion per way a row can be wrong.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 Every failure assertion pins <b>which</b> validation fired, not just that one did (steering
-/// <b>S2</b>). <c>Rehydrate</c> reports every fault it finds rather than the first, so a test that
-/// only checked <c>IsFailure</c> would pass for a row that is invalid in some entirely different
-/// way — which is exactly how a validation gets deleted without anything going red.
-/// </para>
-/// <para>
-/// The content snapshot is <c>ProgressionDocuments.Shipped</c>, built through
-/// <c>ContentSnapshot</c>'s public constructor over in-memory documents. <c>Core.Tests</c> is
-/// hermetic: no file, no adapter, no parser (M1 kickoff).
-/// </para>
+/// 🔒 Every failure assertion pins <b>which</b> validation fired. <c>Rehydrate</c> reports every fault
+/// it finds rather than the first, so a test that only checked <c>IsFailure</c> would pass for a row
+/// invalid in some entirely different way.
 /// </remarks>
 public sealed class PlayerRehydrateTests
 {
@@ -75,21 +67,16 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 + the M1 kickoff ruling — an unknown <c>SchemaVersion</c> hard-fails, and the
-    /// message says there is no migration rather than reading the row anyway.
+    /// 🔒 An unknown <c>SchemaVersion</c> hard-fails, and the message says there is no migration rather
+    /// than reading the row anyway.
     /// </summary>
     /// <remarks>
-    /// Both directions: a row from the future (a client that downgraded) and a row from the past
-    /// (the case a migration would one day handle). Neither is readable today, and reading either
-    /// against the current layout shifts every field after the first change by one position.
+    /// Both directions — a row from the future (a client that downgraded) and one from the past.
+    /// Reading either against the current layout shifts every field after the first change by one.
     /// <para>
-    /// 🔒 <b>The "one past the current" row is written as an expression, not as a literal, and that
-    /// is M1-09's correction rather than a style preference.</b> It was <c>[InlineData(2)]</c>, which
-    /// silently stopped being a wrong version on the commit that bumped
-    /// <see cref="SnapshotSchema.SchemaVersion"/> to 2 — the case went <em>red</em> there, which is
-    /// the good outcome, but only because the accepted version happened to be the very next integer.
-    /// A literal 3 would have kept passing while asserting nothing about the boundary it names. The
-    /// <c>const</c> arithmetic below cannot go stale at any future bump.
+    /// 🔒 The "one past the current" row is an expression, not a literal: as <c>[InlineData(2)]</c> it
+    /// silently stopped being a wrong version when the schema bumped to 2, and a literal 3 would have
+    /// kept passing while asserting nothing about the boundary it names.
     /// </para>
     /// </remarks>
     [Theory]

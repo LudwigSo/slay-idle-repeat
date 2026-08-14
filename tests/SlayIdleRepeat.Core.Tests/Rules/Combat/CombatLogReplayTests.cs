@@ -6,27 +6,19 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
 /// 🔒 `05`'s headnote — <em>"the visual battle is a <b>replay of a pre-computed log</b>, not a live
-/// simulation. Compute first, then animate."</em> — made checkable rather than aspirational.
+/// simulation"</em> — made checkable rather than aspirational.
 /// </summary>
 /// <remarks>
+/// <see cref="Replayer"/> is a deliberately blunt consumer: it reconstructs tick by tick everything
+/// `05` §8 and `13` §5 say the battle screen draws — HP bars, who is alive, which statuses are up and
+/// at how many stacks, the boss's phase band, the telegraphs, the queued run effects.
 /// <para>
-/// <b>How sufficiency is verified here.</b> <see cref="Replayer"/> below is a deliberately blunt
-/// consumer. It reconstructs, tick by tick, everything `05` §8 and `13` §5 say the battle screen
-/// draws — each actor's HP bar, who is alive, which statuses are up <b>and at how many stacks</b>,
-/// the boss's phase band, the telegraphs, and the queued run effects.
-/// </para>
-/// <para>
-/// ⚠️ <b>What it legitimately holds besides the log</b>, stated so the claim is not read as broader
-/// than it is: the two sides' <b>starting HP</b> — which `05` §8's pre-battle banner already shows
-/// the player — and the roster it is drawing. It holds <b>no</b> stat block, <b>no</b> effect
-/// definition, <b>no</b> status content table, <b>no</b> RNG and <b>no</b> simulator type, and it
-/// recomputes nothing: every number it displays is read straight out of an event, and a DoT tick is
-/// told from a HoT tick by the <i>sign</i> of <see cref="CombatEvent.Value"/> alone.
-/// </para>
-/// <para>
-/// That is the real content of the claim. M7-06 builds the actual renderer, and there is no Godot
-/// client until M7 — so what M2-15 owes is a log a renderer <i>can</i> be built against, and the
-/// way to owe that honestly is to build the smallest possible one now.
+/// ⚠️ Besides the log it holds only the two sides' <b>starting HP</b> (which the pre-battle banner
+/// already shows) and the roster. <b>No</b> stat block, effect definition, status table, RNG or
+/// simulator type, and it recomputes nothing — a DoT tick is told from a HoT tick by the <i>sign</i>
+/// of <see cref="CombatEvent.Value"/> alone. That is the real content of the claim: what is owed is a
+/// log a renderer <i>can</i> be built against, and the honest way to owe it is to build the smallest
+/// possible one now.
 /// </para>
 /// </remarks>
 public sealed class CombatLogReplayTests
@@ -176,16 +168,10 @@ public sealed class CombatLogReplayTests
     /// 🔒 `05` §8 — the ×1/×2/×3 toggle <em>"simply consumes the log faster"</em>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The claim, stated so it can fail: after the same half second of wall clock, a ×1 replay has
-    /// consumed 10 ticks, ×2 has consumed 20 and ×3 has consumed 30 — and each shows the state the
-    /// log says holds at that tick, against a trajectory written out here rather than recomputed
-    /// from the replayer.
-    /// </para>
-    /// <para>
-    /// What makes that possible is that the log carries an integer <b>tick</b> and no wall clock at
-    /// all, so speed is a rendering-side division and nothing in the log participates in it.
-    /// </para>
+    /// After the same half second of wall clock, ×1 has consumed 10 ticks, ×2 twenty and ×3 thirty —
+    /// each showing the state the log says holds at that tick, against a trajectory written out here
+    /// rather than recomputed from the replayer. What makes that possible is that the log carries an
+    /// integer <b>tick</b> and no wall clock, so speed is a rendering-side division.
     /// </remarks>
     [Theory]
     [InlineData(1, 20, 170.0)]

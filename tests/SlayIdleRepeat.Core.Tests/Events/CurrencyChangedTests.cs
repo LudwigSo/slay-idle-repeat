@@ -7,43 +7,25 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Events;
 
 /// <summary>
-/// 🔒 `30` §7 — *"Every currency movement in the game emits <c>CurrencyChanged</c> with a
-/// reason."* This suite covers the event itself: the four things it carries, and the one thing it
+/// 🔒 `30` §7 — <em>"Every currency movement in the game emits <c>CurrencyChanged</c> with a
+/// reason."</em> This suite covers the event itself: the four things it carries, and the one thing it
 /// refuses.
 /// </summary>
 /// <remarks>
-/// <para>
 /// The rule that every currency <i>mutation</i> emits one is
-/// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c> (M0-08), an IL scan that
-/// has existed since before this type did. 🔒 <b>M1-12 deleted the claim that used to be here —
-/// "it is still vacuous after this commit and stays so until M1-04"</b> — which was true when M1-03
-/// wrote it and false from the commit after. The rule is <b>live</b>, over three currency-carrying
-/// fields: <c>Player::_wallet</c>, <c>Run::_wallet</c> and <c>PlayerSnapshot</c>'s <c>Wallet</c>
-/// component. What M1-03 contributed is still what this paragraph says it is: the event half of that
-/// rule's predicate names a real type from this commit.
+/// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c>, an IL scan that predates
+/// this type.
+/// <para>
+/// ⚠️ Authoring this event very nearly switched that rule's own vacuity sentinel off:
+/// <c>CurrencyChanged.Id</c> is a <c>CurrencyId</c>-typed property, so its backing field matched
+/// <c>CurrencyFields()</c> and took the <c>count == 0</c> early return away, leaving the rule looking
+/// awake a milestone before any currency is stored anywhere. <c>CurrencyFields()</c> now skips the
+/// <c>Core/Events/</c> hierarchy — an event is the emission, never the holder.
 /// </para>
 /// <para>
-/// ⚠️ <b>Authoring this event very nearly switched that rule's own vacuity sentinel off.</b>
-/// <c>CurrencyChanged.Id</c> is a <c>CurrencyId</c>-typed instance property, so its
-/// compiler-generated backing field matched <c>CurrencyFields()</c> — which took the rule's
-/// <c>count == 0</c> early return away and left it looking awake a milestone before any currency is
-/// stored anywhere. <c>CurrencyFields()</c> now skips the <c>Core/Events/</c> hierarchy for that
-/// reason; an event is the emission, never the holder.
-/// </para>
-/// <para>
-/// ⚠️ Not "and it was toothless anyway because constructors are exempt" — that reading was checked
-/// and is wrong. With the skip removed, the writers of
-/// <c>CurrencyChanged::&lt;Id&gt;k__BackingField</c> are its two constructors <i>and</i>
-/// <c>set_Id</c>, the compiler-generated <c>init</c> accessor, which the construction exemption does
-/// not cover. It passed only because the rule's emission predicate counted <i>touching</i>
-/// <c>CurrencyChanged</c> as emitting one; that predicate has since been narrowed to production.
-/// </para>
-/// <para>
-/// The reason is what turns `21` §8.3's <c>income_attribution.csv</c> — the report answering risk
-/// <b>R10</b>, the compounding of dungeon, event and guild income — into a query over events
-/// rather than thirty pieces of hand-written bookkeeping that will disagree with each other. An
-/// unattributed row is a row that report cannot use, which is why a blank one is refused at
-/// construction rather than logged and skipped later.
+/// The reason is what turns `21` §8.3's <c>income_attribution.csv</c> into a query over events rather
+/// than thirty pieces of hand-written bookkeeping that will disagree. An unattributed row is a row that
+/// report cannot use, which is why a blank one is refused at construction.
 /// </para>
 /// </remarks>
 public sealed class CurrencyChangedTests
@@ -178,23 +160,17 @@ public sealed class CurrencyChangedTests
     }
 
     /// <summary>
-    /// 🔒 `14` §8.2 — the event renders identically under every culture, and a <b>negative</b>
-    /// delta is what makes that a real claim.
+    /// 🔒 `14` §8.2 — the event renders identically under every culture, and a <b>negative</b> delta is
+    /// what makes that a real claim.
     /// </summary>
     /// <remarks>
+    /// A record's synthesized <c>PrintMembers</c> appends every member through
+    /// <c>StringBuilder.Append(object)</c>, which formats with the <b>ambient</b> culture: under
+    /// <c>sv-SE</c> a delta of −10 renders with U+2212, against U+002D in the CI container. The boxing
+    /// hides that from the IL scan, which matches a call whose declaring type is <c>System.Int64</c>.
     /// <para>
-    /// Carried-forward item 9, closed by M1-06. A record's <em>synthesized</em> <c>PrintMembers</c>
-    /// appends every member through <c>StringBuilder.Append(object)</c>, which formats with the
-    /// <b>ambient</b> culture: under <c>sv-SE</c> a delta of −10 renders with U+2212 MINUS SIGN,
-    /// against U+002D HYPHEN-MINUS in the CI container. The boxing hides that from
-    /// <c>AmbientApiTests.Core_and_Application_contain_no_culture_sensitive_formatting</c>, whose IL
-    /// scan matches a call whose declaring type is <c>System.Int64</c>.
-    /// </para>
-    /// <para>
-    /// 🔒 Swedish rather than German, and that is the whole point of the fixture: <c>de-DE</c>
-    /// renders a negative integer with an ordinary hyphen, so a test written against it would pass
-    /// on the synthesized <c>PrintMembers</c> and prove nothing. The sign character is asserted
-    /// explicitly for the same reason.
+    /// 🔒 Swedish rather than German: <c>de-DE</c> renders a negative integer with an ordinary hyphen, so
+    /// a test written against it would pass and prove nothing.
     /// </para>
     /// </remarks>
     [Fact]

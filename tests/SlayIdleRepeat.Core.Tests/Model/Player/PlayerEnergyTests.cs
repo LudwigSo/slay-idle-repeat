@@ -134,12 +134,10 @@ public sealed class PlayerEnergyTests
     /// across the whole authored Legend Level range.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The formula genuinely exists twice: `30` §11.4 forbids <c>Model</c> from referencing
-    /// <c>Rules</c>, so the aggregate cannot call <c>EnergyMath.MaxEnergy</c> to learn the maximum
-    /// it is required to hold. This test is the compensating control — it drives both sides over
-    /// all 200 authored levels and asserts they agree, so a change to one that is not mirrored in
-    /// the other is a red build rather than a rule that silently accepts a bank the math would
-    /// never have produced.
+    /// ⚠️ The formula genuinely exists twice: `30` §11.4 forbids <c>Model</c> referencing <c>Rules</c>,
+    /// so the aggregate cannot call <c>EnergyMath.MaxEnergy</c>. This is the compensating control — both
+    /// sides over all 200 levels, so a change to one that is not mirrored is a red build rather than a
+    /// rule silently accepting a bank the math would never have produced.
     /// </remarks>
     [Fact]
     public void The_aggregates_ceiling_is_the_same_number_EnergyMath_computes()

@@ -5,28 +5,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Events;
 
 /// <summary>
-/// `30` §7 — the public <c>DomainEvent</c> hierarchy. <c>Apply</c> returns events, and four
-/// features read the returned list: analytics (`14` §10.1), the append-only economy log
-/// (`14` §7.1), Feats (`28` D) and the client's replay animation (`14` §2.4).
+/// `30` §7 — the public <c>DomainEvent</c> hierarchy. <c>Apply</c> returns events, and four features
+/// read the returned list: analytics, the append-only economy log, Feats and the client's replay.
 /// </summary>
 /// <remarks>
+/// ⚠️ <b>One of §7's six events exists.</b> The other five name payload types no milestone has authored,
+/// and inventing any would put a guessed type at the bottom of the dependency graph for three later
+/// milestones to build on. They are declared in the architecture suite's <c>GapRegister</c>, each keyed
+/// on the type whose arrival makes the deferral stale.
 /// <para>
-/// ⚠️ <b>One of `30` §7's six events exists</b> — <c>CurrencyChanged</c>, which with the
-/// <c>DomainEvent</c> base makes the hierarchy two types. <c>DiceRolled</c>, <c>TileResolved</c>,
-/// <c>GearGranted</c> and <c>GuildContribution</c> name payload types no milestone has authored
-/// (<c>DieFace</c>, <c>TileType</c>, <c>GearInstance</c>, <c>GuildId</c>), and
-/// <c>PityCounterAdvanced</c> has no producer until <c>LuckService</c> (M4-01). Inventing any of
-/// them to make an event compile would put a guessed type at the bottom of the dependency graph
-/// for three later milestones to build on (steering S6). They are declared instead in
-/// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, each keyed on the type whose arrival
-/// makes the deferral stale.
-/// </para>
-/// <para>
-/// So every rule below is stated over a subject set of one concrete event, and none of them may be
-/// trusted on that
-/// basis alone. Each is paired with a self-test that drives the same predicate against a
-/// deliberately wrong shape from <c>NonConformingEvents</c>, and the subject set itself has a
-/// floor — steering S3.
+/// So every rule below is stated over a subject set of one concrete event and none may be trusted on
+/// that basis alone: each is paired with a self-test driving the same predicate against a deliberately
+/// wrong shape, and the subject set itself has a floor.
 /// </para>
 /// </remarks>
 public sealed class DomainEventTests
@@ -224,29 +214,19 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// `30` §11.4 — <c>Core/Events/</c> holds the event hierarchy and nothing else. A payload
-    /// type, a helper or an enum declared here would be the event carrying state rather than
-    /// describing a change.
+    /// `30` §11.4 — <c>Core/Events/</c> holds the event hierarchy and nothing else. A payload type,
+    /// helper or enum declared here would be the event carrying state rather than describing a change.
     /// </summary>
     /// <remarks>
+    /// <c>Events</c> has no row in the architecture suite's forbidden-pair table, so almost nothing there
+    /// governs what an event may reference. This is the substitute: keep the namespace to
+    /// <c>DomainEvent</c> and its subtypes, so a payload has to be declared in the layer that owns it,
+    /// where the layering rows do apply.
     /// <para>
-    /// <c>Events</c> has no row in <c>Core_internal_layering_holds</c>' forbidden-pair table — only
-    /// its <c>mustNotReachTheRoot</c> half covers the namespace — so almost nothing in the
-    /// architecture suite governs what an event may reference. This is the substitute: keep the
-    /// namespace to <c>DomainEvent</c> and its subtypes, and a payload has to be declared in the
-    /// layer that owns it — <c>Primitives</c>, <c>Content</c> or <c>Model</c> — where the layering
-    /// rows do apply.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>A substitute, not the ruling</b> (steering S16). `30` §11.4's chain omits
-    /// <c>Commands</c> and <c>Events</c> altogether, while `30` §7 writes
-    /// <c>GearGranted(int, GearInstance, SourceClass, bool)</c> — and <c>GearInstance</c> is a
-    /// <c>Model</c> aggregate, so a row forbidding <c>Events → Model</c> would contradict `30` §7
-    /// and block M4-03. <b>Owner: M1-06's task brief takes the first cut</b> (it lands
-    /// <c>Commands/</c> and <c>Handlers/</c> and makes it two ungoverned regions); the binding
-    /// ruling is due at the <b>M4 kickoff</b>, before M4-03 authors <c>GearGranted</c>. The same
-    /// note sits on the <c>Events</c> row of
-    /// <c>SlayIdleRepeat.Architecture.Tests.SubjectSetFloorTests</c>.
+    /// ⚠️ A substitute, not the ruling: §11.4's chain omits <c>Commands</c> and <c>Events</c> altogether,
+    /// while §7 writes <c>GearGranted(…, GearInstance, …)</c> — and <c>GearInstance</c> is a <c>Model</c>
+    /// aggregate, so a row forbidding <c>Events → Model</c> would contradict §7 and block M4-03. The
+    /// binding ruling is due at the <b>M4 kickoff</b>.
     /// </para>
     /// </remarks>
     [Fact]

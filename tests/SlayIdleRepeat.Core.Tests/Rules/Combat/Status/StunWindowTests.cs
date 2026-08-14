@@ -167,16 +167,14 @@ public sealed class StunWindowTests
     }
 
     /// <summary>
-    /// 🔒 The window is the whole of `05` §5's protection, held over a full fight: a stun reapplied
-    /// on <b>every</b> tick still leaves the actor able to act for most of it.
+    /// 🔒 The window is the whole of `05` §5's protection: a stun reapplied on <b>every</b> tick still
+    /// leaves the actor able to act for most of the fight.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>This is the rule stated as the outcome `05` §5 actually cares about</b>, rather than as
-    /// the two constants. The section's claim is that without immunity <em>"stun-locking becomes the
-    /// only viable build"</em>; the arithmetic tests above pin the mechanism, and this pins the
-    /// consequence. Over 1800 ticks the pattern is 30 stunned then 60 free, so a little over two
-    /// thirds of the fight must remain actionable. An implementation that refused correctly but
-    /// extended on refusal would score 0 here and pass every other test in this file.
+    /// 🔴 The rule as the outcome §5 cares about — <em>"stun-locking becomes the only viable build"</em> —
+    /// rather than as the two constants the tests above pin. Over 1800 ticks the pattern is 30 stunned
+    /// then 60 free. An implementation that refused correctly but extended on refusal would score 0 here
+    /// and pass every other test in this file.
     /// </remarks>
     [Fact]
     public void A_stun_reapplied_every_tick_still_leaves_the_actor_acting_for_most_of_the_fight()
