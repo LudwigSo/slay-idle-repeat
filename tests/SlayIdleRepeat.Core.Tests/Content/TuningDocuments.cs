@@ -4,30 +4,15 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
 /// Hermetic <c>tuning/currencies.json</c> fixtures — `19` Part G's <c>loginCalendar</c> block — and
-/// the <b>combined</b> snapshot a command that reads more than one tuning document needs.
+/// the <b>combined</b> snapshot a command reading more than one tuning document needs.
 /// </summary>
 /// <remarks>
+/// 🔒 <c>Core.Tests</c> is hermetic, so this <em>mirrors</em> the shipped file rather than reading it;
+/// an <c>Application.Tests</c> rule pins the two halves together. Neither is sufficient alone: this
+/// proves the rules are right about the numbers, that one proves those are the numbers we ship.
 /// <para>
-/// 🔒 <c>Core.Tests</c> is hermetic: no file, no adapter, no parser. So this fixture <em>mirrors</em>
-/// the shipped <c>game-data/tuning/currencies.json</c> rather than reading it, exactly as
-/// <see cref="ProgressionDocuments"/> mirrors <c>progression.json</c>, and the two halves are pinned
-/// together from the other side by an <c>Application.Tests</c> rule that reads the real file. Neither
-/// half is sufficient alone: this one proves the rules are right about numbers, that one proves those
-/// are the numbers the game ships.
-/// </para>
-/// <para>
-/// 🔒 <b>Why <see cref="Shipped"/> carries BOTH documents.</b> M1-09's <c>BEGIN_SESSION</c> is the
-/// first command to read two tuning documents in one <c>Apply</c> — <c>progression.json</c> for the
-/// Energy refill and <c>currencies.json</c> for the calendar's cycle length — and a
-/// <see cref="ContentSnapshot"/> is `30` §3's <em>whole</em> content set, not one document. Building
-/// the pair here rather than in <c>Worlds</c> keeps the "what does the game ship" question in
-/// <c>Content/</c> with its sibling.
-/// </para>
-/// <para>
-/// ⚠️ <b>Only <c>cycleDays</c> is authored, and the twenty-eight reward rows deliberately are
-/// not.</b> A fixture that transcribed them would imply something reads them; nothing does, because
-/// paying them is <c>CLAIM_CALENDAR</c>'s (M4-09) and <c>LoginCalendarTuning</c>'s own remarks record
-/// why. The same restraint <see cref="ProgressionDocuments"/> shows for the Legend Level curve.
+/// ⚠️ Only <c>cycleDays</c> is authored — transcribing the twenty-eight reward rows would imply
+/// something reads them, and nothing does until <c>CLAIM_CALENDAR</c> (M4-09).
 /// </para>
 /// </remarks>
 internal static class TuningDocuments
@@ -50,17 +35,13 @@ internal static class TuningDocuments
 
     /// <summary>
     /// The shipped set with individual calendar leaves replaced. Pass
-    /// <see cref="ContentValue.Unauthorised"/> to model a deliberate <c>null</c> hole, or omit a
-    /// parameter to keep the shipped value.
+    /// <see cref="ContentValue.Unauthorised"/> for a deliberate <c>null</c> hole, or omit to keep the
+    /// shipped value.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b><paramref name="legendLevelMin"/> is here because M1-11's review found a test that could
-    /// not fail without it.</b> <c>InMemoryGame.CreatePlayer</c> reads `07` §1.1's authored floor
-    /// through <c>LegendTuning</c> rather than writing the literal 1 — and the only assertion of that
-    /// compared against <c>ProgressionDocuments.ShippedLegendLevelMin</c>, which <em>is</em> 1, so
-    /// replacing the read with the literal left every test green. Proving the read needs a content
-    /// set whose floor is not the shipped one, which needs this document to be rebuildable rather
-    /// than lifted whole out of <c>ProgressionDocuments.Shipped</c>.
+    /// ⚠️ <paramref name="legendLevelMin"/> exists because the shipped floor is 1 and so is the literal
+    /// anyone would write, so replacing <c>LegendTuning</c>'s read with <c>1</c> left every test green.
+    /// Proving the read needs a content set whose floor is <em>not</em> the shipped one.
     /// </remarks>
     internal static ContentSnapshot With(
         ContentValue? cycleDays = null, ContentValue? legendLevelMin = null) =>

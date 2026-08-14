@@ -7,18 +7,10 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// The balance harness over the shipped <c>game-data</c>, built once for the whole suite.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>A CACHE, not a fixture that hides anything.</b> Two <see cref="Lazy{T}"/> values over
-/// <c>GameDataLoader.Load()</c> and <c>new SweepRunner(...)</c>, on
-/// <c>ShippedBosses</c>' precedent and for its reason: the harness cases run into the hundreds and
-/// each would otherwise re-read forty-six JSON documents off disk and re-derive <c>K_POWER</c>.
-/// </para>
-/// <para>
-/// ⚠️ Sharing is safe because <see cref="SweepRunner"/> holds only immutable catalogues over an
-/// immutable <c>ContentSnapshot</c>; <c>RunCell</c> writes nothing to it, which is the same property
-/// that lets the sweep run on many threads. Every negative case builds its own snapshot through
-/// <c>GameDataLoader.LoadWith</c> rather than touching this one.
-/// </para>
+/// 🔒 A cache, not a fixture that hides anything: the harness cases run into the hundreds and each
+/// would otherwise re-read forty-six JSON documents and re-derive <c>K_POWER</c>. ⚠️ Sharing is safe
+/// because <see cref="SweepRunner"/> holds only immutable catalogues; every negative case builds its
+/// own snapshot through <c>GameDataLoader.LoadWith</c>.
 /// </remarks>
 internal static class ShippedHarness
 {

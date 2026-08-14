@@ -4,26 +4,13 @@ using SlayIdleRepeat.Core.Rules.Combat.Bosses;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// The shipped <c>game-data/content/bosses/bosses.json</c>, read once through the production
-/// reader.
+/// The shipped <c>game-data/content/bosses/bosses.json</c>, read once through the production reader.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>This is a CACHE, not a reader.</b> It maps nothing, parses nothing and knows no key of the
-/// document — it is one <see cref="Lazy{T}"/> around
-/// <c>BossCatalogue.Read(GameDataLoader.Load())</c>. Its predecessor, M2-13's
-/// <c>AuthoredBossScripts</c>, WAS a reader — a second <c>System.Text.Json</c> mapping of one file
-/// into one set of types — and it was deleted in the same commit that landed
-/// <see cref="BossCatalogue"/>, which is what
-/// <c>SubjectSetFloorTests</c>' entry for that type existed to force.
-/// </para>
-/// <para>
-/// ⚠️ Cached because the assertions over it run into the hundreds and each one would otherwise
-/// re-read the whole <c>game-data</c> tree off disk. The catalogue is an immutable record over an
-/// immutable <c>ContentSnapshot</c>, so sharing one instance across cases cannot let one case see
-/// another's edit; every negative case builds its own snapshot through
-/// <see cref="GameDataLoader.LoadWith"/> instead of touching this one.
-/// </para>
+/// 🔒 A cache, not a reader: one <see cref="Lazy{T}"/> around <c>BossCatalogue.Read</c>, mapping and
+/// parsing nothing. Its predecessor <em>was</em> a second <c>System.Text.Json</c> mapping of the same
+/// file, and was deleted when <see cref="BossCatalogue"/> landed. ⚠️ Cached because the assertions run
+/// into the hundreds; the catalogue is immutable, so sharing cannot let one case see another's edit.
 /// </remarks>
 internal static class ShippedBosses
 {
