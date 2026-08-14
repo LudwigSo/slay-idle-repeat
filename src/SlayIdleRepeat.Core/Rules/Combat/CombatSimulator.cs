@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat.Bosses;
+using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 using SlayIdleRepeat.Core.Rules.Combat.Status;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
@@ -291,6 +292,135 @@ public static class CombatSimulator
         ContentSnapshot content,
         bool firstClear = false) =>
         BossFight.Run(battleSeed, hero, heroLevel, bossId, bossPower, enemyLevel, content, firstClear);
+
+    /// <summary>
+    /// 🔒 M2-R4 — `05` §6/§6.2's normal encounter: a real, content-driven non-boss roster, with an
+    /// optional Elite.
+    /// </summary>
+    /// <param name="battleSeed">`14` §8.1's <c>battleSeed</c>. The <c>runSeed</c> never enters this layer.</param>
+    /// <param name="hero">The hero's `05` §1 block, before `18` §8.</param>
+    /// <param name="heroLevel">The hero's Legend Level.</param>
+    /// <param name="chapter">
+    /// The chapter, `05` §6.0's <c>EnemyLevelTable.FirstChapter</c>..<c>LastChapter</c> (currently 1..8).
+    /// </param>
+    /// <param name="tierOrdinal">
+    /// The tier's ordinal — `05` §6.0's Normal/Heroic/Mythic order, <c>0</c>-based.
+    /// </param>
+    /// <param name="enemyPowers">
+    /// One `02` §4.3 <c>EnemyPower(i)</c> per enemy slot — `05` §3's 1-5 bodies. For
+    /// <paramref name="eliteIndex"/>'s slot this is the pre-multiplier power; `05` §6.2's ×2.2 is
+    /// applied internally.
+    /// </param>
+    /// <param name="content">The loaded, schema-validated content snapshot.</param>
+    /// <param name="eliteIndex">
+    /// The index into <paramref name="enemyPowers"/> `05` §6.2 elevates to an Elite, or the default
+    /// <c>-1</c> for an encounter with none.
+    /// </param>
+    /// <param name="heroEffects">
+    /// Extra `18` §1 effects the hero holds for this fight — e.g. an <c>APPLY_STATUS</c> gear affix
+    /// already resolved by the caller. <c>null</c>/empty for none.
+    /// </param>
+    /// <exception cref="ArgumentException"><paramref name="enemyPowers"/> is empty, or the roster breaks a `05` §3 rule.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="eliteIndex"/> is out of range for <paramref name="enemyPowers"/>.</exception>
+    /// <exception cref="KeyNotFoundException"><paramref name="chapter"/> has no authored pool/level row.</exception>
+    /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
+    /// <exception cref="UnauthorisedTunableException">A constant the fight needs is <c>null</c> in the data.</exception>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why this is a third public method and not a third public type.</b> Before this method
+    /// (M2-R4), `05` §6's enemy derivation, `05` §6.2's Elite treatment and <c>EliteModifierDraw</c>
+    /// were authored, tested and reachable only from inside <c>Core</c> — <c>EnemyCatalogue</c> and
+    /// <c>ChapterEnemyPool</c> are <c>internal</c>, and no production roster ever set
+    /// <see cref="ActorPlan.IsElite"/> to anything but its default <c>false</c>. R16's ruling on this
+    /// change is the same as M2-16a's and M2-09's: every type in this signature — <see cref="ActorStats"/>,
+    /// <see cref="SimulationResult"/>, <see cref="ContentSnapshot"/>,
+    /// <see cref="EffectDefinition"/> and primitives — is already public, so
+    /// <c>Domain.PublicRuleTypes</c> still names exactly six. A caller cannot name an archetype,
+    /// author a modifier, or reach a seam; it names a chapter, a tier and a power line the content
+    /// already carries, exactly as <see cref="SimulateBossFight"/> names a boss id rather than a
+    /// script.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b><see cref="EffectDefinition"/> in a public signature is new, and it is what makes an
+    /// attached effect reachable at all.</b> `18` §1's whole vocabulary already lives under
+    /// <c>Content/</c> as a public type — <c>AccessibilityBoundaryTests.Handlers_and_Rules_are_internal</c>
+    /// governs <c>Rules/</c>, not <c>Content/</c>, exactly as <see cref="ContentSnapshot"/> already
+    /// did not count against R16's closure (M2-09's remarks). A caller can therefore hand this method
+    /// an <c>APPLY_STATUS</c> effect and have it actually resolve mid-fight — the gap M2-R3 closed in
+    /// the resolver and this task closes in the entry point — without a caller reaching
+    /// <see cref="HeldEffect"/>, <c>EffectInstanceId</c> or any other <c>Rules.Effects</c> type: those
+    /// stay internal, and <see cref="EncounterFight"/> does the wrapping.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The `05` §6.2 modifier → `18` §1 effect table is deliberately still absent.</b> See
+    /// <see cref="EncounterFight"/>'s remarks for why building it now (two of the eight modifiers have
+    /// no honest translation yet) would be worse than the gap it would close. What this method DOES
+    /// make real: the Elite's derived stats (`05` §6.2's ×2.2 power) and
+    /// <see cref="ActorPlan.IsElite"/>, which is what a fight with an Elite drawn now measurably
+    /// differs by.
+    /// </para>
+    /// </remarks>
+    public static SimulationResult SimulateEncounter(
+        ulong battleSeed,
+        ActorStats hero,
+        int heroLevel,
+        int chapter,
+        int tierOrdinal,
+        IReadOnlyList<double> enemyPowers,
+        ContentSnapshot content,
+        int eliteIndex = -1,
+        IReadOnlyList<EffectDefinition>? heroEffects = null) =>
+        EncounterFight.Run(
+            battleSeed, hero, heroLevel, chapter, tierOrdinal, enemyPowers, eliteIndex, content, heroEffects);
+
+    /// <summary>
+    /// 🔒 M2-R4 — `05` §3.3 / `11` §4.3's Ghost Duel: two hero builds, one fight.
+    /// </summary>
+    /// <param name="battleSeed">`14` §8.1's <c>battleSeed</c>. The <c>runSeed</c> never enters this layer.</param>
+    /// <param name="attacker">The attacking player's `05` §1 block, before `18` §8.</param>
+    /// <param name="attackerLevel">The attacker's Legend Level.</param>
+    /// <param name="defender">The Ghost's `05` §1 block — the defending player's recorded build.</param>
+    /// <param name="defenderLevel">The Ghost's Legend Level.</param>
+    /// <param name="durationSeconds">
+    /// `11` §4.3's duel cap in seconds — <c>content/combat_caps.json#/pvpMaxFightSeconds</c>, as the
+    /// caller read it.
+    /// </param>
+    /// <param name="content">The loaded, schema-validated content snapshot.</param>
+    /// <param name="attackerIsUnderdog">
+    /// `11` §4.3 — true names the attacker the lower-rated player, who wins an exact tie at the
+    /// timeout; false names the defender.
+    /// </param>
+    /// <param name="attackerEffects">Extra `18` §1 effects the attacker holds for this duel. <c>null</c>/empty for none.</param>
+    /// <param name="defenderEffects">Extra `18` §1 effects the Ghost holds for this duel. <c>null</c>/empty for none.</param>
+    /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
+    /// <exception cref="UnauthorisedTunableException">A constant the fight needs is <c>null</c> in the data.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="durationSeconds"/> is outside `05` §3's addressable tick range.</exception>
+    /// <remarks>
+    /// <para>
+    /// 🔒 Before this method, `05` §3.3's initiative override and `11` §4.3's duel bounds
+    /// (<c>CombatRules.Duel</c>) were pinned by <c>PvpDuelTests</c> against the internal
+    /// <c>Simulate(BattlePlan)</c> only — no production caller outside <c>Core</c> could run a duel.
+    /// <c>BattleSide</c> stays internal: <paramref name="attackerIsUnderdog"/> is the primitive that
+    /// replaces it in this signature, translated to `11` §4.3's lower-rated side by
+    /// <see cref="DuelFight"/>. R16's closure is untouched for the same reason
+    /// <see cref="SimulateEncounter"/>'s is — see that method's remarks.
+    /// </para>
+    /// <para>⚠️ No pets — see <see cref="DuelFight"/>'s remarks.</para>
+    /// </remarks>
+    public static SimulationResult SimulateDuel(
+        ulong battleSeed,
+        ActorStats attacker,
+        int attackerLevel,
+        ActorStats defender,
+        int defenderLevel,
+        double durationSeconds,
+        ContentSnapshot content,
+        bool attackerIsUnderdog = false,
+        IReadOnlyList<EffectDefinition>? attackerEffects = null,
+        IReadOnlyList<EffectDefinition>? defenderEffects = null) =>
+        DuelFight.Run(
+            battleSeed, attacker, attackerLevel, defender, defenderLevel, durationSeconds,
+            attackerIsUnderdog, content, attackerEffects, defenderEffects);
 
     /// <summary>
     /// 🔒 The full entry point — the one a boss fight, a Ghost Duel or the balance harness uses.
