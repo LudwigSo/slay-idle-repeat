@@ -7,21 +7,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 Why <see cref="CombatEvent.Value"/> is a <see cref="double"/> and not the <c>float</c>
-/// `05` §7 writes — the single most consequential precision decision in the log format, pinned
-/// rather than argued.
+/// 🔒 Why <see cref="CombatEvent.Value"/> is a <see cref="double"/> and not the <c>float</c> `05` §7
+/// writes — pinned rather than argued.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The three tests below are the three independent reasons, each stated as the arithmetic it rests
-/// on. Any one of them alone settles the question; together they make the <c>float</c> in `05` §7 a
-/// defect rather than a trade-off. This file is the evidence a future author needs before
-/// "restoring" the documented type.
-/// </para>
-/// <para>
-/// The cost of the widening is nothing on the wire — see
-/// <see cref="The_widening_costs_nothing_on_the_wire"/>, which measures it rather than waving at it.
-/// </para>
+/// The three tests below are three independent reasons, each stated as the arithmetic it rests on. Any
+/// one settles the question; together they make the <c>float</c> in §7 a defect rather than a
+/// trade-off. This file is the evidence a future author needs before "restoring" the documented type.
 /// </remarks>
 public sealed class CombatLogPrecisionTests
 {
@@ -87,23 +79,15 @@ public sealed class CombatLogPrecisionTests
     }
 
     /// <summary>
-    /// 🔒 Reason 3 — and the one that matters most: above <c>2^23</c> a <c>float</c> has <b>no
-    /// fractional resolution at all</b>, so narrowing at the log boundary would <b>erase the very
-    /// divergence</b> M5-12 and `11` §6 exist to detect.
+    /// 🔒 Reason 3, and the one that matters most: above <c>2^23</c> a <c>float</c> has <b>no fractional
+    /// resolution at all</b>, so narrowing at the log boundary would <b>erase the very divergence</b>
+    /// M5-12 and `11` §6 exist to detect.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <c>8388609.0001</c> and <c>8388609.0002</c> are two distinct damage figures under `05` §1.1
-    /// — 4-dp-rounded, unequal, and each exactly representable as a <c>double</c>. As
-    /// <c>float</c>s they are the <b>same number</b>.
-    /// </para>
-    /// <para>
-    /// So a log narrowed to <c>float</c> would hash x64's result and ARM64's result to the same
-    /// value <i>because</i> the difference between them had been thrown away, and the
-    /// cross-platform determinism gate would go green on a genuine divergence. Likewise a tampered
-    /// client log differing only in the low digits would compare equal to the server's under
-    /// `11` §6. The gate would be measuring the narrowing, not the simulation.
-    /// </para>
+    /// <c>8388609.0001</c> and <c>8388609.0002</c> are distinct 4-dp figures, each exact as a
+    /// <c>double</c> and the <b>same number</b> as <c>float</c>s. A narrowed log would hash x64's and
+    /// ARM64's results equal <i>because</i> the difference had been thrown away — the gate would be
+    /// measuring the narrowing, not the simulation.
     /// </remarks>
     [Fact]
     public void Float_collapses_two_distinct_damage_figures_into_one()
@@ -175,25 +159,16 @@ public sealed class CombatLogPrecisionTests
     /// exactly the same doubles.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// They are two separate implementations of the same four rules — finite, not NaN, not
-    /// <c>-0.0</c>, rounded to 4 dp — and that duplication is deliberate: the writer can only name
-    /// the value, while the log names the <b>event</b> that carried it, which is the difference
-    /// between a bug report and a search (S2). But nothing else pins them together, and the failure
-    /// mode of drift is silent in the worst direction: a value the log accepts and the writer
-    /// refuses turns a finished battle into an exception at hash time, and a value the log refuses
-    /// and the writer accepts is a determinism rule enforced in only one of the two places.
-    /// </para>
-    /// <para>
-    /// This is the same discipline <c>CanonicalStateWriter</c>'s own remarks apply to its
-    /// relationship with <c>Rng/Hash64</c>: <em>"those five rows must move together or not at
-    /// all"</em>.
-    /// </para>
+    /// Two implementations of the same four rules, deliberately: the writer can only name the value,
+    /// while the log names the <b>event</b> that carried it. Nothing else pins them together, and drift
+    /// is silent in the worst direction — a value the log accepts and the writer refuses turns a
+    /// finished battle into an exception at hash time, and the reverse is a determinism rule enforced in
+    /// only one of two places.
     /// </remarks>
     /// <remarks>
-    /// <c>MemberData</c> rather than <c>InlineData</c>: <c>-0.0 == 0.0</c>, so xUnit's analyser
-    /// rejects the two as duplicate rows — and negative zero is the single most important value in
-    /// this theory, being the one where the two guards would most plausibly disagree.
+    /// <c>MemberData</c> rather than <c>InlineData</c>: <c>-0.0 == 0.0</c>, so xUnit's analyser rejects
+    /// the two as duplicate rows — and negative zero is where the two guards would most plausibly
+    /// disagree.
     /// </remarks>
     [Theory]
     [MemberData(nameof(GuardAgreementValues))]

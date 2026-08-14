@@ -10,18 +10,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 M2-R4 — <see cref="CombatSimulator.SimulateEncounter"/>, the first public entry point for a
-/// normal (non-boss) encounter, run against the real shipped
-/// <c>game-data/content/enemies/enemies.json</c>.
+/// 🔒 <see cref="CombatSimulator.SimulateEncounter"/>, the first public entry point for a normal
+/// encounter, run against the real shipped <c>enemies.json</c>.
 /// </summary>
 /// <remarks>
-/// <para>
 /// Before this method, <c>EnemyCatalogue</c>, <c>ChapterEnemyPool</c>, <c>EnemyDerivation</c> and
-/// <c>EliteModifierDraw</c> were reachable only from inside <c>Core</c>, and no production roster
-/// ever set <see cref="ActorPlan.IsElite"/> to a computed value. Every case below runs the REAL
-/// engine (the real <c>AttackPipeline</c>, the real <c>StatusTimeline</c>) against the REAL content
-/// tree, on <c>RealBossFight</c>'s and <c>PvpDuelTests</c>' precedent — not a fake seam.
-/// </para>
+/// <c>EliteModifierDraw</c> were reachable only from inside <c>Core</c>, and no production roster ever
+/// set <see cref="ActorPlan.IsElite"/> to a computed value. Every case runs the real engine against
+/// the real content tree, not a fake seam.
 /// </remarks>
 public sealed class EncounterEntryPointTests
 {
@@ -107,26 +103,16 @@ public sealed class EncounterEntryPointTests
     // ═══════════════════════════════════════════════════════════ acceptance 5: elite wiring
 
     /// <summary>
-    /// 🔒 Acceptance 5 — a fight with an Elite drawn measurably differs from the same fight without
-    /// one: `05` §6.2's ×2.2 power multiplier is real, and <c>EliteModifierDraw</c> now has a
-    /// production caller.
+    /// 🔒 A fight with an Elite drawn measurably differs from the same fight without one: `05` §6.2's
+    /// ×2.2 power multiplier is real, and <c>EliteModifierDraw</c> now has a production caller.
     /// </summary>
     /// <remarks>
     /// Two shapes over the identical seed, hero and enemy power — the only difference is
-    /// <paramref name="eliteIndex"/>'s -1 vs 0 (steering S1/S2: this isolates the ONE switch, so
-    /// nothing but the elite treatment can move the outcome). The enemy power is large enough that
-    /// `05` §6.2's ×2.2 multiplier changes which side is even ahead at the timeout.
+    /// <paramref name="eliteIndex"/>, so nothing but the elite treatment can move the outcome. The
+    /// punchbag hero is unkillable and deals nothing, so both fights run the full 1800 ticks and
+    /// <see cref="SimulationResult.HeroHpRemaining"/> is a clean cumulative reading of the enemy's ATK.
+    /// <c>DurationTicks</c> is pinned equal below so the HP reading cannot be explained by fight length.
     /// </remarks>
-    /// <summary>
-    /// 🔒 A hero neither side can kill: huge Max HP absorbs whatever the enemy's ATK deals over the
-    /// full `05` §3 90 s window, and negligible hero ATK/DEF against a huge enemy power leaves the
-    /// enemy alive throughout. Both fights therefore run to the FULL 1800-tick bound, which is what
-    /// makes <see cref="SimulationResult.HeroHpRemaining"/> a clean, cumulative reading of the
-    /// enemy's ATK over 1800 identical-length swings — the one number `05` §6.2's ×2.2 power
-    /// multiplier moves without also moving <see cref="SimulationResult.DurationTicks"/> (which is
-    /// pinned equal below, precisely so the HP reading cannot be explained by a shorter or longer
-    /// fight instead).
-    /// </summary>
     private static ActorStats Punchbag() => ActorStats.From(new Dictionary<StatId, double>
     {
         [StatId.MAX_HP] = 1_000_000_000.0,
@@ -180,16 +166,13 @@ public sealed class EncounterEntryPointTests
     // ═══════════════════════════════════════════════════════════ acceptance 3: attaching an effect
 
     /// <summary>
-    /// 🔒 Acceptance 3 — the public surface can attach an <c>APPLY_STATUS</c> effect to the hero and
-    /// it actually resolves mid-fight: this is the whole point of R4 (the gap M2-R3 fixed in the
-    /// resolver, unreachable through the public surface until this method existed).
+    /// 🔒 The public surface can attach an <c>APPLY_STATUS</c> effect to the hero and it actually
+    /// resolves mid-fight — unreachable through the public surface until this method existed.
     /// </summary>
     /// <remarks>
-    /// Two shapes, on <c>PvpDuelTests</c>' precedent: WITH the held effect, a real
-    /// <see cref="CombatEventType.StatusApplied"/> lands on the enemy; WITHOUT it (the identical
-    /// fight, no <paramref name="heroEffects"/>), nothing of the kind appears — the negative control
-    /// that proves the applied status came from the attached effect and not from content the enemy
-    /// itself carries.
+    /// Two shapes: with the held effect a real <see cref="CombatEventType.StatusApplied"/> lands on the
+    /// enemy; without it nothing of the kind appears — the control proving the status came from the
+    /// attached effect and not from content the enemy carries.
     /// </remarks>
     [Fact]
     public void An_attached_APPLY_STATUS_effect_actually_resolves_during_the_fight()

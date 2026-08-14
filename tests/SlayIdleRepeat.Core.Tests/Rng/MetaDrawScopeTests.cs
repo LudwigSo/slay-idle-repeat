@@ -5,25 +5,17 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 `14` §8.1's <b>meta</b> draw regime: <em>"draw <c>i</c> is
-/// <c>Hash64(CommandSeed, s, i)</c> with <c>i</c> starting at 0 for each command and <b>no persisted
-/// counter</b>."</em>
+/// 🔒 `14` §8.1's <b>meta</b> draw regime: <em>"draw <c>i</c> is <c>Hash64(CommandSeed, s, i)</c> with
+/// <c>i</c> starting at 0 for each command and <b>no persisted counter</b>."</em>
 /// </summary>
 /// <remarks>
+/// 🔒 Every claim is checked against <c>Hash64.Of</c> directly rather than a recorded value: a table
+/// generated from the scope itself would prove only that it agrees with itself.
 /// <para>
-/// 🔒 <b>Every claim below is checked against <c>Hash64.Of</c> directly rather than against a
-/// recorded value.</b> `14` §8.1 states the formula, so the formula is what the scope must produce —
-/// a table of expected numbers generated from the scope itself would prove only that it agrees with
-/// itself, which is steering <b>S5</b>'s failure. <c>Hash64</c>'s own vectors are the independently
-/// sourced half, and they are pinned in <c>Hash64Tests</c>.
-/// </para>
-/// <para>
-/// ⚠️ <b>The stream names used here are <c>drops</c> and <c>board</c>, and that is deliberate.</b>
-/// `14` §8.1's registry is complete for the run streams and has no row for a quest or Daily-shop
-/// draw; <c>drops</c> is a legitimate meta stream — a container open is a ⚄ meta command that draws
-/// gear — so nothing here invents a name. The rows M4-09 will need are a `14` §8.1 amendment, which is
-/// why <see cref="An_unregistered_stream_is_refused"/> asserts the refusal rather than working around
-/// it.
+/// ⚠️ The stream names are <c>drops</c> and <c>board</c> deliberately — the registry has no row for a
+/// quest or Daily-shop draw, and a container open is a ⚄ meta command that draws gear, so nothing here
+/// invents a name. The rows M4-09 will need are a `14` §8.1 amendment, which is why
+/// <see cref="An_unregistered_stream_is_refused"/> asserts the refusal rather than working around it.
 /// </para>
 /// </remarks>
 public sealed class MetaDrawScopeTests

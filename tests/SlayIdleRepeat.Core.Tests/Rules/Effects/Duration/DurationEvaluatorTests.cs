@@ -82,18 +82,14 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔴 <b>R3 — every boss <c>AURA</c> mechanic is <c>PHASE</c>-scoped, and this is what makes the
-    /// <c>{999, BATTLE}</c> idiom unnecessary.</b>
+    /// 🔴 <b>R3</b> — every boss <c>AURA</c> mechanic is <c>PHASE</c>-scoped, which is what makes the
+    /// <c>{999, BATTLE}</c> idiom unnecessary.
     /// </summary>
     /// <remarks>
-    /// `18` §7.8 authors Thornmaw's phase-3 RAGE as <c>{"seconds": 999, "scope": "BATTLE"}</c>. That
-    /// predates <c>PHASE</c>, which `18` §11 records as arriving with the A7 batch
-    /// (<em>"6 duration scopes = 5 + <c>PHASE</c>"</em>); §6 says <c>AURA</c> mechanics are
-    /// <c>PHASE</c>-scoped <b>by definition</b> and §7.10 authors Bog Air that way. The two are
-    /// equivalent for Thornmaw <em>only</em> because phase 3 is never exited, which is why the
-    /// artifact survived. Erratum on §7.8. This case is the one that shows they are not equivalent in
-    /// general: applied in phase 2, the <c>PHASE</c> form ends at the exit and the <c>{999, BATTLE}</c>
-    /// form does not.
+    /// `18` §7.8's Thornmaw RAGE predates <c>PHASE</c>; §6 makes <c>AURA</c> mechanics <c>PHASE</c>-scoped
+    /// <b>by definition</b>. The two are equivalent for Thornmaw <em>only</em> because phase 3 is never
+    /// exited, which is why the artifact survived. This case shows they are not equivalent in general:
+    /// applied in phase 2, the <c>PHASE</c> form ends at the exit and <c>{999, BATTLE}</c> does not.
     /// </remarks>
     [Fact]
     public void A_PHASE_aura_and_the_999_second_BATTLE_idiom_are_not_the_same_effect()
@@ -128,19 +124,16 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 <b>A <c>PHASE</c> effect is battle-bounded, so the battle's own boundary still ends it —
-    /// even in the phase it was applied in, which the boss never leaves.</b>
+    /// 🔒 A <c>PHASE</c> effect is battle-bounded, so the battle's own boundary still ends it — even in
+    /// the phase it was applied in, which the boss never leaves.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Found by the Phase 4 code review, and it was a real defect: nothing pinned it in either
-    /// direction.</b> The evaluator answered "not ended" for a phase-scoped effect while it was still
-    /// inside its own phase, whatever the probe said about the fight — so `18` §7.8's Thornmaw
-    /// mechanic, re-authored as R3 requires (<c>scope: PHASE</c>, phase 3, never exited), outlived the
-    /// battle. That is the one answer `18` §6 reserves for <c>STAGE</c>/<c>RUN</c>/<c>PERMANENT</c>
-    /// (kickoff A4), and it directly contradicted this file's own
-    /// <c>A_battle_bounded_scope_does_not_outlive_the_battle(PHASE)</c> — two rules of one document,
-    /// disagreeing, both green. The coverage hole was that every other <c>PHASE</c> case either
-    /// changes phase or is applied outside a boss fight.
+    /// ⚠️ A real defect nothing pinned in either direction: the evaluator answered "not ended" for a
+    /// phase-scoped effect still inside its own phase, so Thornmaw's mechanic re-authored as R3 requires
+    /// outlived the battle — the one answer `18` §6 reserves for <c>STAGE</c>/<c>RUN</c>/<c>PERMANENT</c>,
+    /// directly contradicting this file's own <c>A_battle_bounded_scope_does_not_outlive_the_battle</c>,
+    /// both green. The hole was that every other <c>PHASE</c> case either changes phase or runs outside
+    /// a boss fight.
     /// </remarks>
     [Fact]
     public void A_PHASE_effect_still_inside_its_own_phase_ends_when_the_battle_does()
@@ -370,21 +363,17 @@ public sealed class DurationEvaluatorTests
     // ───────────────────────────────────────────── S3 · the subject-set floor
 
     /// <summary>
-    /// 🔒 <b>Every scope is handled, and each answers with its own boundary.</b> S3 — this
-    /// evaluator's subject set is the six <see cref="DurationScope"/>s, and a scope that reached no
-    /// arm would make an effect immortal with nothing going red.
+    /// 🔒 <b>Every scope is handled, and each answers with its own boundary.</b> S3 — a scope reaching
+    /// no arm would make an effect immortal with nothing going red.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Why an expected reason per scope rather than <c>Should.NotThrow</c>.</b> A
-    /// <c>Should.NotThrow</c> loop is satisfied by a single <c>default</c> arm answering all six —
-    /// proven by stubbing <c>Evaluate</c> as <c>=&gt; default</c>, at which point the loop went green
-    /// while every per-scope fact above went red.
+    /// ⚠️ An expected reason per scope rather than <c>Should.NotThrow</c>, which a single <c>default</c>
+    /// arm answering all six satisfies — proven by stubbing <c>Evaluate</c> as <c>=&gt; default</c>, at
+    /// which point the loop went green while every per-scope fact went red.
     /// <para>
-    /// The probe is the end of an ordinary 90 s fight with no boss phase, which is the one probe that
-    /// splits the six three ways: <c>INSTANT</c> ended before it began, <c>BATTLE</c> and — with no
-    /// phase to exit — <c>PHASE</c> end with the battle, and the three run-layer scopes outlive it
-    /// (A4). The <c>OutlivesTheBattle</c> half of the floor is the two theories above, which pin all
-    /// six members exactly rather than merely calling them.
+    /// The probe is the end of an ordinary 90 s fight with no boss phase, the one probe that splits the
+    /// six three ways: <c>INSTANT</c> ended before it began, <c>BATTLE</c> and (with no phase to exit)
+    /// <c>PHASE</c> end with the battle, and the three run-layer scopes outlive it.
     /// </para>
     /// </remarks>
     [Fact]
