@@ -70,16 +70,14 @@ public sealed class EnemyDerivationTests
     }
 
     /// <summary>
-    /// 🔒 A fixed stat that disappeared from the data is a failure, not a zero. `05` §2:
-    /// <em>"an unstated stat is a bug, not a zero."</em>
+    /// 🔒 A fixed stat that disappeared from the data is a failure, not a zero. `05` §2: <em>"an
+    /// unstated stat is a bug, not a zero."</em>
     /// </summary>
     /// <remarks>
-    /// 🔒 S2 — <b>the <c>ParamName</c> is what pins which rule fired, and the fragments alone would
-    /// not.</b> <see cref="ActorStats.From"/>'s own missing-stat message carries both
-    /// <c>HEAL_PCT</c> and "an unstated stat is a bug, not a zero" too, so deleting
-    /// <see cref="EnemyDerivation"/>'s guard entirely would leave this test green on
-    /// <c>ActorStats</c>'s throw. <c>ActorStats.From</c> throws <c>nameof(values)</c>; this rule
-    /// throws <c>nameof(constants)</c>, and the document path appears in this message only.
+    /// 🔒 The <c>ParamName</c> is what pins which rule fired: <see cref="ActorStats.From"/>'s own
+    /// missing-stat message carries the same stat name and the same sentence, so deleting
+    /// <see cref="EnemyDerivation"/>'s guard entirely would leave this green on <c>ActorStats</c>'s
+    /// throw. The document path appears in this message only.
     /// </remarks>
     [Fact]
     public void A_fixed_stat_missing_from_the_data_fails_rather_than_defaulting_to_zero()

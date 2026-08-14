@@ -8,19 +8,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;
 
 /// <summary>
-/// 🔒 `05` §3.3's Ghost Duel rulings, as the condition layer sees them. PvP is confirmed for v1, so
-/// these are live rules and not speculative ones.
+/// 🔒 `05` §3.3's Ghost Duel rulings as the condition layer sees them: target conditions read the
+/// <b>opposing hero</b>, <c>TARGET_IS_ELITE</c>/<c>TARGET_IS_BOSS</c> are always false,
+/// <c>ENEMY_COUNT</c> is always 1, and `18` §9.3's no-duel-meaning clauses are <b>skipped</b> rather
+/// than converted.
 /// </summary>
 /// <remarks>
-/// `05` §3.3's row: <em>"Conditions such as <c>TARGET_HP_BELOW_30</c> (<c>PK_EXECUTIONER</c>) read
-/// the <b>opposing hero</b>. <c>TARGET_IS_ELITE</c> / <c>TARGET_IS_BOSS</c> are always false.
-/// <c>ENEMY_COUNT</c> is always 1."</em> Plus `18` §9.3: <em>"gear affixes like <c>+X% Gold Gain</c>
-/// still need to be neutralised in duels — they are simply <b>skipped</b> rather than
-/// converted."</em>
-/// <para>
-/// The duel itself is M2-14's. What is pinned here is that the conditions answer correctly once they
-/// are told it is one.
-/// </para>
+/// The duel itself is <c>PvpDuelTests</c>'. What is pinned here is that the conditions answer correctly
+/// once they are told it is one.
 /// </remarks>
 public sealed class PvpConditionTests
 {

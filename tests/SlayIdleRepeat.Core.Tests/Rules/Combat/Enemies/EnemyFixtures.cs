@@ -5,17 +5,13 @@ using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 
 /// <summary>
-/// `05` §6–§6.2 and §6.4 as <c>game-data/content/enemies/enemies.json</c> authors them, restated
-/// for the suite that tests the derivation's arithmetic.
+/// `05` §6–§6.2 and §6.4 as the shipped <c>enemies.json</c> authors them, restated for the suite that
+/// tests the derivation's arithmetic.
 /// </summary>
 /// <remarks>
-/// ⚠️ These are the numbers the shipped document holds, restated here because
-/// <c>SlayIdleRepeat.Core.Tests</c> references <c>SlayIdleRepeat.Core</c> and nothing else — it has
-/// no JSON reader and no content loader. The copy cannot be allowed to drift, so the shipped file is
-/// asserted against `05` §6 <em>separately</em>, by
-/// <c>SlayIdleRepeat.Application.Tests.Content.EnemiesDataTests</c>, which reads the real document.
-/// What is tested here is the derivation's arithmetic and its rules; what is tested there is the
-/// transcription. The same split <c>StatFixtures</c> records for <c>combat_caps.json</c>.
+/// ⚠️ Restated here because <c>Core.Tests</c> has no JSON reader. The copy cannot drift: the shipped file
+/// is asserted against `05` §6 separately by <c>EnemiesDataTests</c> in the <c>Application</c> suite.
+/// What is tested here is the derivation's arithmetic; what is tested there is the transcription.
 /// </remarks>
 internal static class EnemyFixtures
 {

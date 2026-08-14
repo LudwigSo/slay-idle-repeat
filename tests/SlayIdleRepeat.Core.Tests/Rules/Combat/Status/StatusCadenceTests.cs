@@ -12,16 +12,14 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 public sealed class StatusCadenceTests
 {
     /// <summary>
-    /// 🔴 The anchor is the <b>first application</b>, not the battle — probed at tick 7, which is the
-    /// only kind of anchor that can tell the two apart.
+    /// 🔴 The anchor is the <b>first application</b>, not the battle — probed at tick 7, the only kind of
+    /// anchor that can tell the two apart.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>An anchor of 0 cannot fail this test and must not be the probe.</b> A status applied on
-    /// tick 0 ticks on 20, 40, 60 — and so does an implementation that counted from battle start and
-    /// ignored the anchor entirely. The two readings are byte-identical at every anchor that is a
-    /// multiple of 20, which is exactly the anchor a hand-written fight produces. Anchored at 7 they
-    /// separate completely: this rule expects 27, 47, 67 and the battle-anchored one would say
-    /// 20, 40, 60, with no tick in common in the first three seconds.
+    /// 🔴 An anchor of 0 cannot fail this test: a status applied on tick 0 ticks on 20, 40, 60 — and so
+    /// does an implementation that counted from battle start and ignored the anchor. The two readings are
+    /// byte-identical at every anchor that is a multiple of 20, which is exactly what a hand-written
+    /// fight produces. Anchored at 7 they share no tick in the first three seconds.
     /// </remarks>
     [Fact]
     public void The_cadence_is_anchored_on_first_application_and_not_on_the_battle()

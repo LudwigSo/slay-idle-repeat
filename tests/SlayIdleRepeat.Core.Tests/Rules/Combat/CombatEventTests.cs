@@ -85,17 +85,13 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// 🔒 Every <see cref="CombatEventType"/> ordinal, written out. The ordinal is what is hashed,
-    /// so this table <b>is</b> the wire contract.
+    /// 🔒 Every <see cref="CombatEventType"/> ordinal, written out. The ordinal is what is hashed, so
+    /// this table <b>is</b> the wire contract.
     /// </summary>
     /// <remarks>
-    /// The first seventeen are `05` §7's list in `05` §7's order. <c>Telegraph</c> is an addition
-    /// (`17` §1, §11) and is appended last precisely so none of the seventeen moves.
-    /// </remarks>
-    /// <remarks>
-    /// Driven by <c>nameof</c> rather than by the enum member itself, so a rename is still a
-    /// <b>compile</b> failure — the member cannot appear in a public test signature, because it is
-    /// <c>internal</c> until <c>CombatSimulator</c> lands (see <see cref="SimulationResult"/>).
+    /// The first seventeen are `05` §7's list in §7's order; <c>Telegraph</c> is an addition and is
+    /// appended last precisely so none of the seventeen moves. Driven by <c>nameof</c> so a rename is
+    /// still a <b>compile</b> failure.
     /// </remarks>
     [Theory]
     [InlineData(nameof(CombatEventType.BattleStart), 0)]

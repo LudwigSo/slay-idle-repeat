@@ -6,15 +6,12 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// The event lists behind every committed row of <c>CombatLogReferenceVectors.json</c>.
 /// </summary>
 /// <remarks>
+/// Mirrored event for event by the independent generator that produced the table, so changing a list
+/// here without regenerating is a break the table announces.
 /// <para>
-/// Mirrored, event for event, by the independent generator that produced the table. Changing a
-/// list here without regenerating the table is a break the table announces.
-/// </para>
-/// <para>
-/// 🔒 These are built as raw lists rather than through <see cref="CombatLog"/>, and that is the
-/// point of the separation: the table pins the <b>encoding</b>, so it has to be able to express
-/// shapes the builder's emission rules forbid — a bare <c>BattleEnd</c>, an event of every type in
-/// ordinal order. <see cref="CombatLogTests"/> covers the builder's rules; nothing here does.
+/// 🔒 Built as raw lists rather than through <see cref="CombatLog"/>, which is the point of the
+/// separation: the table pins the <b>encoding</b>, so it has to express shapes the builder's emission
+/// rules forbid — a bare <c>BattleEnd</c>, an event of every type in ordinal order.
 /// </para>
 /// </remarks>
 internal static class ReferenceLogs
@@ -25,16 +22,15 @@ internal static class ReferenceLogs
     private const ushort Burn = 1;
 
     /// <summary>
-    /// 🔒 The one reference row whose events are produced by <see cref="CombatLog"/> itself rather
-    /// than written out — so the terminal <see cref="CombatEventType.BattleEnd"/>'s own six fields
-    /// are inside the committed hash.
+    /// 🔒 The one reference row whose events are produced by <see cref="CombatLog"/> itself rather than
+    /// written out — so the terminal <see cref="CombatEventType.BattleEnd"/>'s own six fields are inside
+    /// the committed hash.
     /// </summary>
     /// <remarks>
-    /// Every other row bypasses the builder, which is what the table is for (it must be able to
-    /// express shapes the builder forbids). But that left <c>Complete</c>'s <c>BattleEnd</c> — the
-    /// last event of every log in the game, and inside the <c>LogHash</c> `11` §6 compares —
-    /// pinned by nothing: its actor ids and <c>DataId</c> could be changed to anything and the
-    /// whole suite stayed green.
+    /// Every other row bypasses the builder, which is what the table is for. But that left
+    /// <c>Complete</c>'s <c>BattleEnd</c> — the last event of every log in the game, inside the
+    /// <c>LogHash</c> `11` §6 compares — pinned by nothing: its actor ids and <c>DataId</c> could be
+    /// changed to anything and the whole suite stayed green.
     /// </remarks>
     internal static IReadOnlyList<CombatEvent> CompletedBattle()
     {
