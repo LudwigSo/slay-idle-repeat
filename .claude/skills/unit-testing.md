@@ -24,8 +24,27 @@ Godot scenes and nodes under `res://game/scenes/` hold no rules and no port refe
 `GameRules.Apply(WorldSlice, GameCommand, GameContext)` is the only public mutation in the game (30 §2, §11 — backstopped by the `Apply_is_the_only_public_mutation` architecture test). Rule tests are written as: **construct a state, call `Apply`, assert on the returned `CommandResult` and the emitted `DomainEvent`s** (`DiceRolled`, `TileResolved`, `CurrencyChanged`, `PityCounterAdvanced`, `GearGranted` with its `FromPity` flag, …). Use `Core/Testing/InMemoryGame` (+ `VirtualClock`) — it references `Core` only: no ports, no fakes, no Application (30 §6).
 
 - **An illegal move is data, never an exception** (30 §2.1): assert `Accepted == false` and the specific `RejectionReason` — an `Assert.Throws` on a rejectable command is itself a test-quality finding.
-- Handlers and rule calculators are `internal`; only `CombatSimulator` and `PowerCalculator` are public. `SlayIdleRepeat.Core.Tests` is the one project granted `InternalsVisibleTo` (30 §11.3), so driving an internal calculator (the effect resolver, `LuckService`, board generation) directly is legitimate there — and only there. From any other test project, go through `Apply`.
 - Test setup builds state via `Apply` or `Player.Rehydrate(PlayerSnapshot, ContentSnapshot)` — aggregates have public getters and internal constructors; outside code reads everything and constructs nothing (30 §11).
+
+## 🔒 `InternalsVisibleTo` is a last resort, not a convenience
+
+`SlayIdleRepeat.Core.Tests` is the one project granted `InternalsVisibleTo` (30 §11.3). That grant exists so a handful of rules that have **no public route at all** can be tested — it is not a licence to test at whatever altitude is most convenient.
+
+**Write every test at the outermost seam that can observe the behaviour.** In order of preference:
+
+1. `GameRules.Apply` — for anything a command decides. Assert the `CommandResult` and the emitted `DomainEvent`s.
+2. A public `CombatSimulator` entry point — `Simulate`, `SimulateEncounter`, `SimulateDuel`, `SimulateBossFight` — for anything a fight decides. Assert the emitted `CombatEvent`s in `SimulationResult.Log`, plus `HeroWon`/`DurationTicks`/`LogHash`. **`SimulateEncounter` and `SimulateDuel` both take `IReadOnlyList<EffectDefinition>`**, so effect-driven behaviour — stat aggregation, triggers, statuses, ops — is reachable publicly: attach the effect, run the fight, and assert the difference it makes against the identical fight without it. Constants that a fight reads (the `05` §1 caps, the `05` §4 mitigation dials, `wardCapPct`) are **content**, so vary them by passing a different `ContentSnapshot` rather than by reaching for the internal `StatCaps`/`MitigationConstants`.
+3. `PowerCalculator` — for the power readout.
+4. Only then, an internal type.
+
+Before driving an internal calculator directly, you must be able to say **which** observable output would not move, and why. "The public entry point cannot express this input" and "the behaviour changes no event, hash, or outcome a caller can see" are the two answers that justify it. "Going through a fight would need more setup", "the internal call asserts the arithmetic more directly", and "the internal result type carries a field the log does not" are not — the last one especially, because a value no caller can observe is a value no test should pin.
+
+When an internal test is genuinely the only option, **say so in the test's own remarks**: name the public seam you tried, and the specific reason it cannot reach the behaviour. A reviewer must be able to re-check that judgement without re-deriving it. Two worked examples currently in the suite:
+
+- `DamageResolutionTests` — the `05` §4 arithmetic (mitigation, crit, block, the step-7 floor) runs through `CombatSimulator.SimulateDuel` and is asserted on `Hit`/`Crit`/`Block`/`Miss` events. What stays internal is only what the log cannot show: the draw-stream `Position` counts, `AttackResult.Basis` (a pre-absorption intermediate), and the ward/true-damage/`MAX_HP%` routes, which no public overload can invoke.
+- `StatAggregationTests` — the `18` §8 resolution order is asserted through `SimulateDuel`'s `attackerEffects`, because an aggregated stat is observable as the damage it produces. What stays internal is the argument-validation and refusal surface, which throws before any fight exists.
+
+From any test project **other** than `Core.Tests`, there is no escape hatch: go through `Apply` or a public entry point.
 
 ## Naming convention
 
@@ -65,7 +84,9 @@ Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outc
 
 - Introduce a mocking library when the project's own in-memory fake will do.
 - Rely on the real system clock, `System.Random`, `Random.Shared`, `GD.Randi()`, or `Environment.TickCount` — these are CI-grepped and banned inside `SlayIdleRepeat.Core`/`SlayIdleRepeat.Application` (14 §8.1); a test that needs one of these to compile is a sign production code reached for the wrong source.
-- Reach into private members via reflection, or assert on internal *state* a caller can't observe. (`InternalsVisibleTo` itself is sanctioned for `SlayIdleRepeat.Core.Tests` only — 30 §11.3 — because handlers and rule calculators are `internal` by design; any other test project using it is a finding.)
+- Reach into private members via reflection, or assert on internal *state* a caller can't observe. (`InternalsVisibleTo` itself is sanctioned for `SlayIdleRepeat.Core.Tests` only — 30 §11.3 — and even there only under the last-resort rule above; any other test project using it is a finding.)
+- 🔒 **Assert on a type's *shape* rather than its behaviour.** `IsSealed`, "no public setter", "no public field", "exactly one public constructor", an exact `GetMembers()` name list — these are architecture rules, and `SlayIdleRepeat.Architecture.Tests` is where they belong and where the suite already enforces them (`Handlers_and_Rules_are_internal`, `Domain_has_no_ambient_time_or_randomness`, `Every_domain_event_declares_an_invariant_PrintMembers`, …). Restating one in a unit test buys nothing and costs a second place to update. Reflection in `Core.Tests` is justified only when it drives *behaviour* — enumerating a vocabulary to prove every member round-trips, for instance — never when it merely describes a declaration.
+- 🔒 **Write a test whose subject is the test's own fixture.** `The_reference_table_ids_are_unique`, `The_published_set_still_covers_every_input`, `The_check_recognises_a_real_name_and_refuses_an_invented_one` — a malformed table already fails the test that reads it, so these assert nothing about the game. (`Architecture.Tests` is the deliberate exception: its rules scan source and IL, where a silently-empty subject set really can pass vacuously, so its guard-the-guard cases earn their place. A `[Theory]` over a data table does not.)
 - Reference a concrete adapter type, a vendor SDK type (Npgsql, StackExchange.Redis, the AppLovin plugin, etc.), or a Godot type (`Node`, `GD.*`) from a `SlayIdleRepeat.Core.Tests` or `SlayIdleRepeat.Application.Tests` test — those tiers exercise pure rules and use cases against ports/fakes only, mirroring the production dependency rule (`Adapters → Application → Core → nothing`).
 - Write a test in — or that requires — `SlayIdleRepeat.Contract.Tests`, a newly created integration/E2E suite, or anything that boots Docker/Postgres/Redis/a real ad SDK/the Godot runtime. `Contract.Tests` exists in this project's own CI but is out of scope here; an integration/E2E tier does not exist at all and is not to be created.
 - Hand-verify a value that the Effect DSL resolver, stat-aggregation pipeline, or `DeterministicRng` should be producing — assert on the pipeline's output instead of re-deriving the math inline in the test.

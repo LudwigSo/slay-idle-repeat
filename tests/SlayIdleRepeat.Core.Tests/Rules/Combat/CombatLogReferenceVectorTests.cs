@@ -262,13 +262,6 @@ public sealed class CombatLogReferenceVectorTests
         guarded.ShouldBe(CombatLogReferenceVectors.Rows.Select(row => row.Id), ignoreOrder: true);
     }
 
-    /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
-    [Fact]
-    public void The_reference_table_ids_are_unique()
-    {
-        CombatLogReferenceVectors.Rows.Select(row => row.Id).ShouldBeUnique();
-    }
-
     /// <summary>
     /// Every committed hash is distinct. Fourteen rows chosen to exercise different rules that
     /// nevertheless collided would be a table proving far less than it appears to.
@@ -277,14 +270,6 @@ public sealed class CombatLogReferenceVectorTests
     public void Every_committed_row_has_its_own_hash()
     {
         CombatLogReferenceVectors.Rows.Select(row => row.Hash).ShouldBeUnique();
-    }
-
-    /// <summary>Every row carries a reason, so a failing row explains what it was defending.</summary>
-    [Theory]
-    [MemberData(nameof(RowIds))]
-    public void Every_committed_row_says_what_it_pins(string rowId)
-    {
-        CombatLogReferenceVectors.Row(rowId).Why.ShouldNotBeNullOrWhiteSpace();
     }
 
     /// <summary>

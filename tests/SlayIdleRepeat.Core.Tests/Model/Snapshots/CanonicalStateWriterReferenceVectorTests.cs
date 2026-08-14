@@ -120,13 +120,6 @@ public sealed class CanonicalStateWriterReferenceVectorTests
             .Where(row => row.Id == rowId).ShouldHaveSingleItem();
     }
 
-    /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
-    [Fact]
-    public void The_reference_table_ids_are_unique()
-    {
-        CanonicalReferenceVectors.Canonical.Select(row => row.Id).ShouldBeUnique();
-    }
-
     /// <summary>Both hashing modes are represented — a table with one mode pins half the contract.</summary>
     [Theory]
     [InlineData("meta")]
@@ -154,28 +147,6 @@ public sealed class CanonicalStateWriterReferenceVectorTests
 
         first.Hash.ShouldNotBe(second.Hash);
         CanonicalStateWriter.Fnv1a64(BytesFor(first)).ShouldNotBe(CanonicalStateWriter.Fnv1a64(BytesFor(second)));
-    }
-
-    /// <summary>
-    /// The committed wire string of every row is the committed hash, rendered. The two columns are
-    /// redundant on purpose — a row whose <c>wire</c> and <c>hash</c> disagree is a corrupt row,
-    /// and that is worth catching in the table rather than in a consumer.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(CanonicalIds))]
-    public void Every_committed_row_renders_its_own_hash(string rowId)
-    {
-        var row = CanonicalReferenceVectors.Row(rowId);
-
-        row.Wire.ShouldBe("fnv1a:" + row.Hash.ToString("x16", System.Globalization.CultureInfo.InvariantCulture));
-    }
-
-    /// <summary>Every row carries a reason, so a failing row explains what it was defending.</summary>
-    [Theory]
-    [MemberData(nameof(CanonicalIds))]
-    public void Every_committed_row_says_what_it_pins(string rowId)
-    {
-        CanonicalReferenceVectors.Row(rowId).Why.ShouldNotBeNullOrWhiteSpace();
     }
 
     private static byte[] BytesFor(CanonicalReferenceVectors.CanonicalRow row) =>

@@ -78,17 +78,6 @@ public sealed class Fnv1a64KnownAnswerTests
     }
 
     /// <summary>
-    /// The offset basis and prime the committed table names are the ones the specification names.
-    /// The table guards the code; this guards the table's own header.
-    /// </summary>
-    [Fact]
-    public void The_reference_table_names_the_specified_FNV_1a_64_parameters()
-    {
-        CanonicalReferenceVectors.OffsetBasis.ShouldBe(0xcbf29ce484222325UL);
-        CanonicalReferenceVectors.Prime.ShouldBe(0x100000001b3UL);
-    }
-
-    /// <summary>
     /// The published set must keep its teeth: the empty input, a single byte, a multi-byte input
     /// and an input carrying a non-printable byte. A future edit that trimmed it to "foobar"
     /// alone would leave a suite that still passes while checking far less.

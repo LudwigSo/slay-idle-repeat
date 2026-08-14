@@ -116,17 +116,49 @@ internal static class StatFixtures
     /// shape, with an optional single-pointer mutation.
     /// </summary>
     /// <param name="drop">A pointer segment path to remove, for a negative case.</param>
-    internal static ContentSnapshot CombatCapsSnapshot(string[]? drop = null)
+    /// <param name="capOverrides">
+    /// `05` §1 ceilings to author differently, by <see cref="StatId"/> name.
+    /// </param>
+    /// <param name="mitigation">`05` §4's two dials, if not the shipped <c>(120, 20)</c> pair.</param>
+    /// <remarks>
+    /// 🔒 <b><paramref name="capOverrides"/> and <paramref name="mitigation"/> are how a fight's
+    /// constants are varied from <em>outside</em> <c>Core.Rules</c>.</b> Both are 📐 data — `05` §1.1
+    /// puts the six ceilings in this document and `05` §4 says of the mitigation pair <em>"expose them
+    /// in data"</em> — so a test that needs a different game asks for a different document rather than
+    /// reaching for the internal <c>StatCaps</c>/<c>MitigationConstants</c> the public entry points
+    /// deliberately do not accept.
+    /// <para>
+    /// ⚠️ The <c>DODGE</c>/<c>BLOCK</c>/<c>CRIT</c> ceilings are what make a draw's outcome forceable:
+    /// <c>NextDouble()</c> is in <c>[0,1)</c>, so a stat of <c>1.0</c> always fires and <c>0.0</c>
+    /// never does — but only if the ceiling lets the <c>1.0</c> survive `18` §8 step 9. Against the
+    /// shipped 0.50 <c>DODGE</c> cap an "always dodges" case is unreachable, which is why those cases
+    /// author a 1.0 ceiling instead of an uncapped fight.
+    /// </para>
+    /// </remarks>
+    internal static ContentSnapshot CombatCapsSnapshot(
+        string[]? drop = null,
+        IReadOnlyDictionary<StatId, decimal>? capOverrides = null,
+        (decimal Flat, decimal PerLevel)? mitigation = null)
     {
-        var caps = new List<KeyValuePair<string, ContentValue>>
+        var capValues = new Dictionary<StatId, decimal>
         {
-            new("CRIT", ContentValue.Number(0.75m)),
-            new("LIFESTEAL", ContentValue.Number(0.40m)),
-            new("DODGE", ContentValue.Number(0.50m)),
-            new("BLOCK", ContentValue.Number(0.60m)),
-            new("PEN", ContentValue.Number(0.70m)),
-            new("DR_PCT", ContentValue.Number(0.60m)),
+            [StatId.CRIT] = 0.75m,
+            [StatId.LIFESTEAL] = 0.40m,
+            [StatId.DODGE] = 0.50m,
+            [StatId.BLOCK] = 0.60m,
+            [StatId.PEN] = 0.70m,
+            [StatId.DR_PCT] = 0.60m,
         };
+
+        foreach (var (capped, ceiling) in capOverrides ?? new Dictionary<StatId, decimal>())
+        {
+            capValues[capped] = ceiling;
+        }
+
+        var caps = capValues
+            .Select(c => new KeyValuePair<string, ContentValue>(
+                c.Key.ToString(), ContentValue.Number(c.Value)))
+            .ToList();
 
         var rows = new Dictionary<StatId, (decimal Base, decimal PerLevel)>
         {
@@ -177,8 +209,8 @@ internal static class StatFixtures
             new("pvpMaxFightSeconds", ContentValue.Number(60m)),
             new("mitigation", ContentValue.Object(
             [
-                new("flatConstant", ContentValue.Number(120m)),
-                new("perLevelConstant", ContentValue.Number(20m)),
+                new("flatConstant", ContentValue.Number(mitigation?.Flat ?? 120m)),
+                new("perLevelConstant", ContentValue.Number(mitigation?.PerLevel ?? 20m)),
             ])),
         ]);
 

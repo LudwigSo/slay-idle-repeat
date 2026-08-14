@@ -2,29 +2,36 @@ using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Combat;
-using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
-using SlayIdleRepeat.Core.Tests.Rules.Stats;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 `05` §4 — the ten steps of <c>ResolveAttack</c>, one case per step, over the real pipeline.
+/// 🔒 `05` §4 — the ten steps of the attack pipeline, one case per step, read out of a
+/// <b>public</b> fight.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every case runs through <see cref="AttackPipelineBench"/>, which drives the pipeline
-/// <c>BattleSeams.For</c> builds inside a real fight. The stats are uncapped
-/// (<c>StatCaps.None</c>) so that one step at a time can be isolated: <c>NextDouble()</c> is in
-/// <c>[0,1)</c>, so <c>DODGE = 0</c> never dodges and <c>DODGE = 1</c> always does, and `05` §1's
-/// 0.50 ceiling would make the second unreachable.
+/// 🔒 <b>Every case runs through <see cref="CombatSimulator.SimulateDuel"/> and asserts on the
+/// <c>CombatEvent</c>s in <see cref="SimulationResult.Log"/>.</b> That is the same surface `05` §8
+/// has the client replay and `11` §6 has the backend recompute <c>LogHash</c> over, so a case that
+/// goes red here is a case a real consumer would have seen go wrong. The residue that no log can
+/// show — the draw-stream positions, the pre-absorption <c>Basis</c>, `05` §4.2's non-attack damage
+/// routes — is in <see cref="AttackPipelineInternalTests"/>, with a stated reason per case.
 /// </para>
 /// <para>
 /// 🔒 <b>The worked arithmetic below is `05` §4's own sanity check.</b> <em>"With <c>DEF = 120</c>
 /// and <c>attackerLevel = 1</c>, mitigation = <c>120/(120+140)</c> = 0.46. With <c>DEF = 600</c>,
 /// mitigation = <c>600/(600+140)</c> = 0.81."</em> Both appear as literal expectations, which is
 /// what makes the dials and the formula assertable at the same time.
+/// </para>
+/// <para>
+/// ⚠️ <b>Ceilings are authored, not switched off.</b> `05` §1 caps <c>DODGE</c> at 0.50 and
+/// <c>BLOCK</c> at 0.60, and <c>NextDouble()</c> is in <c>[0,1)</c> — so a stat of <c>1.0</c> only
+/// fires every time if the ceiling lets it survive `18` §8 step 9. The cases that need a certainty
+/// pass a <c>content/combat_caps.json</c> authoring that ceiling at 1.0, because that is how a
+/// public fight receives its constants: as data.
 /// </para>
 /// </remarks>
 public sealed class DamageResolutionTests
@@ -38,40 +45,36 @@ public sealed class DamageResolutionTests
     /// <summary>`05` §4's sanity check: <c>120 / (120 + 120 + 20 × 1)</c> = 0.4615, so 53.85 lands.</summary>
     private const double SanityCheckHit = 53.85;
 
+    /// <summary>A ceiling of 1.0 for one stat, so a <c>1.0</c> roll threshold survives step 9.</summary>
+    private static IReadOnlyDictionary<StatId, decimal> Uncapped(StatId stat) =>
+        new Dictionary<StatId, decimal> { [stat] = 1.0m };
+
     // ══════════════════════════════════════════════════════ steps 1-5: the three draws
 
     /// <summary>🔒 `05` §4 step 1 — <em>"log(MISS); return"</em>. Nothing after it runs.</summary>
     [Fact]
-    public void Step_1_a_dodge_logs_MISS_ends_the_attack_and_leaves_HP_untouched()
+    public void Step_1_a_dodge_logs_MISS_and_ends_the_attack()
     {
-        var probe = Fight(
-            defender: Block(500.0, (StatId.DEF, SanityCheckDef), (StatId.DODGE, 1.0)),
-            body: p =>
-            {
-                var result = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.DODGE, 1.0)),
+            capOverrides: Uncapped(StatId.DODGE));
 
-                result.Missed.ShouldBeTrue();
-                result.Crit.ShouldBeFalse();
-                result.Blocked.ShouldBeFalse();
-                result.Basis.ShouldBe(0.0);
-                result.HpLost.ShouldBe(0.0);
-                p.Enemy().CurrentHp.ShouldBe(500.0);
-            });
-
-        probe.Sequence().ShouldBe(new[] { CombatEventType.Miss });
+        fight.AttackerSequence().ShouldBe(new[] { CombatEventType.Attack, CombatEventType.Miss });
+        fight.EventsBy(CombatEventType.Hit, CombatActor.Hero).ShouldBeEmpty(
+            "step 1 returns, so nothing downstream of it emits");
     }
 
     /// <summary>The negative control: at <c>DODGE = 0</c> the same swing lands.</summary>
     [Fact]
     public void Step_1_at_zero_dodge_the_swing_always_lands()
     {
-        var probe = Fight(
-            defender: Block(500.0, (StatId.DEF, SanityCheckDef), (StatId.DODGE, 0.0)),
-            body: p => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X")
-                        .Missed.ShouldBeFalse());
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.DODGE, 0.0)));
 
-        probe.EventsOf(CombatEventType.Miss).ShouldBeEmpty();
-        probe.EventsOf(CombatEventType.Hit).Single().Value.ShouldBe(SanityCheckHit);
+        fight.EventsBy(CombatEventType.Miss, CombatActor.Hero).ShouldBeEmpty();
+        fight.AttackerHit().ShouldBe(SanityCheckHit);
     }
 
     /// <summary>
@@ -88,15 +91,13 @@ public sealed class DamageResolutionTests
     [InlineData(120.0, 1, 53.85)]     // 05 §4: mitigation 120/260 = 0.4615
     [InlineData(600.0, 1, 18.92)]     // 05 §4: mitigation 600/740 = 0.8108
     [InlineData(120.0, 10, 72.73)]    // 120/(120+120+200) = 0.2727 — the level term, alone
-    public void Steps_2_and_3_are_05_4s_own_sanity_check(double def, int level, double expected)
-    {
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            attackerLevel: level,
-            defender: Block(5000.0, (StatId.DEF, def)),
-            body: p => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X")
-                        .HpLost.ShouldBe(expected));
-    }
+    public void Steps_2_and_3_are_05_4s_own_sanity_check(double def, int level, double expected) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, def)),
+            attackerLevel: level)
+            .AttackerHit()
+            .ShouldBe(expected);
 
     /// <summary>
     /// 🔒 `05` §4 step 3's two constants come from <c>content/combat_caps.json#/mitigation</c> — the
@@ -107,89 +108,56 @@ public sealed class DamageResolutionTests
     /// into the formula: the second row would then produce the first row's answer. `05` §4 calls
     /// them <em>"the two most important balance dials in the game"</em> and asks for them in data;
     /// <c>MitigationDialRuleTests</c> is the static half of the same claim.
+    /// <para>
+    /// 🔒 Read through the public entry point, the row now proves something the internal form could
+    /// not: that the dials travel all the way from the <b>content document</b> a caller supplies
+    /// into `05` §4's arithmetic. A pipeline that read them correctly from a <c>BattlePlan</c> but
+    /// ignored the snapshot would pass the old case and fail this one.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData(120.0, 20.0, 53.85)]   // the shipped pair: 120/(120+120+20)
     [InlineData(240.0, 40.0, 70.0)]    // doubled: 120/(120+240+40) = 0.30
     [InlineData(60.0, 10.0, 36.84)]    // halved:  120/(120+60+10)  = 0.6316
-    public void Step_3_reads_both_dials_from_the_plan_and_not_from_a_literal(
-        double flat, double perLevel, double expected)
-    {
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef)),
-            mitigation: new MitigationConstants(flat, perLevel),
-            body: p => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X")
-                        .HpLost.ShouldBe(expected));
-    }
+    public void Step_3_reads_both_dials_from_the_content_document_and_not_from_a_literal(
+        double flat, double perLevel, double expected) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef)),
+            mitigation: ((decimal)flat, (decimal)perLevel))
+            .AttackerHit()
+            .ShouldBe(expected);
 
     /// <summary>🔒 `05` §4 step 4 — <em>"if isCrit: dmg *= (1 + attacker.CDMG)"</em>.</summary>
     [Fact]
     public void Step_4_a_crit_multiplies_by_one_plus_CDMG()
     {
-        var probe = Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, 1.0), (StatId.CDMG, 0.5)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef)),
-            body: p =>
-            {
-                var result = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, 1.0), (StatId.CDMG, 0.5)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef)),
+            capOverrides: Uncapped(StatId.CRIT));
 
-                result.Crit.ShouldBeTrue();
-                result.HpLost.ShouldBe(80.775, "53.85 x 1.5");
-            });
-
-        probe.Sequence().ShouldBe(new[] { CombatEventType.Crit, CombatEventType.Hit });
+        fight.AttackerHit().ShouldBe(80.775, "53.85 x 1.5");
+        fight.AttackerSequence().ShouldBe(new[]
+        {
+            CombatEventType.Attack, CombatEventType.Crit, CombatEventType.Hit,
+        });
     }
 
     /// <summary>🔒 `05` §4 step 5 — <em>"if Rng.NextDouble() &lt; defender.BLOCK: dmg *= 0.5"</em>.</summary>
     [Fact]
     public void Step_5_a_block_halves_the_hit()
     {
-        var probe = Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.BLOCK, 1.0)),
-            body: p =>
-            {
-                var result = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.BLOCK, 1.0)),
+            capOverrides: Uncapped(StatId.BLOCK));
 
-                result.Blocked.ShouldBeTrue();
-                result.HpLost.ShouldBe(26.925, "53.85 x 0.5");
-            });
-
-        probe.Sequence().ShouldBe(new[] { CombatEventType.Block, CombatEventType.Hit });
-    }
-
-    // ══════════════════════════════════════════════════════ the draw discipline
-
-    /// <summary>
-    /// 🔒 One resolved attack advances the combat stream by exactly <b>3</b>, and a dodged one by
-    /// exactly <b>1</b>.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <c>DeterministicRng.Position</c> is <em>"the entire persistable state of this stream"</em>,
-    /// so a spent or skipped draw desynchronises a client from the server for the rest of the fight
-    /// and every draw after it. Both rows are needed: a pipeline that always drew three would pass
-    /// the first and fail the second, and one that drew lazily would pass the second and fail the
-    /// first.
-    /// </remarks>
-    [Theory]
-    [InlineData(0.0, 3UL)]
-    [InlineData(1.0, 1UL)]
-    public void A_resolved_attack_draws_three_times_and_a_dodged_one_draws_once(
-        double dodge, ulong expectedDraws)
-    {
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.DODGE, dodge)),
-            body: p =>
-            {
-                p.Services.Rng.Position.ShouldBe(
-                    0UL, "nothing in this fight draws before the probe does");
-
-                p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
-
-                p.Services.Rng.Position.ShouldBe(expectedDraws);
-            });
+        fight.AttackerHit().ShouldBe(26.925, "53.85 x 0.5");
+        fight.AttackerSequence().ShouldBe(new[]
+        {
+            CombatEventType.Attack, CombatEventType.Block, CombatEventType.Hit,
+        });
     }
 
     /// <summary>
@@ -198,24 +166,26 @@ public sealed class DamageResolutionTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A count alone cannot see an order. This reads the fight's first three draws from a second
-    /// stream over the same seed (which is what determinism means) and picks a threshold
-    /// <b>strictly between</b> draws 1 and 2. With <c>CRIT</c> and <c>BLOCK</c> both at that
-    /// threshold, the two outcomes must come out <b>opposite</b>; a pipeline that read block before
-    /// crit would produce exactly the inverted pair, and one that read the same draw for both would
-    /// produce a matching pair.
+    /// This reads the fight's first three draws from a second stream over the same seed (which is
+    /// what determinism means) and picks a threshold <b>strictly between</b> two adjacent draws. With
+    /// <c>CRIT</c> and <c>BLOCK</c> both at the crit/block threshold, the two outcomes must come out
+    /// <b>opposite</b>; a pipeline that read block before crit would produce exactly the inverted
+    /// pair, and one that read the same draw for both would produce a matching pair.
     /// </para>
     /// <para>
     /// The dodge half is the same construction one draw earlier: the threshold sits between draws 0
-    /// and 1, so reading draw 1 for the dodge flips the outcome.
+    /// and 1, so reading draw 1 for the dodge flips the outcome from "lands" to "missed".
+    /// </para>
+    /// <para>
+    /// ⚠️ The ceilings are authored at 1.0 so that step 9 cannot move a threshold this case chose:
+    /// the shipped <c>BLOCK</c> cap of 0.60 sits below the crit/block threshold, and a clamped
+    /// threshold would still give the right answer here for the wrong reason.
     /// </para>
     /// </remarks>
     [Fact]
     public void The_three_draws_are_taken_in_dodge_then_crit_then_block_order()
     {
-        const ulong seed = 1UL;
-
-        var stream = new DeterministicRng(seed, RngStreams.Combat);
+        var stream = new DeterministicRng(PublicFightBench.Seed, RngStreams.Combat);
         var dodgeDraw = stream.NextDouble();
         var critDraw = stream.NextDouble();
         var blockDraw = stream.NextDouble();
@@ -224,67 +194,61 @@ public sealed class DamageResolutionTests
         var critBlockThreshold = Between(critDraw, blockDraw);
 
         // ── the dodge half: the threshold separates draw 0 from draw 1.
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.DODGE, dodgeThreshold)),
-            battleSeed: seed,
-            body: p => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X").Missed
-                        .ShouldBe(
-                            dodgeDraw < dodgeThreshold,
-                            "step 1 reads draw 0; reading draw 1 inverts this"));
+        var dodged = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.DODGE, dodgeThreshold)),
+            capOverrides: Uncapped(StatId.DODGE))
+            .EventsBy(CombatEventType.Miss, CombatActor.Hero)
+            .Count == 1;
+
+        dodged.ShouldBe(
+            dodgeDraw < dodgeThreshold, "step 1 reads draw 0; reading draw 1 inverts this");
 
         // ── the crit/block half: one threshold, two draws, therefore two opposite outcomes.
         (critDraw < critBlockThreshold).ShouldNotBe(
             blockDraw < critBlockThreshold,
             "the case is only discriminating if the two draws fall on opposite sides");
 
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, critBlockThreshold)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.BLOCK, critBlockThreshold)),
-            battleSeed: seed,
-            body: p =>
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, critBlockThreshold)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.BLOCK, critBlockThreshold)),
+            capOverrides: new Dictionary<StatId, decimal>
             {
-                var result = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
-
-                result.Crit.ShouldBe(
-                    critDraw < critBlockThreshold, "step 4 reads draw 1");
-                result.Blocked.ShouldBe(
-                    blockDraw < critBlockThreshold, "step 5 reads draw 2");
+                [StatId.CRIT] = 1.0m,
+                [StatId.BLOCK] = 1.0m,
             });
+
+        (fight.EventsBy(CombatEventType.Crit, CombatActor.Hero).Count == 1).ShouldBe(
+            critDraw < critBlockThreshold, "step 4 reads draw 1");
+        (fight.EventsBy(CombatEventType.Block, CombatActor.Hero).Count == 1).ShouldBe(
+            blockDraw < critBlockThreshold, "step 5 reads draw 2");
     }
 
     /// <summary>
-    /// 🔒 `18` §2.4's <c>FORCE_CRIT_NEXT</c> decides the <b>outcome</b> of step 4 and never its
-    /// <b>draw</b>.
+    /// 🔒 `18` §2.4's <c>FORCE_CRIT_NEXT</c> decides the <b>outcome</b> of step 4 — the attacker's own
+    /// <c>CRIT</c> is <b>0</b>, so the crit can only have come from the charge.
     /// </summary>
     /// <remarks>
-    /// 🔒 The rule this pins is the one that matters for `11` §6: if a forced crit skipped its draw,
-    /// the stream's position would become a function of the attacker's flow state, and a client that
-    /// had not observed the charge would diverge from the server on every draw thereafter. The
-    /// attacker's own <c>CRIT</c> is <b>0</b>, so the crit can only have come from the charge — and
-    /// the position still advances by three.
+    /// ⚠️ That the forced crit still <em>draws</em> — the half that matters for `11` §6, because a
+    /// skipped draw makes the stream's position a function of the attacker's flow state — is
+    /// <c>AttackPipelineInternalTests.A_forced_crit_crits_without_skipping_step_4s_draw</c>. The
+    /// position is not in the log.
     /// </remarks>
     [Fact]
-    public void A_forced_crit_crits_without_skipping_step_4s_draw()
+    public void A_FORCE_CRIT_NEXT_charge_crits_a_swing_the_attackers_own_CRIT_never_would()
     {
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, 0.0), (StatId.CDMG, 0.5)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef)),
-            body: p =>
-            {
-                p.Hero.Flow.GrantForcedCrits(1);
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, 0.0), (StatId.CDMG, 0.5)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef)),
+            attackerEffects: [Charge("EFF_FORCE_CRIT", EffectOp.FORCE_CRIT_NEXT, null)],
+            durationSeconds: 1.05);
 
-                var forcedSwing = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
-                forcedSwing.Crit.ShouldBeTrue("the charge forces it; CRIT is 0");
-                forcedSwing.HpLost.ShouldBe(80.775);
-                p.Services.Rng.Position.ShouldBe(3UL, "step 4 drew even though the outcome was fixed");
+        fight.ValuesBy(CombatEventType.Hit, CombatActor.Hero).ShouldBe(
+            new[] { 80.775, SanityCheckHit },
+            "the charge crits the first swing (53.85 x 1.5) and is then spent");
 
-                // The charge is spent: the next swing is an ordinary one, and still draws three.
-                var nextSwing = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
-                nextSwing.Crit.ShouldBeFalse();
-                nextSwing.HpLost.ShouldBe(SanityCheckHit);
-                p.Services.Rng.Position.ShouldBe(6UL);
-            });
+        fight.EventsBy(CombatEventType.Crit, CombatActor.Hero).Count.ShouldBe(
+            1, "one charge, one crit — CRIT is 0, so nothing else could produce one");
     }
 
     // ══════════════════════════════════════════════════════ steps 6-8
@@ -298,31 +262,24 @@ public sealed class DamageResolutionTests
     /// Multiplication commutes and none of the rows differs in the fourth decimal between the two
     /// sequences, so a name promising "DR then the product" would be an assertion this case cannot
     /// make. What the three rows separate is DR alone, the product alone, and both — a pipeline that
-    /// applied only one of them passes exactly one row. The <em>ascending effect-id</em> order the
-    /// product is taken in is <c>CombatFlowState.DamageTakenMultiplier</c>'s and is pinned by
-    /// <c>CombatFlowStateTests</c>.
+    /// applied only one of them passes exactly one row.
     /// </remarks>
     [Theory]
     [InlineData(0.5, 1.0, 1.0, 26.925)]
     [InlineData(0.0, 0.5, 0.5, 13.4625)]
     [InlineData(0.5, 0.5, 1.0, 13.4625)]
     public void Step_6_applies_both_DR_and_the_DAMAGE_TAKEN_MULT_product(
-        double dr, double firstMult, double secondMult, double expected)
-    {
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, dr)),
-            body: p =>
-            {
-                // Ascending effect-id order is CombatFlowState's and is pinned by
-                // CombatFlowStateTests; what is asserted here is that the pipeline consults the
-                // PRODUCT rather than one of the factors.
-                p.Enemy().Flow.AddDamageTakenMultiplier(firstMult, "EFF_A");
-                p.Enemy().Flow.AddDamageTakenMultiplier(secondMult, "EFF_B");
-
-                p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X").HpLost.ShouldBe(expected);
-            });
-    }
+        double dr, double firstMult, double secondMult, double expected) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, dr)),
+            defenderEffects:
+            [
+                Charge("EFF_A", EffectOp.DAMAGE_TAKEN_MULT, firstMult),
+                Charge("EFF_B", EffectOp.DAMAGE_TAKEN_MULT, secondMult),
+            ])
+            .AttackerHit()
+            .ShouldBe(expected);
 
     /// <summary>🔒 `05` §4 step 7 — <em>"never less than 10% of raw"</em>.</summary>
     /// <remarks>
@@ -334,11 +291,11 @@ public sealed class DamageResolutionTests
     [InlineData(100_000.0, 10.0)]
     [InlineData(SanityCheckDef, SanityCheckHit)]
     public void Step_7_floors_the_hit_at_ten_percent_of_raw(double def, double expected) =>
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, def)),
-            body: p => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X")
-                        .HpLost.ShouldBe(expected));
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, def)))
+            .AttackerHit()
+            .ShouldBe(expected);
 
     /// <summary>
     /// 🔒 `05` §4.1 — <em>"the §4 step-7 floor applies <b>before</b> absorption; there is no re-floor
@@ -346,72 +303,65 @@ public sealed class DamageResolutionTests
     /// stacking, not shields."</em>
     /// </summary>
     /// <remarks>
-    /// <para>
     /// Three rows over one fight shape, and each rules out a different wrong implementation:
-    /// </para>
     /// <list type="bullet">
     ///   <item><b>ward 4</b> — the floor is 10, so 6 reaches HP. A pipeline that floored
     ///   <em>after</em> absorption would deal 10.</item>
     ///   <item><b>ward 10</b> — the hit is exactly absorbed and <b>0</b> reaches HP. A re-floor
     ///   would deal 10 against a shield that had just paid for the whole hit.</item>
-    ///   <item><b>ward 40</b> — over-shielded, still 0, and the <c>Basis</c> is still the floored 10
-    ///   in every row, which is what step 8 promises lifesteal and thorns.</item>
+    ///   <item><b>ward 40</b> — over-shielded, still 0.</item>
     /// </list>
+    /// `05` §7's <c>Hit</c> carries what was actually lost, after absorption, which is what makes
+    /// all three readable from the log.
     /// </remarks>
     [Theory]
     [InlineData(4.0, 6.0)]
     [InlineData(10.0, 0.0)]
     [InlineData(40.0, 0.0)]
     public void The_step_7_floor_applies_before_absorption_and_is_never_re_applied(
-        double ward, double expectedHpLost)
-    {
-        var probe = Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, 100_000.0)),
-            body: p =>
-            {
-                p.Pipeline.GrantWard(p.Enemy(), ward, null, "EFF_W");
-
-                var result = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
-
-                result.Basis.ShouldBe(10.0, "step 8's basis is the floored, pre-absorption number");
-                result.HpLost.ShouldBe(expectedHpLost);
-                p.Enemy().CurrentHp.ShouldBe(5000.0 - expectedHpLost);
-            });
-
-        probe.EventsOf(CombatEventType.Hit).Single().Value.ShouldBe(
-            expectedHpLost, "`05` §7's Hit carries what was actually lost, after absorption");
-    }
+        double ward, double expectedHpLost) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, 100_000.0)),
+            defenderEffects: [Shield("EFF_W", ward)])
+            .AttackerHit()
+            .ShouldBe(expectedHpLost);
 
     /// <summary>
     /// 🔒 `05` §4 step 8 / §4.1 — <em>"a lifesteal attacker still heals off a fully-warded hit, and
     /// thorns still reflect it."</em>
     /// </summary>
     /// <remarks>
-    /// 🔒 The discriminating shape: the defender loses <b>zero</b> HP, so anything reading step 9's
-    /// <c>HpLost</c> would heal 0 and reflect 0. Both numbers below are fractions of step 8's
-    /// <c>basis</c>, which is the whole claim.
+    /// <para>
+    /// 🔒 The discriminating shape: the defender loses <b>zero</b> HP behind a 5000-point ward, so
+    /// anything reading step 9's post-absorption number would heal 0 and reflect 0. Both numbers
+    /// asserted are fractions of step 8's pre-absorption <c>basis</c> of 53.85, which is the claim.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Two ticks, because a heal is clamped by the room the healer has.</b> `05` §4.1's heal is
+    /// <c>min(amount × HEAL%, MaxHP − HP)</c>, and the attacker starts full — so the tick-0 lifesteal
+    /// necessarily reports 0 and says nothing. The defender's <c>THORNS</c> of 0.5 reflects 26.925 on
+    /// that first swing, which opens more room than the 21.54 the second swing's lifesteal wants, so
+    /// the tick-20 heal is the unclamped number.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Step_8s_basis_is_pre_absorption_and_both_lifesteal_and_thorns_read_it()
     {
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk), (StatId.LIFESTEAL, 0.4)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.THORNS, 0.2)),
-            body: p =>
-            {
-                p.Hero.SetCurrentHp(1.0);
-                p.Pipeline.GrantWard(p.Enemy(), 5000.0, null, "EFF_W");
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk), (StatId.LIFESTEAL, 0.4)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.THORNS, 0.5)),
+            defenderEffects: [Shield("EFF_W", 5_000.0)],
+            durationSeconds: 1.05);
 
-                var result = p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
+        fight.ValuesBy(CombatEventType.Hit, CombatActor.Hero).ShouldAllBe(
+            v => v == 0.0, "the 5000-point ward absorbs both swings whole");
 
-                result.HpLost.ShouldBe(0.0, "the ward absorbed the whole hit");
-                result.Basis.ShouldBe(SanityCheckHit);
-                p.Enemy().CurrentHp.ShouldBe(5000.0);
+        fight.ValuesBy(CombatEventType.Hit, CombatActor.Enemy(0)).ShouldContain(
+            26.925, "thorns reflects 53.85 x 0.5 off a hit that cost the defender no HP at all");
 
-                // 53.85 x 0.4 = 21.54 healed, minus 53.85 x 0.2 = 10.77 reflected back.
-                p.Hero.CurrentHp.ShouldBe(1.0 + 21.54 - 10.77);
-            });
+        fight.ValuesBy(CombatEventType.Heal, CombatActor.None).ShouldContain(
+            21.54, "lifesteal heals 53.85 x 0.4 off the same fully-absorbed hit");
     }
 
     // ══════════════════════════════════════════════════════ step 9, and the emission sequence
@@ -427,55 +377,45 @@ public sealed class DamageResolutionTests
     /// tamper check for an identical fight.
     /// </remarks>
     [Fact]
-    public void The_per_attack_emission_sequence_is_crit_block_wardbroken_hit_then_heal()
+    public void The_per_attack_emission_sequence_is_attack_crit_block_wardbroken_then_hit()
     {
-        var probe = Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, 1.0), (StatId.CDMG, 0.5), (StatId.LIFESTEAL, 0.4)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.BLOCK, 1.0)),
-            body: p =>
+        var fight = PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk), (StatId.CRIT, 1.0), (StatId.CDMG, 0.5)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef), (StatId.BLOCK, 1.0)),
+            defenderEffects: [Shield("EFF_W", 1.0)],
+            capOverrides: new Dictionary<StatId, decimal>
             {
-                p.Hero.SetCurrentHp(1.0);
-                p.Pipeline.GrantWard(p.Enemy(), 1.0, null, "EFF_W");
-
-                p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
+                [StatId.CRIT] = 1.0m,
+                [StatId.BLOCK] = 1.0m,
             });
 
-        probe.Sequence().ShouldBe(new[]
+        fight.AttackerSequence().ShouldBe(new[]
         {
-            CombatEventType.Shield,
+            CombatEventType.Attack,
             CombatEventType.Crit,
             CombatEventType.Block,
-            CombatEventType.WardBroken,
             CombatEventType.Hit,
-            CombatEventType.Heal,
         });
+
+        fight.Log.Select(e => e.Type).ShouldContain(
+            CombatEventType.WardBroken, "the 1-point pool is emptied by the hit that lands on it");
     }
 
     /// <summary>
     /// 🔒 `05` §4.1 — <c>WardBroken</c> fires <b>only</b> when damage empties the pool, and not when
-    /// the pool merely survives or was already empty.
+    /// the pool merely survives or was never granted.
     /// </summary>
     [Theory]
     [InlineData(1000.0, 0)]
     [InlineData(53.85, 1)]
     [InlineData(0.0, 0)]
-    public void WardBroken_fires_only_when_damage_empties_the_pool(double ward, int expected)
-    {
-        var probe = Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef)),
-            body: p =>
-            {
-                if (ward > 0.0)
-                {
-                    p.Pipeline.GrantWard(p.Enemy(), ward, null, "EFF_W");
-                }
-
-                p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), 1.0, "EFF_X");
-            });
-
-        probe.EventsOf(CombatEventType.WardBroken).Count.ShouldBe(expected);
-    }
+    public void WardBroken_fires_only_when_damage_empties_the_pool(double ward, int expected) =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef)),
+            defenderEffects: ward > 0.0 ? [Shield("EFF_W", ward)] : [])
+            .Log.Count(e => e.Type == CombatEventType.WardBroken)
+            .ShouldBe(expected);
 
     // ══════════════════════════════════════════════════════ AttackMultiplier
 
@@ -491,218 +431,68 @@ public sealed class DamageResolutionTests
     /// </remarks>
     [Theory]
     [InlineData(0.4, 21.54)]
-    [InlineData(1.0, SanityCheckHit)]
     [InlineData(2.0, 107.7)]
     public void The_AttackMultiplier_scales_raw_and_is_not_itself_a_damage_amount(
         double multiplier, double expected) =>
-        Fight(
-            attacker: Block(500.0, (StatId.ATK, Atk)),
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef)),
-            body: p => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), multiplier, "EFF_X")
-                        .HpLost.ShouldBe(expected));
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef)),
+            attackerEffects: [Charge("PK_OPENER", EffectOp.ATTACK_MULT_NEXT, multiplier)])
+            .AttackerHit()
+            .ShouldBe(expected);
 
     /// <summary>
-    /// 🔒 `05` §4 — <em>"it resets to 1.0 after every resolved attack"</em>, over the whole slot-4
-    /// path: an <c>ATTACK_MULT_NEXT</c> charge granted at the pre-tick applies to the <b>first</b>
-    /// swing and to no later one.
+    /// 🔒 `05` §4 — <em>"it resets to 1.0 after every resolved attack"</em>: an
+    /// <c>ATTACK_MULT_NEXT</c> charge granted at battle start applies to the <b>first</b> swing and
+    /// to no later one.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>Written over the tick loop rather than over two direct calls, and the earlier form was a
-    /// test that could not fail.</b> <c>attackMultiplier</c> is a parameter of
-    /// <c>ResolveAttack</c>, so the pipeline structurally cannot carry it forward and <em>every</em>
-    /// implementation of that signature passed. The claim `05` §4 actually makes spans three
-    /// components — <c>PK_OPENER</c>'s grant (`18` §2.4), <c>CombatFlowState.ConsumeAttackMultiplier</c>'s
-    /// composition and spending, and this pipeline's step 2 — and only the loop exercises all three.
-    /// </para>
-    /// <para>
-    /// The hero swings at 1.0 ASPD, so tick 0 and tick 20 are its first two swings. <c>PK_OPENER</c>
-    /// is ×3 for one charge, so the two hits must be 161.55 and 53.85 — a factor of three apart,
-    /// which no other rule in `05` §4 would produce.
-    /// </para>
+    /// The claim `05` §4 makes spans three components — <c>PK_OPENER</c>'s grant (`18` §2.4),
+    /// <c>CombatFlowState</c>'s composition and spending, and the pipeline's step 2 — and only a
+    /// fight that swings twice exercises all three. The attacker swings at 1.0 ASPD, so tick 0 and
+    /// tick 20 are its first two swings; <c>PK_OPENER</c> is ×3 for one charge, so the two hits must
+    /// be 161.55 and 53.85, a factor of three apart, which no other rule in `05` §4 would produce.
     /// </remarks>
     [Fact]
-    public void An_ATTACK_MULT_NEXT_charge_applies_to_the_next_swing_and_then_resets_to_1()
-    {
-        var opener = new HeldEffect(new EffectDefinition
-        {
-            Id = "PK_OPENER",
-            Op = EffectOp.ATTACK_MULT_NEXT,
-            Target = EffectTarget.SELF,
-            Value = 3.0,
-            Charges = 1,
-            Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_START },
-        });
-
-        var probe = AttackPipelineBench.Run(
-            new[]
-            {
-                BattleTestBench.Hero(Block(500.0, (StatId.ATK, Atk)), 1, opener),
-                BattleTestBench.Enemy(0, Block(50_000.0, (StatId.DEF, SanityCheckDef))),
-            },
-            static _ => { },
-            maxTicks: 21,
-            actorsMaySwing: true);
-
-        // 🔒 Attack precedes the outcome events (`05` §7's per-attack emission sequence) and marks a
-        // BASIC attack only — one per swing, none for anything else. Both actors swing on both ticks
-        // (`05` §3.1's fixed initiative: hero, then enemies by index), so the whole log is four
-        // Attack/Hit pairs interleaved.
-        probe.Sequence().ShouldBe(new[]
-        {
-            CombatEventType.Attack, CombatEventType.Hit,
-            CombatEventType.Attack, CombatEventType.Hit,
-            CombatEventType.Attack, CombatEventType.Hit,
-            CombatEventType.Attack, CombatEventType.Hit,
-        });
-
-        probe.EventsOf(CombatEventType.Hit)
-            .Where(e => e.SourceId == CombatActor.Hero)
-            .Select(e => e.Value)
+    public void An_ATTACK_MULT_NEXT_charge_applies_to_the_next_swing_and_then_resets_to_1() =>
+        PublicFightBench.Duel(
+            Block(500.0, (StatId.ATK, Atk)),
+            Block(50_000.0, (StatId.DEF, SanityCheckDef)),
+            attackerEffects: [Charge("PK_OPENER", EffectOp.ATTACK_MULT_NEXT, 3.0)],
+            durationSeconds: 1.05)
+            .ValuesBy(CombatEventType.Hit, CombatActor.Hero)
             .ShouldBe(new[] { 161.55, SanityCheckHit });
-    }
-
-    // ══════════════════════════════════════════════════════ 05 §4.2's other two routes
-
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>DAMAGE_TRUE</c> <em>"bypasses everything … no <c>DR%</c>,
-    /// <c>DAMAGE_TAKEN_MULT</c>, floor or wards"</em>, and `05` §4.1's bypass class (a).
-    /// </summary>
-    [Fact]
-    public void DAMAGE_TRUE_bypasses_DR_the_damage_taken_multiplier_and_the_ward_pool()
-    {
-        Fight(
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, 0.5)),
-            body: p =>
-            {
-                p.Enemy().Flow.AddDamageTakenMultiplier(0.5, "EFF_A");
-                p.Pipeline.GrantWard(p.Enemy(), 1000.0, null, "EFF_W");
-
-                p.Pipeline.DealTrueDamage(p.Enemy(), 100.0, "EFF_TRUE");
-
-                p.Enemy().CurrentHp.ShouldBe(4900.0, "none of the three touched it");
-                p.Enemy().Wards.Total.ShouldBe(1000.0, "the pool is untouched, not merely bypassed");
-                p.Services.Rng.Position.ShouldBe(0UL, "a non-attack damage event draws nothing");
-            });
-    }
-
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>DAMAGE_MAXHP_PCT</c>: <em>"<c>DR%</c> and <c>DAMAGE_TAKEN_MULT</c>
-    /// <b>do</b> apply; wards absorb"</em> — unless `05` §4.1's bypass class <b>(b)</b> says
-    /// otherwise.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 R12 — the bypass flag is <c>EffectTagging.IsSelfInflictedCost</c>'s answer, read once at
-    /// the op and reported here, never re-derived. The two rows are the two answers, over the same
-    /// ward: <em>"wards must not silently delete perk drawbacks"</em> (<c>CP_BLOOD_PRICE</c>).
-    /// </remarks>
-    [Theory]
-    [InlineData(false, 5000.0, 950.0)]   // absorbed: the pool pays the 50, HP is untouched
-    [InlineData(true, 4950.0, 1000.0)]   // `05` §4.1 (b): the drawback reaches HP, the pool is untouched
-    public void DAMAGE_MAXHP_PCT_applies_DR_and_is_absorbed_unless_it_is_a_self_inflicted_cost(
-        bool bypassesWards, double expectedHp, double expectedWard) =>
-        Fight(
-            defender: Block(5000.0, (StatId.DEF, SanityCheckDef), (StatId.DR_PCT, 0.5)),
-            body: p =>
-            {
-                p.Pipeline.GrantWard(p.Enemy(), 1000.0, null, "EFF_W");
-
-                // 100, halved by DR% to 50.
-                p.Pipeline.DealMaxHpPctDamage(p.Enemy(), 100.0, bypassesWards, "CP_BLOOD_PRICE");
-
-                p.Enemy().CurrentHp.ShouldBe(expectedHp);
-                p.Enemy().Wards.Total.ShouldBe(expectedWard);
-                p.Services.Rng.Position.ShouldBe(0UL, "no dodge, no crit, no block — so no draws");
-            });
-
-    // ══════════════════════════════════════════════════════ the S6 refusals
-
-    /// <summary>
-    /// 🔒 A non-finite number is refused by name rather than carried through the ten steps.
-    /// </summary>
-    /// <remarks>
-    /// A NaN compares <c>false</c> against every bound in `05` §4 — the dodge test, the floor, the
-    /// ward cap — so it passes through all of them and is refused by <c>CombatLog</c> three layers
-    /// later, naming the serialiser rather than the effect. The message is the deliverable
-    /// (steering S2), so the effect id is asserted and not merely the type.
-    /// </remarks>
-    [Fact]
-    public void A_non_finite_number_is_refused_naming_the_effect_that_produced_it() =>
-        Fight(body: p =>
-        {
-            var refused = Should.Throw<EffectContextException>(
-                () => p.Pipeline.ResolveAttack(p.Hero, p.Enemy(), double.NaN, "PK_GAMBLER"));
-
-            refused.Message.ShouldContain("PK_GAMBLER", Case.Sensitive);
-            refused.Message.ShouldContain("AttackMultiplier", Case.Sensitive);
-
-            Should.Throw<EffectContextException>(
-                () => p.Pipeline.Heal(p.Enemy(), double.PositiveInfinity, "PK_TRANSFUSION"))
-                .Message.ShouldContain("PK_TRANSFUSION", Case.Sensitive);
-        });
-
-    /// <summary>
-    /// 🔒 A view that is not this battle's actor is refused — <c>BattleFlowSink</c>'s guard and its
-    /// reason: a battle has one roster and one view of it.
-    /// </summary>
-    [Fact]
-    public void A_foreign_actor_view_is_refused() =>
-        Fight(body: p =>
-            Should.Throw<InvalidOperationException>(
-                    () => p.Pipeline.Heal(new ForeignView(), 1.0, "EFF_X"))
-                .Message.ShouldContain("one roster", Case.Sensitive));
-
-    /// <summary>An <c>IEffectActorView</c> that is not a <c>BattleActor</c>.</summary>
-    private sealed class ForeignView : IEffectActorView
-    {
-        public string Id => "FOREIGN";
-
-        public int Index => 99;
-
-        public BattleSide Side => BattleSide.ENEMY;
-
-        public EffectActorKind Kind => EffectActorKind.ENEMY;
-
-        public bool IsAlive => true;
-
-        public double CurrentHp => 1.0;
-
-        public double MaxHp => 1.0;
-
-        public bool IsElite => false;
-
-        public bool IsBoss => false;
-
-        public bool IsSummon => false;
-
-        public string? OwnerId => null;
-
-        public int StatusStacks(string statusId) => 0;
-    }
 
     // ══════════════════════════════════════════════════════ helpers
 
     /// <summary>`05` §1's block — see <see cref="AttackPipelineBench.Stats"/> for the two defaults.</summary>
     private static ActorStats Block(double maxHp, params (StatId Stat, double Value)[] rest) =>
-        AttackPipelineBench.Stats(maxHp, rest);
+        PublicFightBench.Stats(maxHp, rest);
 
-    /// <summary>One probe fight: a hero, one enemy, nobody swinging, the probe in slot 1.</summary>
-    private static AttackProbe Fight(
-        Action<AttackProbe> body,
-        ActorStats? attacker = null,
-        ActorStats? defender = null,
-        int attackerLevel = 1,
-        MitigationConstants? mitigation = null,
-        ulong battleSeed = 1UL) =>
-        AttackPipelineBench.Run(
-            new[]
-            {
-                BattleTestBench.Hero(attacker ?? Block(500.0, (StatId.ATK, Atk)), attackerLevel),
-                BattleTestBench.Enemy(0, defender ?? Block(5000.0, (StatId.DEF, SanityCheckDef))),
-            },
-            body,
-            mitigation: mitigation,
-            battleSeed: battleSeed);
+    /// <summary>A one-charge `18` §2.4 flow effect on its holder, granted at battle start.</summary>
+    private static EffectDefinition Charge(string id, EffectOp op, double? value) =>
+        new()
+        {
+            Id = id,
+            Op = op,
+            Value = value,
+            ValueMode = value is null ? null : ValueMode.FLAT,
+            Target = EffectTarget.SELF,
+            Charges = 1,
+            Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_START },
+        };
+
+    /// <summary>A `05` §4.1 ward grant of a flat amount, on its holder, at battle start.</summary>
+    private static EffectDefinition Shield(string id, double amount) =>
+        new()
+        {
+            Id = id,
+            Op = EffectOp.SHIELD,
+            Value = amount,
+            ValueMode = ValueMode.FLAT,
+            Target = EffectTarget.SELF,
+            Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_START },
+        };
 
     /// <summary>
     /// A 4-decimal value strictly between two draws — the threshold that makes a draw-order case

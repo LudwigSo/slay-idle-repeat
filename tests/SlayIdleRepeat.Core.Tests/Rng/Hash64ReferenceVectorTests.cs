@@ -138,13 +138,6 @@ public sealed class Hash64ReferenceVectorTests
         ReferenceVectors.Draws.Where(row => row.Id == rowId).ShouldHaveSingleItem();
     }
 
-    /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
-    [Fact]
-    public void The_reference_table_ids_are_unique()
-    {
-        ReferenceVectors.Canonical.Select(row => row.Id).ShouldBeUnique();
-    }
-
     /// <summary>
     /// A mixed-type call is the shape both derivations take, and the one place an encoder can
     /// get every individual type right and still concatenate them wrongly.

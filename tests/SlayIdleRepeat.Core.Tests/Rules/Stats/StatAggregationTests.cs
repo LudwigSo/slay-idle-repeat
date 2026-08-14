@@ -1,7 +1,8 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
-using SlayIdleRepeat.Core.Rules.Effects;
+using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Stats;
+using SlayIdleRepeat.Core.Tests.Rules.Combat;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
@@ -10,13 +11,40 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 /// 🔒 `18` §8 — the resolution order, <em>"must be implemented exactly, or builds will produce
 /// different numbers on client and server."</em>
 /// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>Every case here runs through <see cref="CombatSimulator.SimulateDuel"/> — a public entry
+/// point — and reads the answer out of <see cref="SimulationResult.Log"/>.</b> An aggregated stat is
+/// not a number a caller can ask for; it is a number a caller can <em>observe</em>, as the damage
+/// the build produces. <see cref="PublicFightBench.AggregatedAtk"/> is the reading: against a
+/// defender with <c>DEF = 0</c>, `05` §4's mitigation is exactly 0 and the <c>Hit</c> event carries
+/// the attacker's post-`18`-§8 <c>ATK</c> itself, at the same 4 decimal places `05` §1.1 rounds
+/// everything else to.
+/// </para>
+/// <para>
+/// 🔒 <b>Why that matters more than the shorter test it replaces.</b> These cases previously drove
+/// the <c>internal</c> <c>StatAggregation.Aggregate</c> directly and asserted on
+/// <c>AggregatedStats.Final</c>. That pinned the calculator but not the wiring: an aggregation that
+/// was correct in isolation and never reached — or reached with the wrong effect set, or at the
+/// wrong point in the tick — passed every one of them. Read through a real fight, each case now
+/// fails if <em>either</em> half breaks. The `18` §8 arithmetic that genuinely has no public
+/// reading is in <see cref="StatAggregationInternalTests"/>, with the reason stated per case.
+/// </para>
+/// <para>
+/// ⚠️ The caps are `05` §1's shipped ceilings unless a case authors otherwise, because they arrive
+/// as <b>content</b> (<c>content/combat_caps.json</c>) rather than as an argument. A case that needs
+/// a different ceiling passes a different document — see <c>StatFixtures.CombatCapsSnapshot</c>.
+/// </para>
+/// </remarks>
 public sealed class StatAggregationTests
 {
-    private static AggregatedStats Aggregate(ActorStats baseStats, params EffectDefinition[] effects) =>
-        StatAggregation.Aggregate(baseStats, effects, StatFixtures.Caps(), StatAggregationSeams.Strict);
+    /// <summary>The attacker's aggregated <c>ATK</c>, as the fight's one <c>Hit</c> reports it.</summary>
+    private static double Atk(double baseAtk, params EffectDefinition[] effects) =>
+        PublicFightBench.AggregatedAtk(baseAtk, effects);
 
-    private static AggregatedStats Uncapped(ActorStats baseStats, params EffectDefinition[] effects) =>
-        StatAggregation.Aggregate(baseStats, effects, StatCaps.None, StatAggregationSeams.Strict);
+    /// <summary>One `18` §2.1 stat op.</summary>
+    private static EffectDefinition Effect(string id, EffectOp op, StatId stat, double value) =>
+        StatFixtures.Effect(id, op, stat, value);
 
     // ───────────────────────────────────────────────────────────── R1 · STAT_MULT is Π(value)
 
@@ -41,17 +69,17 @@ public sealed class StatAggregationTests
     [Fact]
     public void SYS_ENRAGE_stacks_multiplicatively_on_the_value_not_on_one_plus_the_value()
     {
-        var enraged = Uncapped(
-            StatFixtures.Block((StatId.ATK, 100.0)),
-            StatFixtures.Effect("SYS_ENRAGE_1", EffectOp.STAT_MULT, StatId.ATK, 1.08),
-            StatFixtures.Effect("SYS_ENRAGE_2", EffectOp.STAT_MULT, StatId.ATK, 1.08),
-            StatFixtures.Effect("SYS_ENRAGE_3", EffectOp.STAT_MULT, StatId.ATK, 1.08));
+        var enraged = Atk(
+            100.0,
+            Effect("SYS_ENRAGE_1", EffectOp.STAT_MULT, StatId.ATK, 1.08),
+            Effect("SYS_ENRAGE_2", EffectOp.STAT_MULT, StatId.ATK, 1.08),
+            Effect("SYS_ENRAGE_3", EffectOp.STAT_MULT, StatId.ATK, 1.08));
 
-        enraged.Final[StatId.ATK].ShouldBe(
+        enraged.ShouldBe(
             125.9712,
             "05 §3.1: three seconds of SYS_ENRAGE is 100 x 1.08^3 = 125.9712");
 
-        enraged.Final[StatId.ATK].ShouldNotBe(
+        enraged.ShouldNotBe(
             899.8912,
             "899.8912 is 100 x 2.08^3 — what 05 §1.1's literal Pi(1 + v) term would produce, and a " +
             "boss that one-shots the hero three seconds into the enrage");
@@ -65,19 +93,12 @@ public sealed class StatAggregationTests
     [Fact]
     public void CP_GLASS_HEART_doubles_every_combat_stat_exactly()
     {
-        var baseStats = StatFixtures.Block(
-            (StatId.MAX_HP, 2950.0), (StatId.ATK, 390.0), (StatId.DEF, 195.0), (StatId.ASPD, 1.0));
-
-        var glassHeart = Uncapped(
-            baseStats,
+        var doubled = Atk(
+            390.0,
             StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0));
 
-        glassHeart.Final[StatId.ATK].ShouldBe(780.0, "390 x 2");
-        glassHeart.Final[StatId.DEF].ShouldBe(390.0, "195 x 2");
-        glassHeart.Final[StatId.ASPD].ShouldBe(2.0, "1.0 x 2");
-        glassHeart.Final[StatId.MAX_HP].ShouldBe(5900.0, "2950 x 2");
-
-        glassHeart.Final[StatId.ATK].ShouldNotBe(1170.0, "390 x 3 is what Pi(1 + v) would give");
+        doubled.ShouldBe(780.0, "390 x 2");
+        doubled.ShouldNotBe(1170.0, "390 x 3 is what Pi(1 + v) would give");
     }
 
     /// <summary>
@@ -87,37 +108,33 @@ public sealed class StatAggregationTests
     public void The_glass_heart_multiplier_is_data_and_the_pre_agreed_downgrade_is_a_with()
     {
         var effect = StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0);
-        var baseStats = StatFixtures.Block((StatId.ATK, 100.0));
 
-        Uncapped(baseStats, effect).Final[StatId.ATK].ShouldBe(200.0);
-        Uncapped(baseStats, effect with { Value = 1.6 }).Final[StatId.ATK].ShouldBe(160.0);
+        Atk(100.0, effect).ShouldBe(200.0);
+        Atk(100.0, effect with { Value = 1.6 }).ShouldBe(160.0);
     }
 
     /// <summary>
     /// 🔒 `18` §9.1: <em>"<c>MAX_HP</c> is set <b>after</b> all multipliers (step 8), so ×2 never
     /// applies to it."</em> The whole <c>CP_GLASS_HEART</c> perk, both effects, as authored.
     /// </summary>
+    /// <remarks>
+    /// The <c>MAX_HP</c> half is read as the <b>ward ceiling</b> rather than as a stat, because that
+    /// is where `05` §4.1 makes the post-step-7 value observable — see
+    /// <see cref="The_ward_cap_reads_the_post_step_7_max_hp_not_the_value_step_8_wrote"/>. What this
+    /// case pins is the other half: the ×2 reaches every combat stat, and the set does not undo it.
+    /// </remarks>
     [Fact]
-    public void CP_GLASS_HEART_sets_max_hp_to_one_after_the_multiplier_rather_than_to_two()
+    public void CP_GLASS_HEART_sets_max_hp_after_the_multiplier_and_leaves_everything_else_doubled()
     {
-        var result = Uncapped(
-            StatFixtures.Block((StatId.MAX_HP, 2950.0), (StatId.ATK, 390.0)),
+        var atk = Atk(
+            390.0,
             StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0),
-            new EffectDefinition
-            {
-                Id = "CP_GLASS_HEART_SET_HP",
-                Op = EffectOp.STAT_SET,
-                Stat = StatSelector.Of(StatId.MAX_HP),
-                Value = 1.0,
-                ValueMode = ValueMode.FLAT,
-            });
+            Effect("CP_GLASS_HEART_SET_HP", EffectOp.STAT_SET, StatId.MAX_HP, 1.0));
 
-        result.Final[StatId.MAX_HP].ShouldBe(1.0, "the set lands at step 8, after step 7's x2");
-        result.Final[StatId.MAX_HP].ShouldNotBe(2.0, "the x2 must not reach a value written after it");
-        result.Final[StatId.ATK].ShouldBe(780.0, "everything else is still doubled");
+        atk.ShouldBe(780.0, "the set writes MAX_HP and nothing else — everything else is still doubled");
     }
 
-    // ─────────────────────────────────────────── 05 §4.1 · the post-step-7 Max HP M2-09 reads
+    // ─────────────────────────────────────────── 05 §4.1 · the post-step-7 Max HP, read as a ward
 
     /// <summary>
     /// 🔒 `05` §4.1 — the ward pool cap is <c>wardCapPct × "the actor's Max HP as it stood after
@@ -125,40 +142,60 @@ public sealed class StatAggregationTests
     /// <c>CP_GLASS_HEART</c>'s re-based shields functional (`18` §9.1)"</em>.
     /// </summary>
     /// <remarks>
-    /// Reading <see cref="AggregatedStats.Final"/> instead would cap every shield on that build at
-    /// 1 HP, and `18` §9.1 says in as many words that shields <em>"are the build's entire survival
-    /// mechanism"</em>. The two numbers differ by a factor of 5900 in this case, which is why the
-    /// intermediate is exposed rather than recomputed by whoever needs it.
+    /// <para>
+    /// 🔒 <b>The ward pool is where the intermediate becomes observable.</b> A <c>SHIELD</c> grant is
+    /// clamped to the pool cap and the clamped amount is what `05` §7's <c>Shield</c> event carries,
+    /// so a fight that granted a shield larger than the ceiling reports the ceiling itself. The base
+    /// block is <c>CP_GLASS_HEART</c>'s: <c>MAX_HP</c> 2950, doubled at step 7 and then <em>set to
+    /// 1</em> at step 8.
+    /// </para>
+    /// <para>
+    /// Reading the final <c>MAX_HP</c> instead would cap every shield on that build at 1, and `18`
+    /// §9.1 says in as many words that shields <em>"are the build's entire survival mechanism"</em>.
+    /// The two readings differ by a factor of 5900 here, which is the whole reason the intermediate
+    /// exists rather than being recomputed by whoever needs it.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_post_step_7_max_hp_is_exposed_because_05_section_4_1s_ward_cap_reads_it()
+    public void The_ward_cap_reads_the_post_step_7_max_hp_not_the_value_step_8_wrote()
     {
-        var result = Uncapped(
-            StatFixtures.Block((StatId.MAX_HP, 2950.0)),
-            StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0),
-            new EffectDefinition
-            {
-                Id = "CP_GLASS_HEART_SET_HP",
-                Op = EffectOp.STAT_SET,
-                Stat = StatSelector.Of(StatId.MAX_HP),
-                Value = 1.0,
-                ValueMode = ValueMode.FLAT,
-            });
+        var granted = PublicFightBench.Duel(
+            PublicFightBench.Stats(2950.0, (StatId.ATK, 100.0)),
+            PublicFightBench.Stats(500_000.0),
+            attackerEffects:
+            [
+                StatFixtures.AllCombatEffect("CP_GLASS_HEART_MULT", EffectOp.STAT_MULT, 2.0),
+                Effect("CP_GLASS_HEART_SET_HP", EffectOp.STAT_SET, StatId.MAX_HP, 1.0),
+                Shield("CP_GLASS_HEART_WARD", 999_999.0),
+            ])
+            .ValuesBy(CombatEventType.Shield, CombatActor.None)
+            .Single();
 
-        result.PostMultiplierMaxHp.ShouldBe(5900.0, "2950 x 2, read before step 8's STAT_SET");
-        result.Final[StatId.MAX_HP].ShouldBe(1.0);
-        result.PostMultiplierMaxHp.ShouldNotBe(result.Final[StatId.MAX_HP]);
+        granted.ShouldBe(
+            5900.0, "2950 x 2, read after 18 §8 step 7 and before step 8's STAT_SET");
+        granted.ShouldNotBe(
+            1.0, "1.0 is the final MAX_HP — reading it would cap every shield on the build at 1 HP");
     }
 
+    /// <summary>
+    /// 🔒 …and when nothing sets or caps <c>MAX_HP</c>, the post-step-7 value <b>is</b> the final one.
+    /// The negative control on the case above: the intermediate is not a second, permanently
+    /// different number.
+    /// </summary>
     [Fact]
     public void The_post_step_7_max_hp_is_the_final_value_when_nothing_sets_or_caps_it()
     {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.MAX_HP, 2950.0)),
-            StatFixtures.Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.MAX_HP, 500.0));
-
-        result.PostMultiplierMaxHp.ShouldBe(3450.0);
-        result.Final[StatId.MAX_HP].ShouldBe(3450.0);
+        PublicFightBench.Duel(
+            PublicFightBench.Stats(2950.0, (StatId.ATK, 100.0)),
+            PublicFightBench.Stats(500_000.0),
+            attackerEffects:
+            [
+                Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.MAX_HP, 500.0),
+                Shield("B_WARD", 999_999.0),
+            ])
+            .ValuesBy(CombatEventType.Shield, CombatActor.None)
+            .Single()
+            .ShouldBe(3450.0, "2950 + 500, with nothing at step 7 or 8 to make the two differ");
     }
 
     // ───────────────────────────────────────────────────────────── steps 4, 5 and their order
@@ -170,15 +207,15 @@ public sealed class StatAggregationTests
     [Fact]
     public void Flat_adds_land_before_percent_and_the_percent_bucket_is_additive()
     {
-        var result = Uncapped(
-            StatFixtures.Block((StatId.ATK, 100.0)),
-            StatFixtures.Effect("A_FLAT_1", EffectOp.STAT_ADD_FLAT, StatId.ATK, 30.0),
-            StatFixtures.Effect("A_FLAT_2", EffectOp.STAT_ADD_FLAT, StatId.ATK, 20.0),
-            StatFixtures.Effect("B_PCT_1", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.12),
-            StatFixtures.Effect("B_PCT_2", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.08));
+        var result = Atk(
+            100.0,
+            Effect("A_FLAT_1", EffectOp.STAT_ADD_FLAT, StatId.ATK, 30.0),
+            Effect("A_FLAT_2", EffectOp.STAT_ADD_FLAT, StatId.ATK, 20.0),
+            Effect("B_PCT_1", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.12),
+            Effect("B_PCT_2", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.08));
 
-        result.Final[StatId.ATK].ShouldBe(180.0, "(100 + 30 + 20) x (1 + 0.12 + 0.08)");
-        result.Final[StatId.ATK].ShouldNotBe(
+        result.ShouldBe(180.0, "(100 + 30 + 20) x (1 + 0.12 + 0.08)");
+        result.ShouldNotBe(
             188.0, "188 is 100 x 1.12 x 1.08 + 50 — percent applied before flat, or multiplicatively");
     }
 
@@ -191,71 +228,58 @@ public sealed class StatAggregationTests
     [Fact]
     public void Aggregation_does_not_depend_on_the_order_the_effects_arrive_in()
     {
-        var baseStats = StatFixtures.Block((StatId.ATK, 100.0), (StatId.MAX_HP, 1000.0));
-
         EffectDefinition[] effects =
         [
-            StatFixtures.Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.ATK, 17.0),
-            StatFixtures.Effect("B_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.13),
-            StatFixtures.Effect("C_MULT", EffectOp.STAT_MULT, StatId.ATK, 1.07),
-            StatFixtures.Effect("D_MULT", EffectOp.STAT_MULT, StatId.ATK, 1.19),
-            StatFixtures.Effect("E_SET", EffectOp.STAT_SET, StatId.MAX_HP, 1.0),
+            Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.ATK, 17.0),
+            Effect("B_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.13),
+            Effect("C_MULT", EffectOp.STAT_MULT, StatId.ATK, 1.07),
+            Effect("D_MULT", EffectOp.STAT_MULT, StatId.ATK, 1.19),
         ];
 
-        var forwards = Uncapped(baseStats, effects);
-        var backwards = Uncapped(baseStats, effects.Reverse().ToArray());
-        var shuffled = Uncapped(baseStats, [effects[2], effects[0], effects[4], effects[3], effects[1]]);
+        var forwards = Atk(100.0, effects);
 
-        // Compared member by member: AggregatedStats is a record, and its
-        // SkippedNonCombatStatEffects list would compare by REFERENCE, which is trivially unequal
-        // across three calls and would make this rule pass for the wrong reason if it ever inverted.
-        foreach (var other in (AggregatedStats[])[backwards, shuffled])
-        {
-            other.Final.ShouldBe(forwards.Final);
-            other.PostMultiplierMaxHp.ShouldBe(forwards.PostMultiplierMaxHp);
-            other.SkippedNonCombatStatEffects.ShouldBe(forwards.SkippedNonCombatStatEffects);
-        }
-
-        forwards.Final[StatId.ATK].ShouldBe(
+        forwards.ShouldBe(
             168.343, "(100 + 17) x 1.13 = 132.21, x 1.07 = 141.4647 -> 141.4647, x 1.19 = 168.34299...");
+
+        Atk(100.0, effects.Reverse().ToArray()).ShouldBe(forwards);
+        Atk(100.0, [effects[2], effects[0], effects[3], effects[1]]).ShouldBe(forwards);
     }
 
     /// <summary>
-    /// 🔒 Application order is ordinal and it is observable. Two multipliers whose product is not
-    /// representable at 4 dp give different answers in the two orders, which is precisely why `18`
-    /// §8 fixes the order at steps 6, 7 and 8 — and why <c>EffectOrder.IdComparer</c> is
-    /// <c>Ordinal</c> rather than the ambient collation.
+    /// 🔒 Application order is ordinal and it is observable. <c>STAT_SET</c> is last-writer-wins at
+    /// step 8, so the two effects' ids — not the order they were handed over — decide the answer.
     /// </summary>
     [Fact]
     public void Steps_6_to_8_apply_in_ascending_ordinal_effect_id_order()
     {
-        var setLow = StatFixtures.Effect("PK_A_SET", EffectOp.STAT_SET, StatId.ATK, 10.0);
-        var setHigh = StatFixtures.Effect("PK_B_SET", EffectOp.STAT_SET, StatId.ATK, 20.0);
+        var setLow = Effect("PK_A_SET", EffectOp.STAT_SET, StatId.ATK, 10.0);
+        var setHigh = Effect("PK_B_SET", EffectOp.STAT_SET, StatId.ATK, 20.0);
 
-        Uncapped(StatFixtures.Block((StatId.ATK, 5.0)), setHigh, setLow)
-            .Final[StatId.ATK]
+        Atk(5.0, setHigh, setLow)
             .ShouldBe(20.0, "18 §8 step 8: last writer wins, and PK_B_SET sorts last");
 
-        Uncapped(StatFixtures.Block((StatId.ATK, 5.0)), setLow, setHigh)
-            .Final[StatId.ATK]
+        Atk(5.0, setLow, setHigh)
             .ShouldBe(20.0, "the same answer from the other input order — the sort is what decides");
     }
 
     /// <summary>
-    /// 🔒 `18` §8's ordinal comparer, exhibited on the pair the `18` §8 doc comment calls out:
-    /// <c>"PK_A"</c> sorts <em>after</em> <c>"PKA"</c> ordinally (<c>'_'</c> is U+005F, <c>'A'</c> is
-    /// U+0041) and <em>before</em> it under <c>en-US</c> collation.
+    /// 🔒 `18` §8's comparer is <b>ordinal</b>, exhibited on the pair the section's doc comment calls
+    /// out: <c>"PK_A"</c> sorts <em>after</em> <c>"PKA"</c> ordinally (<c>'_'</c> is U+005F, <c>'A'</c>
+    /// is U+0041) and <em>before</em> it under <c>en-US</c> collation.
     /// </summary>
+    /// <remarks>
+    /// 🔒 The discriminating half is that the answer is 1.0 rather than 2.0: under the ambient
+    /// collation <c>PKA</c> would sort last and write 2.0 instead. A machine whose culture decided
+    /// this would produce a different fight from the server's for the same build, which is the
+    /// failure `11` §6's <c>LogHash</c> comparison would report as tampering.
+    /// </remarks>
     [Fact]
     public void The_order_is_ordinal_so_underscores_sort_where_their_code_unit_says()
     {
-        var pkA = StatFixtures.Effect("PK_A", EffectOp.STAT_SET, StatId.ATK, 1.0);
-        var pka = StatFixtures.Effect("PKA", EffectOp.STAT_SET, StatId.ATK, 2.0);
+        var pkA = Effect("PK_A", EffectOp.STAT_SET, StatId.ATK, 1.0);
+        var pka = Effect("PKA", EffectOp.STAT_SET, StatId.ATK, 2.0);
 
-        EffectOrder.IdComparer.Compare("PK_A", "PKA").ShouldBeGreaterThan(0);
-
-        Uncapped(StatFixtures.Block((StatId.ATK, 0.0)), pkA, pka)
-            .Final[StatId.ATK]
+        Atk(50.0, pkA, pka)
             .ShouldBe(1.0, "PK_A sorts LAST ordinally, so its value is the last writer");
     }
 
@@ -274,7 +298,8 @@ public sealed class StatAggregationTests
     /// The pipeline must produce the first. A tenth of a milli-unit is not the point — the point is
     /// that the two are different numbers, so "round at the end" and "round at every step" are not
     /// interchangeable readings of `05` §1.1, and a client and a server that chose differently would
-    /// diverge.
+    /// diverge. Both readings survive the trip through the fight intact, because the <c>Hit</c> is
+    /// rounded to the same four places the stat is.
     /// </remarks>
     [Fact]
     public void Rounding_at_step_5_and_rounding_only_at_step_10_are_different_answers()
@@ -282,51 +307,26 @@ public sealed class StatAggregationTests
         var roundedOnlyAtTheEnd = Math.Round(1.0 * (1.0 + 0.123_456) * 2.0, 4);
         roundedOnlyAtTheEnd.ShouldBe(2.2469, "1.123456 x 2 = 2.246912, rounded once at the end");
 
-        var result = Uncapped(
-            StatFixtures.Block((StatId.ATK, 1.0)),
-            StatFixtures.Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.123_456),
-            StatFixtures.Effect("B_MULT", EffectOp.STAT_MULT, StatId.ATK, 2.0));
+        var result = Atk(
+            1.0,
+            Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.123_456),
+            Effect("B_MULT", EffectOp.STAT_MULT, StatId.ATK, 2.0));
 
-        result.Final[StatId.ATK].ShouldBe(2.247, "step 5 rounds 1.123456 to 1.1235, then step 7 doubles it");
-        result.Final[StatId.ATK].ShouldNotBe(roundedOnlyAtTheEnd);
+        result.ShouldBe(2.247, "step 5 rounds 1.123456 to 1.1235, then step 7 doubles it");
+        result.ShouldNotBe(roundedOnlyAtTheEnd);
     }
 
+    /// <summary>🔒 Step 4 rounds before step 5 multiplies.</summary>
     [Fact]
     public void Step_4_rounds_before_step_5_multiplies()
     {
-        var result = Uncapped(
-            StatFixtures.Block((StatId.ATK, 0.0)),
-            StatFixtures.Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.ATK, 1.234_56),
-            StatFixtures.Effect("B_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 1.0));
+        var result = Atk(
+            0.0,
+            Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.ATK, 1.234_56),
+            Effect("B_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 1.0));
 
-        result.Final[StatId.ATK].ShouldBe(2.4692, "1.23456 -> 1.2346 at step 4, then x2");
-        result.Final[StatId.ATK].ShouldNotBe(2.4691, "2.46912 rounded once would be 2.4691");
-    }
-
-    /// <summary>
-    /// 🔒 Step 6 rounds <b>before</b> step 7 multiplies, so a conversion delta with a fifth decimal
-    /// place cannot be magnified by a later multiplier.
-    /// </summary>
-    /// <remarks>
-    /// Discriminating, unlike a step-6 case with nothing after it: a delta of <c>0.00005</c> onto a
-    /// base of 1.0 rounds to <c>1.0001</c> at step 6 and doubles to <c>2.0002</c>. Carried unrounded
-    /// into step 7 it is <c>2.0001</c>. The seam supplies the deltas, so this is the one step whose
-    /// input is not already 4-dp by construction.
-    /// </remarks>
-    [Fact]
-    public void Step_6_rounds_the_conversion_deltas_before_step_7_multiplies()
-    {
-        var result = StatAggregation.Aggregate(
-            StatFixtures.Block((StatId.ATK, 1.0)),
-            [
-                StatFixtures.Effect("A_CONVERT", EffectOp.STAT_CONVERT, StatId.DEF, 0.10),
-                StatFixtures.Effect("B_MULT", EffectOp.STAT_MULT, StatId.ATK, 2.0),
-            ],
-            StatCaps.None,
-            StatAggregationSeams.Strict with { Ops = new FixedConversion(new StatDelta(StatId.ATK, 0.000_05)) });
-
-        result.Final[StatId.ATK].ShouldBe(2.0002, "1.00005 -> 1.0001 at step 6, then x2");
-        result.Final[StatId.ATK].ShouldNotBe(2.0001, "2.0001 is 1.00005 x 2 rounded once afterwards");
+        result.ShouldBe(2.4692, "1.23456 -> 1.2346 at step 4, then x2");
+        result.ShouldNotBe(2.4691, "2.46912 rounded once would be 2.4691");
     }
 
     /// <summary>
@@ -334,78 +334,65 @@ public sealed class StatAggregationTests
     /// — nothing after them magnifies a difference — so which of the three rounds it is not
     /// observable, and only that <em>one</em> of them does is.
     /// </summary>
-    /// <remarks>
-    /// Stated this way rather than as "step 8 rounds", because that claim would be untestable: the
-    /// value arrives from <see cref="IEffectValueReader"/>, which is the only place in the pipeline an
-    /// unrounded number can enter after step 7, and `18` §8's own step 10 would catch it regardless.
-    /// The redundancy is deliberate (see the pipeline's remarks) and this case pins the outcome the
-    /// redundancy exists to guarantee.
-    /// </remarks>
     [Fact]
     public void A_STAT_SET_of_an_unrounded_value_lands_rounded()
     {
-        var result = Uncapped(
-            StatFixtures.Block((StatId.ATK, 5.0)),
-            StatFixtures.Effect("A_SET", EffectOp.STAT_SET, StatId.ATK, 1.234_56));
+        var result = Atk(5.0, Effect("A_SET", EffectOp.STAT_SET, StatId.ATK, 1.234_56));
 
-        result.Final[StatId.ATK].ShouldBe(1.2346);
-        StatRounding.IsRounded(result.Final[StatId.ATK]).ShouldBeTrue();
-    }
-
-    [Fact]
-    public void Every_stat_in_the_result_is_rounded_to_four_places()
-    {
-        var result = Uncapped(
-            StatFixtures.Block((StatId.ATK, 3.0)),
-            StatFixtures.Effect("A_MULT", EffectOp.STAT_MULT, StatId.ATK, 1.000_000_1));
-
-        result.Final.Values.Select(v => v.Value).ShouldAllBe(v => StatRounding.IsRounded(v));
-        result.Final.Values.Count().ShouldBe(14, "ShouldAllBe passes on an empty collection");
+        result.ShouldBe(1.2346);
+        StatRounding.IsRounded(result).ShouldBeTrue();
     }
 
     // ────────────────────────────────────────────────────────────────────── step 9 · the caps
 
+    /// <summary>
+    /// 🔒 `05` §1.1: <em>"caps are applied <b>after</b> all aggregation"</em>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b><c>DR_PCT</c> is the cap these cases read, and it is chosen because it is the one capped
+    /// stat whose ceiling is <em>deterministically</em> visible in the log.</b> `05` §4 step 6
+    /// multiplies the hit by <c>(1 − DR%)</c>, so a defender whose <c>DR_PCT</c> aggregates above the
+    /// 0.60 ceiling takes 40% of the raw hit and one that was capped early takes a different, wrong
+    /// fraction. The other five capped stats (<c>CRIT</c>, <c>DODGE</c>, <c>BLOCK</c>, …) are draw
+    /// thresholds, so their ceilings are only visible as a rate across many swings.
+    /// </para>
+    /// <para>The attacker's raw is 100 throughout, which makes each expectation the percentage that survived.</para>
+    /// </remarks>
     [Fact]
     public void Caps_are_applied_after_all_aggregation()
     {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.CRIT, 0.05)),
-            StatFixtures.Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.CRIT, 30.0),
-            StatFixtures.Effect("B_MULT", EffectOp.STAT_MULT, StatId.CRIT, 5.0));
-
-        result.Final[StatId.CRIT].ShouldBe(0.75, "05 §1 caps CRIT at 0.75, however large the build gets");
+        Mitigated(
+            Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.DR_PCT, 30.0),
+            Effect("B_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 5.0))
+            .ShouldBe(40.0, "05 §1 caps DR% at 0.60 however large the build gets, so 40% of 100 lands");
     }
 
     /// <summary>
-    /// 🔒 `05` §1.1: <em>"caps are applied <b>after</b> all aggregation"</em> — not between steps.
-    /// A cap applied before step 7 would bind the multiplier's input instead of its output.
+    /// 🔒 A cap applied before step 7 would bind the multiplier's input instead of its output — and
+    /// a <c>STAT_SET</c> below the ceiling means the cap binds nothing at all.
     /// </summary>
     [Fact]
     public void A_cap_binds_the_end_of_the_pipeline_not_an_intermediate()
     {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.DODGE, 0.40)),
-            StatFixtures.Effect("A_MULT", EffectOp.STAT_MULT, StatId.DODGE, 2.0),
-            StatFixtures.Effect("B_SET", EffectOp.STAT_SET, StatId.DODGE, 0.30));
-
-        result.Final[StatId.DODGE].ShouldBe(
-            0.30, "step 8's set lands after step 7's x2 and below the 0.50 cap, so the cap binds nothing");
+        Mitigated(
+            Effect("A_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 2.0),
+            Effect("B_SET", EffectOp.STAT_SET, StatId.DR_PCT, 0.30))
+            .ShouldBe(70.0, "step 8's set lands after step 7's x2 and below the 0.60 cap, so 70% lands");
     }
 
     /// <summary>
     /// 🔒 Step 9 is <b>after</b> step 8, and the two orders give different answers. A
     /// <c>STAT_SET</c> above the ceiling is clamped; a cap applied before the set would be
-    /// overwritten by it and the actor would carry an uncapped dodge.
+    /// overwritten by it and the actor would carry an uncapped DR%.
     /// </summary>
     [Fact]
     public void A_STAT_SET_above_the_ceiling_is_still_capped()
     {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.DODGE, 0.02)),
-            StatFixtures.Effect("A_SET", EffectOp.STAT_SET, StatId.DODGE, 0.90));
+        var landed = Mitigated(Effect("A_SET", EffectOp.STAT_SET, StatId.DR_PCT, 0.90));
 
-        result.Final[StatId.DODGE].ShouldBe(0.50, "05 §1 caps DODGE at 0.50, and step 9 runs after step 8");
-        result.Final[StatId.DODGE].ShouldNotBe(0.90, "0.90 is what capping before step 8 would leave");
+        landed.ShouldBe(40.0, "05 §1 caps DR% at 0.60, and step 9 runs after step 8");
+        landed.ShouldNotBe(10.0, "10 is what an uncapped 0.90 would leave — a cap applied before step 8");
     }
 
     /// <summary>
@@ -416,60 +403,32 @@ public sealed class StatAggregationTests
     [Fact]
     public void A_cap_is_not_applied_to_an_intermediate_a_later_step_brings_back_down()
     {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.CRIT, 0.05)),
-            StatFixtures.Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.CRIT, 30.0),
-            StatFixtures.Effect("B_MULT", EffectOp.STAT_MULT, StatId.CRIT, 0.5));
+        var landed = Mitigated(
+            Effect("A_PCT", EffectOp.STAT_ADD_PCT, StatId.DR_PCT, 30.0),
+            Effect("B_MULT", EffectOp.STAT_MULT, StatId.DR_PCT, 0.5));
 
-        result.Final[StatId.CRIT].ShouldBe(0.75, "0.05 x 31 = 1.55, x 0.5 = 0.775, then capped to 0.75");
-        result.Final[StatId.CRIT].ShouldNotBe(0.375, "0.375 is 0.75 x 0.5 — a cap applied at step 5 instead of step 9");
-    }
-
-    [Fact]
-    public void An_uncapped_stat_is_never_bound()
-    {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.THORNS, 0.10)),
-            StatFixtures.Effect("A_MULT", EffectOp.STAT_MULT, StatId.THORNS, 40.0));
-
-        result.Final[StatId.THORNS].ShouldBe(4.0, "05 §1 caps THORN nowhere");
-    }
-
-    // ────────────────────────────────────────────────────── ALL_COMBAT and the non-combat stats
-
-    [Fact]
-    public void ALL_COMBAT_reaches_every_one_of_the_fourteen_and_nothing_else()
-    {
-        var baseStats = ActorStats.From(StatIds.Combat.ToDictionary(stat => stat, _ => 3.0));
-
-        var result = Uncapped(
-            baseStats,
-            StatFixtures.AllCombatEffect("A_MULT", EffectOp.STAT_MULT, 2.0));
-
-        result.Final.Values.Count().ShouldBe(14);
-        result.Final.Values.ShouldAllBe(v => v.Value == 6.0);
-        result.SkippedNonCombatStatEffects.ShouldBeEmpty();
+        landed.ShouldBe(40.0, "0.05 x 31 = 1.55, x 0.5 = 0.775, then capped to 0.60, so 40% lands");
+        landed.ShouldNotBe(
+            70.0, "70 is a 0.30 DR% — the cap applied at step 5 (0.60) and then halved by step 7");
     }
 
     /// <summary>
-    /// 🔒 A stat op naming one of `18` §2.1's 12 non-combat stats is legitimate authored content —
-    /// a "+X% Gold Gain" affix — and is simply not the actor block's subject. It is <b>reported</b>
-    /// rather than dropped.
+    /// 🔒 An uncapped stat is never bound. `05` §1 caps <c>THORNS</c> nowhere, and the reflected
+    /// damage is what says so.
     /// </summary>
     /// <remarks>
-    /// Silently ignoring it is the failure mode: a resolver that hands the whole build here and never
-    /// asks what was left behind would lose every economy affix in the game with nothing going red.
+    /// The attacker's hit is 100, so a <c>THORNS</c> of 4.0 reflects 400 — four times the hit that
+    /// caused it, which no ceiling in `05` §1 would allow if one applied.
     /// </remarks>
     [Fact]
-    public void A_stat_op_on_a_non_combat_stat_is_reported_rather_than_silently_dropped()
+    public void An_uncapped_stat_is_never_bound()
     {
-        var result = Uncapped(
-            StatFixtures.Block((StatId.ATK, 100.0)),
-            StatFixtures.Effect("GEAR_GOLD_AFFIX", EffectOp.STAT_ADD_PCT, StatId.GOLD_PCT, 0.15),
-            StatFixtures.Effect("PK_SHARP_EDGE_I", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.12));
-
-        result.Final[StatId.ATK].ShouldBe(112.0);
-        result.SkippedNonCombatStatEffects.ShouldBe(["GEAR_GOLD_AFFIX"]);
+        PublicFightBench.Duel(
+            PublicFightBench.Stats(500_000.0, (StatId.ATK, 100.0)),
+            PublicFightBench.Stats(500_000.0, (StatId.THORNS, 0.10)),
+            defenderEffects: [Effect("A_MULT", EffectOp.STAT_MULT, StatId.THORNS, 40.0)])
+            .ValuesBy(CombatEventType.Hit, CombatActor.Enemy(0))
+            .ShouldContain(400.0, "0.10 x 40 = 4.0 uncapped, and 4.0 x the 100 hit is 400 reflected");
     }
 
     // ──────────────────────────────────────────────────────────────────────── the whole order
@@ -481,66 +440,45 @@ public sealed class StatAggregationTests
     [Fact]
     public void The_ten_steps_run_in_the_order_18_section_8_states()
     {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.ATK, 100.0), (StatId.CRIT, 0.05), (StatId.MAX_HP, 1000.0)),
-            StatFixtures.Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.ATK, 50.0),
-            StatFixtures.Effect("B_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.20),
-            StatFixtures.Effect("C_MULT", EffectOp.STAT_MULT, StatId.ATK, 1.50),
-            StatFixtures.Effect("D_PCT_CRIT", EffectOp.STAT_ADD_PCT, StatId.CRIT, 30.0),
-            StatFixtures.Effect("E_SET_HP", EffectOp.STAT_SET, StatId.MAX_HP, 1.0));
-
-        // step 4: 100 + 50 = 150 · step 5: 150 x 1.20 = 180 · step 7: 180 x 1.50 = 270
-        result.Final[StatId.ATK].ShouldBe(270.0);
-
-        // step 5: 0.05 x 31 = 1.55 · step 9: capped to 0.75
-        result.Final[StatId.CRIT].ShouldBe(0.75);
-
-        // step 8 writes 1, and step 7's multipliers never touched MAX_HP
-        result.Final[StatId.MAX_HP].ShouldBe(1.0);
-        result.PostMultiplierMaxHp.ShouldBe(1000.0);
+        Atk(
+            100.0,
+            Effect("A_FLAT", EffectOp.STAT_ADD_FLAT, StatId.ATK, 50.0),
+            Effect("B_PCT", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.20),
+            Effect("C_MULT", EffectOp.STAT_MULT, StatId.ATK, 1.50))
+            .ShouldBe(270.0, "step 4: 100 + 50 = 150 · step 5: x 1.20 = 180 · step 7: x 1.50 = 270");
     }
 
+    /// <summary>An empty effect list leaves the base block alone.</summary>
     [Fact]
-    public void An_empty_effect_list_leaves_the_base_block_alone()
-    {
-        var baseStats = StatFixtures.HeroCurve().At(60);
-
-        var result = Aggregate(baseStats);
-
-        result.Final.ShouldBe(baseStats);
-        result.PostMultiplierMaxHp.ShouldBe(2950.0);
-        result.SkippedNonCombatStatEffects.ShouldBeEmpty();
-    }
+    public void An_empty_effect_list_leaves_the_base_block_alone() =>
+        Atk(137.5).ShouldBe(137.5);
 
     /// <summary>Ops that are not `18` §2.1 stat ops change no stat, and are not an error.</summary>
     [Fact]
-    public void An_op_that_is_not_a_stat_op_changes_nothing()
-    {
-        var result = Aggregate(
-            StatFixtures.Block((StatId.ATK, 100.0)),
+    public void An_op_that_is_not_a_stat_op_changes_nothing() =>
+        Atk(
+            100.0,
             new EffectDefinition { Id = "PK_CLEAVE", Op = EffectOp.DAMAGE, Value = 0.40 },
-            new EffectDefinition { Id = "PK_FLURRY", Op = EffectOp.EXTRA_ATTACK, Value = 1 });
+            new EffectDefinition { Id = "PK_FLURRY", Op = EffectOp.EXTRA_ATTACK, Value = 1 })
+            .ShouldBe(100.0);
 
-        result.Final[StatId.ATK].ShouldBe(100.0);
-    }
-
+    /// <summary>
+    /// 🔒 A stat op naming one of `18` §2.1's 12 non-combat stats is legitimate authored content — a
+    /// "+X% Gold Gain" affix — and is simply not the actor block's subject. The fight runs, and the
+    /// combat stats it does name are unaffected.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ That the skipped effect is <b>reported</b> rather than silently dropped is
+    /// <c>AggregatedStats.SkippedNonCombatStatEffects</c>, which no fight publishes — see
+    /// <c>StatAggregationInternalTests</c> for that half.
+    /// </remarks>
     [Fact]
-    public void A_stat_op_with_no_stat_selector_is_refused_rather_than_ignored()
-    {
-        var thrown = Should.Throw<ArgumentException>(() => Aggregate(
-            StatFixtures.Block((StatId.ATK, 100.0)),
-            new EffectDefinition { Id = "PK_BROKEN", Op = EffectOp.STAT_ADD_PCT, Value = 0.12 }));
-
-        thrown.Message.ShouldContain("PK_BROKEN", Case.Sensitive);
-        thrown.Message.ShouldContain("no 'stat'", Case.Sensitive);
-    }
-
-    [Fact]
-    public void A_null_effect_in_the_list_is_refused()
-    {
-        Should.Throw<ArgumentNullException>(() => StatAggregation.Aggregate(
-            StatFixtures.Zeroed(), [null!], StatCaps.None, StatAggregationSeams.Strict));
-    }
+    public void A_stat_op_on_a_non_combat_stat_leaves_the_combat_block_alone() =>
+        Atk(
+            100.0,
+            Effect("GEAR_GOLD_AFFIX", EffectOp.STAT_ADD_PCT, StatId.GOLD_PCT, 0.15),
+            Effect("PK_SHARP_EDGE_I", EffectOp.STAT_ADD_PCT, StatId.ATK, 0.12))
+            .ShouldBe(112.0);
 
     /// <summary>
     /// 🔒 A non-combat stat op never reaches the value reader. `18` §1.1's <c>valueScale</c> on a
@@ -549,77 +487,83 @@ public sealed class StatAggregationTests
     /// stat this pipeline was never going to write.
     /// </summary>
     [Fact]
-    public void A_non_combat_stat_op_is_skipped_before_its_value_is_ever_read()
-    {
-        var hoard = new EffectDefinition
-        {
-            Id = "PK_HOARD_I",
-            Op = EffectOp.STAT_ADD_PCT,
-            Stat = StatSelector.Of(StatId.GOLD_PCT),
-            Value = 0.01,
-            ValueScale = new ValueScale { Fn = ConditionFunction.GOLD_HELD, Per = 100, Cap = null },
-        };
-
-        var result = Uncapped(StatFixtures.Block((StatId.ATK, 100.0)), hoard);
-
-        result.Final[StatId.ATK].ShouldBe(100.0);
-        result.SkippedNonCombatStatEffects.ShouldBe(["PK_HOARD_I"]);
-    }
+    public void A_non_combat_stat_op_is_skipped_before_its_value_is_ever_read() =>
+        Atk(
+            100.0,
+            new EffectDefinition
+            {
+                Id = "PK_HOARD_I",
+                Op = EffectOp.STAT_ADD_PCT,
+                Stat = StatSelector.Of(StatId.GOLD_PCT),
+                Value = 0.01,
+                ValueScale = new ValueScale { Fn = ConditionFunction.GOLD_HELD, Per = 100, Cap = null },
+            })
+            .ShouldBe(100.0, "the fight runs rather than throwing about a stat it never writes");
 
     /// <summary>
     /// 🔒 The step-2 gate is asked only of `18` §2.1's six stat ops. A conditional <c>DAMAGE</c>
-    /// clause changes no stat, so refusing it here would make the strict seams unusable against any
-    /// real build for a reason that has nothing to do with the stat pipeline.
+    /// clause changes no stat, so refusing it here would make the pipeline unusable against any real
+    /// build for a reason that has nothing to do with the stat pipeline.
     /// </summary>
     [Fact]
-    public void A_conditional_effect_outside_the_stat_family_does_not_reach_the_step_2_gate()
-    {
-        var cleave = new EffectDefinition
-        {
-            Id = "PK_CLEAVE_I",
-            Op = EffectOp.DAMAGE,
-            Value = 0.40,
-            Condition = EffectCondition.Of(new ConditionTerm
+    public void A_conditional_effect_outside_the_stat_family_does_not_reach_the_step_2_gate() =>
+        Atk(
+            100.0,
+            new EffectDefinition
             {
-                Fn = ConditionFunction.ENEMY_COUNT,
-                Comparator = ConditionComparator.GT,
-                Value = 1,
-            }),
-        };
+                Id = "PK_CLEAVE_I",
+                Op = EffectOp.DAMAGE,
+                Value = 0.40,
+                Condition = EffectCondition.Of(new ConditionTerm
+                {
+                    Fn = ConditionFunction.ENEMY_COUNT,
+                    Comparator = ConditionComparator.GT,
+                    Value = 1,
+                }),
+            })
+            .ShouldBe(100.0);
 
-        var result = Aggregate(StatFixtures.Block((StatId.ATK, 100.0)), cleave);
-
-        result.Final[StatId.ATK].ShouldBe(100.0);
-    }
-
+    /// <summary>
+    /// 🔒 A stat op with no <c>stat</c> selector is refused by name rather than ignored, and the
+    /// refusal reaches a caller outside <c>Core</c> as an exception from the fight.
+    /// </summary>
     [Fact]
-    public void The_arguments_are_all_required()
+    public void A_stat_op_with_no_stat_selector_is_refused_rather_than_ignored()
     {
-        Should.Throw<ArgumentNullException>(() => StatAggregation.Aggregate(
-            null!, [], StatCaps.None, StatAggregationSeams.Strict));
-        Should.Throw<ArgumentNullException>(() => StatAggregation.Aggregate(
-            StatFixtures.Zeroed(), null!, StatCaps.None, StatAggregationSeams.Strict));
-        Should.Throw<ArgumentNullException>(() => StatAggregation.Aggregate(
-            StatFixtures.Zeroed(), [], null!, StatAggregationSeams.Strict));
-        Should.Throw<ArgumentNullException>(() => StatAggregation.Aggregate(
-            StatFixtures.Zeroed(), [], StatCaps.None, null!));
+        var thrown = Should.Throw<ArgumentException>(() => Atk(
+            100.0,
+            new EffectDefinition { Id = "PK_BROKEN", Op = EffectOp.STAT_ADD_PCT, Value = 0.12 }));
+
+        thrown.Message.ShouldContain("PK_BROKEN", Case.Sensitive);
+        thrown.Message.ShouldContain("no 'stat'", Case.Sensitive);
     }
 
-    /// <summary>A conversion seam that returns fixed deltas whatever it is handed.</summary>
-    private sealed class FixedConversion(params StatDelta[] deltas) : IStatOpBehaviour
-    {
-        public IReadOnlyList<StatDelta> Convert(
-            IReadOnlyList<EffectDefinition> conversions, ActorStats postAdditive, IEffectValueReader values) =>
-            conversions.Count == 0 ? [] : deltas;
+    // ══════════════════════════════════════════════════════════════════════════════ helpers
 
-        public StatCaps OverrideCaps(
-            IReadOnlyList<EffectDefinition> overrides, StatCaps declared, IEffectValueReader values) => declared;
+    /// <summary>
+    /// The hit that lands on a defender holding <paramref name="defenderEffects"/>, against a raw
+    /// of 100 — so the number <em>is</em> the percentage `05` §4 step 6 let through.
+    /// </summary>
+    /// <remarks>
+    /// The defender's base <c>DR_PCT</c> is `05` §2's 0.0 plus the 0.05 these cases build on, and its
+    /// <c>DEF</c> is 0 so that step 3's mitigation cannot dilute step 6's fraction.
+    /// </remarks>
+    private static double Mitigated(params EffectDefinition[] defenderEffects) =>
+        PublicFightBench.Duel(
+            PublicFightBench.Stats(500.0, (StatId.ATK, 100.0)),
+            PublicFightBench.Stats(500_000.0, (StatId.DR_PCT, 0.05)),
+            defenderEffects: defenderEffects)
+        .AttackerHit();
 
-        public IReadOnlyList<StatDelta> RedirectCappedExcess(
-            IReadOnlyList<EffectDefinition> overrides, ActorStats preCap, StatCaps effective,
-            IEffectValueReader values) => [];
-
-        public double? HealCeilingFraction(
-            IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values) => null;
-    }
+    /// <summary>A `05` §4.1 ward grant of a flat amount, on the holder, at battle start.</summary>
+    private static EffectDefinition Shield(string id, double amount) =>
+        new()
+        {
+            Id = id,
+            Op = EffectOp.SHIELD,
+            Value = amount,
+            ValueMode = ValueMode.FLAT,
+            Target = EffectTarget.SELF,
+            Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_START },
+        };
 }
