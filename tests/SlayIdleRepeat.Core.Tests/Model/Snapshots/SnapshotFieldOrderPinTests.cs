@@ -5,21 +5,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
 /// <summary>
-/// 🔒 `14` §16.6 — *"A CI test pins the field list per <c>SchemaVersion</c>."* This is that test.
+/// 🔒 `14` §16.6 — <em>"A CI test pins the field list per <c>SchemaVersion</c>."</em> This is that test.
 /// </summary>
 /// <remarks>
+/// The subject set — public snapshot records under <c>Core/Model/Snapshots/</c> — was empty until the
+/// first record landed, and the rules were written against that final subject regardless, becoming
+/// real assertions with no <c>Skip</c> and nobody having to switch anything on.
 /// <para>
-/// The subject set — public snapshot records in <c>Core/Model/Snapshots/</c> — was empty until
-/// <b>M1-04</b>, because <c>PlayerSnapshot</c> and <c>RunSnapshot</c> are <c>M1-04</c>/<c>M1-05</c>'s.
-/// The rules below were written against that final subject regardless, and they became real
-/// assertions the moment the first record landed, with no <c>Skip</c>, no placeholder, and nobody
-/// having to remember to switch anything on. They now quantify over <c>PlayerSnapshot</c>'s
-/// nineteen pinned fields.
-/// </para>
-/// <para>
-/// Because a vacuous rule proves nothing about its own teeth, the second half of this file drives
-/// the same comparison against deliberately wrong lists over a test-only record — so an added,
-/// removed and reordered field are each proven to be caught, without ever committing a violation.
+/// Because a vacuous rule proves nothing about its own teeth, the second half of this file drives the
+/// same comparison against deliberately wrong lists over a test-only record — an added, removed and
+/// reordered field each proven caught, without ever committing a violation.
 /// </para>
 /// </remarks>
 public sealed class SnapshotFieldOrderPinTests
@@ -300,27 +295,17 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 The floor that replaced the vacuity tripwire. <b>The pin woke up in M1-04</b>:
-    /// <c>PlayerSnapshot</c> is the first snapshot record, its field list is pinned in
-    /// <c>SnapshotFieldOrder.json</c> under SchemaVersion 1, and the four rules above are real
-    /// assertions from that commit.
+    /// 🔒 The floor that replaced the vacuity tripwire: the subject set is never empty again, and it
+    /// names the record it expects.
     /// </summary>
     /// <remarks>
+    /// The old tripwire asserted the set was <i>empty</i> and told the filling milestone to delete it —
+    /// which would have left the four pin rules with nothing watching their subject set, the exact S3
+    /// failure the tripwire existed to prevent, one commit after it was retired.
     /// <para>
-    /// The tripwire that used to stand here asserted the subject set was <i>empty</i> and told the
-    /// milestone that filled it to delete the test. Deleting it outright would have left the four
-    /// pin rules with nothing watching their subject set at all — exactly the steering <b>S3</b>
-    /// failure the tripwire existed to prevent, arriving one commit after it was retired. So it is
-    /// replaced rather than removed: the assertion flips from "still empty" to "never empty again",
-    /// and it names the record it expects.
-    /// </para>
-    /// <para>
-    /// Both halves matter. The count floor catches the selector being emptied by a move or a
-    /// visibility change (<c>PlayerSnapshot</c> made <c>internal</c>, or nested, or moved out of
-    /// <c>Core/Model/Snapshots/</c> — all of which
-    /// <see cref="The_visibility_and_namespace_filter_reaches_the_snapshots_namespace_today"/>
-    /// documents as plausible). Naming <c>PlayerSnapshot</c> catches it being emptied by a rename,
-    /// which a bare count would not once <c>RunSnapshot</c> lands beside it.
+    /// Both halves matter: the count floor catches the selector being emptied by a move or a visibility
+    /// change, and naming <c>PlayerSnapshot</c> catches a rename, which a bare count would not once
+    /// <c>RunSnapshot</c> lands beside it.
     /// </para>
     /// </remarks>
     [Fact]
@@ -346,17 +331,11 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 / `30` §11.3 — every snapshot record carries <c>SchemaVersion</c> as its
-    /// <b>first</b> field. <c>SnapshotSchema</c>'s own doc asserts it and nothing enforced it:
-    /// neither <c>CanonicalFieldOrder</c> nor the pin looked at index 0, so an M1-04 that omitted
-    /// it would fail nothing until <c>stateHash</c> values existed in the wild.
+    /// 🔒 Every snapshot record carries <c>SchemaVersion</c> as its <b>first</b> field.
+    /// <c>SnapshotSchema</c>'s own doc asserts it and nothing enforced it — neither
+    /// <c>CanonicalFieldOrder</c> nor the pin looked at index 0, so an omission would fail nothing
+    /// until <c>stateHash</c> values existed in the wild.
     /// </summary>
-    /// <remarks>
-    /// Added while it was still vacuous, which is when a rule is cheapest to write; live over
-    /// <c>PlayerSnapshot</c> since M1-04.
-    /// <see cref="The_first_field_rule_recognises_a_record_that_does_and_one_that_does_not"/> is
-    /// the half that proves it can tell the two apart.
-    /// </remarks>
     [Fact]
     public void Every_snapshot_record_carries_SchemaVersion_as_its_first_field()
     {

@@ -13,26 +13,15 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// 1/day"</em>, and the `30` §7 attribution row it must publish.
 /// </summary>
 /// <remarks>
+/// 🔴 The refill is a currency movement whose return value has to be carried all the way to
+/// <c>CommandResult.Events</c>, and <c>A_currency_event_is_never_discarded_at_its_call_site</c> can
+/// only see the <em>popped</em> version of that mistake, never the assigned-and-forgotten one — so it
+/// is asserted here, on the result.
 /// <para>
-/// 🔴 <b>The headline is M1-08's finding, one task on.</b> M1-08 proved that dropping the catch-up's
-/// events left the architecture suite green at 62/62 while `21` §8.3's
-/// <c>income_attribution.csv</c> silently lost every regeneration row. This handler's refill is
-/// exactly that shape — a currency movement produced by an aggregate mutator whose return value has
-/// to be carried all the way to <c>CommandResult.Events</c> — and
-/// <c>A_currency_event_is_never_discarded_at_its_call_site</c> can only see the <em>popped</em>
-/// version of the mistake, never the assigned-and-forgotten one. So it is asserted here, on the
-/// result, in <see cref="The_refills_CurrencyChanged_reaches_the_result_event_list"/>.
-/// </para>
-/// <para>
-/// 🔒 <b>The amount is M1-10's ruling, not this task's.</b> <c>EnergyMath.RefillToFull</c> is
-/// <b>deficit-only</b>: it grants <c>max(0, max − energy)</c>, so a full bar grants nothing and
-/// overflows nothing. The rival "fill both banks" reading makes the refill 400 rather than 120 and
-/// raises `10` §3.2's free-player daily budget materially — 240 at Legend Level 1 and 400 at the
-/// 200 cap, against an authored day of roughly 480 — but ⚠️ <b>the reading is a LIVE CONTRADICTION
-/// registered for a ruling (S16), not a settled rule</b>, and <c>EnergyMath.RefillToFull</c> is the
-/// one place that argument lives. These tests assert the handler <em>calls</em> that rule; they do
-/// not restate its arithmetic and they do not declare a winner, which is a verdict the authoritative
-/// site deliberately withheld.
+/// 🔒 The amount is <c>EnergyMath.RefillToFull</c>'s ruling, not this suite's: it is <b>deficit-only</b>,
+/// so a full bar grants nothing. ⚠️ The rival "fill both banks" reading is a <b>live contradiction
+/// registered for a ruling</b>, not a settled rule. These tests assert the handler <em>calls</em> that
+/// rule; they do not restate its arithmetic and do not declare a winner.
 /// </para>
 /// </remarks>
 public sealed class BeginSessionRefillTests
@@ -53,21 +42,14 @@ public sealed class BeginSessionRefillTests
     /// exactly where it was, on both sides of the cap.
     /// </summary>
     /// <remarks>
+    /// ⚠️ The Legend Levels span the point Max Energy stops growing (first reached at level <b>41</b>,
+    /// not 40), which is what this theory uniquely contributes — and exactly why the expectation must
+    /// not be computed by the rule under test.
     /// <para>
-    /// ⚠️ The Legend Levels span the point Max Energy stops growing (`10` §3's cap of 200, first
-    /// reached at level <b>41</b>, not 40 — see <c>EnergyTuning.MaxEnergyAt</c>), so the sweep covers
-    /// both sides of the cap rather than three points on the same slope. That boundary is what this
-    /// theory uniquely contributes, which is exactly why the expectation must not be computed by the
-    /// rule under test.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It used to assert against <c>EnergyMath.RefillToFull</c> itself</b>, and that assertion
-    /// could not distinguish the handler <em>calling</em> the rule from the handler restating it
-    /// correctly — and could not fail for any bug living inside <c>RefillToFull</c>. The name said
-    /// "exactly what EnergyMath answers" and the assertion was true of the defect it named (S1, and
-    /// the shape M1-09 measured: a test whose name is right and whose assertion is satisfied by the
-    /// bug). The independent expectation below also keeps the deficit-only cascade under test — a
-    /// refill that topped the Reserve up would move the second component off its input value of 3.
+    /// 🔒 It used to assert against <c>EnergyMath.RefillToFull</c> itself, which could not distinguish
+    /// the handler <em>calling</em> the rule from restating it, and could not fail for any bug inside
+    /// <c>RefillToFull</c>. The independent expectation also keeps the deficit-only cascade under test —
+    /// a refill that topped the Reserve up would move the second component off its input value of 3.
     /// </para>
     /// </remarks>
     [Theory]
@@ -162,21 +144,15 @@ public sealed class BeginSessionRefillTests
 
     /// <summary>
     /// 🔒 The refill's reason is <b>distinct</b> from regeneration's, and both rows survive when a
-    /// command does the two at once.
+    /// command does the two at once — ordered, accrual first.
     /// </summary>
     /// <remarks>
+    /// The accrual genuinely happened first, before the handler was built. A refill stamped ahead of it
+    /// would tell the log the player was topped up from a bar they had not yet refilled into.
     /// <para>
-    /// 🔒 <b>Ordered: the catch-up's accrual first, the refill second.</b> `30` §7's <c>Sequence</c>
-    /// orders one command's list, `14` §7.1 appends it to the economy log and `14` §2.4 replays it as
-    /// the animation script — and the accrual genuinely happened first, before the handler was even
-    /// built. A refill stamped ahead of the regeneration that preceded it would tell the log the
-    /// player was topped up from a bar they had not yet refilled into.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>It is the SHARPEST test of the two tokens being separate.</b> If <c>daily_free_refill</c>
-    /// and <c>energy_regen</c> were one token, `10` §3.2's budget could not tell the free player's
-    /// flat daily income from their idle accrual — the exact question `21` §8.3 exists to answer —
-    /// and every other test in this file would still pass.
+    /// ⚠️ The sharpest test of the two tokens being separate: if they were one, `10` §3.2's budget could
+    /// not tell the free player's flat daily income from their idle accrual — the exact question `21`
+    /// §8.3 exists to answer — and every other test in this file would still pass.
     /// </para>
     /// </remarks>
     [Fact]

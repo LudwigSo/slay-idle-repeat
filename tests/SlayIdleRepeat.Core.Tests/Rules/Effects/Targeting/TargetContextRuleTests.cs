@@ -7,27 +7,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Targeting;
 
 /// <summary>
-/// 🔒 The uniform rule for a `18` §5 token that cannot be answered, and the floor under the eleven
-/// tokens themselves.
+/// 🔒 The uniform rule for a `18` §5 token that cannot be answered: <b>a token whose SUBJECT is absent
+/// throws <see cref="EffectContextException"/>; a token whose subject is present but whose SET is
+/// empty resolves to the empty set.</b>
 /// </summary>
 /// <remarks>
-/// <para>
-/// `18` §5 authors a degradation for exactly two of its eleven targets — <c>OTHER_ENEMIES</c>
-/// degrades, <c>OWNER</c> is skipped — and those two are pinned in
-/// <see cref="TargetResolverTests"/>. For the other nine it authors nothing, and steering S6 forbids
-/// inventing a rule to fill the gap. The rule chosen is therefore stated once and applied uniformly:
-/// </para>
-/// <para>
-/// 🔒 <b>A token whose SUBJECT is absent from the context throws
-/// <see cref="EffectContextException"/>; a token whose subject is present but whose SET is empty
-/// resolves to the empty set.</b>
-/// </para>
-/// <para>
-/// The empty-set half is covered in <see cref="TargetResolverTests"/>. This file covers the throwing
-/// half, and pins <em>which</em> token failed rather than merely that something did (steering S2) —
-/// several independent absences produce the same exception type, so the type alone would not
-/// distinguish them.
-/// </para>
+/// §5 authors a degradation for two of its eleven targets and nothing for the other nine, and steering
+/// S6 forbids inventing one — so the rule is stated once and applied uniformly. The empty-set half is
+/// <see cref="TargetResolverTests"/>'; this file covers the throwing half and pins <em>which</em> token
+/// failed, since several independent absences produce the same exception type.
 /// </remarks>
 public sealed class TargetContextRuleTests
 {
@@ -94,14 +82,10 @@ public sealed class TargetContextRuleTests
     /// present, it simply holds no pet.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>This was a failure in the first draft of this suite, and the reasoning that changed it
-    /// is worth keeping.</b> The argument for throwing was that a PvE enemy side holds no hero and
-    /// therefore <em>cannot</em> hold a pet, so the token is meaningless there. But "a side with no
-    /// hero can hold no pets" appears in no document: `18` §5 names <c>ALL_PETS</c> once, in its token
-    /// list, with no semantics at all. Inventing that inference to justify a throw is exactly the hole
-    /// steering S6 forbids filling — and it would crash a battle over any boss effect authored with
-    /// <c>target: "ALL_PETS"</c>. The subject of the token is the holder's side, which is always
-    /// present; only the set is empty.
+    /// ⚠️ A failure in the first draft. The argument for throwing was that a side with no hero can hold
+    /// no pets — an inference that appears in no document, and inventing it would crash a battle over
+    /// any boss effect authored with <c>target: "ALL_PETS"</c>. The subject of the token is the holder's
+    /// side, which is always present.
     /// </remarks>
     [Fact]
     public void ALL_PETS_on_a_side_that_holds_no_pet_is_the_empty_set()
@@ -118,12 +102,10 @@ public sealed class TargetContextRuleTests
     /// skip.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The two are one condition away from being spelled identically, and collapsing them would
-    /// hide a roster-construction bug behind a documented no-op (S2/S6):
-    /// <see cref="IEffectActorView.OwnerId"/> documents <c>null</c> as <em>"an actor that was not
-    /// summoned"</em>, which an actor flagged <c>IsSummon</c> claims not to be. The genuinely skipped
-    /// cases — not a summon at all, and a summoner that has left the roster — are pinned in
-    /// <see cref="TargetResolverTests"/>.
+    /// ⚠️ The two are one condition from being spelled identically, and collapsing them hides a
+    /// roster-construction bug behind a documented no-op: <c>OwnerId</c> documents <c>null</c> as
+    /// <em>"an actor that was not summoned"</em>, which an actor flagged <c>IsSummon</c> claims not to
+    /// be.
     /// </remarks>
     [Fact]
     public void OWNER_on_a_summon_that_records_no_summoner_fails_loudly()
@@ -145,16 +127,13 @@ public sealed class TargetContextRuleTests
     }
 
     /// <summary>
-    /// 🔒 `18` §5 declares <c>RUN</c> — <em>"the run itself, for board ops"</em> — and `18` §2.5 rules
-    /// that run and board ops <em>"are resolved by the run controller, never by the combat
-    /// simulator"</em>: the simulator appends <c>RunEffectQueued</c> and the controller applies the
-    /// queue when the battle resolves.
+    /// 🔒 `18` §5 declares <c>RUN</c>, and §2.5 rules that run and board ops are resolved by the run
+    /// controller, never the simulator — which appends <c>RunEffectQueued</c> instead.
     /// </summary>
     /// <remarks>
-    /// A declared token with no resolver is the correct end state here — the run controller is M3's
-    /// and the <c>Run</c> aggregate is M1-05's, and a placeholder resolver would be a guess at both.
-    /// The throw is what makes "nobody wired this yet" impossible to mistake for "this resolved to
-    /// nobody".
+    /// A declared token with no resolver is the correct end state: the run controller is M3's, and a
+    /// placeholder would be a guess. The throw makes "nobody wired this yet" impossible to mistake for
+    /// "this resolved to nobody".
     /// </remarks>
     [Fact]
     public void RUN_has_no_actor_resolver_and_says_so()
@@ -175,15 +154,12 @@ public sealed class TargetContextRuleTests
 
     /// <summary>
     /// 🔒 Every one of `18` §5's eleven tokens is handled — none falls through to an unhandled switch
-    /// arm, and no token was added to <see cref="EffectTarget"/> without a resolution.
+    /// arm, and no token was added without a resolution.
     /// </summary>
     /// <remarks>
-    /// Steering S3: this rule is driven by <c>Enum.GetValues</c>, so its subject set could silently
-    /// empty. Its floor is the count pin in
-    /// <c>EffectVocabularyCountTests.There_are_11_targets</c>, which is an equality against `18` §11's
-    /// <em>"11 targets = 9 + <c>OTHER_ENEMIES</c> + <c>OWNER</c>"</em>; deleting members there is a
-    /// build failure, so this rule cannot quantify over an emptied enum. The count is re-asserted
-    /// below so that the dependency is visible from here rather than only from the other file.
+    /// Driven by <c>Enum.GetValues</c>, so its subject set could silently empty; its floor is the count
+    /// pin in <c>EffectVocabularyCountTests</c>, re-asserted below so the dependency is visible from
+    /// here rather than only from the other file.
     /// </remarks>
     [Fact]
     public void Every_one_of_the_eleven_targets_resolves_or_states_why_it_cannot()
