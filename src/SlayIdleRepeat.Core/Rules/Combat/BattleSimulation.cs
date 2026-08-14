@@ -1073,6 +1073,36 @@ internal sealed class BattleSimulation
     }
 
     /// <summary>
+    /// 🔒 <c>ON_LETHAL</c> — `18` §3's <em>"would take fatal damage"</em>, fired inside `05` §4 step 9
+    /// between ward absorption and the HP write, when the post-absorption hit would take the holder
+    /// to <c>&lt;= 0</c> HP. See <see cref="BattleServices.FireLethal"/> and
+    /// <c>AttackPipeline.ApplyToHp</c>, the one call site.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>This is what lets <c>SURVIVE_LETHAL</c>/<c>REVIVE</c> arm on <c>ON_LETHAL</c> at all.</b>
+    /// `18` §7.4's <c>PK_UNBREAKABLE</c> authors <c>{"kind":"ON_LETHAL","once":true}</c> triggering
+    /// <c>SURVIVE_LETHAL</c>; firing this here, before <c>ApplyToHp</c> asks
+    /// <c>CombatFlowState.ConsumeDeathSave</c>, is what gives the op somewhere to arm the save the
+    /// consume call is about to look for. `05` §3.1's anti-loop <c>once</c> bound is the trigger's
+    /// own — <see cref="TriggerInstance"/> — plus <c>DeathSave.FiresOnce</c>'s independent backstop on
+    /// the consume side; neither is this method's to enforce.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>One call, one occurrence — never per damage sub-component.</b> <c>ApplyToHp</c> is `05`
+    /// §4's single choke point for the attack, <c>DAMAGE_MAXHP_PCT</c> and the thorns reflect, so a
+    /// single call from there is what keeps a lethal hit firing this exactly once no matter which of
+    /// the three routes produced it.
+    /// </para>
+    /// </remarks>
+    internal void FireLethal(BattleActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        FireTriggers(actor, Occurrence(TriggerKind.ON_LETHAL, actor));
+    }
+
+    /// <summary>
     /// 🔒 `05` §4.3's <c>ON_HEAL</c>, fired after the HP is applied — see
     /// <see cref="BattleServices.AfterHeal"/>.
     /// </summary>

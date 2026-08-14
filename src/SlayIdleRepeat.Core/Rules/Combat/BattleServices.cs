@@ -145,6 +145,17 @@ internal sealed class BattleServices
     internal void AfterHpDecrease(BattleActor actor) => _simulation.AfterHpDecrease(actor);
 
     /// <summary>
+    /// 🔒 `18` §3's <c>ON_LETHAL</c> — <em>"would take fatal damage"</em>. Routed through the loop for
+    /// <see cref="AfterHpDecrease"/>'s reason: `18` §2.5's routing, `05` §3.1's cascade bound and the
+    /// op seams the fired effect resolves through are all the loop's, not a seam's.
+    /// </summary>
+    /// <param name="actor">
+    /// The defender whose post-absorption hit would take it to <c>&lt;= 0</c> HP. The caller
+    /// (<c>AttackPipeline.ApplyToHp</c>) decides that before calling — this method only fires.
+    /// </param>
+    internal void FireLethal(BattleActor actor) => _simulation.FireLethal(actor);
+
+    /// <summary>
     /// 🔒 `05` §4.3's <c>ON_HEAL</c> — fired <b>after</b> the HP is applied, with both readings in
     /// hand, which is what makes `18` §2.2's <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> value
     /// modes readable (<c>TriggerRegistry</c>).

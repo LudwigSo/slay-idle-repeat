@@ -49,11 +49,12 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// <list type="bullet">
 ///   <item><b>It never fires the on-hit family.</b> <c>BattleSimulation</c> reads the returned
 ///   <see cref="AttackResolution"/> and fires <c>ON_DODGE</c> / <c>ON_BLOCK</c> / <c>ON_HIT</c> /
-///   <c>ON_CRIT</c> / <c>ON_HIT_TAKEN</c> / <c>ON_KILL</c> in its own documented order. The two
-///   moments this pipeline <em>does</em> own are the ones `05` §4.3 and §3.1 put <b>inside</b> it:
-///   <c>ON_HEAL</c>, fired from <see cref="Heal"/> after the HP is applied, and <c>ON_LOW_HP</c>
+///   <c>ON_CRIT</c> / <c>ON_HIT_TAKEN</c> / <c>ON_KILL</c> in its own documented order. The three
+///   moments this pipeline <em>does</em> own are the ones `05` §4.3 and §3.1/§4 put <b>inside</b>
+///   it: <c>ON_HEAL</c>, fired from <see cref="Heal"/> after the HP is applied; <c>ON_LOW_HP</c>
 ///   plus the phase check, routed through <see cref="BattleServices.AfterHpDecrease"/> after every
-///   HP decrease.</item>
+///   HP decrease; and <c>ON_LETHAL</c>, fired from <see cref="ApplyToHp"/> between ward absorption
+///   and the HP write, routed through <see cref="BattleServices.FireLethal"/>.</item>
 ///   <item><b>It never composes <c>AttackMultiplier</c>.</b> `05` §4 makes it a per-attack transient
 ///   written only by <c>ATTACK_MULT_NEXT</c> charges, per-attack multiplier effects and a DSL
 ///   <c>DAMAGE</c> op; <c>CombatFlowState.ConsumeAttackMultiplier</c> composes the first and the
@@ -483,10 +484,32 @@ internal sealed class AttackPipeline : IAttackPipeline
         //    §8 makes the log the replay, and a Hit carrying the full lethal amount beside an actor
         //    standing at 1 HP is a frame a replayer cannot draw. It is also what step 10's ON_HIT
         //    readings see, so a lifesteal off the saving blow leeches the real number.
-        if (hpLost > 0.0 && target.CurrentHp - hpLost <= 0.0
-            && target.Flow.ConsumeDeathSave(revive: false) is { } save)
+        if (hpLost > 0.0 && target.CurrentHp - hpLost <= 0.0)
         {
-            hpLost = Math.Max(0.0, StatRounding.Round(target.CurrentHp - save.Hp));
+            // 🔴 `18` §3's ON_LETHAL, fired HERE and nowhere else — "would take fatal damage",
+            //    between ward absorption (above) and the HP write (below). `05` §4 step 9 is
+            //    exactly this order. TriggerCatalogue and TriggerRegistry have carried this moment's
+            //    description since M2-04 ("inside `05` §4, when the hit would be fatal, before slot
+            //    6"), and nothing fired it: `18` §7.4's PK_UNBREAKABLE — the doc's own worked
+            //    example — could not be authored in its documented shape, because `once` is admitted
+            //    only on ON_LETHAL/ON_LOW_HP and SURVIVE_LETHAL/REVIVE had to be armed on
+            //    ON_BATTLE_START instead (see DeathSaveTests before this fix).
+            //
+            //    🔒 Fired BEFORE ConsumeDeathSave, on purpose: a SURVIVE_LETHAL/REVIVE authored on
+            //    ON_LETHAL arms its save from inside this firing, and the consume immediately below
+            //    is what looks for it. A save armed any other way (ON_BATTLE_START, say) is
+            //    unaffected — it was already sitting on CombatFlowState waiting.
+            //
+            //    🔒 One call, guarded by the same `if` as the consume — never per damage
+            //    sub-component. ApplyToHp is `05` §4's one choke point for the attack,
+            //    DAMAGE_MAXHP_PCT and the thorns reflect (see the class remarks), so this is the one
+            //    place a lethal hit from any of the three routes fires ON_LETHAL exactly once.
+            _services.FireLethal(target);
+
+            if (target.Flow.ConsumeDeathSave(revive: false) is { } save)
+            {
+                hpLost = Math.Max(0.0, StatRounding.Round(target.CurrentHp - save.Hp));
+            }
         }
 
         if (hpLost > 0.0)
