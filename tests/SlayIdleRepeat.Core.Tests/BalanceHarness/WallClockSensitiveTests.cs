@@ -10,17 +10,13 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// in <b>one</b> collection, and the measurement it protects is in that same one.
 /// </summary>
 /// <remarks>
+/// 🔴 xUnit treats an unrecognised <c>[Collection("…")]</c> argument as a <em>new</em> collection rather
+/// than an error, so a typo, a rename, or a copy-pasted class that forgets the attribute all restore
+/// the parallelism that made the wall-clock measurement flake — and they restore it <em>silently</em>,
+/// as an intermittent red on an unrelated branch months later.
 /// <para>
-/// 🔴 <b>Steering S3 — this rule's subject set can silently become empty, so it is floored.</b> xUnit
-/// treats an unrecognised <c>[Collection("…")]</c> argument as a <em>new</em> collection rather than
-/// an error, so a typo, a rename, or a copy-pasted class that simply forgets the attribute all
-/// restore the parallelism that made
-/// <c>CombatSimulatorTests.A_worst_case_1800_tick_fight_simulates_inside_the_budget</c> flake — and
-/// they restore it <em>silently</em>, as an intermittent red on an unrelated branch months later.
-/// </para>
-/// <para>
-/// ⚠️ The count is asserted as well as the membership: a rule that walked an empty type list would
-/// pass forever, and <c>ShouldAllBe</c> is true of an empty collection.
+/// ⚠️ The count is asserted as well as the membership: a rule walking an empty type list would pass
+/// forever, and <c>ShouldAllBe</c> is true of an empty collection.
 /// </para>
 /// </remarks>
 [Collection(WallClockSensitive.Name)]

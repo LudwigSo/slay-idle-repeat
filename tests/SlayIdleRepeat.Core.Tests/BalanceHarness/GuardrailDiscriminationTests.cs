@@ -8,29 +8,24 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 /// <summary>
-/// 🔴 <b>Steering S1/S2 — the discriminating controls.</b> Every guardrail here is shown to
-/// <b>fire</b> on a subject that breaches it and to <b>pass</b> on one that does not.
+/// 🔴 <b>The discriminating controls.</b> Every guardrail here is shown to <b>fire</b> on a subject
+/// that breaches it and to <b>pass</b> on one that does not.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Why this file exists at all.</b> A statistical assertion is the easiest cannot-fail test
-/// there is: <em>"clear rate in [62%, 78%]"</em> passes for a great many broken simulators, and on
-/// the shipped data guardrails 3 and 4 have <b>no cleared fights to evaluate</b> — so without
-/// controls they would be untested code reporting on nothing. Each guardrail is probed in two
-/// shapes:
-/// </para>
+/// 🔒 A statistical assertion is the easiest cannot-fail test there is — <em>"clear rate in [62%,
+/// 78%]"</em> passes for a great many broken simulators, and on the shipped data guardrails 3 and 4
+/// have <b>no cleared fights to evaluate</b>. Each is probed in two shapes:
 /// <list type="number">
-///   <item><b>Synthetic subjects</b> that pin the assertion's boundary exactly — one tick either
-///   side of 12 s and 70 s, one fight either side of the clear-rate band. These test the
-///   <em>assertion</em>.</item>
-///   <item><b>Real simulations</b> of deliberately over- and under-powered builds, which must land
-///   outside the band and breach the floor and the ceiling for real. These test that the
-///   <em>simulator</em> can move the number the assertion reads.</item>
+///   <item><b>Synthetic subjects</b> pinning the assertion's boundary exactly — one tick either side of
+///   12 s and 70 s, one fight either side of the band. These test the <em>assertion</em>.</item>
+///   <item><b>Real simulations</b> of deliberately over- and under-powered builds, which must breach the
+///   floor and the ceiling for real. These test that the <em>simulator</em> can move the number the
+///   assertion reads.</item>
 /// </list>
 /// <para>
-/// ⚠️ The real controls use <c>heroPowerMultiple</c>, which is never anything but 1.0 in the sweep
-/// itself. The multiples below are measured values, not guesses: 200 × par clears 100% in 3.35 s,
-/// and the slow-wall build at 8 × par clears 100% with every clear above 75 s.
+/// ⚠️ The real controls use <c>heroPowerMultiple</c>, never anything but 1.0 in the sweep itself, and
+/// the multiples are measured: 200 × par clears 100% in 3.35 s, and the slow-wall build at 8 × par
+/// clears 100% with every clear above 75 s.
 /// </para>
 /// </remarks>
 [Collection(WallClockSensitive.Name)]

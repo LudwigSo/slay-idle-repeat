@@ -5,22 +5,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 
 /// <summary>
-/// 🔒 The shared contract suite for <c>IEliteModifierHistory</c> — every implementation is run
-/// through it, including M4-01's and M3's, which do not exist yet.
+/// 🔒 The shared contract suite for <c>IEliteModifierHistory</c> — every implementation is run through
+/// it, including M4-01's and M3's, which do not exist yet.
 /// </summary>
 /// <remarks>
+/// 🔒 Steering S7: <em>"Add the <c>InMemory</c> fake AND the shared contract suite in the same change as
+/// the port."</em> Not a port, but it has the property that matters: several implementations written
+/// months apart by people who never read each other's.
 /// <para>
-/// 🔒 Steering S7: <em>"Add the <c>InMemory</c> fake AND the shared contract suite in the same change
-/// as the port."</em> This seam is not a port — it declares no I/O — but it has the property that
-/// matters: it will have several implementations written by people who never read each other's,
-/// months apart. `24` §4.10's B2 protection owns the rule and <c>LuckService</c> (M4-01) implements
-/// it; the state lives on the <c>Run</c> aggregate (M1-05) under the run controller (M3).
-/// </para>
-/// <para>
-/// <b>To implement <c>IEliteModifierHistory</c>:</b> derive a test class from this one, override
-/// <see cref="Create"/> to build your implementation, and the rules below run against it. Nothing
-/// else is required, and nothing below may be overridden — a rule an implementation is allowed to
-/// opt out of is not a contract.
+/// <b>To implement it:</b> derive a test class from this one and override <see cref="Create"/>. Nothing
+/// may be overridden — a rule an implementation can opt out of is not a contract.
 /// </para>
 /// </remarks>
 public abstract class EliteModifierHistoryContract

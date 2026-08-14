@@ -13,20 +13,15 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// be mistaken for a passing guardrail.
 /// </summary>
 /// <remarks>
-/// <para>
-/// This is not defensive programming for its own sake. M2-16a's sweep hit three separate engine
-/// faults, each reachable only once a fight survives past boss phase 1:
-/// <c>BOSS_OSSUARY_KING</c>'s phase-1 summon crashing the pre-tick (fixed in
-/// <c>BattleSimulation</c>), a boss <c>PERIODIC</c> on <c>CURRENT_TARGET</c> that cannot resolve
-/// (chapters 4, 6 and 8), and <c>BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE</c> being an
-/// <c>APPLY_STATUS</c> with no <c>value</c> (chapter 5). A harness that died on the first of those
-/// would have reported nothing about the other 119 cells.
-/// </para>
+/// The sweep hit three separate engine faults, each reachable only once a fight survives past boss
+/// phase 1: a phase-1 summon crashing the pre-tick, a boss <c>PERIODIC</c> on <c>CURRENT_TARGET</c>
+/// that cannot resolve, and an <c>APPLY_STATUS</c> with no <c>value</c>. A harness that died on the
+/// first would have reported nothing about the other 119 cells.
 /// <para>
 /// 🔒 The design is deliberately asymmetric: <see cref="SweepRunner.RunCell"/> throws and
-/// <see cref="SweepRunner.TryRunCell"/> reports. The sweep and the diagnostics use the reporting
-/// form; the test suite and every guardrail-facing path use the throwing one, so a scaling bug
-/// cannot hide as an empty cell.
+/// <see cref="SweepRunner.TryRunCell"/> reports. The sweep and the diagnostics use the reporting form;
+/// the test suite and every guardrail-facing path use the throwing one, so a scaling bug cannot hide
+/// as an empty cell.
 /// </para>
 /// </remarks>
 [Collection(WallClockSensitive.Name)]

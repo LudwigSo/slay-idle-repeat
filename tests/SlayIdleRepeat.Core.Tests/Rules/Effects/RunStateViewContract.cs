@@ -9,35 +9,31 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 /// it, including the ones M1-05 and M3 have not written yet.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 Steering S7, in the words of the retro that produced it: <em>"Add the <c>InMemory</c> fake AND
-/// the shared contract suite in the same change as the port. M0's first port shipped without its
-/// suite and its two implementations already disagreed on the exception type they threw."</em>
-/// <see cref="IRunStateView"/> is not a port — it declares no I/O — but it has the property that
-/// matters here: it will have several implementations written by people who never read each other's,
+/// 🔒 Steering S7: <em>"Add the <c>InMemory</c> fake AND the shared contract suite in the same change as
+/// the port. M0's first port shipped without its suite and its two implementations already disagreed on
+/// the exception type they threw."</em> This is not a port — it declares no I/O — but it has the
+/// property that matters: several implementations, written by people who never read each other's,
 /// months apart.
-/// </para>
 /// <para>
-/// <b>To implement <see cref="IRunStateView"/>:</b> derive a test class from this one, override
-/// <see cref="Create"/> to build your implementation at the stated readings, and the rules below run
-/// against it. Nothing else is required, and nothing below may be overridden — a rule an
-/// implementation is allowed to opt out of is not a contract.
+/// <b>To implement it:</b> derive a test class from this one, override <see cref="Create"/> to build
+/// your implementation at the stated readings, and the rules below run against it. Nothing may be
+/// overridden — a rule an implementation can opt out of is not a contract.
 /// </para>
 /// </remarks>
 public abstract class RunStateViewContract
 {
-    /// <summary>
-    /// The readings a contract test asks an implementation to represent — every field of
-    /// <see cref="IRunStateView"/>, stated as data.
-    /// </summary>
-    /// <param name="PerksByCategory">Perks held, by `06` §2 category.</param>
-    /// <param name="DieFacesByKind">Die faces, by `04` §1 kind.</param>
-    /// <param name="PetCount">Pets equipped.</param>
-    /// <param name="GoldHeld">Gold held.</param>
-    /// <param name="BattlesWonThisRun">Battles won this run.</param>
-    /// <param name="StageIndex">The stage, 1..3.</param>
-    /// <param name="Chapter">The chapter.</param>
-    /// <param name="Tier">The tier's ordinal.</param>
+/// <summary>
+/// The readings a contract test asks an implementation to represent — every field of
+/// <see cref="IRunStateView"/>, stated as data.
+/// </summary>
+/// <param name="PerksByCategory">Perks held, by `06` §2 category.</param>
+/// <param name="DieFacesByKind">Die faces, by `04` §1 kind.</param>
+/// <param name="PetCount">Pets equipped.</param>
+/// <param name="GoldHeld">Gold held.</param>
+/// <param name="BattlesWonThisRun">Battles won this run.</param>
+/// <param name="StageIndex">The stage, 1..3.</param>
+/// <param name="Chapter">The chapter.</param>
+/// <param name="Tier">The tier's ordinal.</param>
     public sealed record RunStateFacts(
         IReadOnlyDictionary<string, int> PerksByCategory,
         IReadOnlyDictionary<string, int> DieFacesByKind,

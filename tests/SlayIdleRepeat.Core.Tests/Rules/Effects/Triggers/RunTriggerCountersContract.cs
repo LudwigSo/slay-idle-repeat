@@ -10,17 +10,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 /// through it, including the ones M1-05 and M3 have not written yet.
 /// </summary>
 /// <remarks>
+/// 🔒 Steering S7, as <c>RunStateViewContract</c> one directory over: not a port, but several
+/// implementations written months apart by people who never read each other's.
 /// <para>
-/// 🔒 Steering S7: <em>"Add the <c>InMemory</c> fake AND the shared contract suite in the same change
-/// as the port. M0's first port shipped without its suite and its two implementations already
-/// disagreed on the exception type they threw."</em> This is not a port — it declares no I/O — but it
-/// has the property that matters: it will have several implementations written by people who never
-/// read each other's, months apart. <c>RunStateViewContract</c> is the precedent one directory over.
-/// </para>
-/// <para>
-/// <b>To implement <see cref="IRunTriggerCounters"/>:</b> derive a test class from this one, override
-/// <see cref="Create"/>, and the rules below run against it. Nothing may be overridden — a rule an
-/// implementation may opt out of is not a contract.
+/// <b>To implement it:</b> derive a test class from this one and override <see cref="Create"/>. Nothing
+/// may be overridden — a rule an implementation can opt out of is not a contract.
 /// </para>
 /// </remarks>
 public abstract class RunTriggerCountersContract
