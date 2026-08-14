@@ -214,8 +214,16 @@ public sealed class AuthoredBossScriptTests
     // 17 §5 — Cindermaw
     [InlineData("BOSS_CINDERMAW_SMOULDER_BURN", 0.08, null, "§5: 'BURN (8% boss ATK/s, 3 s, stacks to 5)'")]
     [InlineData("BOSS_CINDERMAW_P2_MAGMA_VENT", 1.80, 9.0, "§5: 'PERIODIC 9s — Magma Vent: 180% ATK'")]
+    // 🔴 M2-R3 errata: BOSS_CINDERMAW_P2_VENT_REFRESH and _P3_VENT_REFRESH shipped with NO value at
+    // all — an EXTEND_STATUS whose seconds (18 §2.3: "the seconds come from value, not
+    // duration.seconds") were simply never authored, which faulted the instant either fired. 17 §5
+    // states only "refreshes all BURN stacks", no number; 3.0 is BOSS_CINDERMAW_SMOULDER_BURN's own
+    // per-application BURN duration two rows up, so "refresh" is read as "restore the fresh window
+    // that BURN would carry if applied now" rather than an unauthored magnitude of its own.
+    [InlineData("BOSS_CINDERMAW_P2_VENT_REFRESH", 3.00, 9.0, "§5: 'and refreshes all BURN stacks' (M2-R3: matches SMOULDER_BURN's own 3 s)")]
     [InlineData("BOSS_CINDERMAW_P2_ERUPTION_DR", 0.20, null, "§5: 'boss DR% +20%'")]
     [InlineData("BOSS_CINDERMAW_P3_MAGMA_VENT", 1.80, 7.0, "§5: 'PERIODIC 7s — Magma Vent continues'")]
+    [InlineData("BOSS_CINDERMAW_P3_VENT_REFRESH", 3.00, 7.0, "§5: 'refreshes all BURN stacks' (M2-R3, phase 3's copy of the same fix)")]
     [InlineData("BOSS_CINDERMAW_P3_OVERHEAT_ATK", 0.60, null, "§5: 'Overheat: boss ATK +60%'")]
     [InlineData("BOSS_CINDERMAW_P3_OVERHEAT_DEF", -0.40, null, "§5: 'DEF -40%'")]
     // 17 §6 — Rimehold

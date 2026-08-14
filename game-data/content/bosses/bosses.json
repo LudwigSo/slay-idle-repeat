@@ -288,6 +288,7 @@
           "id": "BOSS_CINDERMAW_P2_VENT_REFRESH",
           "op": "EXTEND_STATUS",
           "statusId": "BURN",
+          "value": 3.0,
           "trigger": { "kind": "PERIODIC", "interval": 9.0 },
           "target": "CURRENT_TARGET",
           "duration": { "seconds": 3.0, "scope": "BATTLE" }
@@ -312,6 +313,7 @@
           "id": "BOSS_CINDERMAW_P3_VENT_REFRESH",
           "op": "EXTEND_STATUS",
           "statusId": "BURN",
+          "value": 3.0,
           "trigger": { "kind": "PERIODIC", "interval": 7.0 },
           "target": "CURRENT_TARGET",
           "duration": { "seconds": 3.0, "scope": "BATTLE" }
