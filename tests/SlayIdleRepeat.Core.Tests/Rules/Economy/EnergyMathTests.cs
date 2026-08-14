@@ -9,13 +9,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
 
 /// <summary>
-/// `10` §3 and `28` Part C — the Energy and Energy Reserve math: Max Energy, regeneration,
-/// overflow routing, grants, refills and the automatic main-bar-first spend order.
+/// `10` §3 and `28` Part C — Max Energy, regeneration, overflow routing, grants, refills and the
+/// main-bar-first spend order.
 /// </summary>
 /// <remarks>
 /// The accrual rule itself — whole units only, anchor advanced by <c>units × interval</c> and never
-/// to "now" — has its own suite: <see cref="EnergyAccrualPropertyTests"/>. This one covers the
-/// arithmetic around it.
+/// to "now" — is <see cref="EnergyAccrualPropertyTests"/>'. This covers the arithmetic around it.
 /// </remarks>
 public sealed class EnergyMathTests
 {
@@ -88,15 +87,14 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 Every entry point guards the Legend Level, not just the one that uses it directly.
-    /// <c>Accrue</c> and <c>Grant</c> call <c>RequireLegendLevel</c> themselves; without a case per
-    /// entry point, deleting either call changes nothing observable (the nested <c>MaxEnergy</c>
-    /// still throws) and no test notices the guard has gone.
+    /// 🔒 <b>Every</b> entry point guards the Legend Level, not just the one that uses it directly:
+    /// without a case each, deleting <c>Accrue</c>'s or <c>Grant</c>'s call changes nothing observable
+    /// (the nested <c>MaxEnergy</c> still throws) and no test notices.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Zero is refused, not just negatives.</b> Since the increment counts levels gained,
-    /// Legend Level 0 would subtract one increment from the base and hand back 118 — a plausible
-    /// number for a state `07` §1.1 says cannot exist. The boundary is 1.
+    /// 🔒 Zero is refused, not just negatives: the increment counts levels <em>gained</em>, so Legend
+    /// Level 0 would subtract one and hand back 118 — a plausible number for a state `07` §1.1 says
+    /// cannot exist.
     /// </remarks>
     [Theory]
     [MemberData(nameof(EveryEntryPoint))]
@@ -184,10 +182,9 @@ public sealed class EnergyMathTests
     /// `10` §3 — "Full refill time: 8 hours from empty", at a <b>starting</b> player's tank.
     /// </summary>
     /// <remarks>
-    /// 🔒 Legend Level 1, not 0. Eight hours is exactly 120 units and a starting player's maximum is
-    /// exactly 120, so the bar fills to the brim and not one unit past or short — the whole point of
-    /// counting levels gained. Under <c>× legendLevel</c> this same case would leave them on 120 of
-    /// 122.
+    /// 🔒 Eight hours is exactly 120 units and a starting maximum is exactly 120, so the bar fills to
+    /// the brim and not one unit past or short. Under <c>× legendLevel</c> the same case would leave
+    /// them on 120 of 122.
     /// </remarks>
     [Fact]
     public void Eight_hours_fills_a_starting_players_empty_bar_exactly()
@@ -261,16 +258,14 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 `28` C2 — "Regenerates: ❌ Never on its own. The Reserve only ever receives what the main
-    /// bar could not hold."
+    /// 🔒 `28` C2 — <em>"Regenerates: ❌ Never on its own. The Reserve only ever receives what the main
+    /// bar could not hold."</em>
     /// </summary>
     /// <remarks>
-    /// ⚠️ Stated from a state where the Reserve has <b>room</b> and the main bar is <b>not</b>
-    /// full, which is the only shape that can tell the difference. This case originally accrued
-    /// into two already-full banks and asserted nothing moved — true, and useless: a Reserve given
-    /// its own regeneration term is still capped, so the full pair reports the same answer either
-    /// way. Proved by mutation: adding an independent Reserve regeneration to <c>Accrue</c> turned
-    /// ten other cases red and left the one named for the property green.
+    /// ⚠️ Stated from a state where the Reserve has <b>room</b> and the main bar is <b>not</b> full,
+    /// the only shape that can tell the difference. Accruing into two already-full banks asserts
+    /// nothing: a Reserve given its own regeneration term is still capped, so the full pair reports
+    /// the same answer either way.
     /// </remarks>
     [Fact]
     public void The_reserve_never_regenerates_on_its_own()
@@ -433,18 +428,15 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 <b>The ruling on "to full, overflowing".</b> `28` C2 lists daily refills and level-up
-    /// refills among the sources that overflow into the Reserve, and `10` §3.1 authors their amount
-    /// as "to full". "To full" of a bar that is already full is <b>zero</b>, so such a refill grants
-    /// nothing and therefore overflows nothing.
-    /// <para>
-    /// The alternative reading — that a refill grants a whole Max Energy regardless of the bar, so
-    /// a full-bar player banks an entire second tank — would require inventing an amount (<c>+max</c>)
-    /// that no document authors, which S6 forbids. `28` C2's list is naming the sources that route
-    /// through the overflow cascade, not claiming each one always produces overflow; regeneration,
-    /// quest grants and ad grants demonstrably do.
-    /// </para>
+    /// 🔒 <b>The ruling on "to full, overflowing".</b> "To full" of a bar that is already full is
+    /// <b>zero</b>, so such a refill grants nothing and therefore overflows nothing.
     /// </summary>
+    /// <remarks>
+    /// The alternative — a refill granting a whole Max Energy regardless of the bar, so a full-bar
+    /// player banks a second tank — would require inventing an amount no document authors. `28` C2's
+    /// list names the sources that <em>route through</em> the overflow cascade, not sources that
+    /// always produce overflow.
+    /// </remarks>
     [Fact]
     public void A_refill_of_an_already_full_bar_grants_nothing_and_banks_nothing()
     {
@@ -542,14 +534,11 @@ public sealed class EnergyMathTests
         EnergyMath.Spend(new EnergyBanks(10, 9), 20).IsAffordable.ShouldBeFalse();
     }
 
-    /// <summary>
-    /// `10` §3 — "Runs on a full tank: 6", at a starting player's 120 and 20 per run.
-    /// </summary>
+    /// <summary>`10` §3 — "Runs on a full tank: 6", at a starting player's 120 and 20 per run.</summary>
     /// <remarks>
-    /// 🔒 Exact, and the <c>left</c> assertion is the half that matters: 120 ÷ 20 leaves nothing
-    /// stranded. Under <c>× legendLevel</c> a starting player would hold 122 and finish with 2
-    /// Energy they can never spend, which is six runs by count and not the clean tank `10` §3
-    /// describes.
+    /// 🔒 The <c>left</c> assertion is the half that matters: 120 ÷ 20 strands nothing. Under
+    /// <c>× legendLevel</c> a starting player holds 122 and finishes with 2 Energy they can never
+    /// spend — six runs by count, but not the clean tank `10` §3 describes.
     /// </remarks>
     [Fact]
     public void A_starting_players_full_tank_pays_for_exactly_six_runs_with_nothing_left()

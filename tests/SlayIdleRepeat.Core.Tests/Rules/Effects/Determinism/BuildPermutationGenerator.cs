@@ -8,18 +8,16 @@ using SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
-/// <summary>
-/// One generated build permutation: everything one `18` §8 resolution pass consumes.
-/// </summary>
+/// <summary>One generated build permutation: everything one `18` §8 resolution pass consumes.</summary>
 /// <param name="Index">The permutation's ordinal, <c>0 .. PermutationCount - 1</c>.</param>
 /// <param name="Sources">`18` §8 step 1's ten sources, as far as this permutation populates them.</param>
 /// <param name="Context">The state `18` §4's conditions and `18` §1.1's <c>valueScale</c> read.</param>
 /// <param name="BaseStats">`05` §2's hero curve at this permutation's Legend Level.</param>
 /// <param name="Caps">`05` §1's six ceilings, before any <c>STAT_CAP_OVERRIDE</c>.</param>
 /// <param name="Effects">
-/// Every effect the permutation authored, in the order the generator emitted them — <b>not</b>
-/// resolution order. Carried so the coverage tests can read the emitted vocabulary back off the
-/// generator's actual output rather than off its declared intent.
+/// Every effect authored, in emission order — <b>not</b> resolution order. Carried so the coverage
+/// tests read the emitted vocabulary off the generator's actual output rather than its declared
+/// intent.
 /// </param>
 internal sealed record BuildPermutation(
     int Index,
@@ -30,70 +28,46 @@ internal sealed record BuildPermutation(
     IReadOnlyList<EffectDefinition> Effects);
 
 /// <summary>
-/// 🔒 The deterministic, re-runnable generator behind M2-17's `18` §8 determinism baseline: 10 000
-/// seeded random build permutations, each covering the whole DSL vocabulary and every `18` §10.1
-/// extension.
+/// 🔒 The deterministic, re-runnable generator behind the `18` §8 determinism baseline: 10 000 seeded
+/// build permutations covering the whole DSL vocabulary and every `18` §10.1 extension.
 /// </summary>
 /// <remarks>
+/// Permutation <c>i</c> draws from <c>new DeterministicRng(<see cref="BaselineSeed"/> + i,
+/// <see cref="RngStreams.Draft"/>)</c>. Stream names come from <see cref="RngStreams"/> and never as
+/// literals: a name merely spelled differently is a different, silently valid sequence.
 /// <para>
-/// <b>Seed derivation, stated so a regeneration is reproducible.</b> Permutation <c>i</c> draws from
-/// <c>new DeterministicRng(<see cref="BaselineSeed"/> + i, <see cref="RngStreams.Draft"/>)</c>. The
-/// base seed is the ASCII of <c>"M217"</c> in the high word, so the corpus names the task that owns
-/// it. `14` §8.1's registry is what makes the stream name load-bearing: a name merely spelled
-/// differently is a different, silently valid sequence, so the two streams below are named from
-/// <see cref="RngStreams"/> and never as literals.
+/// 🔒 Two streams, on `14` §8.1's split — composing a build is a <em>draft</em>, and the context
+/// carries a combat stream with the battle seed <b>handed in</b>. No `18` §4 condition reads the RNG
+/// today; the stream is supplied anyway, because a context that omitted it would stop being the
+/// context a real pass uses the moment one does.
 /// </para>
 /// <para>
-/// 🔒 <b>Two streams, and the split is `14` §8.1's.</b> Composing a build is a <em>draft</em> — which
-/// effects a permutation holds — so the generator draws on <see cref="RngStreams.Draft"/>. The
-/// context handed to the resolver carries a combat stream,
-/// <c>new DeterministicRng(battleSeed, <see cref="RngStreams.Combat"/>)</c> with the battle seed
-/// <b>handed in</b>, exactly as `14` §8.1 fixes it. <c>runSeed</c> never enters this layer and is not
-/// modelled here. No `18` §4 condition function reads the RNG at all today (only §5's
-/// <c>RANDOM_ENEMY</c> does, and target resolution is not on the `18` §8 path) — the stream is
-/// supplied anyway, because a context that omitted it would stop being the context a real pass uses
-/// the moment one does.
+/// 🔒 Anchored, then filled. Uniform draws over 44 ops would cover the vocabulary <em>in
+/// expectation</em>, which is not a property a test can assert — so each permutation emits one anchor
+/// per axis, rotated by index (<c>Ops[i % 44]</c>, <c>Triggers[i % 23]</c>), exhausting every axis by
+/// arithmetic. The filler on top is the random part.
 /// </para>
 /// <para>
-/// 🔒 <b>Every permutation is anchored, then filled.</b> Uniform draws over 44 ops would cover the
-/// vocabulary in expectation and not by construction, and "in expectation" is not a property a test
-/// can assert. Each permutation therefore emits one <em>anchor</em> per vocabulary axis, rotated by
-/// the permutation index — <c>Ops[i % 44]</c>, <c>Triggers[i % 23]</c>, and so on — so 10 000
-/// permutations exhaust every axis by arithmetic. The filler effects on top are the random part, and
-/// are what makes the corpus a permutation set rather than a rotation.
+/// 🔒 Above 16 effects, deliberately: a naive duplicate-id test cannot detect removal of
+/// <see cref="EffectResolutionOrder"/>'s tiebreak, because <c>Collect()</c> normalises order and
+/// .NET's introsort is stable at 16 or fewer. Every permutation also carries a duplicate-id pair
+/// placed in two <em>different</em> step-1 sources, so the tiebreak is the only thing separating them.
 /// </para>
 /// <para>
-/// 🔒 <b>Above 16 effects, deliberately.</b> M2-02 found that a naive duplicate-id test cannot
-/// detect the removal of <see cref="EffectResolutionOrder"/>'s <c>(source, index)</c> tiebreak,
-/// because <c>Collect()</c> normalises order <em>and</em> .NET's introsort is stable at 16 elements
-/// or fewer. Every permutation here carries at least <see cref="MinimumAnchorCount"/> anchors plus
-/// <c>0 .. <see cref="MaxFiller"/> - 1</c> filler effects, so at least
-/// <see cref="MinimumFractionAboveIntrosortThreshold"/> of the corpus exceeds the threshold — and
-/// every permutation carries a deliberate duplicate-id pair, placed in two <em>different</em> `18` §8
-/// step-1 sources so the tiebreak is the only thing separating them.
+/// ⚠️ This is a committed-baseline test, not the two-runtime parity test `18` §11 describes — there is
+/// one resolver in one assembly and no client build until M7. Real cross-runtime parity is
+/// <b>M5-12</b>'s, and it re-asserts this corpus's table on each runtime.
 /// </para>
 /// <para>
-/// ⚠️ <b>Its successor is M5-12.</b> This is a committed-baseline determinism test, not the
-/// two-runtime parity test `18` §11's last line describes: there is one resolver, in one assembly,
-/// and no client build exists until M7, so there is nothing to compare against. Real cross-runtime
-/// parity — Linux x64 and Android ARM64, the iOS ARM64 leg authored but gated off with iOS itself
-/// (`16` D34) — is <b>M5-12</b>'s, and it re-asserts this corpus's committed table on each of them.
+/// ⚠️ Two departures from a live fight: the context always carries a run reading, including on PvP
+/// permutations, so all nine of `18` §4's run functions resolve; and generated magnitudes are bounded
+/// so no <c>STAT_MULT</c> product overflows to infinity, which <c>StatRounding</c> would throw on.
 /// </para>
 /// <para>
-/// ⚠️ <b>Two deliberate departures from a live fight, recorded rather than hidden.</b> <b>(1)</b> The
-/// context always carries a run reading, including on the PvP permutations, so that all nine of
-/// `18` §4's run functions resolve; whether a duel has a run to read is `11`'s question and not
-/// `18` §8's. <b>(2)</b> Generated magnitudes are bounded (see <c>StatEffect</c>) so no
-/// permutation can overflow a <c>STAT_MULT</c> product to infinity — <c>StatRounding</c> throws on
-/// one, and a corpus that threw would pin nothing.
-/// </para>
-/// <para>
-/// ⚠️ <b>The directory is not a layer claim.</b> These files sit under <c>Rules/Effects/</c> because
-/// their subject is `18` §8, but <c>PermutationResolution</c> deliberately names
-/// <c>Rules.Stats</c> and <c>Model.Snapshots</c> — the mirror image of the direction R17 forbids in
-/// production. That is legitimate only because <c>IntraRulesLayeringRuleTests</c>' subject set is the
-/// <c>SlayIdleRepeat.Core</c> module and this is the test assembly, which by design sees every layer
-/// at once. Nothing here may move into <c>Core</c> without that composition being reconsidered.
+/// ⚠️ The directory is not a layer claim: <c>PermutationResolution</c> deliberately names
+/// <c>Rules.Stats</c> and <c>Model.Snapshots</c>, the mirror of what R17 forbids in production. That is
+/// legitimate only because this is the test assembly, which by design sees every layer at once —
+/// nothing here may move into <c>Core</c> without reconsidering it.
 /// </para>
 /// </remarks>
 internal static class BuildPermutationGenerator
@@ -137,23 +111,19 @@ internal static class BuildPermutationGenerator
     /// <see cref="IntrosortStabilityThreshold"/> effects.
     /// </summary>
     /// <remarks>
-    /// The arithmetic: a permutation holds at least <see cref="MinimumAnchorCount"/> + <c>filler</c>
-    /// effects with <c>filler</c> uniform on <c>[0, <see cref="MaxFiller"/>)</c>, so it exceeds 16
-    /// whenever <c>filler &gt;= 4</c> — 26 of 30 draws, about 0.867. Floored at 0.75 rather than pinned at the
-    /// exact figure: the claim being defended is <em>"most of the corpus is above the threshold"</em>,
-    /// and pinning the sampling noise of a particular seed would make this a second baseline with none
+    /// A permutation holds <see cref="MinimumAnchorCount"/> + <c>filler</c> effects with <c>filler</c>
+    /// uniform on <c>[0, <see cref="MaxFiller"/>)</c>, so it exceeds 16 whenever <c>filler &gt;= 4</c> —
+    /// about 0.867. Floored at 0.75 rather than pinned: the claim is "most of the corpus is above the
+    /// threshold", and pinning one seed's sampling noise would make this a second baseline with none
     /// of the first one's value.
     /// </remarks>
     internal const double MinimumFractionAboveIntrosortThreshold = 0.75;
 
-    /// <summary>
-    /// 🔒 `05` §5's twelve status ids, exactly as that table spells them.
-    /// </summary>
+    /// <summary>🔒 `05` §5's twelve status ids, exactly as that table spells them.</summary>
     /// <remarks>
-    /// ⚠️ An earlier draft of this file invented <c>ST_BURN</c>, <c>ST_CHILL</c> and friends. `05` §5
-    /// names no prefix and has no <c>CHILL</c>, so a corpus keyed on those tokens would have pinned
-    /// <c>HAS_STATUS</c> and <c>STATUS_STACKS</c> readings over ids the game can never produce, under
-    /// a citation the document contradicted (steering S6). These are the document's.
+    /// ⚠️ An earlier draft invented <c>ST_BURN</c>, <c>ST_CHILL</c> and friends. `05` §5 names no prefix
+    /// and has no <c>CHILL</c>, so a corpus keyed on those would pin <c>HAS_STATUS</c> readings over
+    /// ids the game can never produce, under a citation the document contradicts.
     /// </remarks>
     private static readonly IReadOnlyList<string> StatusIds = new List<string>
     {

@@ -10,23 +10,16 @@ using SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// Fixtures and doubles for the `17` boss-engine suite — the mechanics `17` actually authors, a
-/// driver that puts a boss on an exact HP fraction at an exact tick, and a sampler that reads the
-/// trigger registry once per tick.
+/// Fixtures and doubles for the `17` boss-engine suite — the mechanics `17` authors, a driver that
+/// puts a boss on an exact HP fraction at an exact tick, and a sampler that reads the trigger
+/// registry once per tick.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔴 <b>Why the sampler exists at all.</b> <c>TriggerRegistry.Activate</c> is documented as leaving
-/// a <b>live</b> instance untouched, so a phase transition that forgot to <c>Deactivate</c> the
-/// exiting phase produces a fight in which every mechanic still fires — at the wrong anchor. A test
-/// that asserts <em>"the effect fired"</em> therefore passes with and without the de-anchoring and
-/// cannot fail. <see cref="InstanceSample"/> carries <c>AnchorTick</c> and <c>NextFiringTick</c>,
-/// which are the two readings that can.
-/// </para>
-/// <para>
-/// The doubles implement the real seams and nothing more, on <c>BattleTestBench</c>'s rule: nothing
-/// here re-implements `05` §4, `05` §5 or the phase machinery under test.
-/// </para>
+/// 🔴 <c>TriggerRegistry.Activate</c> leaves a <b>live</b> instance untouched, so a phase transition
+/// that forgot to <c>Deactivate</c> the exiting phase produces a fight in which every mechanic still
+/// fires — at the wrong anchor. A test asserting "the effect fired" passes either way and cannot
+/// fail. <see cref="InstanceSample"/> carries <c>AnchorTick</c> and <c>NextFiringTick</c>, the two
+/// readings that can.
 /// </remarks>
 internal static class BossTestBench
 {
@@ -48,11 +41,11 @@ internal static class BossTestBench
     /// </summary>
     /// <param name="id">The boss's actor id — also <see cref="BossScript.Id"/>.</param>
     /// <param name="maxHp">Max HP. 1000 makes every `17` §1 threshold a whole number of HP.</param>
-    /// <param name="effects">Its holdings, with explicit instance ids (`17` §1's D2 spelling).</param>
+    /// <param name="effects">Its holdings, with explicit instance ids.</param>
     /// <remarks>
-    /// ⚠️ <b>ASPD is 0.001 deliberately</b>: these fights are about phases, not swings, and a 1.0-ASPD
-    /// roster fills the log with a hit every second. One opening swing lands at tick 0 (`05` §3.1's
-    /// <c>attackCooldown = 0</c> for every battle-opening actor) and the next is 1000 s away.
+    /// ⚠️ ASPD is 0.001 deliberately: these fights are about phases, not swings, and a 1.0-ASPD roster
+    /// fills the log with a hit every second. One opening swing lands at tick 0 and the next is 1000 s
+    /// away.
     /// </remarks>
     internal static ActorPlan Boss(string id, double maxHp = 1000.0, params HeldEffect[] effects) =>
         new()
@@ -160,12 +153,11 @@ internal static class BossTestBench
     /// <summary>A <c>SUMMON</c> mechanic — `17` §2's phase-3 adds.</summary>
     /// <param name="id">The effect id.</param>
     /// <param name="maxAlive">`18` §2.4's <c>maxAlive</c>, which `17` §1 caps at 3.</param>
-    /// <param name="count">`18` §2.4's count — how many adds one firing asks for.</param>
+    /// <param name="count">How many adds one firing asks for.</param>
     /// <param name="everySeconds">
-    /// When given, the mechanic is a <c>PERIODIC</c> of that period instead of `17` §2's
-    /// <c>ON_PHASE_ENTER</c> — the shape that produces a <b>second wave</b>, which is the only way to
-    /// observe `05` §3.1's <em>"summons … never reuse a dead one's id"</em> and the 3-alive cap
-    /// refusing a firing.
+    /// When given, a <c>PERIODIC</c> of that period instead of <c>ON_PHASE_ENTER</c> — the shape that
+    /// produces a <b>second wave</b>, the only way to observe "summons never reuse a dead one's id"
+    /// and the 3-alive cap refusing a firing.
     /// </param>
     internal static EffectDefinition Summon(
         string id,

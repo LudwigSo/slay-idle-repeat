@@ -12,50 +12,34 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
 /// <summary>
-/// 🔒 M2-17 — `18` §11's last checklist line, read as the product owner ruled it: a
-/// <b>committed-baseline determinism test</b> over 10 000 seeded random build permutations resolved
-/// through `18` §8 and hashed with <c>CanonicalStateWriter</c>.
+/// 🔒 `18` §11's last checklist line, read as the product owner ruled it: a <b>committed-baseline
+/// determinism test</b> over 10 000 seeded build permutations resolved through `18` §8 and hashed
+/// with <c>CanonicalStateWriter</c>.
 /// </summary>
 /// <remarks>
+/// §11 asks for a <em>"parity test: client and server resolvers agree"</em>. There is <b>one</b>
+/// resolver both sides load, and no client build until M7 — so comparing it with itself would be a
+/// test that cannot fail. As a committed baseline it still catches what the parity line exists to
+/// catch: an accidental order-dependence in `18` §8. Real two-runtime parity is <b>M5-12</b>.
 /// <para>
-/// `18` §11 asks for a <em>"parity test: client and server resolvers agree on 10,000 random build
-/// permutations"</em>. There is <b>one</b> resolver, in one assembly, that both sides will load, and
-/// no client build exists until M7 — so there is nothing to compare against, and a test that compared
-/// the resolver with itself would be a test that cannot fail. Reinterpreted as a committed baseline,
-/// it catches the thing the parity line exists to catch: an accidental order-dependence in `18` §8.
-/// <b>Real two-runtime parity is M5-12</b>, on Linux x64 and Android ARM64 (the iOS ARM64 leg is
-/// authored but gated off with iOS itself, `16` D34), and it re-asserts this table on each.
+/// 🔴 The baseline is self-generated: <em>build permutation → hash</em> has no publisher, so the table
+/// proves <b>stability</b> — the resolver is a pure function whose output cannot drift unnoticed — and
+/// <b>not</b> that the encoding or resolution order is correct. That is the per-op unit tests'.
 /// </para>
 /// <para>
-/// 🔴 <b>The baseline is self-generated and says so.</b> See <see cref="DslDeterminismBaseline"/>'s
-/// header: M0-06 and M0-07 validated against externally published vectors because xxHash64 and
-/// FNV-1a are published algorithms; <em>build permutation → hash</em> has no publisher. What the
-/// table proves is <b>stability</b> — the resolver is a pure function whose output cannot drift
-/// unnoticed. It does <b>not</b> prove the encoding or the resolution order is correct; that is
-/// M2-02…M2-07's per-op and per-step unit tests. What was confirmed before a row was written is that
-/// <c>CanonicalStateWriter</c> still reproduces FNV-1a's published vectors —
-/// <c>Fnv1a64KnownAnswerTests</c> and <c>CanonicalStateWriterReferenceVectorTests</c> are the suites,
-/// and they are in this same assembly, so they run in the same pass as these rows.
-/// </para>
-/// <para>
-/// 🔴 <b>R18 — `18` §10 step 4 is this file.</b> The extension procedure ends <em>"add the op to the
-/// client/server parity test"</em>, and the coverage tests below are what that step now means. The
-/// generator's emitted vocabulary is asserted against `18`'s catalogues <b>in both directions</b>
-/// (steering S3), so a 45th op cannot be added without either appearing in the corpus or failing a
-/// test — and every one of `18` §10.1's extensions has to reach the corpus too.
+/// 🔴 <b>R18 — `18` §10 step 4 is this file.</b> The extension procedure ends "add the op to the
+/// client/server parity test", and the coverage tests below are what that now means: the generator's
+/// emitted vocabulary is asserted against `18`'s catalogues <b>in both directions</b>, so a 45th op
+/// cannot be added without appearing in the corpus or failing a test.
 /// </para>
 /// </remarks>
 public sealed class DslDeterminismBaselineTests
 {
-    /// <summary>
-    /// A wall-clock guard against an algorithmic regression, not a performance target.
-    /// </summary>
+    /// <summary>A wall-clock guard against an algorithmic regression, not a performance target.</summary>
     /// <remarks>
-    /// 10 000 permutations must fit the <b>unit</b> tier — this repository deliberately has no
-    /// integration tier and is not getting one. Measured on the M2-17 development machine: generation
-    /// 1.8-2.2 s, resolution 0.53 s, hashing 0.50 s, so about <b>3 s</b> in total. The budget is ~10×
-    /// that, which leaves room for a slow CI agent without letting an accidental O(n²) in `18` §8
-    /// through unnoticed. It is a regression guard, not a performance target.
+    /// 10 000 permutations must fit the <b>unit</b> tier — this repository has no integration tier and
+    /// is not getting one. Measured at about 3 s in total; the budget is ~10× that, which leaves room
+    /// for a slow CI agent without letting an accidental O(n²) in `18` §8 through.
     /// </remarks>
     private const int BudgetSeconds = 30;
 
@@ -153,16 +137,12 @@ public sealed class DslDeterminismBaselineTests
         DslDeterminismBaseline.Named.Where(row => row.Id == id).ShouldHaveSingleItem();
     }
 
-    /// <summary>
-    /// The review block's <em>shape</em>, which the reader's refusals do not check.
-    /// </summary>
+    /// <summary>The review block's <em>shape</em>, which the reader's refusals do not check.</summary>
     /// <remarks>
-    /// ⚠️ Deliberately not <c>ReviewStatus.ShouldBe("reviewed")</c> or
-    /// <c>ReviewWhy.ShouldNotBeNullOrWhiteSpace()</c>: <see cref="DslDeterminismBaseline.Validate"/>
-    /// has already refused both, so those assertions could not fail. The refusals themselves are
-    /// driven by <see cref="DslDeterminismBaselineRefusalTests"/>. What is left for this test is the
-    /// part nothing else checks — that the date is a date, and in the timezone-free form a committed
-    /// artefact carries (the rule <c>--write-baseline</c>'s <c>recordedOn</c> states).
+    /// ⚠️ Deliberately not <c>ReviewStatus.ShouldBe("reviewed")</c>:
+    /// <see cref="DslDeterminismBaseline.Validate"/> has already refused that, so the assertion could
+    /// not fail. What is left is what nothing else checks — that the date is a date, in the
+    /// timezone-free form a committed artefact carries.
     /// </remarks>
     [Fact]
     public void The_committed_table_carries_a_reviewers_date_in_the_form_a_committed_artefact_uses()
@@ -474,11 +454,10 @@ public sealed class DslDeterminismBaselineTests
     /// corpus.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The floor is <see cref="MinimumFractionOfDuplicatesSurvivingStep2"/> and not the
-    /// >16-effect fraction, because these are two different claims. The generator puts a duplicate
-    /// pair in every permutation; step 2 is then free to gate either half out on its condition, and
-    /// this counts what <em>survived</em>. Reusing the one constant would have made the looser claim
-    /// look like it followed from the tighter one.
+    /// ⚠️ A separate floor from the &gt;16-effect fraction, because these are different claims: the
+    /// generator puts a duplicate pair in every permutation, step 2 is free to gate either half out,
+    /// and this counts what <em>survived</em>. Reusing one constant would make the looser claim look
+    /// like it followed from the tighter one.
     /// </remarks>
     [Fact]
     public void Duplicate_effect_ids_survive_step_2_above_the_introsort_threshold()
@@ -605,21 +584,19 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// 🔒 M2-02's tiebreak, above the introsort threshold and with duplicate ids — the case whose
-    /// removal a 16-element test cannot detect.
+    /// 🔒 The tiebreak above the introsort threshold with duplicate ids — the case whose removal a
+    /// 16-element test cannot detect.
     /// </summary>
     /// <remarks>
-    /// Twenty entries, five ids, four <c>(source, index)</c> pairs each. Asserted three ways: the
-    /// two arrival orders agree, the result is the literal order the ruling describes, and the input
-    /// really was above the threshold. The literal expectation is what makes this pin
-    /// <em>which</em> order rather than merely <em>some</em> order (steering S2).
+    /// Twenty entries, five ids, four <c>(source, index)</c> pairs each, asserted three ways: the two
+    /// arrival orders agree, the result is the literal order the ruling describes, and the input really
+    /// was above the threshold. The literal expectation is what pins <em>which</em> order rather than
+    /// merely <em>some</em> order.
     /// <para>
-    /// ⚠️ <b>It extends M2-02's coverage rather than duplicating it, and it lives here on purpose.</b>
-    /// <c>EffectResolverTests.The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements</c>
-    /// drives twenty entries sharing <em>one</em> id; this drives a 5 × 4 cross product, which is the
-    /// shape a corpus of ten thousand builds actually produces. It sits in the determinism suite
-    /// because it is the localised half of a baseline failure: when the aggregate hash moves, this
-    /// test says whether the tiebreak is why, without which the only signal is 113 red rows.
+    /// ⚠️ It extends <c>EffectResolverTests</c>' single-id version with a 5 × 4 cross product, the shape
+    /// a corpus of ten thousand builds actually produces. It lives here because it is the localised
+    /// half of a baseline failure: when the aggregate hash moves, this says whether the tiebreak is
+    /// why, without which the only signal is 113 red rows.
     /// </para>
     /// </remarks>
     [Fact]
@@ -779,20 +756,16 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// 🔒 Steering S3, over one vocabulary axis — <b>three</b> comparisons, because two of them
-    /// would be circular.
+    /// 🔒 Steering S3 over one vocabulary axis — <b>three</b> comparisons, because two would be
+    /// circular.
     /// </summary>
     /// <param name="emitted">What the generator actually put into the 10 000 permutations.</param>
-    /// <param name="declared">
-    /// <see cref="EffectVocabularyEmissionSets"/>'s hand-written list — the thing under test.
-    /// </param>
+    /// <param name="declared"><see cref="EffectVocabularyEmissionSets"/>'s hand-written list.</param>
     /// <param name="catalogue">
-    /// 🔒 <b>The independent authority: `18`'s own closed enum.</b> The emitted set is compared
-    /// against <em>this</em>, never against <paramref name="declared"/>. Comparing the emission set
-    /// with itself is what a first draft of this helper did, and it meant that deleting an op from
-    /// the emission set deleted it from both sides — the two-directional check stayed green and only
-    /// an incidental count assertion noticed. The catalogue is what makes dropping a line from the
-    /// emission set fail with the op's <em>name</em> in the message.
+    /// 🔒 The independent authority: `18`'s own closed enum. The emitted set is compared against
+    /// <em>this</em>, never against <paramref name="declared"/> — comparing the emission set with
+    /// itself means deleting an op deletes it from both sides, and the two-directional check stays
+    /// green.
     /// </param>
     /// <param name="subject">What the tokens are, for the failure message.</param>
     /// <param name="citation">The document sentence being defended.</param>
