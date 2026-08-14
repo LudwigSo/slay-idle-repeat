@@ -33,41 +33,24 @@ internal sealed record BuildPermutation(
 /// </summary>
 /// <remarks>
 /// Permutation <c>i</c> draws from <c>new DeterministicRng(<see cref="BaselineSeed"/> + i,
-/// <see cref="RngStreams.Draft"/>)</c>. Stream names come from <see cref="RngStreams"/> and never as
-/// literals: a name merely spelled differently is a different, silently valid sequence.
+/// <see cref="RngStreams.Draft"/>)</c>, with stream names taken from <see cref="RngStreams"/> and never
+/// as literals — a name merely spelled differently is a different, silently valid sequence.
 /// <para>
-/// 🔒 Two streams, on `14` §8.1's split — composing a build is a <em>draft</em>, and the context
-/// carries a combat stream with the battle seed <b>handed in</b>. No `18` §4 condition reads the RNG
-/// today; the stream is supplied anyway, because a context that omitted it would stop being the
-/// context a real pass uses the moment one does.
+/// 🔒 <b>Anchored, then filled, and always above 16 effects.</b> Uniform draws over 44 ops would cover
+/// the vocabulary <em>in expectation</em>, which is not a property a test can assert — so each
+/// permutation emits one anchor per axis, rotated by index, exhausting every axis by arithmetic. The
+/// 16-effect floor matters because a naive duplicate-id test cannot detect removal of
+/// <see cref="EffectResolutionOrder"/>'s tiebreak: <c>Collect()</c> normalises order and .NET's introsort
+/// is stable at 16 or fewer. Every permutation also carries a duplicate-id pair placed in two
+/// <em>different</em> step-1 sources, so the tiebreak is the only thing separating them.
 /// </para>
 /// <para>
-/// 🔒 Anchored, then filled. Uniform draws over 44 ops would cover the vocabulary <em>in
-/// expectation</em>, which is not a property a test can assert — so each permutation emits one anchor
-/// per axis, rotated by index (<c>Ops[i % 44]</c>, <c>Triggers[i % 23]</c>), exhausting every axis by
-/// arithmetic. The filler on top is the random part.
-/// </para>
-/// <para>
-/// 🔒 Above 16 effects, deliberately: a naive duplicate-id test cannot detect removal of
-/// <see cref="EffectResolutionOrder"/>'s tiebreak, because <c>Collect()</c> normalises order and
-/// .NET's introsort is stable at 16 or fewer. Every permutation also carries a duplicate-id pair
-/// placed in two <em>different</em> step-1 sources, so the tiebreak is the only thing separating them.
-/// </para>
-/// <para>
-/// ⚠️ This is a committed-baseline test, not the two-runtime parity test `18` §11 describes — there is
-/// one resolver in one assembly and no client build until M7. Real cross-runtime parity is
-/// <b>M5-12</b>'s, and it re-asserts this corpus's table on each runtime.
-/// </para>
-/// <para>
-/// ⚠️ Two departures from a live fight: the context always carries a run reading, including on PvP
-/// permutations, so all nine of `18` §4's run functions resolve; and generated magnitudes are bounded
-/// so no <c>STAT_MULT</c> product overflows to infinity, which <c>StatRounding</c> would throw on.
-/// </para>
-/// <para>
-/// ⚠️ The directory is not a layer claim: <c>PermutationResolution</c> deliberately names
-/// <c>Rules.Stats</c> and <c>Model.Snapshots</c>, the mirror of what R17 forbids in production. That is
-/// legitimate only because this is the test assembly, which by design sees every layer at once —
-/// nothing here may move into <c>Core</c> without reconsidering it.
+/// ⚠️ <b>Two departures from a live fight, and one thing this is not.</b> The context always carries a
+/// run reading, including on PvP permutations, so all nine of `18` §4's run functions resolve; and
+/// generated magnitudes are bounded so no <c>STAT_MULT</c> product overflows to infinity, which
+/// <c>StatRounding</c> would throw on. It is a committed-baseline test, not the two-runtime parity test
+/// §11 describes — real cross-runtime parity is <b>M5-12</b>'s and re-asserts this corpus's table on
+/// each runtime.
 /// </para>
 /// </remarks>
 internal static class BuildPermutationGenerator
