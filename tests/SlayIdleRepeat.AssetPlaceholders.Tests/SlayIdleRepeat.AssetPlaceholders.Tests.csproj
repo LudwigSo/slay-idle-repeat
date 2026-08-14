@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The placeholder generator's suite (M8-10).
+
+    Discovered automatically into the `unit` group by build/ci/Invoke-UnitTests.ps1's
+    tests/*/*.csproj glob — no edit to build/ci/test-suites.json, and REQUIRED to contain tests from
+    day one, which is why it ships populated rather than seeded empty.
+
+    It reads the real game-data/assets/asset_manifest_art.json and the real
+    assets/pipeline/thresholds.json, the same way SlayIdleRepeat.AssetPipeline.Tests and
+    SlayIdleRepeat.AssetManifest.Tests do. That is not an integration test: both are committed text
+    files in this repository. Every image is generated in code, no binary fixture is committed,
+    nothing here needs Docker, a server, a database or the Godot runtime, and no native tool is
+    ever invoked.
+
+    ⚠️ The full batch is ~641 images and is NOT a test. It is a CLI run
+    of tools/AssetPlaceholders' `generate` command, executed once in the
+    foreground and reported on. This suite drives a deliberately small, deliberately DIVERSE sample
+    — one row per `15` §C delivery size, both pivots, biome and non-biome, atlased and not — plus
+    the mechanical invariants that hold over the whole register without drawing anything.
+
+    🔒 SkiaSharp is NOT PackageReference'd here. It arrives transitively through the tool, which
+    keeps ProjectFileTests.Vendor_package_is_referenced_by_exactly_one_project green AND armed.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\tools\AssetPlaceholders\SlayIdleRepeat.AssetPlaceholders.csproj" />
+  </ItemGroup>
+
+  <!--
+    Shared test vocabulary, linked rather than project-referenced — tests/Shared/ holds no .csproj
+    because the discovery glob would find it and fail it as a permanently empty suite.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+</Project>
