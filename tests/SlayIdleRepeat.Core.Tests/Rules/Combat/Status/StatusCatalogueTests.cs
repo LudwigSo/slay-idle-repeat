@@ -207,16 +207,11 @@ public sealed class StatusCatalogueTests
     /// 🔒 `05` §6.1a states exactly five potency units — the floor under the per-row mapping below.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>This replaced a theory that could not fail.</b> That theory paired each `05` §6.1a unit
-    /// with a `05` §5 unit and then asserted only <c>Enum.IsDefined</c> on both — and because every
-    /// <c>InlineData</c> was a <c>nameof</c>, both parses and both checks were true at compile time.
-    /// The pairing, which was the entire claim in its name, was never checked: review proved it by
-    /// mapping <c>TargetAspdPct</c> onto <c>FlatHp</c> and watching all five cases pass. There is no
-    /// production function that maps one enum to the other, so there was nothing real to call.
-    /// <para>
-    /// What survives is the half that does bite: a sixth `05` §6.1a unit fails here, which is what
-    /// forces somebody to extend the per-row mapping below rather than leave the new unit uncovered.
-    /// </para>
+    /// 🔴 This replaced a theory that could not fail: it paired each §6.1a unit with a §5 unit and then
+    /// asserted only <c>Enum.IsDefined</c> on both, and because every <c>InlineData</c> was a
+    /// <c>nameof</c>, both checks were true at compile time. The pairing — the entire claim in its name —
+    /// was never checked; mapping <c>TargetAspdPct</c> onto <c>FlatHp</c> left all five passing. What
+    /// survives is the half that bites: a sixth unit fails here, forcing somebody to extend the mapping.
     /// </remarks>
     [Fact]
     public void The_05_section_6_1a_potency_units_are_the_five_that_section_states()

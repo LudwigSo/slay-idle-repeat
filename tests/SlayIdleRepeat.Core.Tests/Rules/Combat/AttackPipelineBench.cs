@@ -12,27 +12,19 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// aggregated every actor.
 /// </summary>
 /// <remarks>
+/// 🔒 Nothing here re-implements §4: the subject is <c>AttackPipeline</c> as <c>BattleSeams.For</c>
+/// builds it, drawing from the fight's own <c>DeterministicRng</c> and writing into its own
+/// <c>CombatLog</c>. What the bench adds is a <em>place to stand</em> — the probe runs from slot 1 at
+/// tick 0, after the pre-tick's aggregation and before slot 4's swings.
 /// <para>
-/// 🔒 <b>Nothing here re-implements `05` §4.</b> The subject is
-/// <c>AttackPipeline</c> as <c>BattleSeams.For</c> builds it, over the roster
-/// <c>BattleSimulation</c> built, drawing from the fight's own
-/// <c>DeterministicRng</c> and writing into the fight's own <c>CombatLog</c>. What the bench adds is
-/// a <em>place to stand</em>: the probe runs from `05` §3.1 <b>slot 1</b> at tick 0, which is after
-/// the pre-tick's aggregation and before slot 4's swings.
+/// 🔒 Basic attacks are off by default, which is what makes the draw counts assertable: slot 4a is gated
+/// on <c>IStatusTimeline.CanAct</c>, so a timeline answering <c>false</c> stops every actor swinging
+/// and the stream's <c>Position</c> counts the probe's draws and nothing else.
 /// </para>
 /// <para>
-/// 🔒 <b>Basic attacks are off by default, and that is what makes the draw counts assertable.</b>
-/// `05` §3.1 slot 4a is gated on <em>"and not stunned"</em>, which is <c>IStatusTimeline.CanAct</c>
-/// — so a timeline that answers <c>false</c> stops every actor swinging without touching the loop.
-/// The stream's <c>Position</c> then counts the probe's draws and nothing else. Set
-/// <c>actorsMaySwing</c> to let slot 4 run when the subject is the loop's own swing.
-/// </para>
-/// <para>
-/// ⚠️ <b>Caps default to <c>StatCaps.None</c>.</b> `05` §1 caps <c>DODGE</c> at 0.50 and
-/// <c>BLOCK</c> at 0.60, so a capped block can never be forced — and <c>NextDouble()</c> is in
-/// <c>[0,1)</c>, which makes <c>1.0</c> an always and <c>0.0</c> a never. Uncapped stats are how a
-/// step's arithmetic is isolated from the other two draws; the caps themselves are M2-07's subject
-/// and are asserted in <c>StatAggregationTests</c>.
+/// ⚠️ Caps default to <c>StatCaps.None</c>: a capped block can never be forced, and <c>NextDouble()</c>
+/// is in <c>[0,1)</c>, so <c>1.0</c> is an always and <c>0.0</c> a never. The caps themselves are
+/// asserted in <c>StatAggregationTests</c>.
 /// </para>
 /// </remarks>
 internal sealed class AttackProbe
@@ -186,27 +178,18 @@ internal static class AttackPipelineBench
         new(new EffectDefinition { Id = id, Op = op, Stat = stat, Value = value });
 
     /// <summary>
-    /// 🔒 `05` §3.1's <c>SYS_ENRAGE</c> shape as a <b>standing conditional</b>: a
-    /// <c>STAT_MULT</c> that switches on at <paramref name="afterSeconds"/> of battle time.
+    /// 🔒 `05` §3.1's <c>SYS_ENRAGE</c> shape as a <b>standing conditional</b>: a <c>STAT_MULT</c> that
+    /// switches on at <paramref name="afterSeconds"/> of battle time.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>The real <c>SYS_ENRAGE</c> is a <c>PERIODIC</c>, and it is not usable here — for a
-    /// reason that belongs in the report rather than in a workaround.</b> `18` §8 step 1 as M2-08
-    /// wired it aggregates <em>untriggered</em> effects only, and a fired <c>STAT_MULT</c> "reaches
-    /// <c>EffectOpResolver</c> and changes nothing that outlives the call" (<c>RefreshStats</c>) —
-    /// the missing half is M2-02's live-effect set, which is not on this branch. So a
-    /// <c>PERIODIC STAT_MULT</c> would prove nothing about the ward cap today, because it moves no
-    /// stat.
+    /// ⚠️ The real <c>SYS_ENRAGE</c> is a <c>PERIODIC</c> and is not usable here: `18` §8 step 1
+    /// aggregates <em>untriggered</em> effects only, so a <c>PERIODIC STAT_MULT</c> moves no stat on
+    /// this branch and would prove nothing. What the ward-cap claim needs is a post-step-7 Max HP that
+    /// <b>changes mid-fight</b>, and a `18` §4 condition is the one mechanism that delivers it —
+    /// <c>RefreshStats</c> re-aggregates a state-dependent holder every tick.
     /// <para>
-    /// What the ward-cap claim actually needs is a post-step-7 Max HP that <b>changes mid-fight</b>,
-    /// and this is that, through the one mechanism that works on this branch: a `18` §4 condition
-    /// makes the holder state-dependent, so <c>RefreshStats</c> re-aggregates it on every one of the
-    /// fight's ticks and the multiplier switches on when <c>BATTLE_TIME</c> crosses the threshold.
-    /// The enrage's own <c>startDelay: 70.0</c> is the threshold used.
-    /// </para>
-    /// <para>
-    /// ⚠️ And <c>MAX_HP</c> rather than the enrage's <c>ATK</c>: the ward cap reads Max HP, and a
-    /// growing ATK would prove the re-read of a number the cap does not consult.
+    /// ⚠️ <c>MAX_HP</c> rather than the enrage's <c>ATK</c>: the ward cap reads Max HP, and a growing ATK
+    /// would prove the re-read of a number the cap does not consult.
     /// </para>
     /// </remarks>
     internal static HeldEffect EnrageShaped(string id, StatId stat, double multiplier, double afterSeconds) =>

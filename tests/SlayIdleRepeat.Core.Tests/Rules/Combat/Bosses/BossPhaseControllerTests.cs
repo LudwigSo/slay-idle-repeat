@@ -8,16 +8,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `05` §3.1's phase check and pre-tick 0c, `17` §1's three phases — the entry sequence, the
-/// R8 anchors it moves, and the two things it must never do.
+/// 🔒 `05` §3.1's phase check and pre-tick 0c, `17` §1's three phases — the entry sequence, the R8
+/// anchors it moves, and the two things it must never do.
 /// </summary>
 /// <remarks>
-/// 🔴 <b>Every anchoring case here asserts <c>AnchorTick</c> and/or <c>NextFiringTick</c>, never
-/// merely "the effect fired".</b> <c>TriggerRegistry.Activate</c> leaves a live instance untouched,
-/// so a controller that omitted the <c>Deactivate</c> half of a transition would still produce a
-/// fight in which every mechanic fires — at the wrong anchor, in a log nothing distinguishes from
-/// correct. That is the probe M2-08's phase-anchoring case could not fail, and it is the reason
-/// <see cref="BossDriver"/> samples the registry rather than the log.
+/// 🔴 Every anchoring case asserts <c>AnchorTick</c> and/or <c>NextFiringTick</c>, never merely "the
+/// effect fired": <c>TriggerRegistry.Activate</c> leaves a live instance untouched, so a controller
+/// omitting the <c>Deactivate</c> half of a transition still produces a fight in which every mechanic
+/// fires — at the wrong anchor, in a log nothing distinguishes from correct.
 /// </remarks>
 public sealed class BossPhaseControllerTests
 {

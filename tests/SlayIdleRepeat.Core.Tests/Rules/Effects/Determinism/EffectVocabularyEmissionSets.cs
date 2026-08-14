@@ -8,51 +8,27 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// out as literals rather than read off the enums.
 /// </summary>
 /// <remarks>
+/// 🔒 A generator that emitted <c>Enum.GetValues&lt;EffectOp&gt;()</c> could not be <em>wrong</em>, and
+/// could therefore not be tested. The floor only has teeth when the emitted set and the catalogue are
+/// two independent statements a test compares — dropping a single line below turns that comparison red.
 /// <para>
-/// 🔒 <b>Why literals, when <c>EffectOps.All</c> exists.</b> A generator that emitted
-/// <c>Enum.GetValues&lt;EffectOp&gt;()</c> could not be <em>wrong</em>, and could therefore not be
-/// tested. Steering S3 asks for a floor on the subject set of every metadata-driven rule, in both
-/// directions; the floor only has teeth when the emitted set and the catalogue are two independent
-/// statements that a test compares.
-/// <c>DslDeterminismBaselineTests.Every_op_18_declares_is_emitted_by_the_permutation_generator</c>
-/// is that comparison, and dropping a single line from the list below turns it red — which is the
-/// red-then-green proof this file exists to make possible.
+/// ⚠️ These are emission <em>sets</em>, not coverage claims: membership says the generator <em>may</em>
+/// draw the token, while the coverage tests assert what the corpus actually emitted over all 10 000
+/// permutations. A token listed here but never reached would still fail.
 /// </para>
 /// <para>
-/// ⚠️ <b>These are emission <em>sets</em>, not coverage claims.</b> Membership here says the
-/// generator may draw the token; the coverage tests assert against what the corpus
-/// <em>actually emitted</em> over all 10 000 permutations, read back off the generated
-/// <see cref="EffectDefinition"/>s. A token listed here but never reached by any anchor or filler
-/// would still fail.
+/// ⚠️ The <b>order</b> is part of the corpus definition: the generator anchors each axis by
+/// <c>list[index % list.Count]</c>, so inserting, removing or reordering a token shifts every
+/// subsequent permutation and moves every hash in the baseline. That is correct and worth knowing
+/// before the edit — a change to `18`'s vocabulary <b>is</b> a change to the baseline, not a
+/// determinism break, and the reviewer says so in <c>review.why</c>.
 /// </para>
 /// <para>
-/// 🔒 <b>The counts are `18` §11's, and M2-01's <c>EffectVocabularyCountTests</c> is the floor that
-/// keeps this honest</b> — 44 ops, 23 triggers, 23 conditions, 11 targets, 26 stats, 6 duration
-/// scopes, 5 stacking modes, 8 value modes. A 45th op cannot be added without either appearing here
-/// or failing <c>Every_op_18_declares_is_emitted_by_the_permutation_generator</c>.
-/// </para>
-/// <para>
-/// 🔴 <b>The 44th arrived that way.</b> `18` §10.1 E6's <c>RANDOM_OUTCOME</c> was declared by M2-12's
-/// Phase 1a and reached no permutation, so that rule was red until it was listed here — which is the
-/// mechanism working, not a break. Listing it moved every hash in <c>DslDeterminismBaseline.json</c>
-/// (see the paragraph below), and `18` §11.1 documents that as a regeneration.
-/// </para>
-/// <para>
-/// ⚠️ <b>The <em>order</em> of these lists is part of the corpus definition, not decoration.</b> The
-/// generator anchors each axis by <c>list[index % list.Count]</c>, so inserting, removing or
-/// reordering a token shifts every subsequent permutation and moves every hash in
-/// <c>DslDeterminismBaseline.json</c>. That is correct and is worth knowing before the edit: a change
-/// to `18`'s vocabulary <b>is</b> a change to the baseline, and the regeneration command exists for
-/// exactly that case. It is not a determinism break, and the reviewer says so in <c>review.why</c>.
-/// </para>
-/// <para>
-/// ⚠️ Every list is built with <c>new List&lt;T&gt; { … }</c> rather than a collection expression or
-/// an array literal: Roslyn folds an array literal of several constants into a
-/// <c>&lt;PrivateImplementationDetails&gt;</c> type in the <b>global</b> namespace, which is the shape
-/// M1-12's <c>Every_Core_type_lives_under_a_documented_namespace</c> rejects. That rule's subject set
-/// is <c>SlayIdleRepeat.Core</c> and not this assembly, so nothing here would fail today — the form is
-/// used anyway, because the day this vocabulary moves into a production helper is not the day to
-/// discover it.
+/// ⚠️ Every list is <c>new List&lt;T&gt; { … }</c> rather than a collection expression: Roslyn folds an
+/// array literal of several constants into a <c>&lt;PrivateImplementationDetails&gt;</c> type in the
+/// <b>global</b> namespace, which is the shape <c>Every_Core_type_lives_under_a_documented_namespace</c>
+/// rejects. That rule's subject set is <c>Core</c> and not this assembly, but the day this vocabulary
+/// moves into a production helper is not the day to discover it.
 /// </para>
 /// </remarks>
 internal static class EffectVocabularyEmissionSets
@@ -253,30 +229,19 @@ internal static class EffectVocabularyEmissionSets
     };
 
     /// <summary>
-    /// 🔴 The extension keys `18` §10.1 records as taken during M2, as a closed vocabulary of its
-    /// own — the list <c>Every_18_10_1_extension_reaches_the_permutation_corpus</c> asserts against.
+    /// 🔴 The extension keys `18` §10.1 records as taken during M2, as a closed vocabulary of its own.
     /// </summary>
     /// <remarks>
+    /// Five extensions landed under §10's procedure and <b>four</b> more keys arrived on the same rule
+    /// without a §10.1 row. All ten constants are named here — ten rather than nine because E2
+    /// contributes both of <c>STAT_CAP_OVERRIDE</c>'s <c>capKind</c>s, recorded as one row and being two
+    /// entirely different halves of step 9.
     /// <para>
-    /// `18` §10's extension procedure ends <em>"add the op to the client/server parity test"</em>. Five
-    /// extensions (E1-E5) landed under that procedure in M2-03, and <b>four</b> more keys arrived on
-    /// the same rule without a §10.1 row: `18` §3.1's R11 gave <c>ON_ATTACK</c> a <c>chance</c>
-    /// (M2-04), and M2-06 gave <c>valueScale</c> the three argument keys <c>statusId</c>,
-    /// <c>faceKind</c> and <c>category</c>. <b>All ten constants are named here</b> — ten rather than
-    /// nine because E2 contributes both of <c>STAT_CAP_OVERRIDE</c>'s <c>capKind</c>s, which `18`
-    /// §10.1 records as one row and which are two entirely different halves of step 9. A generator
-    /// that only emitted `18`'s pre-existing shapes would let every one of them drift unnoticed,
-    /// which is the failure §10 step 4 exists to prevent.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>Unlike the eight enum-backed axes, this list has no closed enum behind it</b> — the
-    /// extensions are document rows, not a C# vocabulary — so nothing mechanical can be its
-    /// independent authority. Two things stand in for one:
-    /// <c>The_extension_key_vocabulary_is_18_10_1s_arithmetic</c> pins the count with the arithmetic
-    /// spelled out, and <c>Every_named_18_10_1_extension_reaches_the_corpus</c> drives a
-    /// <em>third</em>, hand-written list of the ten ids as <c>[InlineData]</c>. Deleting a constant
-    /// from this file therefore fails twice, where comparing the emitted set with itself would have
-    /// failed not at all.
+    /// ⚠️ Unlike the eight enum-backed axes this list has <b>no closed enum behind it</b> — the extensions
+    /// are document rows — so nothing mechanical can be its independent authority. Two things stand in
+    /// for one: a count pinned with the arithmetic spelled out, and a <em>third</em> hand-written list of
+    /// the ten ids driven as <c>[InlineData]</c>. Deleting a constant therefore fails twice, where
+    /// comparing the emitted set with itself would have failed not at all.
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> ExtensionKeys { get; } = new List<string>

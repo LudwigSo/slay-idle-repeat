@@ -14,16 +14,14 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 public sealed class TriggerWiringTests
 {
     /// <summary>
-    /// 🔒 <b>R8 — a <c>PERIODIC</c> anchors when its owning effect becomes active, and never
-    /// re-anchors.</b> A phase-scoped periodic registered at the phase entry fires on its
-    /// <c>startDelay</c> measured from <em>that</em> tick, and every further HP decrease leaves the
-    /// anchor alone.
+    /// 🔒 <b>R8</b> — a phase-scoped <c>PERIODIC</c> anchors once at the phase entry and never
+    /// re-anchors, however many further HP decreases arrive.
     /// </summary>
     /// <remarks>
-    /// The discriminating case. `05` §3.1's phase check runs after <b>every</b> boss HP decrease, so
-    /// a controller that re-registered — or a loop that re-activated — on each one would push the
-    /// anchor forward on every swing and the mechanic would never fire. Here the boss takes 89 hits
-    /// after entering phase 2, and the periodic still lands exactly 20 ticks after the entry.
+    /// The discriminating case: `05` §3.1's phase check runs after <b>every</b> boss HP decrease, so a
+    /// controller that re-registered on each one would push the anchor forward on every swing and the
+    /// mechanic would never fire. Here the boss takes 89 hits after entering phase 2 and the periodic
+    /// still lands exactly 20 ticks after the entry.
     /// </remarks>
     [Fact]
     public void A_phase_scoped_PERIODIC_anchors_once_at_the_phase_entry_and_never_re_anchors()

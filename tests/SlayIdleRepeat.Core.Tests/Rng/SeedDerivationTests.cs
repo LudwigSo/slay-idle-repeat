@@ -6,16 +6,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 The two named seed derivations of the game: `02` §2's
-/// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>, where a seed is
-/// born, and `14` §8.1's <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>, where one seed
-/// spawns another. Combat draw <c>i</c> of a battle is then <c>Hash64(battleSeed, "combat", i)</c>.
+/// 🔒 The two named seed derivations: `02` §2's
+/// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>, and `14` §8.1's
+/// <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>.
 /// </summary>
 /// <remarks>
-/// This derivation is named rather than hand-rolled because it is the seam where the client
-/// gets to simulate a fight without ever holding <c>runSeed</c> (`02` §2). A caller that
-/// re-derived it inline would sooner or later write <c>battleIndex + 1</c>, or the wrong stream
-/// name, and the client and server would disagree about a battle nobody could reproduce.
+/// Named rather than hand-rolled because it is the seam where the client simulates a fight without ever
+/// holding <c>runSeed</c>. A caller re-deriving it inline would sooner or later write
+/// <c>battleIndex + 1</c>, or the wrong stream name, and the two sides would disagree about a battle
+/// nobody could reproduce.
 /// </remarks>
 public sealed class SeedDerivationTests
 {

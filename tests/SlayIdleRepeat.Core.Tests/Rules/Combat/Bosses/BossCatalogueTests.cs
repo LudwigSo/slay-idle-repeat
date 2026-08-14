@@ -8,21 +8,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 <c>content/bosses/bosses.json</c> as the boss engine reads it — `17` §1.2 and `17` §2-9.
+/// 🔒 <c>content/bosses/bosses.json</c> as the boss engine reads it — `17` §1.2 and §2-9.
 /// </summary>
 /// <remarks>
+/// The structure is <c>EnemyCatalogueTests</c>'; what differs is where the bytes come from. This reader
+/// is exercised against the <b>shipped</b> document off disk, because a fixture cannot make that claim.
+/// Every negative case mutates one anchor of the shipped text in memory, never an edit to
+/// <c>game-data/</c>.
 /// <para>
-/// The structure is <c>EnemyCatalogueTests</c>'. What differs is where the bytes come from: this
-/// reader is exercised against the <b>shipped</b> document, off disk through
-/// <see cref="GameDataLoader"/>, because that is what M2-13's cases were about and a fixture cannot
-/// make that claim. Every negative case mutates one anchor of the shipped text through
-/// <see cref="GameDataLoader.LoadWith"/> — an in-memory experiment, never an edit to
-/// <c>game-data/</c> (`21` §3.3).
-/// </para>
-/// <para>
-/// 🔴 Each refusal is probed <b>twice, in different shapes</b>, and each comes with a negative
-/// control that must stay green. A reader that threw on everything would satisfy every refusal here
-/// and read nothing at all.
+/// 🔴 Each refusal is probed <b>twice, in different shapes</b>, with a negative control that must stay
+/// green: a reader that threw on everything would satisfy every refusal and read nothing at all.
 /// </para>
 /// </remarks>
 public sealed class BossCatalogueTests
@@ -144,21 +139,14 @@ public sealed class BossCatalogueTests
 
     /// <summary>
     /// 🔒 An authored <b>null</b> at a required pointer is a different fault and earns a different
-    /// exception — <see cref="UnauthorisedTunableException"/>, `game-data/README.md`'s
-    /// <em>"the design docs do not authorise a value here"</em>.
+    /// exception — <see cref="UnauthorisedTunableException"/>, <em>"the design docs do not authorise a
+    /// value here"</em>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>This is the divergence M2-13's test-side reader recorded against itself.</b> Its
-    /// <c>Optional</c> handed the JSON <c>null</c> element back, so a numeric read on one threw a
-    /// serialisation error about a token type — a message about JSON rather than about content, at a
-    /// pointer nobody could grep for. Through <see cref="ContentSnapshot"/> the two faults are told
-    /// apart by name, which is why this case and the one above it are two cases and not one.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>Two shapes, at two depths</b>, for the reason above: a top-level baseline stat and a
-    /// coefficient inside the scripts array.
-    /// </para>
+    /// 🔴 The test-side reader it replaced handed the JSON <c>null</c> back, so a numeric read threw a
+    /// serialisation error about a token type — a message about JSON rather than content, at a pointer
+    /// nobody could grep for. Two shapes, at two depths: a top-level baseline stat and a coefficient
+    /// inside the scripts array.
     /// </remarks>
     [Theory]
     [InlineData(

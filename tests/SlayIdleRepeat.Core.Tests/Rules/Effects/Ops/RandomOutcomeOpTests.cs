@@ -12,21 +12,14 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// weighted table of <b>mutually exclusive</b> outcomes.
 /// </summary>
 /// <remarks>
+/// The mechanic is `17` §9's <em>Roll of Fate</em> — one visible d6, exactly one result. Three
+/// <c>chance</c>-gated effects would be three <b>independent</b> draws (all three can fire, or none)
+/// spending <b>three</b> indices where <see cref="DeterministicRng.WeightedPick{T}"/> spends
+/// <b>one</b> — and since the position is persisted state, the two readings desynchronise every later
+/// draw of the battle. That is why the single-draw case is the load-bearing one.
 /// <para>
-/// The mechanic is `17` §9's Dicelord <em>Roll of Fate</em> — one visible d6 with three results, of
-/// which exactly one happens. `18` §4's conditions are <em>"pure functions of current state"</em>
-/// and a draw is not state, so three <c>chance</c>-gated effects are three <b>independent</b> draws:
-/// all three can fire, or none, and they spend <b>three</b> draw indices where `14` §8.0's
-/// <see cref="DeterministicRng.WeightedPick{T}"/> spends <b>one</b>. Because
-/// <see cref="DeterministicRng.Position"/> is the persisted state of the stream, the two readings
-/// desynchronise every later draw of the battle — which is why the single-draw case below is the
-/// load-bearing one `18` §10 step 3 asks for.
-/// </para>
-/// <para>
-/// 🔴 <b>PHASE 1a.</b> <c>CombatFlowOps.RandomOutcome</c> is a stub that throws
-/// <see cref="NotSupportedException"/> naming M2-12's boss-engine phase, so every <b>behaviour</b>
-/// case here is red on purpose and describes what replaces it. The <b>paperwork</b> cases —
-/// <see cref="EffectOpValidation"/>, the family, the vocabulary count — are green today.
+/// 🔴 <c>CombatFlowOps.RandomOutcome</c> is a stub that throws naming M2-12, so every <b>behaviour</b>
+/// case here is red on purpose and describes what replaces it. The <b>paperwork</b> cases are green.
 /// </para>
 /// </remarks>
 public sealed class RandomOutcomeOpTests
@@ -149,17 +142,11 @@ public sealed class RandomOutcomeOpTests
     /// answer differently — which a table of three equal weights could never show.
     /// </summary>
     /// <remarks>
-    /// Both rows of the theory are the same seed-and-shape trick pointed opposite ways, so a
-    /// "weighted" implementation that happened to agree with <c>Range(0, count)</c> on one of them
-    /// cannot agree with both:
-    /// <list type="bullet">
-    ///   <item>seed 8 draws unit <c>0.202427</c>. Over <c>1/9</c> the threshold is <c>2.024</c>, so
-    ///   the heavy <b>second</b> row wins; a uniform pick would take <c>floor(0.202 × 2) = 0</c>,
-    ///   the first.</item>
-    ///   <item>seed 3 draws unit <c>0.522598</c>. Over <c>9/1</c> the threshold is <c>5.226</c>, so
-    ///   the heavy <b>first</b> row wins; a uniform pick would take <c>floor(0.523 × 2) = 1</c>,
-    ///   the second.</item>
-    /// </list>
+    /// The two rows point the same trick opposite ways, so an implementation that happened to agree with
+    /// <c>Range(0, count)</c> on one cannot agree with both: seed 8 draws <c>0.202</c>, where the
+    /// weighted pick takes the heavy <b>second</b> row and a uniform one takes the first; seed 3 draws
+    /// <c>0.523</c>, where the weighted pick takes the heavy <b>first</b> and a uniform one takes the
+    /// second.
     /// </remarks>
     [Theory]
     [InlineData(8UL, 1.0, 9.0, "EFF_SECOND", 2.0)]
