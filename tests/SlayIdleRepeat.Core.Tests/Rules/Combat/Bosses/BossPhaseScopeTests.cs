@@ -9,34 +9,26 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔴 <b>R3</b> — `18` §6's <c>PHASE</c> scope, closed: <em>"ends when the boss exits the phase in
-/// which the effect was applied"</em>, driven end to end through M2-10's real
-/// <see cref="StatusTimeline"/> and <c>DurationEvaluator</c>.
+/// 🔴 <b>R3</b> — `18` §6's <c>PHASE</c> scope, closed: <em>"ends when the boss exits the phase in which
+/// the effect was applied"</em>, driven end to end through the real <see cref="StatusTimeline"/> and
+/// <c>DurationEvaluator</c>.
 /// </summary>
 /// <remarks>
+/// The evaluator implemented §6's boundary correctly all along, but <b>nothing filled either field</b> —
+/// no seam could answer <em>"what phase is this fight in?"</em> — so both were <c>null</c> at every call
+/// site and §6's <em>"outside a boss fight it behaves as <c>BATTLE</c>"</em> fallback was taken
+/// <b>inside</b> boss fights too. R3 makes every boss <c>AURA</c> <c>PHASE</c>-scoped, so the scope
+/// covered the whole boss content set and did nothing at all, silently.
 /// <para>
-/// <c>DurationEvaluator</c> has implemented `18` §6's boundary since M2-06 and it is correct: it ends
-/// the effect the moment <c>DurationProbe.CurrentPhase</c> exceeds
-/// <c>EffectApplication.AppliedInPhase</c>. But <b>nothing filled either field</b> — no seam could
-/// answer <em>"what phase is this fight in?"</em> — so both were <c>null</c> at every call site, and
-/// §6's <em>"outside a boss fight it behaves as <c>BATTLE</c>"</em> fallback was taken <b>inside</b>
-/// boss fights too. R3 makes every boss <c>AURA</c> <c>PHASE</c>-scoped, so the scope covered the
-/// whole of the boss content set and did nothing at all, silently. M2-12 added
-/// <c>IBossPhases.CurrentPhase</c> and routed it through <c>BattleServices.CurrentBossPhase</c> into
-/// the two fields.
+/// 🔴 Every case carries a <c>BATTLE</c>-scoped twin, applied by the same call at the same tick to the
+/// same actor: without it, "the <c>PHASE</c> status is gone after the phase-3 entry" is equally
+/// consistent with <em>everything</em> having expired. The twin distinguishes the boundary from the
+/// apocalypse.
 /// </para>
 /// <para>
-/// 🔴 <b>Which is why every case here carries a <c>BATTLE</c>-scoped twin, applied by the same call
-/// at the same tick to the same actor.</b> Without it, "the <c>PHASE</c> status is gone after the
-/// phase-3 entry" is equally consistent with <em>everything</em> having expired — a fight that ended,
-/// a timer nobody set, a timeline that dropped its instances. The twin is the reading that
-/// distinguishes the boundary from the apocalypse.
-/// </para>
-/// <para>
-/// ⚠️ The phase source here is <see cref="ScriptedPhases"/> rather than
-/// <c>BossPhaseController</c>, deliberately: the subject is `18` §6's <b>scope</b>, and the
-/// controller is a Phase 1b stub. Coupling them would make this case red for M2-12's implementation
-/// phase rather than green for the wiring it is about.
+/// ⚠️ The phase source is <see cref="ScriptedPhases"/> rather than <c>BossPhaseController</c>: the
+/// subject is §6's <b>scope</b>, and coupling them would make this red for the controller's
+/// implementation phase rather than green for the wiring it is about.
 /// </para>
 /// </remarks>
 public sealed class BossPhaseScopeTests

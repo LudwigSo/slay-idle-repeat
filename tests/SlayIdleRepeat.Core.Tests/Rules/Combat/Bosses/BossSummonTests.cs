@@ -226,23 +226,17 @@ public sealed class BossSummonTests
     }
 
     /// <summary>
-    /// 🔴 <b>`05` §3.1 — <em>"summons take the next free id and never reuse a dead one"</em>.</b> The
-    /// log <b>is</b> the replay, and two actors on one id would draw the second resuming the first's
-    /// HP bar.
+    /// 🔴 `05` §3.1 — <em>"summons take the next free id and never reuse a dead one"</em>. The log <b>is</b>
+    /// the replay, and two actors on one id would draw the second resuming the first's HP bar.
     /// </summary>
     /// <remarks>
+    /// 🔴 This case previously carried this name and asserted nothing about a log id: it read back the
+    /// summoner id and the source effect id, both of which the fixture had just written, and its "two
+    /// waves" were one phase-3 entry.
     /// <para>
-    /// 🔴 <b>This case previously carried this name and asserted nothing about a log id at all</b> —
-    /// it read back the summoner id and the source effect id, both of which the fixture had just
-    /// written, and its "two waves" were one phase-3 entry (a boss already in phase 3 enters no
-    /// second one). Steering S1.
-    /// </para>
-    /// <para>
-    /// The only shape that can observe the rule is a <b>recurring</b> summon with a death between
-    /// two firings, so the mechanic here is a 2 s <c>PERIODIC</c>: phase 3 is entered at tick 60,
-    /// R8 anchors there, and firings land at 100, 140 and 180. The first add is killed at tick 150,
-    /// freeing a slot under the cap — and the add that replaces it must take log id <b>4</b>, not the
-    /// dead one's <b>1</b>.
+    /// The only shape that can observe the rule is a <b>recurring</b> summon with a death between two
+    /// firings, so the mechanic is a 2 s <c>PERIODIC</c>: firings land at 100, 140 and 180, the first add
+    /// is killed at 150, and the add replacing it must take log id <b>4</b>, not the dead one's <b>1</b>.
     /// </para>
     /// </remarks>
     [Fact]

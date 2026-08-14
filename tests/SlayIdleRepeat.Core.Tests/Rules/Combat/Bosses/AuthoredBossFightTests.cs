@@ -21,22 +21,18 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 public sealed class AuthoredBossFightTests
 {
     /// <summary>
-    /// 🔒 `18` §6 / R3 — a phase block's mechanic is live inside its phase and deactivated at the
-    /// exit, and the built-in enrage is reached by neither transition.
+    /// 🔒 `18` §6 / R3 — a phase block's mechanic is live inside its phase and deactivated at the exit,
+    /// and the built-in enrage is reached by neither transition.
     /// </summary>
     /// <remarks>
+    /// 🔴 <c>SYS_ENRAGE</c> is the negative control and the case is worthless without it: "Bog Air is
+    /// inactive after the phase-3 entry" is equally consistent with the fight having ended or the
+    /// registry having dropped everything. The built-in is registered by the same pass and sampled on the
+    /// same ticks, and must still be <b>active</b>.
     /// <para>
-    /// 🔴 <b><c>SYS_ENRAGE</c> is the negative control, and the case is worthless without it.</b>
-    /// "Bog Air is inactive after the phase-3 entry" is equally consistent with the fight having
-    /// ended, the registry having dropped everything, or the sampler reading nothing at all. The
-    /// built-in is registered by the same pass, sampled by the same sampler, on the same ticks — and
-    /// it must still be <b>active</b>, because `17` §11 implements the enrage once for every boss and
-    /// <see cref="BossEncounter.PhaseOfInstance"/> deliberately does not contain it.
-    /// </para>
-    /// <para>
-    /// 🔴 The reading is <c>IsActive</c> rather than "did it fire": <c>TriggerRegistry.Activate</c> is
-    /// a no-op on a live instance, so a transition that forgot to deactivate produces a fight in
-    /// which everything still fires and an "it fired" assertion passes either way.
+    /// 🔴 The reading is <c>IsActive</c> rather than "did it fire": <c>Activate</c> is a no-op on a live
+    /// instance, so a transition that forgot to deactivate produces a fight in which everything still
+    /// fires and an "it fired" assertion passes either way.
     /// </para>
     /// </remarks>
     [Fact]

@@ -10,22 +10,15 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// 🔒 <c>BattlePlan</c> refuses a fight whose `05` §4 / §4.1 📐 constants would run a different game.
 /// </summary>
 /// <remarks>
+/// Every value below produces a <b>legal-looking log</b> rather than an error if waved through, which is
+/// why the check exists: a zero <c>wardCapPct</c> clips every grant to nothing while the <c>Shield</c>
+/// event still fires on each, and a zero <c>flatConstant</c> makes step 3's fraction
+/// <c>effDef/effDef = 1</c> against any defender with DEF — mitigating every hit in the game to its 10%
+/// floor — and <c>0/0</c> against one without, refused as a NaN three layers later, naming the wrong
+/// thing.
 /// <para>
-/// Every value below produces a <b>legal-looking log</b> rather than an error if it is waved through,
-/// which is the reason the check exists and the reason it is worth a test of its own:
-/// </para>
-/// <list type="bullet">
-///   <item>A zero or negative <c>wardCapPct</c> clips every grant to nothing while `05` §4.1's
-///   <c>Shield</c> event still fires on every one — a replay full of shields that absorb nothing.</item>
-///   <item>A zero <c>flatConstant</c> makes `05` §4 step 3's fraction <c>effDef/effDef = 1</c>
-///   against any defender with DEF, so every hit in the game is mitigated to its 10% floor, and
-///   <c>0/0</c> against a defender without — which `05` §1.1's rounding refuses as a NaN three
-///   layers later, naming the wrong thing.</item>
-/// </list>
-/// <para>
-/// ⚠️ Both are <b>refused</b> rather than clamped. `05` §4's own sanity check — DEF 120 mitigating
-/// 0.46 at attacker level 1 — is arithmetic on the shipped pair, and a clamp would silently
-/// substitute a game nobody balanced.
+/// ⚠️ Both are <b>refused</b> rather than clamped: §4's own sanity check is arithmetic on the shipped
+/// pair, and a clamp would silently substitute a game nobody balanced.
 /// </para>
 /// </remarks>
 public sealed class SimulatorConstantTests

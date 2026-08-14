@@ -10,16 +10,13 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// resolves it.
 /// </summary>
 /// <remarks>
+/// The sanctioned case is `17` §9's Scramble: a <c>PERIODIC 14 s</c> boss mechanic that replaces one of
+/// the hero's die faces with <c>Void</c> — <em>"purely cosmetic during combat, but it persists into the
+/// remainder of the run if the player survives"</em>.
 /// <para>
-/// The sanctioned case is the Dicelord's Scramble (`17` §9): a <c>PERIODIC 14 s</c> boss mechanic
-/// that replaces one of the hero's six die faces with <c>Void</c> — <em>"purely cosmetic during
-/// combat, but it persists into the remainder of the run if the player survives"</em>. Which face
-/// is picked is resolved at fire time; everything else about the op is authored.
-/// </para>
-/// <para>
-/// 🔒 <b>Nothing consumes these in M2, and that is the finished state</b> (`18` §2.5's consumer is
-/// the run controller). Draining the queue is M3's and discarding it in a duel is M2-14's. What is
-/// tested here is the <b>encoding and the emission contract</b>, which is all M2-15 owes.
+/// 🔒 Nothing consumes these in M2, and that is the finished state: draining the queue is M3's and
+/// discarding it in a duel is M2-14's. What is tested here is the <b>encoding and the emission
+/// contract</b>.
 /// </para>
 /// </remarks>
 public sealed class RunEffectQueuedTests

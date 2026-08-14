@@ -11,40 +11,25 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 M2-R3 — one authored boss fight through the REAL engine: <see cref="AttackPipeline"/> and
-/// <see cref="StatusTimeline"/>, exactly the composition <see cref="Bosses.BossFight.Run"/> uses for
-/// production and the balance harness — <b>not</b> <see cref="BossTestBench"/>'s fakes.
+/// 🔒 One authored boss fight through the REAL engine — the real <see cref="AttackPipeline"/> and
+/// <see cref="StatusTimeline"/>, the composition production and the balance harness use, <b>not</b>
+/// <see cref="BossTestBench"/>'s fakes.
 /// </summary>
 /// <remarks>
+/// 🔴 Neither existing bench serves: <see cref="Bosses.BossFight.Run"/> takes only an
+/// <see cref="ActorStats"/> hero and has no way to give it a held effect (no hero perk/gear/talent path
+/// is wired into a boss fight until M3+), while <see cref="BossTestBench"/> composes a pipeline that
+/// deals no damage and statuses that apply nothing — right for the phase-machinery suite, but unable to
+/// prove a real op resolves against the real engine.
 /// <para>
-/// 🔴 <b>Why this exists beside <see cref="BossFight"/> and <see cref="BossTestBench"/> rather than
-/// reusing either.</b> <see cref="Bosses.BossFight.Run"/> (what
-/// <c>CombatSimulator.SimulateBossFight</c> calls) takes only an <see cref="ActorStats"/> hero — it
-/// has no way to give the hero a held effect, because M2 wires no hero perk/gear/talent path into a
-/// boss fight at all (that integration is M3+'s). <see cref="BossTestBench"/> is the opposite
-/// problem: its <c>Run</c> composes <c>RecordingAttackPipeline</c> (deals no damage) and
-/// <c>RecordingStatuses</c> (applies nothing), which is exactly right for the phase-machinery suite
-/// it serves but cannot prove a real <c>DAMAGE</c>/<c>EXTEND_STATUS</c>/<c>STAT_COPY</c>/
-/// <c>APPLY_STATUS</c> resolves against the real engine — which is the whole point of the M2-R3
-/// regression: nobody could add a test that runs the real engine to completion before this fix,
-/// because it faulted.
-/// </para>
-/// <para>
-/// 🔒 <b>The one hero-held effect this bench seeds, and why.</b>
-/// <c>BOSS_COGITATOR_PRIME_P2_RECALIBRATE</c> is a <c>STAT_COPY HIGHEST_PCT_BONUS</c> whose source
-/// is — after the M2-R3 <c>CURRENT_TARGET</c> fix — the hero. <c>HighestPercentBonusStat</c> throws
-/// (by design — steering S6, see <c>CombatFlowState.HighestPercentBonusStat</c>'s own remarks) when
-/// the source carries no percent bucket at all, and a percent bucket is written <b>only</b> by
-/// <c>STAT_COPY</c> itself (`18` §2.4). A hero built through today's production entry points
-/// (<c>BossFight.Run</c>, the balance harness's <c>ParHero</c>) never carries one — no hero
-/// perk/gear/talent integration exists yet to write it — so Recalibrate would still fault against a
-/// bare hero even after the CURRENT_TARGET fix, for a reason this task was not asked to close and
-/// must not paper over by weakening <c>HighestPercentBonusStat</c>'s S6 refusal. What this bench
-/// grants the hero instead is a single, harmless <c>STAT_COPY</c> of its own — <c>LIFESTEAL</c>
-/// (base <c>0.0</c>, so the copy is a real write of a real <c>0.0</c>, not a fabricated bonus and
-/// with no effect on the fight's balance) — so the percent bucket a real gear/talent build will one
-/// day populate is standing in, honestly, for a mechanism M2 has not built yet. See the M2-R3
-/// completion report for this recorded as a finding, not a fix.
+/// 🔒 <b>The one hero-held effect this bench seeds.</b> <c>BOSS_COGITATOR_PRIME_P2_RECALIBRATE</c> is a
+/// <c>STAT_COPY HIGHEST_PCT_BONUS</c> whose source is the hero, and
+/// <c>HighestPercentBonusStat</c> throws by design when the source carries no percent bucket — which
+/// only <c>STAT_COPY</c> writes. A hero built through today's production entry points never carries
+/// one, so Recalibrate would still fault for a reason this bench must not paper over by weakening that
+/// refusal. Instead the hero gets a single harmless <c>STAT_COPY</c> of <c>LIFESTEAL</c> (base
+/// <c>0.0</c>, so a real write of a real zero with no effect on balance) — the percent bucket a real
+/// build will one day populate, standing in honestly for a mechanism M2 has not built.
 /// </para>
 /// </remarks>
 internal static class RealBossFight
