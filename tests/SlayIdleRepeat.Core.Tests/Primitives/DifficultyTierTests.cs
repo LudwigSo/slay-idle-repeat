@@ -72,16 +72,15 @@ public sealed class DifficultyTierTests
     }
 
     /// <summary>
-    /// 🔒 It lives in <c>Primitives/</c> and not under <c>Core/Model/</c>, and that is measured
-    /// rather than stylistic.
+    /// 🔒 It lives in <c>Primitives/</c> and not under <c>Core/Model/</c>, and that is measured rather
+    /// than stylistic.
     /// </summary>
     /// <remarks>
-    /// A <b>public enum under <c>Core/Model/</c></b> (outside the <c>Model/Snapshots/</c> exemption)
-    /// fails <c>AccessibilityBoundaryTests.Apply_is_the_only_public_mutation</c> on its
-    /// compiler-generated <c>value__</c> field — public, neither <c>literal</c> nor <c>initonly</c>,
-    /// and carrying no <c>[CompilerGenerated]</c>. <see cref="FtueBeat"/>'s remarks record the
-    /// measurement; this pins the placement so a later tidy-up move turns red here rather than in the
-    /// architecture suite with no explanation.
+    /// A public enum under <c>Core/Model/</c> fails
+    /// <c>AccessibilityBoundaryTests.Apply_is_the_only_public_mutation</c> on its compiler-generated
+    /// <c>value__</c> field — public, neither <c>literal</c> nor <c>initonly</c>, and carrying no
+    /// <c>[CompilerGenerated]</c>. This pins the placement so a later tidy-up move turns red here rather
+    /// than in the architecture suite with no explanation.
     /// </remarks>
     [Fact]
     public void It_lives_in_Primitives_because_a_public_enum_under_Model_fails_the_mutation_rule()

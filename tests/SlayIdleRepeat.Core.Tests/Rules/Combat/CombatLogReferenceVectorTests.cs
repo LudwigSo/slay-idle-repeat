@@ -9,21 +9,14 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// 🔒 The committed <c>LogHash</c> reference table of `05` §7, asserted row by row.
 /// </summary>
 /// <remarks>
+/// <b>A failure here is a determinism break, never a test fix.</b> `11` §6 compares the client-reported
+/// <c>LogHash</c> against the server's to detect tampering, and M5-12 compares it across x64 and two
+/// ARM64 devices. If a row moves, every duel in flight starts reporting a mismatch.
 /// <para>
-/// <b>A failure here is a determinism break, never a test fix.</b> `11` §6 compares the
-/// client-reported <c>LogHash</c> against the server-computed one to detect tampering, and M5-12
-/// compares it across x64 and two ARM64 devices as the cross-platform determinism gate. If a row
-/// moves, every duel in flight starts reporting a mismatch and the gate starts comparing fiction.
-/// </para>
-/// <para>
-/// ⚠️ <b>What this table proves, stated honestly.</b> It proves <b>stability</b> — the encoding of
-/// an event list cannot change without a row going red. It does <b>not</b> prove the encoding
-/// <i>choice</i> against an external authority, because nobody publishes
-/// <c>event list → LogHash</c> vectors for this game. What <i>is</i> externally validated is the
-/// hash function underneath: the generator reproduced Landon Curt Noll's published FNV-1a 64
-/// vectors before emitting a row, and
-/// <see cref="The_writer_still_reproduces_the_published_FNV_1a_vectors"/> re-asserts that the
-/// writer does too. Steering rule S5.
+/// ⚠️ It proves <b>stability</b> — the encoding cannot change without a row going red — and <b>not</b> the
+/// encoding <i>choice</i> against an external authority, because nobody publishes <c>event list →
+/// LogHash</c> vectors for this game. What <i>is</i> externally validated is the hash function
+/// underneath: the generator reproduced Noll's published FNV-1a 64 vectors before emitting a row.
 /// </para>
 /// </remarks>
 public sealed class CombatLogReferenceVectorTests

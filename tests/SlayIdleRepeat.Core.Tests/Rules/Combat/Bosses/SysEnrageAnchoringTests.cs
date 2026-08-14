@@ -56,16 +56,14 @@ public sealed class SysEnrageAnchoringTests
     }
 
     /// <summary>
-    /// 🔒 And it survives <b>two</b> entries inside one tick — the 70% → 20% burst, which is the
-    /// case that would re-anchor twice.
+    /// 🔒 …and it survives <b>two</b> entries inside one tick — the 70% → 20% burst, the case that would
+    /// re-anchor twice.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The controls are what make this a probe rather than a wish.</b> Asserting only that the
-    /// enrage did not move would pass on a controller that entered no phase at all, which is the
-    /// exact failure the case exists to exclude. So the same fight also asserts that <b>two</b>
-    /// further entries were logged, and that the phase-2 block's own clock <em>was</em> touched by
-    /// them — it is re-anchored on entry to phase 2 and then ended again on entry to phase 3, both
-    /// at tick 80, because `18` §6 ends a <c>PHASE</c> scope at the exit of its own phase.
+    /// 🔴 The controls are what make this a probe rather than a wish: asserting only that the enrage did
+    /// not move would pass on a controller that entered no phase at all. So the same fight asserts that
+    /// <b>two</b> further entries were logged, and that the phase-2 block's own clock <em>was</em> touched
+    /// by them.
     /// </remarks>
     [Fact]
     public void SYS_ENRAGE_survives_a_burst_that_crosses_two_thresholds_in_one_tick()

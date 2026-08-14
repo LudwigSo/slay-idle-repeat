@@ -66,16 +66,14 @@ public sealed class BossOutcomeTests
     // ════════════════════════════════════════════════════ 2 · end to end, through the tick loop
 
     /// <summary>
-    /// 🔴 <b>The single-draw proof, end to end.</b> One <c>PERIODIC</c> firing of `17` §9's
-    /// <em>Roll of Fate</em> costs the battle's combat stream <b>exactly one</b> draw index and
-    /// resolves <b>exactly one</b> outcome.
+    /// 🔴 <b>The single-draw proof, end to end.</b> One <c>PERIODIC</c> firing of `17` §9's <em>Roll of
+    /// Fate</em> costs the combat stream <b>exactly one</b> draw index and resolves <b>exactly one</b>
+    /// outcome.
     /// </summary>
     /// <remarks>
-    /// `18` §4's conditions are <em>"pure functions of current state"</em> and a draw is not state,
-    /// so three <c>chance</c>-gated effects would be three <b>independent</b> draws — all three can
-    /// fire, or none — and would spend three indices where <c>WeightedPick</c> spends one.
-    /// <c>DeterministicRng.Position</c> is the persisted state of the stream, so the difference
-    /// desynchronises every later draw of the fight between client and server.
+    /// Three <c>chance</c>-gated effects would be three <b>independent</b> draws — all three can fire, or
+    /// none — spending three indices where <c>WeightedPick</c> spends one. The position is persisted
+    /// state, so the difference desynchronises every later draw of the fight between client and server.
     /// </remarks>
     [Fact]
     public void One_Roll_of_Fate_firing_costs_one_draw_index_and_resolves_one_outcome()
@@ -149,17 +147,15 @@ public sealed class BossOutcomeTests
     }
 
     /// <summary>
-    /// 🔒 `17` §9's <b>two</b> authored tables — phase 1's <c>2/2/2</c> over three rows and phase 2's
-    /// <c>4/2</c> over two — are driven by the <b>same</b> op through the <b>same</b> seam. That is
-    /// the whole claim of E6: the boss script is data, and there is no branch between the phases.
+    /// 🔒 `17` §9's <b>two</b> authored tables are driven by the <b>same</b> op through the <b>same</b>
+    /// seam — the whole claim of E6: the boss script is data, and there is no branch between the phases.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Both rows run on the SAME battle seed, and the winners differ.</b> Seed 1 draws unit
-    /// 0.48523718978942976 on `14` §8.1's combat stream: over phase 1's <c>2/2/2</c> (total 6) the
-    /// threshold 2.911 first falls to the <b>second</b> row, and over phase 2's <c>4/2</c> (total 6)
-    /// the same 2.911 first falls to the <b>first</b>. So the two tables cannot be told apart by a
-    /// code path — one draw, one walk, two data shapes, two answers. An assertion of the form
-    /// <em>"the winner is in the table"</em> stood here and was true of every implementation.
+    /// 🔴 Both rows run on the SAME battle seed and the winners differ: seed 1 draws unit <c>0.4852</c>,
+    /// and over phase 1's <c>2/2/2</c> the threshold falls to the <b>second</b> row while over phase 2's
+    /// <c>4/2</c> the same threshold falls to the <b>first</b>. One draw, one walk, two data shapes, two
+    /// answers — where an assertion of the form <em>"the winner is in the table"</em> was true of every
+    /// implementation.
     /// </remarks>
     [Theory]
     [InlineData("BOSS_DICELORD_ROLL_OF_FATE_P1", 3, BossTestBench.FateHeroAtk)]

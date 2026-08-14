@@ -35,13 +35,11 @@ public sealed class AttackCadenceTests
     /// 2.0-ASPD actor has a 0.5 s cooldown and must swing every tenth tick.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Found by re-probing, and it is a genuine trap.</b> Unrounded, twenty subtractions of
-    /// <c>0.05</c> from <c>1.0</c> land on <c>-3.19e-16</c> — <em>below</em> zero — so the 1.0-ASPD
-    /// case above fires on tick 20 either way and proves nothing about `05` §1.1's rounding. Ten
-    /// subtractions from <c>0.5</c> land on <c>+6.94e-17</c>, <em>above</em> zero, and the actor waits
-    /// an eleventh tick: 164 swings across a 90 s fight instead of 180, a 9% DPS error. The sign of a
-    /// floating-point residue is not something a test should be left to guess at, so both cadences
-    /// are pinned.
+    /// 🔴 Unrounded, twenty subtractions of <c>0.05</c> from <c>1.0</c> land on <c>-3.19e-16</c> —
+    /// <em>below</em> zero — so the 1.0-ASPD case fires on tick 20 either way and proves nothing about
+    /// `05` §1.1's rounding. Ten subtractions from <c>0.5</c> land on <c>+6.94e-17</c>, <em>above</em>
+    /// zero, and the actor waits an eleventh tick: 164 swings across a 90 s fight instead of 180, a 9%
+    /// DPS error. The sign of a floating-point residue is not something a test should guess at.
     /// </remarks>
     [Fact]
     public void A_2_0_ASPD_actor_swings_on_every_tenth_tick_for_the_whole_fight()

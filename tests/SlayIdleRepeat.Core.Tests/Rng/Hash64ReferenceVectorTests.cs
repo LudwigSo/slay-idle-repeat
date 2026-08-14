@@ -8,17 +8,11 @@ namespace SlayIdleRepeat.Core.Tests.Rng;
 /// 🔒 The committed reference-vector table of `14` §8.0, asserted row by row.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>A failure here is a determinism break, never a test fix.</b> The rows live in
-/// <c>Rng/Hash64ReferenceVectors.json</c> and were generated from
-/// <c>System.IO.Hashing.XxHash64</c> — a second, independent XXH64 — driven by an encoder
-/// transcribed from the spec table. If a row moves, every seed derivation, board layout, die
-/// roll and drop the game has produced for a given seed moved with it.
-/// </para>
-/// <para>
-/// This is the table the cross-platform determinism job (`14` §8.2, task M5-12) re-asserts on
-/// Linux x64, Android ARM64 and iOS ARM64.
-/// </para>
+/// <b>A failure here is a determinism break, never a test fix.</b> The rows were generated from
+/// <c>System.IO.Hashing.XxHash64</c> — a second, independent XXH64 — driven by an encoder transcribed
+/// from the spec table. If a row moves, every seed derivation, board layout, die roll and drop the game
+/// has produced for a given seed moved with it. This is the table the cross-platform determinism job
+/// re-asserts on each runtime.
 /// </remarks>
 public sealed class Hash64ReferenceVectorTests
 {

@@ -10,17 +10,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 M2-R1 — a FIRED `18` §2.1 stat op reaches `18` §8's aggregation, through the real
+/// 🔒 A <b>fired</b> `18` §2.1 stat op reaches §8's aggregation, through the real
 /// <see cref="BattleSimulation"/> tick loop and not a unit fixture that calls
 /// <c>StatAggregation.Aggregate</c> directly.
 /// </summary>
 /// <remarks>
-/// Every case here runs a real fight — <c>CombatSimulator.Simulate</c> over a real
-/// <see cref="BattleSimulation"/> — and reads the FIRING actor's own aggregated
-/// <see cref="BattleActor.Stats"/>, never the trigger registry's bookkeeping alone. That is the
-/// distinction the M2-R1 handover draws: <c>SysEnrageAnchoringTests</c> already proved the enrage
-/// fires on schedule and is never re-anchored by a phase transition; nothing before this file proved
-/// firing it changed anything.
+/// Every case runs a real fight and reads the firing actor's own aggregated
+/// <see cref="BattleActor.Stats"/>, never the trigger registry's bookkeeping alone.
+/// <c>SysEnrageAnchoringTests</c> already proved the enrage fires on schedule and is never re-anchored;
+/// nothing before this file proved firing it changed anything.
 /// </remarks>
 public sealed class TriggeredStatOpTests
 {
@@ -106,16 +104,14 @@ public sealed class TriggeredStatOpTests
     // ════════════════════════════════════════════════════ 2 · a PHASE-scoped fired stat op
 
     /// <summary>
-    /// 🔒 M2-R1 acceptance item 4 — a `18` §6 <c>PHASE</c> scope still correctly ends a boss's fired
-    /// stat op at phase exit, exactly as it already did for a boss <c>AURA</c> authored as a status
-    /// (M2-12's wiring). Regression-proofed explicitly because M2-R1 touches the SAME aggregation
-    /// pass that scope depends on: a fold that forgot to consult <see cref="TriggeredStatInstance"/>'s
-    /// duration would leave a fired <c>STAT_ADD_PCT</c> live for the rest of the battle.
+    /// 🔒 A `18` §6 <c>PHASE</c> scope still ends a boss's fired stat op at phase exit. Regression-proofed
+    /// explicitly because this touches the same aggregation pass that scope depends on: a fold that
+    /// forgot to consult <see cref="TriggeredStatInstance"/>'s duration would leave a fired
+    /// <c>STAT_ADD_PCT</c> live for the rest of the battle.
     /// </summary>
     /// <remarks>
-    /// Three independent fights, cut at three points, rather than one fight sampled mid-flight — the
-    /// same technique <c>SysEnrageAnchoringTests</c> uses via <c>BossDriver.At</c>, applied here to the
-    /// aggregated STAT rather than to the trigger registry's bookkeeping.
+    /// Three independent fights cut at three points, rather than one fight sampled mid-flight — applied
+    /// to the aggregated stat rather than the registry's bookkeeping.
     /// </remarks>
     [Fact]
     public void A_PHASE_scoped_fired_stat_op_is_live_only_inside_its_phase()
