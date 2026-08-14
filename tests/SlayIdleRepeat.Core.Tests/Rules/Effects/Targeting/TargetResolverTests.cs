@@ -16,23 +16,17 @@ public sealed class TargetResolverTests
     // The ruling this whole task turns on, and the reason it is the first test in the file.
 
     /// <summary>
-    /// 🔒 `18` §7.10 — the Volatile elite modifier, verbatim:
-    /// <c>{"op":"DAMAGE_MAXHP_PCT","value":0.15,"valueMode":"TARGET_MAXHP_PCT",
-    /// "trigger":{"kind":"ON_DEATH"},"target":"ALL_ENEMIES"}</c>, whose prose is
-    /// <em>"explodes on death for 15% of <b>hero</b> Max HP"</em>.
+    /// 🔒 `18` §7.10's Volatile elite, verbatim: an <c>ON_DEATH</c> <c>DAMAGE_MAXHP_PCT</c> targeting
+    /// <c>ALL_ENEMIES</c>, whose prose is <em>"explodes on death for 15% of <b>hero</b> Max HP"</em>.
     /// </summary>
     /// <remarks>
+    /// 🔒 The effect sits on an <b>enemy</b> actor, so it only does what its own prose says if
+    /// <c>ALL_ENEMIES</c> means <em>the actors hostile to the holder</em>. `18` §5 never states this,
+    /// and every boss, elite and summon in the game depends on it.
     /// <para>
-    /// 🔒 The effect sits on an <b>enemy</b> actor and its authored target is <c>ALL_ENEMIES</c>. It
-    /// only does what its own prose says if <c>ALL_ENEMIES</c> means <em>the actors hostile to the
-    /// holder</em>. `18` §5 never states this, and the whole game's boss, elite and summon content
-    /// depends on it.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>This test is written so that the naive reading fails it.</b> Under "enemies always means
-    /// the hero's enemies", the exploding elite would hit <c>GRUNT_A</c> and <c>GRUNT_B</c> — and
-    /// itself — and never the hero. The assertion below is exactly the pair of claims that separates
-    /// the two readings: the hero <em>is</em> selected, and the other enemies are <em>not</em>.
+    /// ⚠️ Written so the naive reading fails: under "enemies always means the hero's enemies" the
+    /// exploding elite would hit the grunts and itself and never the hero. The assertion is exactly
+    /// that pair — the hero <em>is</em> selected, the other enemies are <em>not</em>.
     /// </para>
     /// </remarks>
     [Fact]
@@ -71,15 +65,11 @@ public sealed class TargetResolverTests
         hit.Select(a => a.Id).ShouldBe(["GRUNT_A", "GRUNT_B"]);
     }
 
-    /// <summary>
-    /// 🔒 And the ruling covers <b>every</b> enemy token, not just <c>ALL_ENEMIES</c>.
-    /// </summary>
+    /// <summary>🔒 …and the ruling covers <b>every</b> enemy token, not just <c>ALL_ENEMIES</c>.</summary>
     /// <remarks>
-    /// ⚠️ Without this, an implementation that special-cased <c>ALL_ENEMIES</c> as holder-relative and
-    /// computed the other four as <c>Side == BattleSide.ENEMY</c> would pass the whole suite — and
-    /// Sporequeen's sporelings, Bog Air and every boss <c>LOWEST_HP_ENEMY</c> would target their own
-    /// side. The single-actor tokens are asserted rather than the sets so the expected answer is one
-    /// id in every row: the hero is the enemy side's only living non-pet actor here.
+    /// ⚠️ Without this, special-casing <c>ALL_ENEMIES</c> as holder-relative and computing the other
+    /// four as <c>Side == BattleSide.ENEMY</c> passes the whole suite — and Sporequeen's sporelings and
+    /// every boss <c>LOWEST_HP_ENEMY</c> would target their own side.
     /// </remarks>
     [Theory]
     [InlineData(EffectTarget.ALL_ENEMIES)]
@@ -168,11 +158,9 @@ public sealed class TargetResolverTests
     /// spawned from one archetype does not vanish from the splash.
     /// </summary>
     /// <remarks>
-    /// ⚠️ `05` §6.4 spawns several units from one archetype draw, and nothing in `05` or `18`
-    /// promises a per-battle-unique id — only `05` §3.1's <b>index</b> is authorised as the actor's
-    /// unique position. A roster that minted ids from content ids would give three swarm units the
-    /// same string, and an id-based exclusion would then drop <b>all three</b> from
-    /// <c>PK_CLEAVE</c>'s splash instead of only the primary. This is the roster that catches it.
+    /// ⚠️ `05` §6.4 spawns several units from one archetype draw and nothing promises a per-battle-unique
+    /// id — only the <b>index</b> is authorised as unique. An id-based exclusion would drop <b>all
+    /// three</b> swarm units from <c>PK_CLEAVE</c>'s splash instead of only the primary.
     /// </remarks>
     [Fact]
     public void OTHER_ENEMIES_excludes_only_the_primary_when_a_pack_shares_one_id()
@@ -273,15 +261,13 @@ public sealed class TargetResolverTests
     // ------------------------------------------------------------------ RANDOM_ENEMY
 
     /// <summary>
-    /// 🔒 The draw protocol, pinned exactly: <c>RANDOM_ENEMY</c> is
-    /// <c>candidates[rng.Range(0, candidates.Count)]</c> over the living enemies in `05` §3.1 index
-    /// order, consuming exactly one draw.
+    /// 🔒 The draw protocol exactly: <c>candidates[rng.Range(0, candidates.Count)]</c> over the living
+    /// enemies in `05` §3.1 index order, consuming exactly one draw.
     /// </summary>
     /// <remarks>
-    /// Asserted against an <b>independently constructed</b> stream at the same battle seed rather
-    /// than against a hard-coded index, so the test states the protocol rather than a magic number,
-    /// and cannot be satisfied by a resolver that draws a different number of times or walks the
-    /// candidates in a different order.
+    /// Asserted against an <b>independently constructed</b> stream at the same battle seed rather than
+    /// a hard-coded index, so it states the protocol and cannot be satisfied by a resolver that draws a
+    /// different number of times or walks the candidates differently.
     /// </remarks>
     [Theory]
     [InlineData(1UL)]
@@ -307,14 +293,13 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// It genuinely draws. A resolver that returned the first candidate would satisfy the protocol
-    /// test above only by accident of one seed, and would fail this one outright.
+    /// It genuinely draws — a resolver returning the first candidate satisfies the protocol test above
+    /// by accident of one seed and fails this outright.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Kept although the three seeds above happen to reach all three candidates today (they draw
-    /// indices 2, 0 and 1). That is a property of those three literals, not of the rule: change one
-    /// seed for an unrelated reason and the coverage silently collapses to a single candidate, with
-    /// nothing going red. This is what stops that.
+    /// ⚠️ Kept although the three seeds happen to reach all three candidates today: that is a property
+    /// of those literals, not of the rule. Change one seed for an unrelated reason and the coverage
+    /// silently collapses to a single candidate.
     /// </remarks>
     [Fact]
     public void RANDOM_ENEMY_reaches_every_candidate_across_seeds()
@@ -409,12 +394,10 @@ public sealed class TargetResolverTests
     // ------------------------------------------------------------------ M2-R3: CURRENT_TARGET on an enemy holder
 
     /// <summary>
-    /// 🔒 M2-R3 (3a) — a boss <c>PERIODIC</c> mechanic carries no attack context at all
-    /// (<c>BattleSimulation.ContextFor</c>'s slot-3 call hands in <c>target: null</c>), so
-    /// <c>CURRENT_TARGET</c> used to throw for every one of the eight faulting boss effects. `05`
-    /// §3.2: <em>"Enemies always target the Hero"</em> — so an <c>ENEMY</c> holder's
-    /// <c>CURRENT_TARGET</c> is never actually ambiguous, in or out of an attack context, and this is
-    /// the shipped shape of <c>BOSS_RIMEHOLD_P3_COLLAPSE</c> (a plain <c>DAMAGE</c>).
+    /// 🔒 A boss <c>PERIODIC</c> carries no attack context (slot 3 hands in <c>target: null</c>), so
+    /// <c>CURRENT_TARGET</c> used to throw for all eight faulting boss effects. `05` §3.2 —
+    /// <em>"Enemies always target the Hero"</em> — makes an <c>ENEMY</c> holder's
+    /// <c>CURRENT_TARGET</c> unambiguous in or out of an attack context.
     /// </summary>
     [Fact]
     public void CURRENT_TARGET_on_an_enemy_holder_with_no_attack_in_flight_resolves_to_the_hero()
@@ -590,20 +573,14 @@ public sealed class TargetResolverTests
     // ------------------------------------------------------------------ selection vs. naming
 
     /// <summary>
-    /// 🔒 The living-only filter of `05` §3.1 step 6 governs <b>selection</b>, not <b>naming</b>.
+    /// 🔒 `05` §3.1 step 6's living-only filter governs <b>selection</b>, not <b>naming</b>: the five
+    /// set tokens filter by liveness, the four naming tokens do not.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// `05` §3.1: <em>"An actor whose HP reaches 0 stops acting and being <b>targetable</b> at that
-    /// moment"</em> — a rule about who may be picked out of a set. <c>SELF</c>, <c>CURRENT_TARGET</c>,
-    /// <c>ATTACKER</c> and <c>OWNER</c> pick nothing: each names one actor the caller already has.
-    /// Filtering them would break the cases that matter most — an <c>ON_DEATH</c> effect targeting
-    /// <c>SELF</c> (`18` §7.10's Volatile), and thorns or an <c>ON_HIT_TAKEN</c> reaction against an
-    /// attacker that died in the same tick.
-    /// </para>
-    /// <para>
-    /// So the rule is: the five set tokens filter by liveness; the four naming tokens do not.
-    /// </para>
+    /// <c>SELF</c>, <c>CURRENT_TARGET</c>, <c>ATTACKER</c> and <c>OWNER</c> pick nothing — each names an
+    /// actor the caller already has. Filtering them breaks the cases that matter most: an
+    /// <c>ON_DEATH</c> effect targeting <c>SELF</c>, and thorns or an <c>ON_HIT_TAKEN</c> reaction
+    /// against an attacker that died in the same tick.
     /// </remarks>
     [Fact]
     public void The_naming_tokens_still_resolve_a_subject_that_has_died()
@@ -639,13 +616,11 @@ public sealed class TargetResolverTests
             .Select(a => a.Id).ShouldBe(["BOSS_SPOREQUEEN"]);
     }
 
-    /// <summary>
-    /// <c>ALL_PETS</c> is a set token, so it filters by liveness with the rest of them.
-    /// </summary>
+    /// <summary><c>ALL_PETS</c> is a set token, so it filters by liveness with the rest.</summary>
     /// <remarks>
-    /// `05` §3.2 makes pets unkillable, so this is unreachable through the game — which is exactly
-    /// why it is pinned rather than left to whichever branch happens to be written. A set token that
-    /// filtered inconsistently would be a rule with two spellings.
+    /// `05` §3.2 makes pets unkillable, so this is unreachable through the game — which is why it is
+    /// pinned rather than left to whichever branch happens to be written. A set token that filtered
+    /// inconsistently would be a rule with two spellings.
     /// </remarks>
     [Fact]
     public void ALL_PETS_filters_by_liveness_like_every_other_set_token()

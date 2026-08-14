@@ -13,17 +13,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 /// <c>startDelay</c> is measured from that anchor.
 /// </summary>
 /// <remarks>
-/// <para>
-/// `17` §1.1 says <em>"fires every N seconds <b>from phase entry</b>"</em>; `18` §3 says every N
-/// seconds of battle time with an <c>interval</c> and a <c>startDelay</c> and no phase anchor. Eight
-/// boss fights depend on the difference. Every test below is one of the two documents' own worked
-/// mechanics, so a failure names the fight it broke.
-/// </para>
-/// <para>
-/// The driver is <see cref="TriggerTestBattle"/> — a hand-cranked tick source. M2-08's loop is not
-/// needed to prove any of this, which is the property that makes the predicates pluggable into a
-/// loop this task did not write.
-/// </para>
+/// `17` §1.1 says <em>"from phase entry"</em>; `18` §3 says battle time with an <c>interval</c> and a
+/// <c>startDelay</c> and no phase anchor. Eight boss fights depend on the difference, so every test
+/// below is one of the two documents' own worked mechanics and a failure names the fight it broke.
 /// </remarks>
 public sealed class PeriodicAnchoringTests
 {
@@ -53,13 +45,12 @@ public sealed class PeriodicAnchoringTests
     }
 
     /// <summary>
-    /// 🔒 A perk periodic becomes active at battle start and anchors <b>there</b> — `18` §3 exactly.
-    /// The same effect, the same interval, a different anchor and therefore a different schedule.
+    /// 🔒 A perk periodic anchors at <b>battle start</b> — same effect, same interval, different
+    /// anchor, different schedule.
     /// </summary>
     /// <remarks>
-    /// Stated as a pair with the test above rather than on its own: the whole content of R8 is that
-    /// one rule produces both readings, so a version that hard-coded "always battle start" or
-    /// "always phase entry" would pass one of these and fail the other.
+    /// A pair with the test above: R8's whole content is that one rule produces both readings, so
+    /// hard-coding either anchor passes one and fails the other.
     /// </remarks>
     [Fact]
     public void A_perk_periodic_anchors_at_battle_start()
@@ -87,22 +78,14 @@ public sealed class PeriodicAnchoringTests
     }
 
     /// <summary>
-    /// 🔒 <c>SYS_ENRAGE</c> is a <c>BATTLE</c>-scope built-in, not phase-scoped, so its
-    /// <c>startDelay: 70.0</c> is measured from <b>battle start</b> — which is what `17` §1's
-    /// <em>"a hard enrage at 70 s"</em> means.
+    /// 🔒 <c>SYS_ENRAGE</c> is <c>BATTLE</c>-scope, not phase-scoped, so its <c>startDelay: 70.0</c> is
+    /// measured from battle start — `17` §1's <em>"a hard enrage at 70 s"</em>.
     /// </summary>
     /// <remarks>
-    /// 🔒 The three stacks are the R1 reading: <c>STAT_MULT</c>'s value <b>is</b> the multiplier, so
-    /// three seconds of <c>×1.08</c> is <c>1.08³ = 1.259712</c> — <b>125.9712</b> on a base of 100.
-    /// The stacking itself is M2-06's and M2-07's; what is proved here is that exactly three firings
-    /// have landed by 72 s, because a schedule that fired at 71 s first would show two.
-    /// <para>
-    /// ⚠️ The multiplier is <b>read from the authored effect</b> rather than written as a literal.
-    /// An earlier draft wrote <c>Math.Pow(1.08, 3)</c> with both the base and the exponent supplied
-    /// by the test, which asserted only that the test could multiply — steering S1. As written, the
-    /// line fails if <c>SYS_ENRAGE</c>'s authored value drifts from `05` §3.1's <c>×1.08</c> or if
-    /// the schedule lands a different number of firings by 72 s.
-    /// </para>
+    /// What is proved here is that exactly three firings have landed by 72 s; a schedule firing at
+    /// 71 s first would show two. ⚠️ The multiplier is <b>read from the authored effect</b> — an
+    /// earlier draft wrote <c>Math.Pow(1.08, 3)</c> with both base and exponent supplied by the test,
+    /// which asserted only that the test could multiply.
     /// </remarks>
     [Fact]
     public void SYS_ENRAGE_anchors_at_battle_start_and_fires_once_a_second_from_70_s()
@@ -133,15 +116,12 @@ public sealed class PeriodicAnchoringTests
 
     /// <summary>
     /// 🔒 <b>The double-anchor negative.</b> `05` §3.1's phase check can enter two phases inside one
-    /// tick — <em>"a burst from 70% to 20% therefore fires phase 2's entry, then phase 3's"</em> —
-    /// and a live instance must not re-anchor on the second entry.
+    /// tick, and a live instance must not re-anchor on the second entry.
     /// </summary>
     /// <remarks>
-    /// Without the guard, Ossify anchored at 20 s and re-anchored at 20.05 s would have its first
-    /// ward at 34.05 s instead of 34 s — one tick of free survival per phase transition, on a boss
-    /// whose whole phase-2 identity is that ward. The failure mode is worse in a fight that changes
-    /// phase faster than the interval: an instance that re-anchored on every entry would never fire
-    /// at all.
+    /// Ossify anchored at 20 s and re-anchored at 20.05 s has its first ward at 34.05 s instead of
+    /// 34 s — one tick of free survival per transition, on a boss whose phase-2 identity is that ward.
+    /// In a fight changing phase faster than the interval it would never fire at all.
     /// </remarks>
     [Fact]
     public void A_live_periodic_never_re_anchors()
@@ -165,14 +145,13 @@ public sealed class PeriodicAnchoringTests
     }
 
     /// <summary>
-    /// 🔒 A phase entered and exited inside one tick behaves: the exited phase's block is
-    /// deactivated and never fires, and the phase entered after it anchors <b>once</b>, on that tick.
+    /// 🔒 A phase entered and exited inside one tick behaves: the exited block is deactivated and never
+    /// fires, and the phase entered after it anchors <b>once</b>.
     /// </summary>
     /// <remarks>
-    /// This is the burst `05` §3.1 describes, driven by hand: one HP decrease crosses 66% and 33%,
-    /// so phase 2 is entered and left and phase 3 is entered, all at the same tick. M2-12 re-proves
-    /// it against the real boss engine; what is proved here is that the trigger model underneath it
-    /// cannot double-anchor or leak a dead phase's periodic.
+    /// One HP decrease crosses 66% and 33%, so phase 2 is entered and left and phase 3 entered, all at
+    /// one tick. M2-12 re-proves it against the real boss engine; this proves the trigger model
+    /// underneath cannot double-anchor or leak a dead phase's periodic.
     /// </remarks>
     [Fact]
     public void A_phase_entered_and_exited_in_one_tick_leaves_no_periodic_behind()
@@ -220,10 +199,9 @@ public sealed class PeriodicAnchoringTests
     /// guard must not swallow.
     /// </summary>
     /// <remarks>
-    /// Stated because the guard and this are one line apart in the implementation: a guard written as
-    /// "never re-anchor" rather than "never re-anchor a <em>live</em> instance" would leave a
-    /// re-granted effect firing on a schedule its first grant set, which for a 14 s Ossify re-granted
-    /// at 50 s means a ward at 34 s that already happened.
+    /// The guard and this are one line apart: "never re-anchor" rather than "never re-anchor a
+    /// <em>live</em> instance" leaves a re-granted effect on its first grant's schedule, which for a
+    /// 14 s Ossify re-granted at 50 s means a ward at 34 s that already happened.
     /// </remarks>
     [Fact]
     public void A_deactivated_periodic_re_anchors_when_it_is_activated_again()
@@ -261,13 +239,13 @@ public sealed class PeriodicAnchoringTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.1 slot 3 fires within one actor <b>in ascending effect-id order</b>, and the order
-    /// is imposed here rather than taken from the caller's list.
+    /// 🔒 `05` §3.1 slot 3 fires within one actor in <b>ascending effect-id order</b>, imposed here
+    /// rather than taken from the caller's list.
     /// </summary>
     /// <remarks>
-    /// The ids are handed in reversed. `18` §8 makes the order ordinal — <c>EffectOrder</c>'s
-    /// comparer — because a bare <c>OrderBy(x =&gt; x.Id)</c> consults the ambient collation and puts
-    /// a German phone and a Linux container in different orders.
+    /// The ids are handed in reversed. The comparer is ordinal because a bare
+    /// <c>OrderBy(x =&gt; x.Id)</c> consults the ambient collation and puts a German phone and a Linux
+    /// container in different orders.
     /// </remarks>
     [Fact]
     public void Due_periodics_come_back_in_ascending_effect_id_order()
@@ -321,15 +299,13 @@ public sealed class PeriodicAnchoringTests
     }
 
     /// <summary>
-    /// 🔒 Two instances of <b>one</b> effect tie on the effect id, and the tie is broken by the
-    /// instance id — never by the caller's list order.
+    /// 🔒 Two instances of one effect tie on the effect id, and the tie is broken by the instance id —
+    /// never by the caller's list order.
     /// </summary>
     /// <remarks>
-    /// <c>EffectInstanceId</c> exists precisely because one actor can hold two copies of one effect
-    /// (`18` §3), so <c>OrderBy(effect id)</c> alone is a <em>stable</em> sort over a tie: which of
-    /// two <c>PK_AEGIS</c> wards lands first would be decided by how the tick loop happened to build
-    /// its list. The candidates are handed in reversed, so a version without the tie-break returns
-    /// them reversed.
+    /// <c>OrderBy(effect id)</c> alone is a <em>stable</em> sort over a tie, so which of two
+    /// <c>PK_AEGIS</c> wards lands first would be decided by how the tick loop built its list. The
+    /// candidates are handed in reversed, so a version without the tie-break returns them reversed.
     /// </remarks>
     [Fact]
     public void Two_instances_of_one_effect_are_tie_broken_by_the_instance_id()
@@ -358,14 +334,10 @@ public sealed class PeriodicAnchoringTests
             "18 §8's order is total: the effect id first, then the instance id");
     }
 
-    /// <summary>
-    /// 🔒 A tick that goes backwards is refused rather than silently answering "nothing is due".
-    /// </summary>
+    /// <summary>🔒 A tick that goes backwards is refused rather than answering "nothing is due".</summary>
     /// <remarks>
-    /// `05` §3.1's loop runs ticks in ascending order, and a caller that walked it wrongly would lose
-    /// every firing in between with nothing going red — the shape of failure every other guard in
-    /// this class throws on. <c>CombatLog.Append</c> refuses a backwards tick for the neighbouring
-    /// reason.
+    /// A caller that walked the loop wrongly would lose every firing in between with nothing going red.
+    /// <c>CombatLog.Append</c> refuses a backwards tick for the neighbouring reason.
     /// </remarks>
     [Fact]
     public void A_tick_that_goes_backwards_is_refused()
@@ -382,13 +354,11 @@ public sealed class PeriodicAnchoringTests
         failure.Message.ShouldContain("goes backwards", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 One instance decides once per moment: the same id twice in one call is refused.
-    /// </summary>
+    /// <summary>🔒 One instance decides once per moment: the same id twice in one call is refused.</summary>
     /// <remarks>
-    /// Normally harmless, and that is the trap. A schedule that is behind leaves the instance due
-    /// again the moment it fires, so the duplicate fires a second time inside one tick — a boss
-    /// summoning two waves on one tick, from a caller bug no combat log would explain.
+    /// Normally harmless, and that is the trap: a schedule that is behind leaves the instance due again
+    /// the moment it fires, so the duplicate fires twice inside one tick — a boss summoning two waves
+    /// on one tick, from a caller bug no combat log would explain.
     /// </remarks>
     [Fact]
     public void A_duplicate_candidate_in_one_call_is_refused()
@@ -404,14 +374,10 @@ public sealed class PeriodicAnchoringTests
         failure.Message.ShouldContain("twice among the candidates", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 A <c>PERIODIC</c> is refused on the <b>instance</b> too, not only through the registry.
-    /// </summary>
+    /// <summary>🔒 A <c>PERIODIC</c> is refused on the <b>instance</b> too, not only via the registry.</summary>
     /// <remarks>
-    /// The registry hands instances out — from <c>Register</c>, from the indexer, from
-    /// <c>PeriodicDue</c>, from <c>Instances</c> — so a guard that lived only on the registry wrapper
-    /// would leave the ordinary path open: a <c>PERIODIC</c> walked through it passes every gate
-    /// (no filter arm, no cooldown, no <c>everyNth</c>, no <c>chance</c>) and fires, leaving the
+    /// The registry hands instances out from four places, so a guard only on the wrapper leaves the
+    /// ordinary path open: a <c>PERIODIC</c> walked through it passes every gate and fires, leaving the
     /// schedule untouched so it fires again at its scheduled tick.
     /// </remarks>
     [Fact]
@@ -429,15 +395,12 @@ public sealed class PeriodicAnchoringTests
         instance.NextFiringTick.ShouldBe(TriggerTestBattle.At(8.0));
     }
 
-    /// <summary>
-    /// 🔒 The tick rate this layer counts in is `05` §3's, the same one the combat log counts in.
-    /// </summary>
+    /// <summary>🔒 The tick rate this layer counts in is the one the combat log counts in.</summary>
     /// <remarks>
-    /// 🔴 R17 makes <c>Rules.Effects</c> the bottom of the intra-<c>Rules</c> layering, so
-    /// <see cref="TriggerSchedule"/> could not name <c>CombatLog.TicksPerSecond</c> and stated `05`
-    /// §3's 20 Hz itself — two statements of one fact, closed only by this comparison. Both are now
-    /// aliases of <see cref="BattleTicks.PerSecond"/>, so this test can no longer fail; it is kept
-    /// because it is what would go red if either alias were unwound back into a literal.
+    /// 🔴 R17 makes <c>Rules.Effects</c> the bottom of the layering, so <see cref="TriggerSchedule"/>
+    /// could not name <c>CombatLog.TicksPerSecond</c> and stated 20 Hz itself — two statements of one
+    /// fact. Both are now aliases of <see cref="BattleTicks.PerSecond"/>, so this can no longer fail;
+    /// it is kept as what would go red if either alias were unwound back into a literal.
     /// </remarks>
     [Fact]
     public void The_tick_rate_agrees_with_the_combat_log()
@@ -451,24 +414,18 @@ public sealed class PeriodicAnchoringTests
     }
 
     /// <summary>
-    /// 🔴 `05` §3's whole-tick predicate — <b>one</b> predicate, with one tolerance, for every caller
-    /// that asks whether a span lands on a tick.
+    /// 🔴 `05` §3's whole-tick predicate — <b>one</b> predicate, one tolerance, for every caller asking
+    /// whether a span lands on a tick.
     /// </summary>
     /// <remarks>
+    /// 🔒 <c>TriggerSchedule</c> and <c>CombatLog</c> each carried their own <c>1e-9</c> and their own
+    /// rounding test, and only the <c>20</c> was pinned — so the two could disagree about which spans
+    /// are admissible while this file stayed green, one layer accepting a trigger interval the other
+    /// refuses as a telegraph lead.
     /// <para>
-    /// 🔒 <b>This is the half the rate comparison above never covered.</b>
-    /// <c>TriggerSchedule</c> and <c>CombatLog</c> each carried their own <c>1e-9</c>, their own
-    /// <c>Math.Abs(x − Math.Round(x)) &gt; tolerance</c> and their own <em>"use a multiple of
-    /// 0.05 s"</em> sentence. Only the <c>20</c> was pinned, so the two could have disagreed about
-    /// which spans are admissible while this file stayed green — one layer accepting a trigger
-    /// interval the other refuses as a telegraph lead.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Two shapes plus a negative control</b>, and none of them a <c>const</c>: the compiler
-    /// folds a <c>const</c>, so a literal would test the test rather than the rule. <c>1.2 s</c> is
-    /// the value whose product with 20 is not bit-exactly whole and which the tolerance exists to
-    /// admit; <c>0.05 s</c> is one tick exactly; <c>1.0001 s</c> is the defect being caught, missing
-    /// by six orders of magnitude more than the tolerance.
+    /// 🔒 None of the three rows is a <c>const</c>: the compiler folds one, so a literal would test the
+    /// test. <c>1.2 s</c> is the value whose product with 20 is not bit-exactly whole; <c>0.05 s</c> is
+    /// one tick exactly; <c>1.0001 s</c> misses by six orders of magnitude more than the tolerance.
     /// </para>
     /// </remarks>
     [Theory]
