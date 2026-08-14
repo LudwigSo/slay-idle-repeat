@@ -259,16 +259,14 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔒 `17` §11 — the built-ins are <em>"implemented once, applied to all bosses"</em>, so a
-    /// script that authored one would be a second, disagreeing copy.
+    /// 🔒 `17` §11 — the built-ins are <em>"implemented once, applied to all bosses"</em>, so a script
+    /// that authored one would be a second, disagreeing copy.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The lookup carries all three built-ins on purpose, and that is the fix to a case that
-    /// passed for the wrong reason.</b> It previously held <c>SYS_ENRAGE</c> alone, so the
-    /// <c>SYS_PHASE3_IMMUNE_STUN</c> row was refused by the <em>unresolved-mechanic</em> rule —
-    /// whose message also names the id — and the case proved nothing about this rule at all
-    /// (steering S2). With every built-in resolvable, the only thing wrong with the script is that
-    /// it authored one.
+    /// 🔴 The lookup carries all three built-ins on purpose: holding only <c>SYS_ENRAGE</c> meant the
+    /// other row was refused by the <em>unresolved-mechanic</em> rule — whose message also names the id —
+    /// so the case proved nothing about this rule. With every built-in resolvable, the only thing wrong
+    /// with the script is that it authored one.
     /// </remarks>
     [Theory]
     [InlineData("SYS_ENRAGE")]
@@ -410,17 +408,14 @@ public sealed class BossEncounterBuilderTests
     // ════════════════════════════════════════════════════ 4 · O1 — the outcomes' sibling scope
 
     /// <summary>
-    /// 🔒 <b>O1</b> — a <c>RANDOM_OUTCOME</c> row names a <b>sibling</b>: an effect id the
-    /// <em>same</em> script declares. There is no registry for it to reach past its owner into, so an
-    /// id outside <see cref="BossEncounterRequest.Effects"/> is an authoring error and is refused
-    /// <b>here</b>, before a tick runs.
+    /// 🔒 <b>O1</b> — a <c>RANDOM_OUTCOME</c> row names a <b>sibling</b>: an effect id the <em>same</em>
+    /// script declares. There is no registry to reach past its owner into, so an id outside the script
+    /// is refused <b>here</b>, before a tick runs.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes, because the row and the mechanic are different scopes to get wrong.</b>
-    /// <c>notASibling</c> is an id that exists nowhere; <c>siblingOfAnotherBoss</c> is an id that is
-    /// perfectly real content belonging to a <em>different</em> boss — which is the case a registry
-    /// would have accepted and which a sibling scope must not. Both are refused, and the message
-    /// names the rule (steering S2) so M2-13 is not left comparing eight scripts by hand.
+    /// 🔴 Two shapes, because the row and the mechanic are different scopes to get wrong: one id exists
+    /// nowhere, the other is real content belonging to a <em>different</em> boss — the case a registry
+    /// would have accepted and a sibling scope must not.
     /// </remarks>
     [Theory]
     [InlineData("BOSS_DICELORD_FATE_TYPO", "an id nothing declares")]

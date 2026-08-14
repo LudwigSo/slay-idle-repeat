@@ -61,17 +61,14 @@ public sealed class TickOrderTests
 
     /// <summary>
     /// 🔒 Slot 4 — <em>"fixed initiative order (Hero, then enemies by index — pets never
-    /// basic-attack)"</em>, and it is the same order on every tick.
+    /// basic-attack)"</em>, and the same order on every tick.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The pet assertion is on the <i>cooldown</i>, not on the swing list, and that is the whole
-    /// point.</b> A version of this test that only checked "no pet appears among the attackers"
-    /// <b>could not fail</b>: a pet that <em>was</em> in the initiative order still never swings,
-    /// because `05` §3.2's enemy-side selection finds no opposing hero for it and returns nothing. It
-    /// passed over the exact defect it was written for (steering S2 — assert the identity, not the
-    /// symptom). Slot 4b decrements <c>attackCooldown</c> for <b>every</b> actor in the order whether
-    /// or not it fired, so a pet still sitting at pre-tick 0a's <c>0</c> after 1800 ticks is proof it
-    /// was never in the order at all.
+    /// 🔴 The pet assertion is on the <i>cooldown</i>, not the swing list: "no pet appears among the
+    /// attackers" <b>cannot fail</b>, because a pet that <em>was</em> in the order still never swings —
+    /// the enemy-side selection finds no opposing hero for it. Slot 4b decrements
+    /// <c>attackCooldown</c> for <b>every</b> actor it walks, so a pet still at <c>0</c> after 1800 ticks
+    /// is proof it was never in the order.
     /// </remarks>
     [Fact]
     public void Initiative_is_hero_then_enemies_by_index_and_never_a_pet()

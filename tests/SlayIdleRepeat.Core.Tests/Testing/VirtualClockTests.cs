@@ -57,31 +57,13 @@ public sealed class VirtualClockTests
     /// 🔒 The clock only goes forwards, and the refusal names the reason it still does.
     /// </summary>
     /// <remarks>
+    /// The message fragment is pinned, not only the type: <see cref="ArgumentOutOfRangeException"/> is
+    /// what four guards on this type throw, and each has a different fix.
     /// <para>
-    /// The message fragment is pinned rather than only the exception type (steering <b>S2</b>).
-    /// <see cref="ArgumentOutOfRangeException"/> is what several other guards on this type throw —
-    /// a non-zero offset, a start before the first game day, an overflow — so a test that asserted
-    /// only the type would pass while the wrong guard fired, and each of those four has a different
-    /// fix.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>M1-12 is the milestone this remark was written for, and this is that deliberate
-    /// edit.</b> The paragraph used to read: <em>"It pins the ruling's identity too. If a later
-    /// milestone settles the disagreement between <c>Player.MarkApplied</c>'s throw and
-    /// <c>GameRules.AdvanceTime</c>'s clamp and decides a harness may rewind, this test is what has
-    /// to be deleted deliberately — with that ruling in its commit message — rather than quietly
-    /// relaxed."</em> Carried-forward item 20 is settled, on `30` §2.1 <b>P3</b>'s side:
-    /// <c>GameRules.MarkApplied</c> floors the instant it hands both aggregates, so a backwards
-    /// clock returns a result. The old fragment (<c>"carried-forward item"</c>) is therefore gone
-    /// from the message and from this assertion.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>The rule itself did not change and the test is not relaxed</b> — only the reason it
-    /// gives. Forward-only stands on `30` §6 writing the harness as <c>Advance(...)</c> rather than
-    /// a setter: skew is a thing composition roots produce, not a thing a harness manufactures. So
-    /// the second fragment now pins <c>Rehydrate</c> — the `30` §11.3 path a test must use to build
-    /// skewed state instead — which is what a caller who hit this guard actually needs to be told.
-    /// <c>GameRulesBackwardsClockTests</c> is where that is driven.
+    /// ⚠️ Forward-only stands on `30` §6 writing the harness as <c>Advance(...)</c> rather than a setter:
+    /// skew is a thing composition roots produce, not a thing a harness manufactures. So the second
+    /// fragment pins <c>Rehydrate</c> — the `30` §11.3 path a test must use to build skewed state —
+    /// which is what a caller who hit this guard needs to be told.
     /// </para>
     /// </remarks>
     [Fact]
@@ -108,22 +90,15 @@ public sealed class VirtualClockTests
     }
 
     /// <summary>
-    /// 🔒 <c>default(DateTimeOffset)</c> cannot be used as a start — the trap M1-08 signposted for
-    /// this type <b>by name</b>, closed rather than documented.
+    /// 🔒 <c>default(DateTimeOffset)</c> cannot be used as a start — closed rather than documented.
     /// </summary>
     /// <remarks>
+    /// It is <c>0001-01-01T00:00:00+00:00</c> and <b>passes</b> <c>GameContext</c>'s zero-offset guard,
+    /// so a clock or fixture that forgot to set <c>NowUtc</c> lands there silently.
     /// <para>
-    /// M1-08's finding: <c>default(DateTimeOffset)</c> is <c>0001-01-01T00:00:00+00:00</c> and
-    /// <b>passes</b> <c>GameContext</c>'s zero-offset guard, so a clock or a fixture that forgot to
-    /// set <c>NowUtc</c> lands there silently. <c>GameCalendar</c> floors its arithmetic at
-    /// <see cref="GameCalendar.FirstGameDay"/> so the state is survivable; this makes it
-    /// unreachable.
-    /// </para>
-    /// <para>
-    /// 🔒 The first assertion is the one that makes the rest meaningful: it re-establishes M1-08's
-    /// premise from the framework rather than trusting this test's own memory of it. If
-    /// <c>default(DateTimeOffset)</c> ever stopped carrying a zero offset, the guard below would be
-    /// catching a different thing than the one it was written for.
+    /// 🔒 The first assertion re-establishes that premise from the framework rather than trusting this
+    /// test's memory of it: if <c>default</c> ever stopped carrying a zero offset, the guard below would
+    /// be catching a different thing than it was written for.
     /// </para>
     /// </remarks>
     [Fact]
