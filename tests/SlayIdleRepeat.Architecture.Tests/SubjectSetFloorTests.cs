@@ -313,10 +313,23 @@ public sealed class SubjectSetFloorTests
         // closes that: it scans the enum's TYPE reference rather than a string literal, and it
         // permits Rules/Combat/Enemies/ — the directory this entry already names as the table's home.
         // The entry survives because the rule cannot see the OTHER half: that no table exists at all.
-        new("EliteModifierEffects", SubjectKind.CoreType, "unassigned — the first consumer",
-            "05 §6.2's modifier parameters, which have no consumer yet; 18's headnote forbids the " +
-            "per-modifier branching that is otherwise the path of least resistance. The branching " +
-            "itself is now caught by EnemyDerivationRuleTests." +
+        //
+        // 🔴 M2-R4 UPDATE — the owner named above ("unassigned — the first consumer") has arrived and
+        // the table is STILL missing, which is the reopening this entry's remarks predicted.
+        // EncounterFight (SlayIdleRepeat.Core.Rules.Combat.Enemies.EncounterFight) is the first
+        // production caller of EliteModifierDraw.Draw — it wires 05 §6.2's Elite treatment into a
+        // real, publicly reachable fight (CombatSimulator.SimulateEncounter) — and it deliberately
+        // draws the modifier and discards it rather than resolving it into an 18 §1 effect, for the
+        // same reason M2-11 never wrote a consumer: CURSED's curse id is null (content/curses/ is
+        // empty) and VOLATILE needs a hero-naming target token no ruling has settled, so a six-of-
+        // eight table would retire this deferral while two modifiers silently did nothing — worse
+        // than the gap staying open and named. The owner column below is corrected to name the actual
+        // blocker rather than "the first consumer", which no longer describes what is missing.
+        new("EliteModifierEffects", SubjectKind.CoreType,
+            "unassigned — needs 05 §6.2's CURSED curse id and R3a's VOLATILE target-token ruling",
+            "05 §6.2's modifier parameters, which have a real caller (EncounterFight) but no effect " +
+            "translation; 18's headnote forbids the per-modifier branching that is otherwise the path " +
+            "of least resistance. The branching itself is caught by EnemyDerivationRuleTests." +
             "No_elite_modifier_is_named_in_code_outside_the_enemy_namespace; this entry tracks the " +
             "missing table, which no rule can see"),
 
