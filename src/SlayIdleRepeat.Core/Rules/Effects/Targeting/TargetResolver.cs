@@ -57,12 +57,13 @@ internal static class TargetResolver
             EffectTarget.SELF => Only(context.Holder),
 
             EffectTarget.CURRENT_TARGET => Only(
-                context.CurrentTarget ?? throw new EffectContextException(
+                context.CurrentTarget ?? EnemyHolderHero(context) ?? throw new EffectContextException(
                     nameof(EffectTarget.CURRENT_TARGET),
                     "the context carries no current target",
                     "18 §5 authorises a degradation for OTHER_ENEMIES and a skip for OWNER, and " +
-                    "nothing for this token. Steering S6: an empty set here would be a hit that " +
-                    "landed on nobody, indistinguishable from a battle whose enemies are all dead.")),
+                    "nothing for this token on a HERO holder. Steering S6: an empty set here would be " +
+                    "a hit that landed on nobody, indistinguishable from a battle whose enemies are " +
+                    "all dead. (An ENEMY holder never reaches this throw — see EnemyHolderHero.)")),
 
             EffectTarget.ATTACKER => Only(
                 context.Attacker ?? throw new EffectContextException(
@@ -105,6 +106,68 @@ internal static class TargetResolver
     /// </summary>
     private static IReadOnlyList<IEffectActorView> LivingEnemies(EffectEvaluationContext context) =>
         BattleRoster.LivingEnemies(context);
+
+    /// <summary>
+    /// 🔒 M2-R3 — <c>CURRENT_TARGET</c> on an <c>ENEMY</c> holder, when the context carries no
+    /// current target at all (a boss <c>PERIODIC</c> mechanic, which has no attack context to carry
+    /// one — see <c>BattleSimulation.ContextFor</c>'s slot-3 call, <c>target: null</c>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The ruling, and why it narrows `18` §5's uniform "absent subject throws" rule for
+    /// exactly this one token on exactly this one holder kind.</b> `05` §3.2 states, as a rule and
+    /// not merely an observation: <em>"Enemies always target the Hero."</em> A <c>HERO</c> holder's
+    /// <c>CURRENT_TARGET</c> is genuinely ambiguous outside an attack context — `05` §3.2's own
+    /// target-priority machinery lets the hero's basic attack (and therefore its primary target) vary
+    /// hit to hit among several living enemies, so a <c>HERO</c>-holder <c>CURRENT_TARGET</c> with no
+    /// attack in flight really does have no answer, and the general throw stands for it unchanged. An
+    /// <c>ENEMY</c> holder has no such freedom: `05` §3's roster is one hero (plus pets, which `05`
+    /// §3.2 makes untargetable), so an enemy's target is the same single actor whether or not an
+    /// attack happens to be in flight at the moment its <c>PERIODIC</c> fires. Filling that one case
+    /// is not steering S6's forbidden "plausible default" — the value is not a guess standing in for
+    /// an unknown, it is the only value `05` §3.2 permits.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The eight faulting boss effects this closes.</b> `17`'s Cindermaw Magma Vent/Vent
+    /// Refresh (P2 and P3), Rimehold's Collapse, Cogitator Prime's Recalibrate and Piston Slam, and
+    /// the Dicelord's All In are all <c>PERIODIC</c> effects on a boss holder targeting
+    /// <c>CURRENT_TARGET</c> — no attack is in flight when a periodic timer fires, so
+    /// <see cref="EffectEvaluationContext.CurrentTarget"/> is <c>null</c> and every one of them threw
+    /// before this fix.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Returns exactly one actor, not a set — <c>STAT_COPY</c> depends on it.</b> R13 makes
+    /// <c>STAT_COPY</c>'s <c>target</c> name the copy SOURCE, and the op reads it as a single actor.
+    /// This helper is called from inside <see cref="Only"/>'s argument position exactly like every
+    /// other naming token, so Cogitator's Recalibrate (a <c>STAT_COPY</c> targeting
+    /// <c>CURRENT_TARGET</c>) still resolves to one actor — the hero — never a set containing it.
+    /// </para>
+    /// <para>
+    /// <c>null</c> when the roster carries no hero on the opposite side — a synthetic or malformed
+    /// context, not a real battle (`05` §3 always seats exactly one hero). Falling through to the
+    /// ordinary throw below is the honest answer for that case, rather than a second, differently
+    /// worded one.
+    /// </para>
+    /// </remarks>
+    private static IEffectActorView? EnemyHolderHero(EffectEvaluationContext context)
+    {
+        if (context.Holder.Kind != EffectActorKind.ENEMY)
+        {
+            return null;
+        }
+
+        var side = context.Holder.Side;
+
+        foreach (var actor in context.Actors)
+        {
+            if (actor.Kind == EffectActorKind.HERO && actor.Side != side)
+            {
+                return actor;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// `18` §5 — <em>"all enemies except the attack's primary target … Valid only inside an attack
