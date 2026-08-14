@@ -8,23 +8,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 M2-13's authored boss data, run through the engine that consumes it: `17` §1.2's nine
-/// coefficient rows, `17` §2-9's mechanics, and the eight authoring rules
-/// <see cref="BossEncounterBuilder"/> refuses on.
+/// 🔒 The authored boss data run through the engine that consumes it: `17` §1.2's nine coefficient
+/// rows, `17` §2-9's mechanics, and the eight authoring rules <see cref="BossEncounterBuilder"/>
+/// refuses on.
 /// </summary>
 /// <remarks>
+/// `17` §11: <em>"All 8 bosses expressed purely in the effect DSL — zero bespoke boss code."</em> The
+/// content pipeline proves the data is valid JSON against the schemas; this proves the same data
+/// <b>builds into an encounter</b>, a different failure surface, because A1-A5, T1-T3 and O1 are
+/// engine rules no schema states.
 /// <para>
-/// `17` §11: <em>"All 8 bosses expressed purely in the effect DSL — zero bespoke boss code."</em>
-/// These cases are the half of that claim the content pipeline cannot make: the pipeline proves the
-/// data is <b>valid JSON against the schemas</b>, and this proves the same data <b>builds into an
-/// encounter</b> — which is a different failure surface, because A1-A5, T1-T3 and O1 are engine
-/// rules that no schema states.
-/// </para>
-/// <para>
-/// 🔒 <b>Every negative case mutates an <em>authored</em> script rather than a fixture.</b> That is
-/// what makes it a statement about the shipped data: the mutation is one field, the rest of the
-/// script is what is on disk, and the assertion names the marker (steering S2) rather than merely
-/// observing that something threw.
+/// 🔒 Every negative case mutates an <em>authored</em> script rather than a fixture — one field
+/// changed, the rest as it is on disk — and names the marker rather than observing that something
+/// threw.
 /// </para>
 /// </remarks>
 public sealed class AuthoredBossScriptTests
@@ -52,22 +48,14 @@ public sealed class AuthoredBossScriptTests
 
     /// <summary>
     /// 🔒 The headline: every authored script resolves and builds. A boss whose mechanics do not
-    /// resolve is a fight with its mechanics silently deleted, which the balance harness reads as
-    /// the boss being weak.
+    /// resolve is a fight with its mechanics silently deleted, which the balance harness reads as the
+    /// boss being weak.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// S3 — the subject set is floored at <see cref="AuthoredScriptCount"/>. Without it, a reader
-    /// that returned an empty list would make this and every case below pass over nothing, which is
-    /// exactly the vacuous pass a data-driven suite is prone to.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>A count is not enough on its own, and the named row beside it is why.</b> Since M2-16a
-    /// these cases read the shipped file through <see cref="BossCatalogue"/> and
-    /// <c>GameDataLoader</c> rather than through an embedded resource, so "nine of something" could
-    /// in principle be nine rows of a document that is not this one. Naming a row pins that the
-    /// nine are `17` §1.2's.
-    /// </para>
+    /// S3 — the subject set is floored at <see cref="AuthoredScriptCount"/>, without which a reader
+    /// returning an empty list makes this and every case below pass over nothing. 🔴 The named row
+    /// beside the count is why a count alone is not enough: these read the shipped file through
+    /// <see cref="BossCatalogue"/>, so "nine of something" could be nine rows of a different document.
     /// </remarks>
     [Fact]
     public void Every_authored_script_builds_into_an_encounter()
@@ -172,22 +160,16 @@ public sealed class AuthoredBossScriptTests
     // ─────────────────────────────────────────────────────── 17 §2-9, transcribed
 
     /// <summary>
-    /// 🔒 `17` §2-9's authored magnitudes and periods, one row per mechanic. <b>This is the task's
-    /// governing assertion</b> (steering S6): every number in the boss data has to trace to a `17`
-    /// line, and until these rows existed a single-token typo in any of them shipped green — the
-    /// other censuses here check an op, a cap, a scope or a sibling reference, and never the number.
+    /// 🔒 `17` §2-9's authored magnitudes and periods, one row per mechanic — <b>the governing
+    /// assertion</b>: every number in the boss data has to trace to a `17` line, and until these rows
+    /// existed a single-token typo shipped green, because every other census here checks an op, a cap,
+    /// a scope or a sibling reference and never the number.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <paramref name="value"/> is the effect's authored <c>value</c>; <paramref name="intervalSeconds"/>
-    /// its <c>PERIODIC</c> period, or <c>null</c> where the mechanic is not periodic (a phase-entry
-    /// aura, an on-hit rider, a reactive burst). Both are read off the shipped file, and the expected
-    /// numbers are quoted from `17` in the third column.
-    /// </para>
-    /// <para>
-    /// 🔒 The row count is floored against the data below, so a mechanic added to `bosses.json`
-    /// without a row here fails rather than quietly escaping the transcription check.
-    /// </para>
+    /// <paramref name="value"/> is the effect's authored <c>value</c>, <paramref name="intervalSeconds"/>
+    /// its <c>PERIODIC</c> period or <c>null</c> where the mechanic is not periodic. Both are read off
+    /// the shipped file; the expected numbers are quoted from `17`. 🔒 The row count is floored against
+    /// the data, so a mechanic added to <c>bosses.json</c> without a row here fails.
     /// </remarks>
     [Theory]
     // 17 §2 — Thornmaw
@@ -408,19 +390,13 @@ public sealed class AuthoredBossScriptTests
     /// and nothing anywhere uses the retired 999-second idiom.
     /// </summary>
     /// <remarks>
+    /// ⚠️ The subject set is a structural proxy for `17` §1.1's <c>AURA</c>, not that list: an
+    /// <c>ON_PHASE_ENTER</c> effect carrying a duration is what R3 is decidable over, and two of the
+    /// thirteen auras are authored as <c>PERIODIC</c> and fall outside <b>by construction</b> —
+    /// Escalation must survive every transition (a <c>BATTLE</c> scope) and Rot is a per-second drain.
     /// <para>
-    /// ⚠️ <b>The subject set is a structural proxy for `17` §1.1's <c>AURA</c>, not that list.</b> An
-    /// <c>ON_PHASE_ENTER</c> effect carrying a duration is what R3 is decidable over; `17` calls
-    /// thirteen things an <c>AURA</c>, and two of them — Cogitator's Escalation and Sporequeen's Rot
-    /// — are authored as <c>PERIODIC</c> and fall outside this census <b>by construction</b>. That is
-    /// deliberate and the reason is in each script's own <c>_doc</c>: Escalation must survive every
-    /// transition (`17` §7: <em>"never resets for the whole fight"</em>), which is a <c>BATTLE</c>
-    /// scope, and Rot is a per-second drain rather than a passive.
-    /// </para>
-    /// <para>
-    /// 🔴 The second assertion is the one with teeth on `18` §7.8's erratum: <em>"the
-    /// <c>{"seconds": 999}</c> idiom is not to be used anywhere"</em>. It is stated over EVERY
-    /// authored duration, not only the auras, because the idiom is reachable from any of them.
+    /// 🔴 The second assertion is stated over <b>every</b> authored duration, not only the auras,
+    /// because `18` §7.8's retired idiom is reachable from any of them.
     /// </para>
     /// </remarks>
     [Fact]

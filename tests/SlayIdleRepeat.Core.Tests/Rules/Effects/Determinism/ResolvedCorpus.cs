@@ -10,24 +10,14 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// <param name="Index">The permutation ordinal the property first holds at.</param>
 internal sealed record NamedPermutation(string Id, int Index);
 
-/// <summary>
-/// The 10 000-permutation corpus, generated and resolved once for the whole suite.
-/// </summary>
+/// <summary>The 10 000-permutation corpus, generated and resolved once for the whole suite.</summary>
 /// <remarks>
+/// Built in a static initialiser because xUnit gives a class one instance per test method, and the
+/// corpus is a pure function of <c>BuildPermutationGenerator.BaselineSeed</c> — regenerating it per
+/// method would multiply the suite's cost by its test count for no added coverage.
 /// <para>
-/// Built once in a static initialiser because every test in
-/// <c>DslDeterminismBaselineTests</c> reads the same corpus and xUnit gives a class one instance per
-/// test method. Regenerating it per method would multiply the suite's cost by its test count for no
-/// added coverage: the corpus is a pure function of <c>BuildPermutationGenerator.BaselineSeed</c>,
-/// and <c>The_corpus_is_re_runnable</c> is the test that says so.
-/// </para>
-/// <para>
-/// 🔒 <b>The three phases are timed separately.</b> `18` §11 asks for 10 000 permutations in a suite
-/// that has to stay fast, and "it is fast enough" is not a claim a report can make without the
-/// number. <see cref="GenerationElapsed"/>, <see cref="ResolutionElapsed"/> and
-/// <see cref="HashingElapsed"/> are what
-/// <c>The_10000_permutation_pass_stays_inside_the_unit_tier_budget</c> asserts against and what the
-/// completion report quotes.
+/// 🔒 The three phases are timed separately: "it is fast enough" is not a claim a report can make
+/// without the number.
 /// </para>
 /// </remarks>
 internal sealed class ResolvedCorpus

@@ -5,45 +5,32 @@ using System.Text.Json;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
 /// <summary>
-/// 🔒 The regeneration half of M2-17's committed baseline — <b>the shape, never the reasons</b>.
+/// 🔒 The regeneration half of the committed baseline — <b>the shape, never the reasons</b>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>The documented command</b>, and the only supported way to move a hash in
+/// The documented command, and the only supported way to move a hash in
 /// <c>DslDeterminismBaseline.json</c>:
-/// </para>
 /// <code>
 /// SIR_M2_17_BASELINE_OUT=tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/DslDeterminismBaseline.json \
 ///   dotnet test tests/SlayIdleRepeat.Core.Tests \
-///     --filter "FullyQualifiedName~DslDeterminismBaselineTests.The_text_the_documented_regeneration_command_writes"
+///   --filter "FullyQualifiedName~DslDeterminismBaselineTests.The_text_the_documented_regeneration_command_writes"
 /// </code>
+/// Run by hand, never by CI.
 /// <para>
-/// On Windows PowerShell the same command is
-/// <c>$env:SIR_M2_17_BASELINE_OUT = '…\DslDeterminismBaseline.json'</c> followed by the same
-/// <c>dotnet test</c> line. Run by hand, never by CI — like <c>ContentValidator --write-baseline</c>,
-/// whose design this follows.
+/// 🔒 <b>The regenerated file does not pass.</b> Every render stamps <see cref="UnreviewedStatus"/>
+/// into the review block and the reader <b>refuses</b> a table in that state — <em>"--write-baseline
+/// writes the SHAPE; the reason is written by hand. A generated reason is not a reason."</em> A
+/// regenerated table nobody reviewed is a determinism break accepted without anybody saying why.
 /// </para>
 /// <para>
-/// 🔒 <b>The regenerated file does not pass.</b> Every render stamps
-/// <c><see cref="UnreviewedStatus"/></c> into the review block, and
-/// <see cref="DslDeterminismBaseline"/> <b>refuses</b> a table in that state. That refusal is
-/// deliberate and is M0-09's, word for word in spirit: <em>"--write-baseline writes the SHAPE; the
-/// reason and the owning milestone task are written by hand. A generated reason is not a reason."</em>
-/// A regenerated table that nobody reviewed is a determinism break that has been accepted without
-/// anybody saying why, which is the one outcome a determinism baseline must not allow.
+/// ⚠️ The reviewer must, in order: read the git diff (a change to <c>aggregate</c> alone is impossible,
+/// so one moved chunk means the change is localised); establish which `18` §8 step changed and whether
+/// that was intended; write the <c>why</c>, naming the change and the task; then set <c>status</c> and
+/// stamp <c>reviewedOn</c>.
 /// </para>
 /// <para>
-/// ⚠️ <b>What the reviewer must do, in order.</b> (1) Read the git diff — a change to
-/// <c>aggregate</c> alone is impossible, so if only one chunk moved the change is localised and that
-/// is information. (2) Establish which `18` §8 step changed and whether the change was intended.
-/// (3) Write the <c>why</c>, naming the change and the task that made it. (4) Set <c>status</c> to
-/// <c>reviewed</c> and stamp <c>reviewedOn</c>. Anything less and the suite stays red.
-/// </para>
-/// <para>
-/// Per-row <c>why</c> strings are <b>carried over</b> from the file being replaced rather than
-/// re-emitted: a row's reason describes the property it pins, which a regeneration does not change.
-/// A row the writer has never seen gets an empty string, and
-/// <see cref="DslDeterminismBaseline"/> refuses that too.
+/// Per-row <c>why</c> strings are <b>carried over</b> from the file being replaced: a row's reason
+/// describes the property it pins, which a regeneration does not change.
 /// </para>
 /// </remarks>
 internal static class DslDeterminismBaselineWriter
@@ -54,18 +41,12 @@ internal static class DslDeterminismBaselineWriter
     /// <summary>🔒 The status every render stamps, and the one the reader refuses.</summary>
     internal const string UnreviewedStatus = "unreviewed";
 
-    /// <summary>
-    /// 🔒 The only file a regeneration may write, as a path suffix.
-    /// </summary>
+    /// <summary>🔒 The only file a regeneration may write, as a path suffix.</summary>
     /// <remarks>
-    /// <c>ContentValidator --write-baseline</c> is a CLI flag on a tool run deliberately; this is a
-    /// <c>[Fact]</c> that writes whenever <see cref="DestinationVariable"/> happens to be set in the
-    /// environment — including during a plain <c>dotnet test</c> nobody intended as a regeneration.
-    /// Since <see cref="ReasonsIn"/> now refuses a destination that does not exist, the only usable
-    /// destination <em>is</em> the committed table, which sharpens that hazard rather than removing
-    /// it. So the write branch checks the path as well: an exported variable can no longer send the
-    /// render anywhere but the one file it belongs in, and the render is stamped
-    /// <see cref="UnreviewedStatus"/> in any case, so the next run is red rather than quietly green.
+    /// Unlike a CLI flag on a tool run deliberately, this is a <c>[Fact]</c> that writes whenever
+    /// <see cref="DestinationVariable"/> happens to be set — including during a plain <c>dotnet test</c>
+    /// nobody intended as a regeneration. So the write branch checks the path too: an exported variable
+    /// cannot send the render anywhere but the one file it belongs in.
     /// </remarks>
     internal const string CanonicalPath =
         "tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/DslDeterminismBaseline.json";
@@ -84,24 +65,10 @@ internal static class DslDeterminismBaselineWriter
     /// <summary>The status a human writes once they have read the diff and said why it moved.</summary>
     internal const string ReviewedStatus = "reviewed";
 
-    /// <summary>
-    /// 🔴 <b>The steering-S5 limitation, in the words the committed file carries.</b>
-    /// </summary>
+    /// <summary>🔴 The steering-S5 limitation, in the words the committed file carries.</summary>
     /// <remarks>
-    /// <para>
-    /// It lives on the <b>writer</b> because the writer is what renders it — the reader only checks
-    /// that the committed file still carries it, word for word, through
-    /// <c>The_committed_table_states_the_limitation_it_is_under</c>. A header nobody checks is a
-    /// header somebody deletes.
-    /// <para>
-    /// ⚠️ It also had to move here once: while the reader's refusals ran inline in its static
-    /// initialiser, a header held on <see cref="DslDeterminismBaseline"/> was unreachable from the
-    /// very command that has to write it, because regenerating an unreviewed table tripped the
-    /// initialiser first. That constraint is gone — <c>Validate</c> is separable now and
-    /// <c>RawText</c> is exposed before it runs — so the placement is a preference today rather than
-    /// a necessity. Recorded because the old rationale read like a load-bearing one.
-    /// </para>
-    /// </para>
+    /// It lives on the <b>writer</b> because the writer renders it; the reader only checks the committed
+    /// file still carries it word for word. A header nobody checks is a header somebody deletes.
     /// </remarks>
     internal static IReadOnlyList<string> HeaderLines { get; } = new List<string>
     {
@@ -184,16 +151,12 @@ internal static class DslDeterminismBaselineWriter
         return text.ToString();
     }
 
-    /// <summary>
-    /// The per-row reasons held in the table file being replaced.
-    /// </summary>
+    /// <summary>The per-row reasons held in the table file being replaced.</summary>
     /// <remarks>
-    /// 🔒 <b>It refuses a destination that does not exist</b>, and that is the whole safety of the
-    /// carry-over. An earlier draft returned an empty map instead, so pointing
-    /// <c>SIR_M2_17_BASELINE_OUT</c> at a scratch path to inspect the diff — the obvious thing a
-    /// reviewer does — silently produced a table with twelve blank <c>why</c>s, discarding twelve
-    /// hand-written paragraphs. Regeneration <b>replaces</b> a table; it does not create one from
-    /// nothing.
+    /// 🔒 <b>It refuses a destination that does not exist</b>, which is the whole safety of the
+    /// carry-over. Returning an empty map instead meant that pointing the variable at a scratch path to
+    /// inspect the diff — the obvious thing a reviewer does — silently produced a table with twelve
+    /// blank <c>why</c>s. Regeneration <b>replaces</b> a table; it does not create one from nothing.
     /// </remarks>
     /// <exception cref="FileNotFoundException">There is no table at that path to carry reasons over from.</exception>
     internal static IReadOnlyDictionary<string, string> ReasonsIn(string path)

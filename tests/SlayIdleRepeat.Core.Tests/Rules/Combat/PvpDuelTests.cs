@@ -304,24 +304,16 @@ public sealed class PvpDuelTests
     // ═══════════════════════════════════════════════════════════ the tie (`11` §4.3)
 
     /// <summary>
-    /// 🔒 `11` §4.3 — <em>"On timeout, the side with the higher remaining HP fraction wins. On an exact
-    /// tie, the <b>lower-rated player wins</b> (a small underdog bias that prevents stagnation at the
-    /// top)."</em>
+    /// 🔒 `11` §4.3 — on timeout the higher remaining HP <b>fraction</b> wins; on an exact tie the
+    /// <b>lower-rated player</b> does.
     /// </summary>
     /// <remarks>
+    /// 🔒 The standings tie on the <em>fraction</em>, not the HP: <c>40/100</c> against <c>80/200</c>.
+    /// A rule comparing HP would not tie here at all and this would be asserting something else.
     /// <para>
-    /// 🔒 <b>The standings are an exact tie on the <em>fraction</em> and not on the HP</b>: the
-    /// attacker is at <c>40/100</c> and the Ghost at <c>80/200</c>. Both are 0.40, and the Ghost holds
-    /// twice the absolute HP — so a rule that compared HP would not tie here at all, and this test
-    /// would be asserting something else.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The negative controls are two, one per direction, and that is not belt-and-braces.</b>
-    /// `11` §4.3's underdog rule breaks <em>ties</em>; it does not hand the fight to the lower-rated
-    /// player. A single non-tie arm naming the Ghost as the underdog leaves the mirrored defect
-    /// alive — <em>"the attacker wins whenever it is the underdog, tie or not"</em> would satisfy it.
-    /// So a non-tie is run with each side named as the underdog, and in both the higher fraction
-    /// takes it.
+    /// 🔒 Two negative controls, one per direction: the underdog rule breaks <em>ties</em>, it does not
+    /// hand the fight to the lower-rated player. A single non-tie arm leaves the mirrored defect —
+    /// "the attacker wins whenever it is the underdog" — alive.
     /// </para>
     /// </remarks>
     [Fact]
@@ -363,23 +355,14 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.3 / `11` §4.3 — <em>"is this a duel"</em> is <b>one</b> fact: a fight is a duel
-    /// exactly when an underdog is named, and <c>IsPvp</c> is derived rather than stored.
+    /// 🔒 <em>"Is this a duel"</em> is <b>one</b> fact: a fight is a duel exactly when an underdog is
+    /// named, and <c>IsPvp</c> is derived rather than stored.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// `11` §4.3 makes the underdog mandatory in a duel and `05` §3 gives PvE none, so a stored
-    /// <c>bool IsPvp</c> beside <c>ExactTieWinner</c> was two spellings of one bit — and the invalid
-    /// pairing was constructible: <c>new CombatRules(1200, false, IsPvp: true)</c> ran a duel whose
-    /// exact ties silently fell back to `05` §3's PvE errata, an attacker loss, which is the very
-    /// outcome <c>ExactTieWinner</c> exists to prevent. Deriving it deletes the value rather than
-    /// reporting it.
-    /// </para>
-    /// <para>
-    /// 🔒 Asserted over a <c>with</c> expression as well as a constructor, because a record's
-    /// non-destructive mutation is the other way an author reaches a field — and it is the way that
-    /// would have bypassed a constructor-only guard.
-    /// </para>
+    /// A stored <c>bool IsPvp</c> beside <c>ExactTieWinner</c> was two spellings of one bit, and the
+    /// invalid pairing was constructible: <c>IsPvp: true</c> with no underdog ran a duel whose exact
+    /// ties fell back to PvE's attacker loss — the outcome <c>ExactTieWinner</c> exists to prevent.
+    /// 🔒 Asserted over a <c>with</c> expression too, the way that would bypass a constructor-only guard.
     /// </remarks>
     [Fact]
     public void Naming_an_underdog_is_what_makes_a_fight_a_duel()
@@ -408,21 +391,16 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.3's <em>"slight attacker edge"</em>, as an <b>outcome</b> rather than as a log order:
-    /// when both heroes can one-shot each other, the side that swings first is the side that wins.
+    /// 🔒 `05` §3.3's <em>"slight attacker edge"</em> as an <b>outcome</b> rather than a log order: when
+    /// both heroes can one-shot each other, the side that swings first wins.
     /// </summary>
     /// <remarks>
+    /// Both shapes run the same roster, HP and damage; only the acting order differs, and it decides
+    /// the duel.
     /// <para>
-    /// This is what the initiative rule is <em>for</em>. §3.3 calls the edge <em>"deliberate and
-    /// consistent with only the attacker's rating being at stake (`11` §5.1)"</em> — a statement about
-    /// who wins races, not about event ordering. Both shapes run the same roster, the same HP and the
-    /// same damage; only the acting order differs, and it decides the duel.
-    /// </para>
-    /// <para>
-    /// 🔴 It also records why <see cref="A_mutual_death_in_a_duel_is_an_attacker_loss"/> cannot be
-    /// built out of basic attacks: the first lethal swing puts its target out of play inside the same
-    /// slot 4 (`05` §3.1 step 6), so under attacker-first initiative two heroes never trade fatal
-    /// blows. A mutual death needs a mechanism that lands on both sides <em>before</em> slot 4.
+    /// 🔴 It also records why <see cref="A_mutual_death_in_a_duel_is_an_attacker_loss"/> cannot be built
+    /// from basic attacks: the first lethal swing puts its target out of play inside the same slot 4,
+    /// so under attacker-first initiative two heroes never trade fatal blows.
     /// </para>
     /// </remarks>
     [Fact]
@@ -436,20 +414,15 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// ⚠️ `05` §3.3 / `11` §4.3 — a <b>mutual</b> death is an attacker loss, whoever the underdog is.
-    /// Errata: neither document rules it, and it is the one path where §3.3's attacker edge reverses.
+    /// ⚠️ A <b>mutual</b> death is an attacker loss, whoever the underdog is. Errata: neither document
+    /// rules it, and it is the one path where §3.3's attacker edge reverses.
     /// </summary>
     /// <remarks>
-    /// Pinned rather than left to be rediscovered. `05` §3.3 says only <em>"the only death in a duel
-    /// ends the fight"</em> without saying whose, and `11` §4.3's underdog bias is scoped to the
-    /// <b>timeout</b> — so a fight that ended in deaths never reaches it. The arm naming the attacker
-    /// as the underdog is what makes this a claim about the death ordering rather than about the tie
-    /// rule: if <c>Outcome</c> ever read a mutual death as a 0.0/0.0 tie, that arm would flip.
-    /// <para>
-    /// The two sides are taken to 0 in <b>slot 1</b>, which is the shape the reachable mechanisms have
-    /// — `05` §3.1's <em>"every DoT/HoT instance whose cadence boundary falls on this tick"</em> can
-    /// land on both. M2-09's thorns reflect is the other and is not on this branch.
-    /// </para>
+    /// §3.3 says only <em>"the only death in a duel ends the fight"</em> without saying whose, and `11`
+    /// §4.3's underdog bias is scoped to the <b>timeout</b>. The arm naming the attacker as underdog is
+    /// what makes this a claim about death ordering rather than the tie rule: if <c>Outcome</c> ever
+    /// read a mutual death as a 0.0/0.0 tie, that arm would flip. Both sides are taken to 0 in
+    /// <b>slot 1</b>, the shape the reachable mechanisms have.
     /// </remarks>
     [Fact]
     public void A_mutual_death_in_a_duel_is_an_attacker_loss()
@@ -466,22 +439,15 @@ public sealed class PvpDuelTests
     // ═══════════════════════════════════════════════════════════ the run queue (`18` §2.5)
 
     /// <summary>
-    /// 🔒 `18` §2.5 — in a duel the <c>RunEffectQueued</c> queue is <b>discarded</b>, consistent with
-    /// §9.3's <c>IS_PVP</c> skipping. A duel has no run to apply anything to.
+    /// 🔒 `18` §2.5 — in a duel the <c>RunEffectQueued</c> queue is <b>discarded</b>. A duel has no run
+    /// to apply anything to.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Both trigger moments, because they are two different constructions of the occurrence.</b>
-    /// <c>BattleSimulation</c> builds a <c>TriggerOccurrence</c> in three places — the
-    /// <c>ON_BATTLE_START</c> sweep, the <c>ON_BATTLE_END</c> sweep, and the shared factory everything
-    /// else uses — and each sets <c>IsPvp</c> itself. An <c>IsPvp</c> that failed to travel on one of
-    /// them would queue a run effect out of a duel silently, and `11` §6 would then see a client and a
-    /// server disagreeing about a log neither of them tampered with.
-    /// </para>
-    /// <para>
-    /// The PvE arm is the floor: it proves the ops really are `18` §2.5 ops and really do reach the
-    /// queue, so the duel arm's emptiness is a discard rather than an effect that never fired.
-    /// </para>
+    /// 🔒 Both trigger moments, because <c>BattleSimulation</c> builds a <c>TriggerOccurrence</c> in
+    /// three places and each sets <c>IsPvp</c> itself. An <c>IsPvp</c> that failed to travel on one would
+    /// queue a run effect out of a duel silently, and `11` §6 would see a client and server disagreeing
+    /// about a log neither tampered with. The PvE arm is the floor: it proves the ops reach the queue
+    /// at all, so the duel arm's emptiness is a discard rather than an effect that never fired.
     /// </remarks>
     [Fact]
     public void A_duel_discards_the_run_effect_queue()
@@ -504,26 +470,18 @@ public sealed class PvpDuelTests
 
     /// <summary>
     /// 🔒 `05` §3.3 — <em>"Each hero targets <b>only the opposing hero</b>. Pets are untargetable and
-    /// unkillable on both sides."</em> Verified in a running duel; the mechanism is M2-05's
-    /// <c>BattleRoster</c> and is not restated here.
+    /// unkillable on both sides."</em> Verified in a running duel.
     /// </summary>
     /// <remarks>
+    /// 🔴 In PvE "no pet appears among the attackers" cannot fail — a pet in slot 4's order still never
+    /// swings, because the enemy-side selection finds no opposing hero for it. <b>A duel has one</b>, so
+    /// a wrongly admitted pet really would swing. Slot 4b decrements <c>attackCooldown</c> for
+    /// <b>every</b> actor it walks, so a pet still at <c>0</c> is proof it was never walked.
     /// <para>
-    /// 🔴 <b>The pet assertion is on the cooldown, on M2-08's precedent — and in a duel it is
-    /// <em>doubly</em> needed.</b> In PvE, "no pet appears among the attackers" cannot fail: a pet
-    /// placed in slot 4's order still never swings, because `05` §3.2's enemy-side selection finds no
-    /// opposing hero for it. <b>A duel has one.</b> A pet wrongly admitted to slot 4 would therefore
-    /// really swing here — which makes the swing list a live assertion for once, so both are made.
-    /// Slot 4b decrements <c>attackCooldown</c> for <b>every</b> actor it walks, fired or not, so a
-    /// pet still sitting at pre-tick 0a's <c>0</c> is proof it was never walked.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>The cap is 13 ticks and it must not be a multiple of 20.</b> A 1.0-ASPD actor's cooldown
-    /// returns to exactly <c>0.0</c> every 20 ticks (`05` §3.1 slot 4: fire, set <c>1.0/ASPD</c>,
-    /// subtract <c>TICK</c>), so at a cycle boundary a pet that <em>was</em> walked reads <c>0.0</c>
-    /// too and the identity assertion silently becomes a coincidence. This was found by deliberately
-    /// admitting pets to the order and watching the test pass (steering S1); at 13 ticks the walked
-    /// reading is <c>0.35</c> and the assertion bites.
+    /// 🔴 The cap is 13 ticks and must not be a multiple of 20: a 1.0-ASPD actor's cooldown returns to
+    /// exactly <c>0.0</c> every 20 ticks, so at a cycle boundary a walked pet reads <c>0.0</c> too and
+    /// the assertion becomes a coincidence. Found by admitting pets on purpose and watching it pass; at
+    /// 13 ticks the walked reading is <c>0.35</c>.
     /// </para>
     /// </remarks>
     [Fact]
@@ -563,22 +521,14 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 `18` §9.3 / `05` §3.3 — <em>"gear affixes and perk clauses with no duel meaning are
-    /// <b>skipped</b> via the <c>IS_PVP</c> condition, never converted."</em> Live in a running duel,
-    /// through `18` §8's aggregation.
+    /// 🔒 `18` §9.3 — clauses with no duel meaning are <b>skipped</b> via <c>IS_PVP</c>, never
+    /// converted. Live in a running duel, through `18` §8's aggregation.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// M2-05 pinned the evaluator's answer; what this adds is that a real fight builds a context
-    /// carrying <c>IsPvp</c>, so the skip actually happens to a stat. The effect is a
-    /// <c>STAT_ADD_FLAT</c> rather than a gold affix because a gold affix has no combat reading to
-    /// observe — the mechanism under test is the skip, not the affix (steering S6: `08` §3's affix
-    /// catalogue and `06`'s perk ids are M3/M4's, and none is invented here).
-    /// </para>
-    /// <para>
-    /// The PvE arm is the floor: without it, an effect that never applied in <em>either</em> shape
-    /// would read as a successful skip.
-    /// </para>
+    /// <c>PvpConditionTests</c> pins the evaluator's answer; this adds that a real fight builds a
+    /// context carrying <c>IsPvp</c>, so the skip happens to a stat. A <c>STAT_ADD_FLAT</c> rather than
+    /// a gold affix because a gold affix has no combat reading to observe. The PvE arm is the floor:
+    /// without it, an effect that never applied in <em>either</em> shape reads as a successful skip.
     /// </remarks>
     [Fact]
     public void The_IS_PVP_skip_is_live_in_a_running_duel_and_not_only_in_the_evaluator()
@@ -608,29 +558,21 @@ public sealed class PvpDuelTests
     // ═══════════════════════════════════════════════════════════ fixtures
 
     /// <summary>
-    /// 🔴 A fight's bounds with <b>everything except <see cref="CombatRules.IsPvp"/> held
-    /// constant</b>, so a two-shape probe over it isolates that one switch.
+    /// 🔴 A fight's bounds with <b>everything except <see cref="CombatRules.IsPvp"/> held constant</b>,
+    /// so a two-shape probe isolates that one switch.
     /// </summary>
     /// <remarks>
+    /// <c>OnKillTriggersFire</c> is pinned <c>false</c> in both shapes rather than tracked against
+    /// <c>IsPvp</c>: a negative control that moves two switches is not a control.
     /// <para>
-    /// <c>OnKillTriggersFire</c> is pinned to <c>false</c> in both shapes rather than tracked against
-    /// <c>IsPvp</c>. Tracking it would make every "the only difference is <c>IsPvp</c>" claim in this
-    /// file false in the letter — two switches move, and a negative control that moves two switches is
-    /// not a control. It is inert on today's rosters (nothing dies in an ordering fixture), which is
-    /// exactly the kind of "inert until someone lowers an HP value" coupling worth not having.
+    /// ⚠️ <c>ExactTieWinner</c> is not a second switch — <c>IsPvp</c> is <em>derived</em> from it, so
+    /// naming a side is how this factory sets the flag under test. It is inert for every probe here, and
+    /// checkably so: <b>no</b> two-shape test in this file reads <c>HeroWon</c>, the only thing the tie
+    /// rule can reach.
     /// </para>
     /// <para>
-    /// ⚠️ <b><c>ExactTieWinner</c> is not a second switch — it <em>is</em> <c>IsPvp</c>.</b>
-    /// <c>CombatRules.IsPvp</c> is derived from it, so naming a side is how this factory sets the very
-    /// flag under test; there is no third value to hold constant. It is inert for every probe stated
-    /// over this factory, and checkably so: <b>no</b> two-shape test in this file reads
-    /// <c>HeroWon</c>, which is the only thing the tie rule can reach. The tie rule is probed on its
-    /// own, against fights built by <see cref="Underdog"/>.
-    /// </para>
-    /// <para>
-    /// The cap is a parameter and is deliberately <b>not</b> `11` §4.3's 1200: an ordering claim must
-    /// not be able to pass because of the duration switch, and a 3-tick fight makes the whole suite
-    /// cheap. The duration is probed on its own, by its own tests.
+    /// The cap is deliberately not `11` §4.3's 1200: an ordering claim must not be able to pass because
+    /// of the duration switch. Duration is probed by its own tests.
     /// </para>
     /// </remarks>
     private static CombatRules DuelRules(int maxTicks, bool isPvp) =>
