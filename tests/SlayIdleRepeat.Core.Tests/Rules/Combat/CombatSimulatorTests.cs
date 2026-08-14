@@ -41,34 +41,21 @@ public sealed class CombatSimulatorTests
     }
 
     /// <summary>
-    /// 🔒 `05` §1's public signature runs a whole fight — the pre-tick, `18` §8's aggregation, slot
-    /// 4's swings through `05` §4's pipeline, and a sealed, hashed log.
+    /// 🔒 `05` §1's public signature runs a whole fight — the pre-tick, `18` §8's aggregation, slot 4's
+    /// swings through §4's pipeline, and a sealed, hashed log.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>THIS TEST IS M2-08's EXPIRY, DISCHARGED.</b> It read
-    /// <c>The_public_entry_point_reaches_slot_4_and_stops_at_the_M2_09_seam</c> and asserted that
-    /// <c>UnwiredAttackPipeline</c> refused the first swing naming M2-09. M2-08 wrote the replacement
-    /// into its own remarks — <em>"the ones this test would make today if it could"</em> — and the
-    /// four assertions below are that block verbatim. The refusal it replaced still exists and is
-    /// still reachable: <c>BattleSeams.Strict</c> keeps the unwired pipeline, and
-    /// <see cref="A_plan_built_on_the_strict_seams_still_refuses_the_first_swing"/> is what stops
-    /// that shape from rotting now that it is no longer the default.
-    /// </para>
-    /// <para>
-    /// The three 📐 constants are the shipped <c>combat_caps.json</c> values — see
-    /// <c>StatFixtures.Mitigation</c> for why restating them in this assembly is safe.
-    /// </para>
+    /// The refusal this replaced still exists and is still reachable: <c>BattleSeams.Strict</c> keeps the
+    /// unwired pipeline, and <see cref="A_plan_built_on_the_strict_seams_still_refuses_the_first_swing"/>
+    /// is what stops that shape from rotting now it is no longer the default.
     /// </remarks>
     /// <remarks>
-    /// ⚠️ <b>The last four assertions are M2-08's block; the first three are not, and they are what
-    /// make the case discriminating.</b> The prescribed four all hold for a fight in which the
-    /// pipeline deals no damage at all — a <c>ResolveAttack</c> that always returned
-    /// <c>Missed: true</c>, or one whose step 2 produced 0, passes them verbatim. Discharging an
-    /// expiry does not license keeping a test that cannot fail (steering S1), so the fight is
+    /// ⚠️ The last four assertions are the prescribed block; the first three are what make the case
+    /// discriminating. All four prescribed ones hold for a fight in which the pipeline deals no damage —
+    /// a <c>ResolveAttack</c> always returning <c>Missed: true</c> passes them verbatim. So the fight is
     /// asserted to have <em>landed hits</em>, <em>killed both enemies</em> and <em>finished inside the
-    /// cap</em> — a Legend-60 hero swings ATK 390 into 300 and 200 HP, so all three are arithmetic
-    /// rather than hope.
+    /// cap</em>: a Legend-60 hero swings ATK 390 into 300 and 200 HP, so all three are arithmetic rather
+    /// than hope.
     /// </remarks>
     [Fact]
     public void The_public_entry_point_runs_a_whole_fight()
@@ -119,22 +106,15 @@ public sealed class CombatSimulatorTests
             StatFixtures.CombatCapsSnapshot()));
 
     /// <summary>
-    /// 🔒 `05`'s headnote — <em>"a full 60-second fight must simulate in &lt; 5 ms"</em>, asserted over
-    /// the <b>median</b> of N worst-case fights: 1800 ticks, five enemies, three pets, nobody dying.
+    /// 🔒 `05`'s headnote — <em>"a full 60-second fight must simulate in &lt; 5 ms"</em>, over the
+    /// <b>median</b> of N worst-case fights: 1800 ticks, five enemies, three pets, nobody dying.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>Asserted at a documented multiple of the budget, and the raw median is printed.</b> The
-    /// design number is 5 ms on a target device; this runs on shared CI hardware under a debug build
-    /// with a coverage collector attached, where a 3× spread between runs is ordinary. A test pinned
-    /// at 5 ms would flake and be deleted, which buys nothing; one at 10× catches the regression that
-    /// matters — an accidental per-tick aggregation of every actor, which is roughly 100× — and never
-    /// flakes. The printed median is what a human reads to see the real headroom.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>No benchmark project.</b> Nothing authorises one and <c>build/ci/test-suites.json</c>
-    /// would need a new entry; this is an ordinary <c>Core.Tests</c> case.
-    /// </para>
+    /// ⚠️ Asserted at a documented multiple of the budget, with the raw median printed. The design number
+    /// is 5 ms on a target device; this runs on shared CI under a debug build with a coverage collector,
+    /// where a 3× spread is ordinary. A test pinned at 5 ms would flake and be deleted; one at 10×
+    /// catches the regression that matters — an accidental per-tick aggregation of every actor, roughly
+    /// 100× — and never flakes.
     /// </remarks>
     [Fact]
     public void A_worst_case_1800_tick_fight_simulates_inside_the_budget()

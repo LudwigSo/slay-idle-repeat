@@ -11,27 +11,19 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// literal calls each op made.
 /// </summary>
 /// <remarks>
+/// 🔒 Recorders, not stubs that swallow: `18` §10 step 3 asks for a test that asserts the op's
+/// <b>numeric</b> behaviour, so these capture the number and the recipient of every seam call in order.
+/// A test asserting only that the resolver did not throw would pass over an op that multiplied by the
+/// wrong basis, hit the wrong actor, or silently did nothing.
 /// <para>
-/// 🔒 <b>Recorders, not stubs that swallow.</b> `18` §10 step 3 asks for a test that
-/// <em>"asserts the op's <b>numeric</b> behaviour"</em>, so what these capture is the number and the
-/// recipient of every seam call, in the order the op made them. A test that asserted only that the
-/// resolver did not throw would pass over an op that multiplied by the wrong basis, hit the wrong
-/// actor, or silently did nothing — which is what the whole unwired-default discipline
-/// (<see cref="EffectOpSeams.Strict"/>) exists to make impossible in production and what these make
-/// impossible in the tests.
+/// 🔒 <b>Every argument is captured, including ones no assertion reads yet.</b> A recorder that dropped
+/// <c>duration</c>, <c>stacking</c> or <c>sourceEffectId</c> would let an op pass <c>null, null, ""</c>
+/// with the whole suite green — and all three are load-bearing.
 /// </para>
 /// <para>
-/// 🔒 <b>Every argument is captured, including the ones no assertion happens to read yet.</b> A
-/// recorder that dropped <c>duration</c>, <c>stacking</c> or <c>sourceEffectId</c> would let an op
-/// pass <c>null</c>, <c>null</c> and <c>""</c> with the whole suite green — and all three are
-/// load-bearing: `18` §2.4 copies <em>"for <c>duration</c>"</em>, `05` §4 consumes
-/// <c>ATTACK_MULT_NEXT</c> charges <em>"in ascending effect-id order"</em>, and `05` §4.1 measures
-/// <c>sourceCapPct</c> against the ward segment's <c>sourceEffectId</c>.
-/// </para>
-/// <para>
-/// The stat reader is <b>frozen by construction</b> — a dictionary handed in once — which is how
-/// <c>StatCopyOpTests</c> exhibits `18` §2.4's <em>"reads the start-of-tick snapshot, so mutual
-/// copies cannot recurse"</em> rather than asserting the doc comment.
+/// The stat reader is <b>frozen by construction</b>, which is how <c>StatCopyOpTests</c> exhibits `18`
+/// §2.4's <em>"reads the start-of-tick snapshot, so mutual copies cannot recurse"</em> rather than
+/// asserting the doc comment.
 /// </para>
 /// </remarks>
 internal sealed class OpTestBench

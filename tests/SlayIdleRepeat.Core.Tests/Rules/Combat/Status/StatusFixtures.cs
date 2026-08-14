@@ -60,12 +60,9 @@ internal static class StatusFixtures
     /// <c>CombatSimulator.Simulate</c> overload requires.
     /// </summary>
     /// <remarks>
-    /// That overload composes its own <c>StatusTimeline</c> (it is `30` §11.2's export for `14` §2.4's
-    /// client, and `05` §6.1a gives a CASTER a biome status, so a fight it cannot apply a status in is
-    /// not a fight the named consumer can run). It therefore reads <b>two</b> documents, and a fixture
-    /// carrying only <c>combat_caps.json</c> now fails loudly at <c>StatusCatalogue.Read</c> — which is
-    /// the intended shape: the parameter is documented as the loaded, schema-validated snapshot, and
-    /// the shipped one carries both.
+    /// That overload composes its own <c>StatusTimeline</c> (a fight it cannot apply a status in is not
+    /// a fight `14` §2.4's client can run), so it reads <b>two</b> documents and a fixture carrying only
+    /// <c>combat_caps.json</c> fails loudly at <c>StatusCatalogue.Read</c>.
     /// </remarks>
     internal static ContentSnapshot With(ContentSnapshot other)
     {
@@ -299,17 +296,15 @@ internal class RecordingStatusPipeline : IAttackPipeline
     }
 
     /// <summary>
-    /// A phase controller that counts `05` §3.1's phase check — the call that is <b>doubled</b> if a
-    /// DoT tick routes <c>AfterHpDecrease</c> itself as well as through `05` §4 step 9.
+    /// A phase controller that counts `05` §3.1's phase check — the call that is <b>doubled</b> if a DoT
+    /// tick routes <c>AfterHpDecrease</c> itself as well as through §4 step 9.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Why this exists rather than a counter on the pipeline double.</b> Review found that
-    /// counting inside <see cref="RecordingStatusPipeline"/> measures how many times the timeline
-    /// called the pipeline — which the <c>Dots.Count</c> assertion beside it already says — and is
-    /// structurally blind to the defect it was written for: a timeline that <em>also</em> called
-    /// <c>_services.AfterHpDecrease</c> leaves that counter unchanged.
-    /// <c>BattleSimulation.AfterHpDecrease</c> fans out to <see cref="IBossPhases.AfterHpDecrease"/>
-    /// and the <c>ON_LOW_HP</c> sweep, so counting here sees the double.
+    /// 🔴 Counting inside <see cref="RecordingStatusPipeline"/> measures how many times the timeline
+    /// called the pipeline — which the <c>Dots.Count</c> assertion already says — and is structurally
+    /// blind to the defect: a timeline that <em>also</em> called <c>_services.AfterHpDecrease</c> leaves
+    /// that counter unchanged. <c>BattleSimulation.AfterHpDecrease</c> fans out to here, so this sees the
+    /// double.
     /// </remarks>
     internal sealed class CountingPhases : IBossPhases
     {

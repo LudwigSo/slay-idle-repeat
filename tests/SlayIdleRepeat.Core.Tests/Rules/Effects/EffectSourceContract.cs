@@ -6,34 +6,25 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>
-/// 🔒 The shared contract suite for <see cref="IEffectSource"/> — `18` §8 step 1's source
-/// abstraction. Every implementation is run through it, including the ten that M3 and M4 have not
-/// written yet.
+/// 🔒 The shared contract suite for <see cref="IEffectSource"/> — `18` §8 step 1's source abstraction.
+/// Every implementation is run through it, including the ten M3 and M4 have not written yet.
 /// </summary>
 /// <remarks>
+/// 🔒 Steering S7 — the fake is <c>ListEffectSource</c> and this is the suite. Not a port, but it has
+/// the property S7 exists for: <b>ten</b> implementations, seven milestones, months apart, by people
+/// who never read each other's.
 /// <para>
-/// 🔒 Steering S7 — <em>"add the <c>InMemory</c> fake <b>and</b> the shared contract suite in the
-/// same change as the port."</em> The fake is <c>ListEffectSource</c>; this is the suite.
-/// <see cref="IEffectSource"/> is not a port — it declares no I/O — but it has the property S7 exists
-/// for: it will have <b>ten</b> implementations, written by seven different milestones, months apart,
-/// by people who never read each other's.
+/// <b>To implement it:</b> derive a test class from this one and override <see cref="Create"/> to build
+/// your implementation carrying the given effects in the given order. Nothing may be overridden — a
+/// rule an implementation can opt out of is not a contract.
 /// </para>
 /// <para>
-/// <b>To implement <see cref="IEffectSource"/>:</b> derive a test class from this one, override
-/// <see cref="Create"/> to build your implementation carrying the given effects in the given order,
-/// and the rules below run against it. Nothing may be overridden — a rule an implementation can opt
-/// out of is not a contract.
-/// </para>
-/// <para>
-/// ⚠️ <b>What this suite CANNOT check, stated so nobody reads its silence as cover.</b> The
-/// load-bearing half of <see cref="IEffectSource"/>'s obligation is that
-/// <see cref="IEffectSource.Effects"/> is ordered by a function of the <em>build</em> and is
-/// therefore identical on a phone and in a container — because that order is
-/// <see cref="EffectResolutionOrder"/>'s tiebreak for two effects sharing one id. A suite running in
-/// one process can prove the order is <b>stable</b> (below) and cannot prove it is
-/// <b>device-independent</b>. An implementation that enumerated a <see cref="HashSet{T}"/> would pass
-/// every rule here and still put `18` §8's divergence back. That is why the obligation is written on
-/// the interface in prose as well as tested here.
+/// ⚠️ <b>What this suite cannot check.</b> The load-bearing half of the obligation is that
+/// <see cref="IEffectSource.Effects"/> is ordered by a function of the <em>build</em> and is therefore
+/// identical on a phone and in a container, because that order is
+/// <see cref="EffectResolutionOrder"/>'s tiebreak. A suite in one process can prove the order is
+/// <b>stable</b> and not that it is <b>device-independent</b> — an implementation enumerating a
+/// <see cref="HashSet{T}"/> would pass everything here and still put the divergence back.
 /// </para>
 /// </remarks>
 public abstract class EffectSourceContract
