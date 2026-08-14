@@ -88,18 +88,13 @@ public sealed class GameRulesStateTests
     /// makes this assertable twice over one fixture at all.
     /// </summary>
     /// <remarks>
+    /// ⚠️ Without the clone the first call would have moved the input's Gold to 100 and the second would
+    /// answer 160. Determinism over the <em>draws</em> is <c>GameRulesRngTests</c>'.
     /// <para>
-    /// ⚠️ A weak-looking property that is doing real work here: without the clone the first call
-    /// would have moved the input's Gold to 100, and the second would answer 160. Determinism over
-    /// the <em>draws</em> is pinned separately in <c>GameRulesRngTests</c>.
-    /// </para>
-    /// <para>
-    /// 🔒 Compared through `14` §16.6's <c>stateHash</c> rather than by comparing the two snapshot
-    /// records. A snapshot carries <c>IReadOnlyDictionary</c> components, and a record's synthesized
-    /// equality compares those with <c>EqualityComparer&lt;T&gt;.Default</c> — i.e. by
-    /// <b>reference</b> — so two separately rehydrated aggregates holding identical state compare
-    /// <em>unequal</em>. The hash is the thing the client, the parity test (`14` §13) and the
-    /// reconnect check actually compare, and it reads the values.
+    /// 🔒 Compared through `14` §16.6's <c>stateHash</c> rather than the snapshot records: a snapshot
+    /// carries <c>IReadOnlyDictionary</c> components which a record compares by <b>reference</b>, so two
+    /// separately rehydrated aggregates holding identical state compare <em>unequal</em>. The hash is
+    /// what the client and the parity test actually compare, and it reads the values.
     /// </para>
     /// </remarks>
     [Fact]

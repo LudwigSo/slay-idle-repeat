@@ -7,26 +7,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// `12` §4.3 — the per-run ad-use counters: <c>placement id → uses</c>, for the thirteen
-/// <c>inRunPlacements</c> whose <c>capWindow</c> is <c>RUN</c>.
+/// `12` §4.3 — the per-run ad-use counters: <c>placement id → uses</c>, for the thirteen in-run
+/// placements whose <c>capWindow</c> is <c>RUN</c>.
 /// </summary>
 /// <remarks>
+/// The mechanism is <c>Player</c>'s <c>key → long</c> counter, reused rather than reinvented.
 /// <para>
-/// The mechanism is <c>Player</c>'s <c>key → long</c> counter, reused rather than reinvented: open
-/// keys, a blank key refused, a negative amount refused, checked overflow, mutated in place behind a
-/// read-only view, and zero for a key nobody has used.
-/// </para>
-/// <para>
-/// 🔒 <b>The one deviation is the absence of a period anchor and a reset mutator.</b> `12` §4.3 makes
-/// in-run caps <em>per run</em>, and the run <b>is</b> the period — a run never crosses an in-run cap
-/// boundary, so there is nothing to reset and a reset mutator would be a way to hand a player their
+/// 🔒 The one deviation is the absence of a period anchor and a reset mutator: the run <b>is</b> the
+/// period, so there is nothing to reset and a reset mutator would be a way to hand a player their
 /// seventeen impressions twice.
 /// </para>
 /// <para>
-/// ⚠️ <b>The caps themselves are not enforced here.</b> <c>CAP_REACHED</c> belongs to the handler
-/// that reads <c>ads.json</c>; `30` §11.5 keeps that computation out of the aggregate, which holds
-/// the count and refuses a count that is not a count. So there is no case below asserting that
-/// <c>AD_REVIVE</c> stops at 1 — that assertion belongs to the milestone that owns the cap.
+/// ⚠️ The caps themselves are not enforced here — <c>CAP_REACHED</c> belongs to the handler that reads
+/// <c>ads.json</c>, and `30` §11.5 keeps that computation out of the aggregate, which holds the count
+/// and refuses a count that is not a count.
 /// </para>
 /// </remarks>
 public sealed class RunAdUseTests

@@ -10,16 +10,12 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// the aggregate holds over them.
 /// </summary>
 /// <remarks>
-/// <para>
 /// The <b>behaviour</b> — when the calendar advances during a command — is
-/// <c>BeginSessionCalendarTests</c>'. What is here is what the aggregate itself refuses and what it
-/// round-trips, which is the half a handler cannot get wrong on its own.
-/// </para>
+/// <c>BeginSessionCalendarTests</c>'. What is here is what the aggregate refuses and what it
+/// round-trips, the half a handler cannot get wrong on its own.
 /// <para>
-/// ⚠️ <b><c>AdvanceLoginCalendar</c> is <c>internal</c>, reached through the <c>InternalsVisibleTo</c>
-/// `30` §11.3 sanctions.</b> `30` §11.2 keeps every mutator internal so the only public way to change
-/// state is <c>GameRules.Apply</c>; testing it directly here is testing the invariant, not opening a
-/// second door.
+/// ⚠️ <c>AdvanceLoginCalendar</c> is <c>internal</c>, reached through the <c>InternalsVisibleTo</c>
+/// `30` §11.3 sanctions: testing it directly is testing the invariant, not opening a second door.
 /// </para>
 /// </remarks>
 public sealed class PlayerLoginCalendarTests

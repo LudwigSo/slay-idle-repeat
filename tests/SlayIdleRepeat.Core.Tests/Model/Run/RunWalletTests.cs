@@ -9,16 +9,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `10` §1 / `30` §7 / `30` §11.5 — the run's wallet: the one <c>RUN</c>-scoped currency it
-/// holds, the one seam that moves it, the event every movement produces, and the invariant that a
-/// balance never goes negative.
+/// 🔒 `10` §1 / `30` §7 / §11.5 — the run's wallet: the one <c>RUN</c>-scoped currency it holds, the one
+/// seam that moves it, the event every movement produces, and the invariant that a balance never goes
+/// negative.
 /// </summary>
 /// <remarks>
-/// The mirror image of <c>PlayerWalletTests</c>. Milestone assumption <b>A3</b> splits `10` §1's
-/// eight currencies across two aggregates: <c>GOLD</c> here, the six wallet rows and <c>ENERGY</c>
-/// on <c>Player</c>. Each aggregate refuses the other's, by name and with the reason, rather than
-/// answering zero — a zero reads as "the run has none", which about the wrong aggregate is a lie
-/// rather than a balance.
+/// The mirror of <c>PlayerWalletTests</c>. Assumption <b>A3</b> splits `10` §1's eight currencies across
+/// two aggregates, and each refuses the other's by name rather than answering zero — a zero reads as
+/// "the run has none", which about the wrong aggregate is a lie rather than a balance.
 /// </remarks>
 public sealed class RunWalletTests
 {

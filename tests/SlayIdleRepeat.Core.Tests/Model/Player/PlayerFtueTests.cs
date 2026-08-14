@@ -9,17 +9,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `19` D7 — <em>"the Player aggregate carries <c>ftueProgress { completedAtUtc | null,
-/// beatId }</c>, where <c>beatId</c> ∈ B0…B10 plus B6b, advanced server-side as each beat's
-/// interaction completes."</em>
+/// 🔒 `19` D7 — the <c>Player</c> aggregate carries <c>ftueProgress { completedAtUtc | null, beatId }</c>,
+/// advanced server-side as each beat's interaction completes.
 /// </summary>
 /// <remarks>
-/// ⚠️ The <b>seven tutorial-only rule flags</b> of `19` D4.3 are deliberately not on this
-/// aggregate. D4.3 item 2 calls <c>noAds</c> "a package flag", and
-/// <c>IMPLEMENTATION_TRACKER.md</c> assigns "tutorial-only defs and flags (7)" to <b>M4-12</b>'s
-/// <c>ftue.json</c> content package. They describe the tutorial, not the player, and putting them
-/// in SchemaVersion 1's pinned field list would make M4-12's first real decision about them a
-/// serialisation change.
+/// ⚠️ The seven tutorial-only rule flags of `19` D4.3 are deliberately <b>not</b> on this aggregate:
+/// they describe the tutorial, not the player, and are M4-12's <c>ftue.json</c> content package.
+/// Putting them in SchemaVersion 1's pinned field list would make M4-12's first real decision about
+/// them a serialisation change.
 /// </remarks>
 public sealed class PlayerFtueTests
 {

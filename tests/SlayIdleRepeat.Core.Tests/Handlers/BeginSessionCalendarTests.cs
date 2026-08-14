@@ -8,34 +8,22 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
 /// 🔒 `19` Part G — the 28-day login calendar's <b>advancement rule</b>, driven through
-/// <c>GameRules.Apply</c>.
+/// <c>GameRules.Apply</c>: <em>"advances at <c>BEGIN_SESSION</c> … at most once per game day, and only
+/// when the currently open day has been claimed; a missed or unclaimed day pauses the calendar.
+/// Nothing is skipped or lost."</em>
 /// </summary>
 /// <remarks>
+/// 🔒 This advances the <b>pointer</b> and never pays out — the payout is <c>CLAIM_CALENDAR</c>'s
+/// (M4-09) and the 28 reward rows are read by nothing today. There is no test here asserting a reward,
+/// and its absence is the deferral rather than a gap.
 /// <para>
-/// The rule, verbatim: <em>"The calendar advances at <c>BEGIN_SESSION</c> — the first server contact
-/// of the game day — not by date. It advances at most once per game day, and only when the currently
-/// open day has been claimed; a missed day — or an unclaimed one — pauses the calendar. Nothing is
-/// skipped or lost."</em> Plus: <em>"After day 28 it restarts at day 1. Every cycle pays identically."</em>
+/// ⚠️ Nothing in M1 can claim a day, so the <em>claimed</em> fixtures are built through
+/// <c>Player.Rehydrate</c> — the same door the Postgres adapter uses, not a shortcut around a missing
+/// command. The <b>pause</b> arm needs no such help: it is the state every M1 player is in.
 /// </para>
 /// <para>
-/// 🔒 <b>What M1-09 owns and what it does not.</b> It advances the <b>pointer</b>. It never pays out:
-/// `19` G puts the payout on <c>CLAIM_CALENDAR</c>, whose dispatch row is <c>Deferred</c> to M4-09,
-/// and the 28 reward rows are 📐 tunable in <c>tuning/currencies.json</c> and are read by nothing
-/// today. So there is no test here asserting a reward, and its absence is the deferral rather than a
-/// gap in this file.
-/// </para>
-/// <para>
-/// ⚠️ <b>Nothing in M1 can claim a day</b>, so the <em>claimed</em> fixtures below are built through
-/// <c>Player.Rehydrate</c> — `30` §11.3's one validated construction path, which is public precisely
-/// so a persisted row can be rebuilt. That is not a shortcut around a missing command: it is the same
-/// door the Postgres adapter uses, and it is what lets the advance arm be tested at all before M4-09.
-/// The <b>pause</b> arm needs no such help — it is the state every M1 player is actually in.
-/// </para>
-/// <para>
-/// 🔒 The "at most once per game day" half is <b>not</b> here: it is the same mechanism as the daily
-/// idempotence and is asserted in <c>BeginSessionIdempotenceTests</c>, where the repeat-call fixtures
-/// live. Stating it in both places would be two rules over one mechanism, and the one that failed
-/// first would be fixed in the other.
+/// 🔒 The "at most once per game day" half is <c>BeginSessionIdempotenceTests</c>' — the same mechanism
+/// as the daily idempotence, and stating it in both places would be two rules over one mechanism.
 /// </para>
 /// </remarks>
 public sealed class BeginSessionCalendarTests
@@ -109,27 +97,14 @@ public sealed class BeginSessionCalendarTests
     /// 🔒 A full cycle walked one game day at a time, claiming each day: 28 advances return to day 1.
     /// </summary>
     /// <remarks>
+    /// ⚠️ The per-step tests each advance a player <em>constructed</em> at the day they test, so none
+    /// proves the sequence composes — an implementation that advanced correctly from any given day but
+    /// reset the day on some other path satisfies all of them.
     /// <para>
-    /// ⚠️ <b>Why walk it rather than assert the wrap once.</b> The per-step tests above each advance a
-    /// player <em>constructed</em> at the day they test, so none of them proves the sequence composes
-    /// — an implementation that advanced correctly from any given day but reset the day on some other
-    /// path would satisfy all of them. This one carries the same player through, and it is also the
-    /// closest thing in M1 to what <b>M1-11</b> will do with a multi-day player.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>The loop carries the AGGREGATE, not just the day number, and the first draft did
-    /// not.</b> It minted a fresh player at the day under test on every iteration, which made it 28
-    /// independent applications of <c>LoginCalendarTuning.DayAfter</c> — exactly the shape the
-    /// paragraph above claims it improves on, and already covered by the theory above. The state that
-    /// walks the cycle is now the same twenty-two snapshot fields throughout, so an implementation
-    /// that advanced correctly from a constructed day but disturbed the pointer on some other path
-    /// fails here.
-    /// </para>
-    /// <para>
-    /// The claim between days is the rehydration door again, and it stands in for M4-09's
-    /// <c>CLAIM_CALENDAR</c> — it rewrites <em>one</em> field of the player the previous command
-    /// returned. What it must NOT do is skip the advance itself, which is why each step goes through
-    /// <c>Apply</c>.
+    /// 🔴 The loop carries the <b>aggregate</b>, not just the day number. The first draft minted a fresh
+    /// player each iteration, which made it 28 independent applications of <c>DayAfter</c> — the very
+    /// shape it claims to improve on. The state that walks the cycle is now the same twenty-two
+    /// snapshot fields throughout.
     /// </para>
     /// </remarks>
     [Fact]

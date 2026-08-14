@@ -9,37 +9,21 @@ namespace SlayIdleRepeat.Core.Tests;
 /// <c>Apply</c>'s caller as an <c>ArgumentOutOfRangeException</c>.
 /// </summary>
 /// <remarks>
+/// 🔴 A real contradiction between two halves of one ruling: the energy span was clamped and both reset
+/// guards written as <c>&gt;=</c>, all citing P3 — while <c>GameRules.MarkApplied</c> handed
+/// <c>context.NowUtc</c> straight to <c>Player.MarkApplied</c>, which <em>throws</em> on an earlier
+/// instant. <c>Player.MarkApplied</c>'s own remarks asserted the protection that did not exist.
 /// <para>
-/// 🔴 <b>Carried-forward item 20, and it was a real contradiction between two halves of one
-/// ruling.</b> M1-08 clamped the energy span — <c>Math.Max(0L, sinceAnchor.Ticks)</c> — and wrote
-/// the two reset guards as <c>&gt;=</c>, both citing <b>P3</b> and both saying in as many words that
-/// a host clock microseconds behind the stored anchor must not throw out of <c>Apply</c>. The third
-/// path was left alone: <c>GameRules.MarkApplied</c> handed <c>context.NowUtc</c> straight to
-/// <c>Player.MarkApplied</c>, which <em>throws</em> on an instant before the one stored — and
-/// <c>Player.MarkApplied</c>'s own remarks already asserted the protection that did not exist
-/// (<em>"an earlier instant means a clock moved backwards, and M1-08's <c>AdvanceTime</c> is
-/// specified to clamp that rather than pass it on"</em>). Two halves of one ruling disagreed, and
-/// the comment describing the agreement was on the half that lost.
+/// 🔒 It was never hypothetical for want of a rewindable harness: the state needs only a stored
+/// aggregate and a host whose clock is behind the instant it was last written at — one
+/// <c>Rehydrate</c> away, and what every composition root that is not the harness does on every command.
 /// </para>
 /// <para>
-/// 🔒 <b>Why it could not be reached from the harness, and why that never made it hypothetical.</b>
-/// M1-11 made <c>VirtualClock</c> forward-only rather than settle this, reasoning that a rewindable
-/// harness would be the only producer of the state and whichever test was written first would settle
-/// a ruling nobody had made. But the state needs no rewindable clock: it needs a stored aggregate and
-/// a host whose clock is behind the instant that aggregate was last written at, which is one `30`
-/// §11.3 <c>Rehydrate</c> away and is what every composition root that is not the harness does on
-/// every command. <c>Worlds</c>' own fixture comment had already recorded the consequence —
-/// <em>"one earlier would make every accepted command throw"</em> — as a property of the fixture
-/// rather than as the defect it was.
-/// </para>
-/// <para>
-/// 🔒 <b>The aggregate invariant is unchanged, and deliberately so.</b> <c>Player.MarkApplied</c> and
-/// <c>Run.MarkApplied</c> still refuse a backwards instant: an anchor moving backwards inside the
-/// model is a real persistence defect, and silently accepting it would replay every reset boundary
-/// in between. What changed is that <c>Apply</c> no longer hands them one — the same shape as the
-/// energy clamp, which left <c>EnergyMath.Accrue</c> refusing a negative span and floored the value
-/// at the caller, for the reason stated there: <em>clamping it in the rule would make a persistence
-/// defect indistinguishable from skew</em>.
+/// 🔒 The aggregate invariant is unchanged: both <c>MarkApplied</c>s still refuse a backwards instant,
+/// because an anchor moving backwards inside the model is a persistence defect and accepting it would
+/// replay every reset boundary in between. What changed is that <c>Apply</c> no longer hands them one —
+/// the same shape as the energy clamp, for the same reason: clamping in the rule would make a
+/// persistence defect indistinguishable from skew.
 /// </para>
 /// </remarks>
 public sealed class GameRulesBackwardsClockTests
@@ -88,21 +72,17 @@ public sealed class GameRulesBackwardsClockTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.3 / `30` §2.1 P3 — the <b>run's</b> anchor is floored too, on a
-    /// <c>CommandKind.Run</c> command.
+    /// 🔒 `14` §16.3 / P3 — the <b>run's</b> anchor is floored too, on a <c>CommandKind.Run</c> command.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Without this test the run half of the clamp is untested and reverting it leaves every
-    /// suite green</b> — M1-12's own review caught that, which is steering <b>S1</b> arriving inside
-    /// the fix for a P3 violation. Every other test here drives <c>BEGIN_SESSION</c>, which is
-    /// <c>CommandKind.Meta</c> against a run-less slice, so <c>MarkApplied</c>'s
-    /// <c>if (kind == CommandKind.Run)</c> branch is never entered — and all 19 run rows in the
-    /// production table are <c>Deferred</c> to M3, so no production command can reach it either.
-    /// The fixture table is therefore the only way to drive it today, and it is the sharper of the
-    /// two consequences: `14` §16.3 measures the sliding 48-hour run TTL off <em>this</em> field.
+    /// 🔴 Without this the run half of the clamp is untested and reverting it leaves every suite green.
+    /// Every other test here drives a <c>Meta</c> command against a run-less slice, so
+    /// <c>MarkApplied</c>'s run branch is never entered — and all 19 run rows are <c>Deferred</c>, so no
+    /// production command reaches it either. It is also the sharper consequence: `14` §16.3 measures the
+    /// sliding 48-hour run TTL off <em>this</em> field.
     /// <para>
-    /// ⚠️ <c>Worlds.Context</c> rather than <c>Worlds.Drawing</c>: `30` §3 makes <c>CommandSeed</c>
-    /// meta-only, and a run command handed one is a different defect with a different fixture.
+    /// ⚠️ <c>Worlds.Context</c> rather than <c>Worlds.Drawing</c>: a run command handed a seed is a
+    /// different defect with a different fixture.
     /// </para>
     /// </remarks>
     [Fact]
