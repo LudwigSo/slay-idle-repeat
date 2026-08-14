@@ -23,7 +23,7 @@ This is the single tracking document for turning the design set in [`game-design
 | M5 | Application layer, server backbone & inbox | 2, 3, 4 | ⬜ |
 | M6 | Power model & economy simulator | 5 (∥ from end of M4) | ⬜ |
 | M7 | Godot client vertical slice | 6 | ⬜ |
-| M8 | Art & audio pipeline + Chapter 1 assets | 7 (∥ workstream) | 🔄 kicked off 2026-08-12 · **split**: 4 pipeline tasks dispatchable on `milestone/M8`, 6 generation tasks ⛔ capability-blocked (no agent can run Midjourney/Suno) |
+| M8 | Art & audio pipeline + Chapter 1 assets | 7 (∥ workstream) | 🔄 **pipeline half implementation-complete, awaiting review** (kicked off 2026-08-12, 3 waves, 4 tasks 🔍 on `milestone/M8`). 6 generation tasks ⛔ **capability-blocked** — no agent can run Midjourney/Suno; **M8-02 is the critical path and unblocks four of them**. Not merged anywhere until `milestone/M1` lands |
 | M9 | Meta screens & **First Playable** (Ch 1–3) | 8 | ⬜ |
 | M10 | Resource Dungeons | 9 | ⬜ |
 | M11 | Content fill: chapters 4–8, full catalogues & asset batches | 10 | ⬜ |
