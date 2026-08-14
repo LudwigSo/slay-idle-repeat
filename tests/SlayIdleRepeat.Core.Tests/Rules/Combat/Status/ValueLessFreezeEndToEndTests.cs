@@ -11,29 +11,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
 /// <summary>
-/// 🔒 M2-R3 (3b), end to end: a value-less <c>APPLY_STATUS FREEZE</c> — the exact shape
-/// <c>BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE</c> authors — driven through the REAL DSL resolver
-/// (<c>EffectOpResolver</c> → <c>StatusOps.Apply</c> → the real <c>StatusTimeline</c>) rather than
-/// <see cref="StatusTimelineTests"/>'s <c>ScriptedApplications</c> decorator, which calls
-/// <c>StatusTimeline.Apply</c> directly and so never reaches <see cref="StatusOps"/> or
-/// <see cref="Values.ValueScaleEvaluator"/> at all.
+/// 🔒 A value-less <c>APPLY_STATUS FREEZE</c> — the exact shape
+/// <c>BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE</c> authors — through the REAL DSL resolver, rather than
+/// <see cref="StatusTimelineTests"/>' decorator, which calls <c>StatusTimeline.Apply</c> directly and so
+/// never reaches <see cref="StatusOps"/> or the value evaluator at all.
 /// </summary>
 /// <remarks>
+/// 🔒 The fight goes: a <c>PERIODIC</c> fires → <c>EffectOpResolver</c> dispatches → <c>StatusOps.Apply</c>
+/// asks <c>IStatusEngine.HasFixedPotency("FREEZE")</c>, answered by the real
+/// <see cref="StatusCatalogue"/> → the real <see cref="StatusTimeline.Apply"/> reads
+/// <c>FixedPotency</c> → `18` §8 folds it into <c>ASPD</c>. Every hop is real; nothing is scripted.
 /// <para>
-/// 🔒 <b>What "end to end" means here, precisely.</b> The fight goes: a <c>PERIODIC</c> trigger fires
-/// → <c>EffectOpResolver.Resolve</c> dispatches <c>APPLY_STATUS</c> → <c>StatusOps.Apply</c> calls the
-/// new <c>Potency</c> helper, which asks <c>IStatusEngine.HasFixedPotency("FREEZE")</c> (answered by
-/// the real <see cref="StatusCatalogue"/>, read from <see cref="StatusFixtures.Snapshot"/> — the same
-/// shape the shipped <c>content/statuses.json</c> takes) → the real <see cref="StatusTimeline.Apply"/>
-/// reads <c>definition.FixedPotency</c> (−0.5) → `18` §8's aggregation folds it into the actor's
-/// <c>ASPD</c>. Every one of those hops is real; nothing is scripted or recorded.
-/// </para>
-/// <para>
-/// ⚠️ The target is <c>SELF</c>, not <c>ATTACKER</c> — the shipped effect's own token (it debuffs
-/// whoever hit the boss). This test is deliberately about 3b in isolation, with the simplest trigger
-/// and target that lets the holder debuff its own ASPD; <c>AllAuthoredBossesRunToCompletionTests</c>
-/// is what proves the shipped RIMEHOLD script, with its own <c>ON_HIT_TAKEN</c>/<c>ATTACKER</c> shape,
-/// runs end to end.
+/// ⚠️ The target is <c>SELF</c> rather than the shipped effect's <c>ATTACKER</c>: this is deliberately
+/// about the value-less path in isolation, with the simplest trigger and target that lets the holder
+/// debuff its own ASPD. <c>AllAuthoredBossesRunToCompletionTests</c> proves the shipped script.
 /// </para>
 /// </remarks>
 public sealed class ValueLessFreezeEndToEndTests

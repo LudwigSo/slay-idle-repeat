@@ -5,21 +5,17 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>
-/// 🔒 The floor under `18` §8 step 1's source list — <b>stated against the document's own sentence,
-/// not against a second transcription of it.</b>
+/// 🔒 The floor under `18` §8 step 1's source list — <b>stated against the document's own sentence, not
+/// against a second transcription of it.</b>
 /// </summary>
 /// <remarks>
+/// The collector walks <see cref="EffectSourceCatalogue.Rows"/>, so a row dropped, renamed or reordered
+/// leaves the collector working and simply not collecting from that source — a build silently missing
+/// every gear affix, with nothing red.
 /// <para>
-/// Steering S3: a rule whose subject set can silently empty passes forever. The collector walks
-/// <see cref="EffectSourceCatalogue.Rows"/>, so if a row is dropped, renamed or reordered the
-/// collector goes on working and simply stops collecting from that source — a build silently missing
-/// every gear affix, with nothing red. These are the rules that make each of those a failure.
-/// </para>
-/// <para>
-/// 🔒 <b>The comparison is against the literal quotation.</b> Asserting "there are ten rows" or
-/// listing the ten expected names in the test would be a second copy of the same list, and the two
-/// copies would agree with each other while both drifted from `18`. Rebuilding the document's
-/// sentence out of the rows and comparing it with the sentence is what makes the spec the authority.
+/// 🔒 Asserting "there are ten rows", or listing the ten names here, would be a second copy that agreed
+/// with itself while both drifted from `18`. Rebuilding the document's sentence out of the rows and
+/// comparing it with the sentence is what makes the spec the authority.
 /// </para>
 /// </remarks>
 public sealed class EffectSourceCatalogueTests

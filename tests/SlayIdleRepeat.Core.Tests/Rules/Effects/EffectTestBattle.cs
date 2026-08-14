@@ -4,21 +4,14 @@ using SlayIdleRepeat.Core.Rules.Effects;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>
-/// A battle stated literally: the actors, the clock and the run reading a `18` §4/§5 evaluation
-/// reads.
+/// A battle stated literally: the actors, the clock and the run reading a `18` §4/§5 evaluation reads.
 /// </summary>
 /// <remarks>
+/// The rosters are the ones the design documents actually describe rather than abstract fixtures, so a
+/// failure says which clause broke.
 /// <para>
-/// The rosters below are the ones the design documents actually describe — `05` §3's hero plus one
-/// to five enemies, `05` §3.3's two hero-shaped duel sides, `18` §7.10's Volatile elite — rather
-/// than an abstract fixture. A test that reads as the worked example it pins is a test whose failure
-/// says which clause broke.
-/// </para>
-/// <para>
-/// ⚠️ Deliberately <b>not</b> in <c>SlayIdleRepeat.Core</c>. `30` §11.4 gives <c>Core/Testing/</c> to
-/// <c>InMemoryGame</c> (M1-11), and a test fixture is not a shipped harness.
-/// <see cref="RunStateReading"/> is in <c>Core</c> because it is a value the run controller will
-/// itself produce; this is not.
+/// ⚠️ Deliberately <b>not</b> in <c>SlayIdleRepeat.Core</c>: `30` §11.4 gives <c>Core/Testing/</c> to
+/// <c>InMemoryGame</c>, and a test fixture is not a shipped harness.
 /// </para>
 /// </remarks>
 internal static class EffectTestBattle

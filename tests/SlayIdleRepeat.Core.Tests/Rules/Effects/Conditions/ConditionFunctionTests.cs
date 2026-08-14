@@ -90,18 +90,14 @@ public sealed class ConditionFunctionTests
     /// 🔒 `18` §4 types the HP functions <c>0..1</c>, and the reading is clamped to that range.
     /// </summary>
     /// <remarks>
+    /// Two live paths break it: `05` §4 step 9 applies no floor at zero and §3.1 defers <em>removal</em>
+    /// to the death slot, so an overkilled holder firing its <c>ON_DEATH</c> effect sits at negative HP;
+    /// and a Max HP <b>decrease</b> leaves current above maximum.
     /// <para>
-    /// Two live paths break the range. `05` §4 step 9 applies no floor at zero and `05` §3.1 step 6
-    /// defers <em>removal</em> to the death slot, so an overkilled holder firing its <c>ON_DEATH</c>
-    /// effect (`18` §7.10's Volatile) sits at negative HP. And a Max HP <b>decrease</b> — a buff
-    /// expiring, `18` §9.1's <c>CP_GLASS_HEART</c> re-base — leaves current above maximum.
-    /// </para>
-    /// <para>
-    /// ⚠️ Unclamped, the second case is the damaging one: <c>SELF_MISSING_HP_PCT</c> reads
-    /// <c>-0.2</c>, and <c>PK_BERSERK</c>'s scale floors that to <b>-20 steps</b> — a perk that only
-    /// ever adds ATK subtracting 20% of it. <see cref="ValueScale.StepsFor"/> imposes no lower bound
-    /// precisely because it is told every §4 function is non-negative by construction; this is what
-    /// makes that true.
+    /// ⚠️ Unclamped, the second is the damaging one: <c>SELF_MISSING_HP_PCT</c> reads <c>-0.2</c> and
+    /// <c>PK_BERSERK</c>'s scale floors that to <b>-20 steps</b> — a perk that only ever adds ATK
+    /// subtracting 20% of it. <see cref="ValueScale.StepsFor"/> imposes no lower bound precisely because
+    /// it is told every §4 function is non-negative by construction; this is what makes that true.
     /// </para>
     /// </remarks>
     [Fact]

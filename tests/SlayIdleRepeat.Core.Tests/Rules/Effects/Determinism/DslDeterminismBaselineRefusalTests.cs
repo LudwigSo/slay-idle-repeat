@@ -6,34 +6,23 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
 /// <summary>
-/// 🔒 The three refusals that make M2-17's baseline un-regenerable-into-green, driven on purpose.
+/// 🔒 The three refusals that make the baseline un-regenerable-into-green, driven on purpose.
 /// </summary>
 /// <remarks>
+/// The whole design rests on one property: <b>a regenerated table does not pass.</b> The writer stamps
+/// <c>"unreviewed"</c> into every render and the reader throws on it, so a determinism break cannot be
+/// made green by re-running the writer — a human has to read the diff and write down why.
 /// <para>
-/// The whole design rests on one property: <b>a regenerated table does not pass.</b>
-/// <c>DslDeterminismBaselineWriter</c> stamps <c>"unreviewed"</c> into every render and
-/// <c>DslDeterminismBaseline.Validate</c> throws on it, so a determinism break cannot be made green
-/// by re-running the writer — a human has to read the diff and write down why the hashes moved.
+/// ⚠️ Until this file existed that property had no test: the refusals ran inside the reader's static
+/// initialiser, so the only document that ever reached them was the committed one, which passes — and
+/// the two tests that looked like coverage were asserting conditions the initialiser had already
+/// guaranteed. Both were removed.
 /// </para>
 /// <para>
-/// ⚠️ <b>Until this file existed, that property had no test.</b> The refusals ran inside the reader's
-/// static initialiser, so the only document that ever reached them was the committed one, which
-/// passes; and the two tests that looked like coverage —
-/// <c>The_committed_table_was_reviewed_by_a_human</c> and
-/// <c>Every_committed_row_says_what_it_pins</c> — were asserting conditions the initialiser had
-/// already guaranteed. Both were removed. Steering S1: a test that cannot fail is a defect, not a
-/// weak test.
-/// </para>
-/// <para>
-/// 🔒 Each case asserts <b>which</b> refusal fired (steering S2), by a fragment of its own message —
-/// the three messages are deliberately different, and a single <c>Should.Throw&lt;FormatException&gt;</c>
-/// would not tell them apart. The pattern is <c>TunableMarkerAuditTests</c>', which drives an
-/// <c>unreviewed</c> tunable-marker baseline in and matches on the refusal's wording.
-/// </para>
-/// <para>
-/// Every case is the <b>committed</b> table with one region edited, rather than a hand-built
-/// fixture: a fixture would drift from the real file's shape, and then these tests would pass while
-/// the shipped document took a different path through the reader.
+/// 🔒 Each case asserts <b>which</b> refusal fired by a fragment of its own message; a single
+/// <c>Should.Throw&lt;FormatException&gt;</c> would not tell the three apart. Every case is the
+/// <b>committed</b> table with one region edited rather than a hand-built fixture, which would drift
+/// from the real file's shape and then pass while the shipped document took a different path.
 /// </para>
 /// </remarks>
 public sealed class DslDeterminismBaselineRefusalTests

@@ -11,17 +11,14 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 /// 🔒 `05` §3.1 — a DoT tick is <em>"a damage event, not an attack"</em>, and therefore takes no draw.
 /// </summary>
 /// <remarks>
+/// §4's only three draws are dodge, crit and block, and §3.1 exempts a DoT tick from all three by name.
+/// So the combat stream must be in exactly the same position after a fight full of DoTs as after the
+/// same fight with none — otherwise the status engine has consumed draws no other implementation of
+/// `05` would, and two runs of one battle diverge on the first attack after the first DoT.
 /// <para>
-/// `05` §4's only three draws are dodge, crit and block, and `05` §3.1 exempts a DoT tick from all
-/// three by name. So the combat stream must be in exactly the same position after a fight full of
-/// DoTs as after the same fight with none. If it is not, the status engine has consumed draws that
-/// every other implementation of `05` — the balance harness, a future client — would not, and two
-/// runs of one battle would diverge on the first attack after the first DoT.
-/// </para>
-/// <para>
-/// 🔴 <b>The assertion is on <c>DeterministicRng.Position</c>, not on the log.</b> Two fights can
-/// produce identical logs while one of them drew: a draw whose result was never used changes nothing
-/// visible until the next draw that is. Position is the only reading that sees it.
+/// 🔴 The assertion is on <c>DeterministicRng.Position</c>, not the log: two fights can produce identical
+/// logs while one of them drew, because a draw whose result was never used changes nothing visible
+/// until the next draw that is.
 /// </para>
 /// </remarks>
 public sealed class StatusDeterminismTests

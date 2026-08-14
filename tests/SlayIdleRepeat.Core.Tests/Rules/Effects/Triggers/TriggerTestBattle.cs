@@ -5,20 +5,16 @@ using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
 /// <summary>
-/// 🔒 <b>The hand-driven tick source.</b> M2-08 owns the real one; this is what M2-04's predicates
-/// are proved against, and the shape of it is the point.
+/// 🔒 <b>The hand-driven tick source</b> the trigger predicates are proved against — and the shape of it
+/// is the point.
 /// </summary>
 /// <remarks>
+/// Every method takes the tick as an argument and nothing here holds a clock, a timer or a loop. That is
+/// the property the wiring contract rests on: if these tests could only be written against a driver that
+/// owned the clock, the predicates would not be callable from a loop this task did not write.
 /// <para>
-/// Every method below takes the tick as an argument and nothing here holds a clock, a timer or a
-/// loop. That is the property the wiring contract rests on: if these tests could only be written
-/// against a driver that owned the clock, the predicates would not be callable from a loop this task
-/// did not write.
-/// </para>
-/// <para>
-/// The effects are the ones `17` and `18` actually author — Thornmaw's Root, Ossify, Scramble,
-/// <c>SYS_ENRAGE</c>, <c>PK_FLURRY</c>, <c>PK_MIDAS</c>, Rise Again — rather than abstract fixtures,
-/// so a failure names the boss mechanic it broke.
+/// The effects are the ones `17` and `18` actually author rather than abstract fixtures, so a failure
+/// names the boss mechanic it broke.
 /// </para>
 /// </remarks>
 internal static class TriggerTestBattle
