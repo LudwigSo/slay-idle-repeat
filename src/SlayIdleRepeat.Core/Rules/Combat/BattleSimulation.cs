@@ -3,7 +3,9 @@ using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Conditions;
+using SlayIdleRepeat.Core.Rules.Effects.Duration;
 using SlayIdleRepeat.Core.Rules.Effects.Ops;
+using SlayIdleRepeat.Core.Rules.Effects.Stacking;
 using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 using SlayIdleRepeat.Core.Rules.Effects.Values;
 using SlayIdleRepeat.Core.Rules.Stats;
@@ -124,6 +126,7 @@ internal sealed class BattleSimulation
     private readonly BattleSeams _seams;
     private readonly BattleServices _services;
     private readonly BattleFlowSink _flow;
+    private readonly BattleTriggeredStatSink _triggeredStats;
     private readonly BattleRunEffects _runEffects;
     private readonly Dictionary<string, ushort> _effectIndex;
     private readonly BattleActor _hero;
@@ -161,6 +164,7 @@ internal sealed class BattleSimulation
 
         _effectIndex = BuildEffectIndex(_plan.Actors);
         _flow = new BattleFlowSink(this);
+        _triggeredStats = new BattleTriggeredStatSink(this);
         _runEffects = new BattleRunEffects(this);
 
         // Resolved once, here rather than lazily: `05` §3.2 gives a side one hero and no op adds or
@@ -242,6 +246,12 @@ internal sealed class BattleSimulation
             {
                 ExpireWards(_actors[i]);
                 _seams.Timeline.ExpireDue(_actors[i], Tick);
+
+                // 🔒 M2-R1's third kind of expiry, for the identical reason ExpireWards is the
+                // loop's and not a seam's: BattleActor.TriggeredStatFirings is written by
+                // ITriggeredStatSink (Rules.Combat) and R17 forbids Rules.Effects — where
+                // IStatusTimeline lives — from naming it.
+                ExpireTriggeredStatEffects(_actors[i], Tick);
             }
 
             // ── 2a · boss telegraphs — `17` §1's 1.0-1.5 s wind-up (M2-12) ──────────────────
@@ -1150,6 +1160,66 @@ internal sealed class BattleSimulation
         return dropped.Count;
     }
 
+    /// <summary>
+    /// 🔒 M2-R1 — `18` §6's third kind of expiry: a FIRED stat op whose duration has ended.
+    /// </summary>
+    /// <remarks>
+    /// Modelled on <c>StatusTimeline.ExpireDue</c>: the same <see cref="DurationEvaluator"/>, the
+    /// same <see cref="DurationProbe"/> shape (no <c>OwnerWardEvent</c> — see the type's remarks on
+    /// why <c>until: WARD_BROKEN</c> is a pre-existing, unrelated gap this does not widen), and the
+    /// same ascending-effect-id emission order `05` §3.1 slot 2 requires. No <c>CombatEvent</c> is
+    /// emitted on expiry — <see cref="BossBuiltIns.Enrage"/>'s own remarks record that a fired
+    /// <c>SYS_ENRAGE</c> stack emits none either, on the same reasoning: `17` §11 asks for phase and
+    /// telegraph events, not a stat buff's.
+    /// </remarks>
+    private void ExpireTriggeredStatEffects(BattleActor actor, int tick)
+    {
+        var firings = actor.TriggeredStatFirings;
+
+        if (firings.Count == 0)
+        {
+            return;
+        }
+
+        var probe = new DurationProbe
+        {
+            BattleTimeSeconds = BattleClock.SecondsAt(tick),
+            CurrentPhase = CurrentBossPhase,
+        };
+
+        List<string>? expired = null;
+
+        foreach (var (effectId, instance) in firings)
+        {
+            if (!DurationEvaluator.Evaluate(instance.Application, probe).HasEnded)
+            {
+                continue;
+            }
+
+            expired ??= new List<string>();
+            expired.Add(effectId);
+        }
+
+        if (expired is null)
+        {
+            return;
+        }
+
+        // `05` §3.1 slot 2 — "in ascending effect-id order". A dictionary walk carries no order at
+        // all, so the removal itself needs one even though nothing is logged: RefreshStats folds
+        // whatever remains through StatAggregation, which re-sorts independently — but two firings of
+        // ONE actor expiring on one tick must still leave the store in the order a replay can trust
+        // if a later reader ever walks it directly.
+        expired.Sort(EffectOrder.IdComparer);
+
+        foreach (var effectId in expired)
+        {
+            firings.Remove(effectId);
+        }
+
+        actor.InvalidateStats();
+    }
+
     /// <summary>🔒 `05` §4.1's ward grant with an expiry — see <see cref="BattleServices.GrantWard"/>.</summary>
     /// <remarks>
     /// 🔒 <b>The pool is written here rather than through <see cref="IAttackPipeline"/>, and that is
@@ -1389,37 +1459,39 @@ internal sealed class BattleSimulation
 
         var context = ContextFor(actor);
 
-        // 🔒 UNTRIGGERED effects only, and this is the `18` §8 step 1 boundary rather than an
-        // omission. §1.1 splits the two: an untriggered effect is a standing modifier re-evaluated
-        // "at every resolution pass", while a triggered one applies "at fire time" and lives for its
-        // `18` §6 duration afterwards. Aggregating a triggered effect here would apply SYS_ENRAGE's
-        // ×1.08 from tick 0 — 70 seconds early, and exactly once instead of once a second.
+        // 🔒 UNTRIGGERED effects, PLUS every live FIRED stat op — `18` §8 step 1's full "collect all
+        // active effects", not the untriggered half alone. §1.1 splits the two: an untriggered effect
+        // is a standing modifier re-evaluated "at every resolution pass", while a triggered one
+        // applies "at fire time" and then lives for its `18` §6 duration — which is exactly
+        // <see cref="BattleActor.TriggeredStatFirings"/>, M2-R1's store, folded in below. Aggregating
+        // a fired op straight from <see cref="BattleActor.StandingEffects"/> would apply SYS_ENRAGE's
+        // ×1.08 from tick 0 — 70 seconds early, and exactly once instead of once a second — which is
+        // why it is read from the FIRED store's <c>EffectStackSet.CombinedValue</c> instead: that
+        // value already folds every activation since the effect fired, per its own `18` §6 stacking
+        // mode, and <c>ITriggeredStatSink.Apply</c> is the only writer.
         //
-        // ⚠️ THE OTHER HALF IS M2-02'S AND IS NOT WIRED HERE. `18` §8 step 1 is "collect all ACTIVE
-        // effects", which includes a triggered effect that has fired and whose duration has not
-        // ended — that set is EffectResolver's (M2-02) over M2-06's EffectStackSet, and neither is
-        // on this branch. A fired stat op therefore reaches EffectOpResolver and changes nothing
-        // that outlives the call. Left absent and greppable rather than approximated (steering S6):
-        // an approximation here would be a second, disagreeing statement of `18` §6's stacking.
         // `18` §2.4's STAT_COPY writes land on the holder as percent-bucket adds that `18` §8 step 5
         // picks up. They are not authored effects, so they are stated as synthetic STAT_ADD_PCTs
-        // under an id no authored effect can take (`18` §8 makes an id an identifier).
+        // under an id no authored effect can take (`18` §8 makes an id an identifier). A fired stat
+        // op needs no such synthesis — see TriggeredStatInstance's remarks on why its OWN id is safe
+        // to reuse here.
         //
-        // The standing list is handed over as-is when there are none, which is every actor in every
-        // fight until a STAT_COPY fires: this method runs for every state-dependent actor on every
-        // one of 1800 ticks, and copying a constant list each time was measurable against `05`'s
-        // < 5 ms budget.
+        // The standing list is handed over as-is when there is nothing else to fold in, which is
+        // every actor in every fight until a STAT_COPY fires, a stat-modifying status lands, or a
+        // triggered stat op fires: this method runs for every state-dependent actor on every one of
+        // 1800 ticks, and copying a constant list each time was measurable against `05`'s < 5 ms
+        // budget.
         //
-        // ⚠️ ONE PART OF THAT ABSENT HALF IS NOW WIRED, and only one: `05` §5's stat-modifying
-        // statuses, through IStatusTimeline.StatModifiers (M2-10). Six of §5's twelve are stat
-        // modifiers — FREEZE, WEAKEN, SUNDER, SPORE, RAGE, HASTE — and a status that never reached
-        // this aggregation would be a status that does nothing. They arrive in the same synthetic
-        // STAT_ADD_PCT shape as the STAT_COPY buckets and for the same reason. The rest of the
-        // absent half is still absent and still M2-02's.
+        // `05` §5's stat-modifying statuses fold in through IStatusTimeline.StatModifiers (M2-10).
+        // Six of §5's twelve are stat modifiers — FREEZE, WEAKEN, SUNDER, SPORE, RAGE, HASTE — and a
+        // status that never reached this aggregation would be a status that does nothing. They
+        // arrive in the same synthetic STAT_ADD_PCT shape as the STAT_COPY buckets and for the same
+        // reason.
         IReadOnlyList<EffectDefinition> effects;
         var statuses = _seams.Timeline.StatModifiers(actor);
+        var firings = actor.TriggeredStatFirings;
 
-        if (actor.Flow.PercentBuckets.Count == 0 && statuses.Count == 0)
+        if (actor.Flow.PercentBuckets.Count == 0 && statuses.Count == 0 && firings.Count == 0)
         {
             effects = actor.StandingEffects;
         }
@@ -1441,6 +1513,20 @@ internal sealed class BattleSimulation
             for (var i = 0; i < statuses.Count; i++)
             {
                 withBuckets.Add(statuses[i]);
+            }
+
+            // 🔒 M2-R1 — `18` §8 step 1's other half. Reuses the FIRING effect's own id (not a
+            // synthetic one): a fired triggered effect is never also in StandingEffects, and every
+            // authored id is repository-unique, so there is nothing here to collide with.
+            foreach (var (effectId, instance) in firings)
+            {
+                withBuckets.Add(new EffectDefinition
+                {
+                    Id = effectId,
+                    Op = instance.Op,
+                    Stat = StatSelector.Of(instance.Stat),
+                    Value = instance.Stacks.CombinedValue,
+                });
             }
 
             effects = withBuckets;
@@ -1495,7 +1581,8 @@ internal sealed class BattleSimulation
             _seams.Statuses,
             _flow,
             new BattleStatReader(),
-            _runEffects);
+            _runEffects,
+            _triggeredStats);
 
     /// <summary>
     /// 🔒 The battle's effect table: every authored effect id in the opening roster, distinct, in
@@ -1725,6 +1812,86 @@ internal sealed class BattleSimulation
             throw new InvalidOperationException(
                 $"A {view.GetType().Name} reached the `18` §2.4 flow sink. The flow state lives on the " +
                 "roster's own actor; a foreign view means the op is writing into a second roster that " +
+                "the tick loop will never read.");
+    }
+
+    /// <summary>
+    /// 🔒 M2-R1 — `18` §2.1's four basic stat ops, the moment a `18` §3 trigger fires one. The other
+    /// half of `18` §8 step 1's <em>"collect all active effects"</em>: <c>RefreshStats</c> folds every
+    /// live <see cref="TriggeredStatInstance"/> this writes into the same aggregation pass that reads
+    /// <see cref="BattleActor.StandingEffects"/>.
+    /// </summary>
+    private sealed class BattleTriggeredStatSink(BattleSimulation battle) : ITriggeredStatSink
+    {
+        /// <summary>
+        /// `18` §1's canonical stacking block — <c>{"mode": "ADDITIVE", "maxStacks": 1}</c> — for an
+        /// effect that authors none. It is the one default `18` states anywhere for the block, and a
+        /// single-application cap of 1 changes nothing for the fourteen authored triggered stat ops
+        /// that omit <c>stacking</c> today: every one of them either fires at most once
+        /// (<c>ON_PHASE_ENTER</c>, an <c>once: true ON_LOW_HP</c>) or is <c>PHASE</c>-scoped and so
+        /// cannot re-fire before it ends. Recorded as an assumption rather than left implicit
+        /// (steering S6) — a future author giving one of them a real re-firing cadence has to name a
+        /// mode explicitly, and this default will refuse a second application rather than silently
+        /// changing what it means.
+        /// </summary>
+        private static readonly EffectStacking DefaultStacking =
+            new() { Mode = StackingMode.ADDITIVE, MaxStacks = 1 };
+
+        public void Apply(
+            IReadOnlyList<IEffectActorView> targets, EffectOp op, StatId stat, double value,
+            EffectDuration? duration, EffectStacking? stacking, string sourceEffectId)
+        {
+            var application = new EffectApplication
+            {
+                EffectId = sourceEffectId,
+                Duration = duration,
+                AppliedAtSeconds = BattleClock.SecondsAt(battle.Tick),
+
+                // 🔴 R3's PHASE half, restated for this store: `18` §6 ends a PHASE-scoped effect at
+                // the exit of "the phase in which the effect was applied", so the phase is stamped
+                // HERE, at application, exactly as StatusTimeline.Apply stamps it — not re-read at
+                // expiry.
+                AppliedInPhase = battle.CurrentBossPhase,
+            };
+
+            foreach (var view in targets)
+            {
+                var actor = Actor(view);
+                var store = actor.TriggeredStatFirings;
+
+                if (store.TryGetValue(sourceEffectId, out var instance))
+                {
+                    // 🔒 Reapplication: `18` §6's stacking and its duration refresh, and nothing
+                    // else — the op and the stat are the FIRING effect's and cannot change between
+                    // one activation and the next of the same id.
+                    instance.Reapply(value, application);
+                }
+                else
+                {
+                    store[sourceEffectId] = new TriggeredStatInstance
+                    {
+                        EffectId = sourceEffectId,
+                        Op = op,
+                        Stat = stat,
+                        Stacks = EffectStackSet.Empty(sourceEffectId, stacking ?? DefaultStacking)
+                            .Apply(value).Stacks,
+                        Application = application,
+                    };
+                }
+
+                // 🔒 Redundant with ResolveFired's blanket invalidation of every actor after every
+                // firing (see its remarks), and kept explicit anyway — the same convention
+                // BattleFlowSink.AddPercentBucket follows, so a caller reading this seam in
+                // isolation is not left to trust an invalidation that happens somewhere else.
+                actor.InvalidateStats();
+            }
+        }
+
+        private static BattleActor Actor(IEffectActorView view) =>
+            view as BattleActor ??
+            throw new InvalidOperationException(
+                $"A {view.GetType().Name} reached the M2-R1 triggered-stat sink. The store lives on " +
+                "the roster's own actor; a foreign view means the op is writing into a second roster " +
                 "the tick loop will never read.");
     }
 

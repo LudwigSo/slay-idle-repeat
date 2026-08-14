@@ -103,12 +103,15 @@ public sealed class EffectOpResolverTests
                 Rng = EffectTestBattle.CombatRng(6),
             };
 
-            var expected = EffectOps.FamilyOf(op) switch
+            var expected = op switch
             {
-                // 🔒 18 §8 applies the six stat ops; a firing effect never does. STAT_COPY is in
-                //    §2.4, resolves to a percent-bucket add, and IS resolved here.
-                EffectOpFamily.STAT => OpDisposition.AGGREGATED,
-                EffectOpFamily.RUN_AND_BOARD => OpDisposition.QUEUED_FOR_RUN,
+                // 🔒 M2-R1 — 18 §8 applies STAT_CONVERT and STAT_CAP_OVERRIDE ONLY, at steps 6 and
+                //    9; a firing effect never does, because their arithmetic needs a
+                //    post-aggregation value. The other four 18 §2.1 ops now resolve THROUGH
+                //    ITriggeredStatSink when a trigger fires them — see FiredStat's remarks.
+                //    STAT_COPY is in §2.4, resolves to a percent-bucket add, and IS resolved here.
+                EffectOp.STAT_CONVERT or EffectOp.STAT_CAP_OVERRIDE => OpDisposition.AGGREGATED,
+                _ when EffectOps.FamilyOf(op) == EffectOpFamily.RUN_AND_BOARD => OpDisposition.QUEUED_FOR_RUN,
                 _ => OpDisposition.RESOLVED,
             };
 
@@ -126,21 +129,18 @@ public sealed class EffectOpResolverTests
     }
 
     /// <summary>
-    /// 🔒 A stat op reaching the resolver mutates nothing at all — `18` §8's steps 4–9 own them, and
-    /// a resolver that also applied them would double every bonus in the game.
+    /// 🔒 <c>STAT_CONVERT</c> and <c>STAT_CAP_OVERRIDE</c> reaching the resolver mutate nothing at
+    /// all — `18` §8's steps 6 and 9 own them, and their arithmetic needs a post-aggregation value
+    /// neither a trigger nor this resolver has in hand.
     /// </summary>
     [Fact]
-    public void A_stat_op_routed_here_reaches_no_seam()
+    public void STAT_CONVERT_and_STAT_CAP_OVERRIDE_reach_no_seam()
     {
         var hero = EffectTestBattle.Hero();
         var bench = new OpTestBench();
-        var statOps = EffectOps.All.Where(o => EffectOps.FamilyOf(o) == EffectOpFamily.STAT).ToArray();
+        var aggregationOnlyOps = new[] { EffectOp.STAT_CONVERT, EffectOp.STAT_CAP_OVERRIDE };
 
-        // S3 — the floor, and it matters twice over here: both assertions below are "empty", so an
-        // empty SUBJECT set would be doubly invisible.
-        statOps.Length.ShouldBe(6, "18 §2.1");
-
-        foreach (var op in statOps)
+        foreach (var op in aggregationOnlyOps)
         {
             EffectOpResolver.Resolve(
                 OpFixtures.Exemplar(op), bench.Context(EffectTestBattle.Context(hero, hero)));
@@ -148,6 +148,40 @@ public sealed class EffectOpResolverTests
 
         bench.Calls.ShouldBeEmpty();
         bench.Queued.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// 🔒 M2-R1 — a FIRED `18` §2.1 basic stat op reaches exactly one seam,
+    /// <c>ITriggeredStatSink</c>, and no other: it must not also mutate HP, a status, the flow state
+    /// or the run queue, which is what would happen if the routing accidentally fell through to
+    /// another op family.
+    /// </summary>
+    [Fact]
+    public void A_fired_basic_stat_op_reaches_only_the_triggered_stat_sink()
+    {
+        var hero = EffectTestBattle.Hero();
+        var bench = new OpTestBench();
+        var firedStatOps = new[]
+        {
+            EffectOp.STAT_ADD_FLAT, EffectOp.STAT_ADD_PCT, EffectOp.STAT_MULT, EffectOp.STAT_SET,
+        };
+
+        // S3 — the floor: the two lists above plus this one are 18 §2.1's whole six.
+        (firedStatOps.Length + 2).ShouldBe(6, "18 §2.1");
+
+        foreach (var op in firedStatOps)
+        {
+            EffectOpResolver.Resolve(
+                OpFixtures.Exemplar(op, target: EffectTarget.SELF),
+                bench.Context(EffectTestBattle.Context(hero, hero)));
+        }
+
+        bench.TriggeredStatFirings.Count.ShouldBe(4, "one Apply call per fired op, one target each");
+        bench.Queued.ShouldBeEmpty();
+
+        // Nothing besides the four Apply(...) rows reached ANY other recorded seam.
+        bench.Calls.Count.ShouldBe(4);
+        bench.Calls.ShouldAllBe(c => c.StartsWith($"{nameof(ITriggeredStatSink.Apply)}:"));
     }
 
     /// <summary>Both arguments are required.</summary>

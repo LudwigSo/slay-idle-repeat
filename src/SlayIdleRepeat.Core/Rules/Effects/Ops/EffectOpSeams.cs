@@ -12,6 +12,10 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 /// <param name="Flow">`18` §2.4's actor flow state — <b>M2-08</b>.</param>
 /// <param name="Stats">`18` §2.4's <c>STAT_COPY</c> reading — <b>M2-08</b> over M2-07's block.</param>
 /// <param name="RunQueue">`18` §2.5's queue — emitted by <b>M2-08</b>, drained by <b>M3</b>.</param>
+/// <param name="TriggeredStats">
+/// `18` §2.1's four basic stat ops, when a <c>18</c> §3 trigger fires them rather than `18` §8's
+/// aggregation — <b>M2-R1</b>. See <see cref="ITriggeredStatSink"/>.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Why the ops own no state and reach nothing directly.</b> R17 puts
@@ -37,7 +41,8 @@ internal sealed record EffectOpSeams(
     IStatusEngine Statuses,
     ICombatFlowSink Flow,
     IResolvedStatReader Stats,
-    IRunEffectQueue RunQueue)
+    IRunEffectQueue RunQueue,
+    ITriggeredStatSink TriggeredStats)
 {
     /// <summary>
     /// 🔒 The seam set M2-03 ships: `18` §1.1's unscaled authored value, and a refusal — naming the
@@ -49,7 +54,56 @@ internal sealed record EffectOpSeams(
         UnwiredStatusEngine.Instance,
         UnwiredCombatFlow.Instance,
         UnwiredStatReader.Instance,
-        UnwiredRunQueue.Instance);
+        UnwiredRunQueue.Instance,
+        UnwiredTriggeredStatSink.Instance);
+}
+
+/// <summary>
+/// 🔒 M2-R1 — `18` §2.1's four basic stat ops (<c>STAT_ADD_FLAT</c>, <c>STAT_ADD_PCT</c>,
+/// <c>STAT_MULT</c>, <c>STAT_SET</c>), the moment a `18` §3 trigger fires one rather than `18` §8's
+/// aggregation collecting it as an <c>ALWAYS</c> passive. The seam <b>M2-08</b>/<b>M2-R1</b>
+/// implements.
+/// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>Why a fired stat op needs a seam at all, when `18` §8's own aggregation does not.</b> An
+/// <c>ALWAYS</c> passive is read straight off <see cref="BattleActor.StandingEffects"/> by
+/// <c>StatAggregation</c> and never reaches <see cref="EffectOpResolver"/>. A <b>triggered</b> stat op
+/// — <c>SYS_ENRAGE</c>'s <c>STAT_MULT</c>, a boss's <c>ON_PHASE_ENTER</c> buff — reaches the resolver
+/// exactly like any other firing effect, and `18` §8 step 1's <em>"collect all active effects"</em>
+/// includes it for as long as its own `18` §6 duration has not ended. Recording that is state — a
+/// per-target, per-effect stack set that lives across ticks — and R17 forbids <c>Rules.Effects</c>
+/// holding any: nothing here may name <c>BattleActor</c>, so the store one layer up is reached through
+/// this seam, the same shape <see cref="IStatusEngine"/> uses for `05` §5's statuses.
+/// </para>
+/// <para>
+/// ⚠️ <b>Not <see cref="EffectOp.STAT_CONVERT"/> or <c>STAT_CAP_OVERRIDE</c>.</b> Those two remain `18` §8
+/// steps 6 and 9 exclusively — read straight off the effect at aggregation time, never through a
+/// firing — because their arithmetic needs a <em>post-aggregation</em> value (`18` §8's
+/// <em>"reads post-step-5 values"</em>) that only <c>StatAggregation</c> has in hand. No authored
+/// content fires either through a trigger; <see cref="EffectOpResolver"/> keeps routing them to a bare
+/// <c>AGGREGATED</c> outcome with no target and no stat.
+/// </para>
+/// </remarks>
+internal interface ITriggeredStatSink
+{
+    /// <summary>
+    /// Records one firing of a `18` §2.1 basic stat op onto every actor its `18` §5 target token
+    /// resolved to.
+    /// </summary>
+    /// <param name="targets">
+    /// The op's resolved `18` §5 targets — <see cref="OpTargets.Resolve"/>'s result. May differ from
+    /// the holder: <c>BOSS_THORNMAW_P2_ROOT</c> targets <c>ALL_ENEMIES</c>.
+    /// </param>
+    /// <param name="op">Which of the four ops fired.</param>
+    /// <param name="stat">The stat it names.</param>
+    /// <param name="value">The fire-time, `18` §1.1-scaled value of this application.</param>
+    /// <param name="duration">The effect's `18` §6 duration block, or <c>null</c> for none authored.</param>
+    /// <param name="stacking">The effect's own `18` §6 stacking block, or <c>null</c> to take the default.</param>
+    /// <param name="sourceEffectId">The firing effect's `18` §8 id — never synthesised.</param>
+    void Apply(
+        IReadOnlyList<IEffectActorView> targets, EffectOp op, StatId stat, double value,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId);
 }
 
 /// <summary>
@@ -657,6 +711,29 @@ internal sealed class UnwiredStatReader : IResolvedStatReader
             "R17 forbids Rules.Effects naming Rules.Stats, so the op reads through this seam rather " +
             "than through M2-07's ActorStats directly; M2-08 supplies it. Returning 0 would make " +
             "every copy copy nothing.");
+}
+
+/// <summary>The M2-R1 triggered-stat sink M2-03 shipped none of: a refusal naming M2-R1.</summary>
+internal sealed class UnwiredTriggeredStatSink : ITriggeredStatSink
+{
+    /// <summary>The single instance.</summary>
+    internal static UnwiredTriggeredStatSink Instance { get; } = new();
+
+    private UnwiredTriggeredStatSink()
+    {
+    }
+
+    /// <inheritdoc />
+    public void Apply(
+        IReadOnlyList<IEffectActorView> targets, EffectOp op, StatId stat, double value,
+        EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
+        throw new EffectContextException(
+            sourceEffectId,
+            $"{nameof(ITriggeredStatSink.Apply)} is not wired — a FIRED 18 §2.1 stat op's `18` §6 " +
+            "duration is M2-R1's",
+            "R17 forbids Rules.Effects holding actor state, so the per-target stack set this op needs " +
+            "lives one layer up, on BattleActor.TriggeredStatFirings. Pass an EffectOpSeams with a " +
+            "real ITriggeredStatSink.");
 }
 
 /// <summary>The `18` §2.5 queue M2-03 ships: none, stated as a refusal naming M2-08.</summary>
