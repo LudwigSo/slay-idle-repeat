@@ -319,6 +319,16 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     // ══════════════════════════════════════════════════════════════════ IStatusEngine
 
     /// <inheritdoc />
+    /// <remarks>
+    /// 🔒 M2-R3 — the one place that reads <see cref="StatusDefinition.FixedPotency"/> for the seam
+    /// <see cref="StatusOps"/> uses to decide whether a value-less <c>APPLY_STATUS</c> is FREEZE's
+    /// authored shape or a genuine authoring hole. See <see cref="Apply"/>'s own remarks (below) for
+    /// why <c>FixedPotency</c> already wins over whatever <paramref name="statusId"/>'s applier would
+    /// have supplied.
+    /// </remarks>
+    public bool HasFixedPotency(string statusId) => _catalogue.Of(statusId).FixedPotency is not null;
+
+    /// <inheritdoc />
     public void Apply(
         IEffectActorView applier, IEffectActorView target, string statusId, double potency,
         EffectDuration? duration, EffectStacking? stacking, string sourceEffectId)

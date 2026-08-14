@@ -348,6 +348,9 @@ internal sealed class CapturingStatusEngine : IStatusEngine
         _applied.Add(sourceEffectId);
 
     /// <inheritdoc />
+    public bool HasFixedPotency(string statusId) => false;
+
+    /// <inheritdoc />
     public void Remove(IEffectActorView target, string statusId, string sourceEffectId)
     {
     }

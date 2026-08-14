@@ -515,6 +515,13 @@ internal sealed class BossDriver : IStatusTimeline
 /// <summary>A status engine that records what `18` §2.3's ops asked it for, in call order.</summary>
 internal sealed class RecordingStatuses : IStatusEngine
 {
+    /// <summary>
+    /// 🔒 M2-R3 — the status ids <see cref="HasFixedPotency"/> answers <c>true</c> for, standing in
+    /// for <c>StatusCatalogue.Of(id).FixedPotency is not null</c>. Defaults to `05` §5's one row —
+    /// FREEZE — since this fake has no catalogue of its own to read.
+    /// </summary>
+    private readonly HashSet<string> _fixedPotencyStatuses = new(StringComparer.Ordinal) { "FREEZE" };
+
     /// <summary>Every call, as <c>"member:statusId(sourceEffectId)"</c>.</summary>
     internal List<string> Calls { get; } = new();
 
@@ -533,6 +540,9 @@ internal sealed class RecordingStatuses : IStatusEngine
         Calls.Add($"Apply:{statusId}({sourceEffectId})");
         Applied.Add(sourceEffectId);
     }
+
+    /// <inheritdoc />
+    public bool HasFixedPotency(string statusId) => _fixedPotencyStatuses.Contains(statusId);
 
     /// <inheritdoc />
     public void Remove(IEffectActorView target, string statusId, string sourceEffectId) =>

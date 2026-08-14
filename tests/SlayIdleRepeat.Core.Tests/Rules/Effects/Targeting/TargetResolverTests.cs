@@ -406,6 +406,86 @@ public sealed class TargetResolverTests
             .Select(a => a.Id).ShouldBe(["GRUNT_PRIMARY"]);
     }
 
+    // ------------------------------------------------------------------ M2-R3: CURRENT_TARGET on an enemy holder
+
+    /// <summary>
+    /// 🔒 M2-R3 (3a) — a boss <c>PERIODIC</c> mechanic carries no attack context at all
+    /// (<c>BattleSimulation.ContextFor</c>'s slot-3 call hands in <c>target: null</c>), so
+    /// <c>CURRENT_TARGET</c> used to throw for every one of the eight faulting boss effects. `05`
+    /// §3.2: <em>"Enemies always target the Hero"</em> — so an <c>ENEMY</c> holder's
+    /// <c>CURRENT_TARGET</c> is never actually ambiguous, in or out of an attack context, and this is
+    /// the shipped shape of <c>BOSS_RIMEHOLD_P3_COLLAPSE</c> (a plain <c>DAMAGE</c>).
+    /// </summary>
+    [Fact]
+    public void CURRENT_TARGET_on_an_enemy_holder_with_no_attack_in_flight_resolves_to_the_hero()
+    {
+        var hero = EffectTestBattle.Hero();
+        var boss = EffectTestBattle.Enemy("BOSS_RIMEHOLD", 1) with { IsBoss = true };
+
+        var periodic = EffectTestBattle.Context(boss, hero, boss);
+        periodic.CurrentTarget.ShouldBeNull("a PERIODIC trigger carries no attack context to begin with");
+
+        TargetResolver.Resolve(EffectTarget.CURRENT_TARGET, periodic)
+            .Select(a => a.Id).ShouldBe(["HERO"]);
+    }
+
+    /// <summary>
+    /// 🔒 The second shape: a hero pet and another enemy are on the roster too, so the resolution has
+    /// to be picking the hero <em>specifically</em> — not merely "the only other actor", and not the
+    /// holder's own side.
+    /// </summary>
+    [Fact]
+    public void CURRENT_TARGET_on_an_enemy_holder_picks_the_hero_over_its_own_pet_and_side()
+    {
+        var hero = EffectTestBattle.Hero();
+        var heroPet = EffectTestBattle.Pet("PET_STORMFANG", 1);
+        var boss = EffectTestBattle.Enemy("BOSS_COGITATOR_PRIME", 2) with { IsBoss = true };
+        var add = EffectTestBattle.Enemy("WARDEN_ADD", 3);
+
+        var periodic = EffectTestBattle.Context(boss, hero, heroPet, boss, add);
+
+        TargetResolver.Resolve(EffectTarget.CURRENT_TARGET, periodic)
+            .Select(a => a.Id).ShouldBe(["HERO"]);
+    }
+
+    /// <summary>
+    /// 🔒 <c>STAT_COPY</c>'s R13 dependency: Cogitator's Recalibrate names <c>CURRENT_TARGET</c> as
+    /// its copy SOURCE, and the op reads exactly one actor. The naming-token contract — one actor, not
+    /// a set — must hold for the enemy-holder fallback exactly as it does for the ordinary case.
+    /// </summary>
+    [Fact]
+    public void CURRENT_TARGET_on_an_enemy_holder_resolves_to_exactly_one_actor()
+    {
+        var hero = EffectTestBattle.Hero();
+        var boss = EffectTestBattle.Enemy("BOSS_COGITATOR_PRIME", 1) with { IsBoss = true };
+
+        var resolved = TargetResolver.Resolve(
+            EffectTarget.CURRENT_TARGET, EffectTestBattle.Context(boss, hero, boss));
+
+        resolved.Count.ShouldBe(1, "STAT_COPY's copy source must be one actor, never a set");
+    }
+
+    /// <summary>
+    /// 🔒 The negative control the fix must NOT touch: a <c>HERO</c> holder's <c>CURRENT_TARGET</c>
+    /// outside an attack context is genuinely ambiguous (`05` §3.2's target-priority machinery can
+    /// pick a different living enemy from one basic attack to the next), so it still throws exactly as
+    /// it did before M2-R3.
+    /// </summary>
+    [Fact]
+    public void CURRENT_TARGET_on_a_HERO_holder_with_no_current_target_still_throws()
+    {
+        var hero = EffectTestBattle.Hero();
+        var grunt = EffectTestBattle.Enemy("GRUNT_A", 1);
+
+        var noAttack = EffectTestBattle.Context(hero, hero, grunt);
+        noAttack.CurrentTarget.ShouldBeNull();
+
+        var thrown = Should.Throw<EffectContextException>(
+            () => TargetResolver.Resolve(EffectTarget.CURRENT_TARGET, noAttack));
+
+        thrown.Token.ShouldBe(nameof(EffectTarget.CURRENT_TARGET));
+    }
+
     /// <summary>`18` §7.10 — <c>PK_STALWART</c> reacts to whoever hit the holder.</summary>
     [Fact]
     public void ATTACKER_is_the_actor_that_dealt_the_hit()
