@@ -82,16 +82,14 @@ public sealed class ValueScaleEvaluatorTests
     // ───────────────────────────────────────────── 🔒 the no-double-rounding contract
 
     /// <summary>
-    /// 🔒 <b>The reading is rounded once, by <c>ConditionEvaluator.Read</c>, and handed on
-    /// unmodified.</b> `18` §1.1 puts the 4-dp rounding on the reading <em>before</em> the division;
-    /// rounding the quotient instead moves a step boundary.
+    /// 🔒 The reading is rounded once, by <c>ConditionEvaluator.Read</c>, and handed on unmodified: `18`
+    /// §1.1 puts the 4-dp rounding on the reading <em>before</em> the division, and rounding the quotient
+    /// instead moves a step boundary.
     /// </summary>
     /// <remarks>
-    /// The discriminating case: an actor at <c>55.0055</c> of <c>100</c> HP reads
-    /// <c>SELF_MISSING_HP_PCT = 0.449945</c>, which <c>Read</c> rounds to <c>0.4499</c> —
-    /// <b>44</b> steps. Dividing the raw reading first gives <c>44.9945</c>, which floors to 44 as
-    /// well; the visible difference is at the boundary below, where the unrounded reading is a hair
-    /// under a step and the rounded one is exactly on it.
+    /// An actor at <c>55.0055</c> of <c>100</c> HP reads <c>0.449945</c>, rounded to <c>0.4499</c> —
+    /// <b>44</b> steps. The visible difference is at the boundary below, where the unrounded reading is a
+    /// hair under a step and the rounded one is exactly on it.
     /// </remarks>
     [Fact]
     public void The_reading_is_rounded_before_the_division_never_after()

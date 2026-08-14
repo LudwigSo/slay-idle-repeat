@@ -30,12 +30,10 @@ public sealed class ActorStatsTests
     /// fourteen-parameter constructor.
     /// </summary>
     /// <remarks>
-    /// This is what makes "an unstated stat is a bug" survive a <em>fifteenth</em> combat stat. A
-    /// fixed-arity constructor would keep compiling on the commit that adds one and would keep
-    /// returning a block with a silent hole; because <see cref="ActorStats.From"/> asks the enum,
-    /// every construction site in the repository throws instead, naming the stat nobody supplied.
-    /// The case cannot add an enum member, so it asserts the property that would make it bite: the
-    /// required set is the classification itself, and dropping any member of it fails.
+    /// That is what makes "an unstated stat is a bug" survive a <em>fifteenth</em> combat stat: a
+    /// fixed-arity constructor would keep compiling on the commit that adds one and keep returning a
+    /// block with a silent hole. The case cannot add an enum member, so it asserts the property that
+    /// would make it bite — the required set is the classification itself.
     /// </remarks>
     [Fact]
     public void Every_stat_StatIds_declares_combat_must_be_supplied_or_construction_fails()

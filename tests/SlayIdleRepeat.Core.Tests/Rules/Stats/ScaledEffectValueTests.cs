@@ -9,17 +9,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// 🔒 M2-07 left <see cref="IEffectValueReader"/> open with <c>AuthoredEffectValue</c>, which
-/// <em>refuses</em> a <c>valueScale</c>: <em>"Reading <c>fn</c> is M2-05's and the evaluator wiring
-/// is M2-06's."</em> This is that wiring — the seam filled, in the place `18` §8's aggregation
-/// actually reads values from.
+/// 🔒 <see cref="IEffectValueReader"/>'s strict default <em>refuses</em> a <c>valueScale</c>; this is the
+/// wiring that fills that seam, in the place `18` §8's aggregation actually reads values from.
 /// </summary>
 /// <remarks>
-/// ⚠️ <b>The implementation lives in <c>Rules/Stats/</c> on purpose.</b> R17 fixes the intra-`Rules`
-/// layering as <c>Rules.Combat → Rules.Stats → Rules.Effects</c>, with <c>Rules.Effects</c> at the
-/// bottom — so the <em>evaluator</em> is in <c>Rules/Effects/Values/</c> and the adapter that binds
-/// it to <see cref="IEffectValueReader"/> sits beside the interface it implements, naming downward.
-/// Moving the three seam interfaces into <c>Rules/Effects/</c> is M2-02's, not this task's.
+/// ⚠️ The implementation lives in <c>Rules/Stats/</c> on purpose: R17 puts <c>Rules.Effects</c> at the
+/// bottom of the intra-<c>Rules</c> layering, so the <em>evaluator</em> is in <c>Rules/Effects/Values/</c>
+/// and the adapter binding it to the interface sits beside the interface it implements, naming downward.
 /// </remarks>
 public sealed class ScaledEffectValueTests
 {
