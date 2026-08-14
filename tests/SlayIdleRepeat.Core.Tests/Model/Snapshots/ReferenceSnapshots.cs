@@ -4,21 +4,14 @@ namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 /// The representative snapshot-shaped records the `14` §16.6 suite is written against.
 /// </summary>
 /// <remarks>
+/// 🔒 These live in the <b>test</b> project on purpose: the real DTOs need the aggregates' real fields,
+/// and inventing them here would be a design decision made in the wrong milestone.
+/// <c>CanonicalStateWriter</c> is specified against the <i>encoding rules</i>, not two particular types.
 /// <para>
-/// 🔒 These live in the <b>test</b> project on purpose. The real snapshot DTOs —
-/// <c>PlayerSnapshot</c> and <c>RunSnapshot</c> — are <c>M1-04</c>/<c>M1-05</c>'s and need the
-/// aggregates' real fields; inventing them here would be a design decision made in the wrong
-/// milestone. <c>CanonicalStateWriter</c> is specified against the <i>encoding rules</i>, not
-/// against two particular types, so the rules are fully testable today.
-/// </para>
-/// <para>
-/// Every record here is a <b>positional</b> record: the writer defines "declaration order" as
-/// the primary constructor's parameter order, which is the one order reflection guarantees.
-/// </para>
-/// <para>
-/// Each record is mirrored, field for field, by the independent Python generator that produced
-/// <c>CanonicalStateWriterReferenceVectors.json</c>. Changing a field here without regenerating
-/// the table is a break the table will announce.
+/// Every record is <b>positional</b>, because the writer defines "declaration order" as the primary
+/// constructor's parameter order — the one order reflection guarantees. Each is mirrored field for
+/// field by the independent generator that produced the reference-vector table, so changing a field
+/// here without regenerating is a break the table will announce.
 /// </para>
 /// </remarks>
 internal static class ReferenceSnapshots

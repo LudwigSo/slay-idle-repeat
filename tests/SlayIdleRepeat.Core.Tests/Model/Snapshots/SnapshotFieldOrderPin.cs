@@ -4,24 +4,16 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
 /// <summary>
-/// The 🔒 field-order pin of `14` §16.6 — *"a CI test pins the field list per
-/// <c>SchemaVersion</c>"* — and the comparison that makes it bite.
+/// The 🔒 field-order pin of `14` §16.6 — <em>"a CI test pins the field list per
+/// <c>SchemaVersion</c>"</em> — and the comparison that makes it bite.
 /// </summary>
 /// <remarks>
+/// The subject set is every public snapshot record under <c>Core/Model/Snapshots/</c>. It was empty
+/// until the first record landed, and the rule was written against its final subject anyway — so it
+/// passed vacuously and became a real assertion with no <c>Skip</c> and nobody having to switch it on.
 /// <para>
-/// The subject set is every public snapshot record in <c>SlayIdleRepeat.Core.Model.Snapshots</c>.
-/// It was <b>empty until M1-04</b>, and the rule was written against its final subject anyway —
-/// so it passed vacuously and turned into a real assertion the moment the first record landed,
-/// with no <c>Skip</c>, no placeholder and nobody having to remember to switch it on. That day was
-/// <b>M1-04</b>: <c>PlayerSnapshot</c> is in the set, its field list is pinned under SchemaVersion
-/// 1, and <c>RunSnapshot</c> joins it with M1-05. The vacuity tripwire that guarded the empty
-/// state has been replaced by
-/// <c>SnapshotFieldOrderPinTests.The_pins_subject_set_is_not_empty_and_holds_the_first_snapshot_record</c>,
-/// which is the same guard pointing the other way.
-/// </para>
-/// <para>
-/// The pinned list is produced by <see cref="CanonicalStateWriter.CanonicalFieldOrder"/> — the
-/// writer's <i>own</i> traversal — so the pin cannot drift from the bytes it is guarding.
+/// The pinned list is produced by <see cref="CanonicalStateWriter.CanonicalFieldOrder"/> — the writer's
+/// <i>own</i> traversal — so the pin cannot drift from the bytes it is guarding.
 /// </para>
 /// </remarks>
 internal static class SnapshotFieldOrderPin
@@ -43,23 +35,16 @@ internal static class SnapshotFieldOrderPin
         "existing version.";
 
     /// <summary>
-    /// The visibility-and-namespace half of the subject query, on its own: every public,
-    /// non-nested type declared in <c>Core/Model/Snapshots/</c> or a folder beneath it.
+    /// The visibility-and-namespace half of the subject query: every public, non-nested type declared
+    /// in <c>Core/Model/Snapshots/</c> or below it.
     /// </summary>
     /// <remarks>
+    /// 🔒 Matched by namespace <b>prefix</b>, as every architecture rule over this directory does. An
+    /// exact match would leave a snapshot one folder deeper outside the subject set, so the rule would
+    /// stay vacuous forever — a pin that never bites and never says why.
     /// <para>
-    /// 🔒 Matched by namespace <b>prefix</b>, the same way every architecture rule that governs
-    /// this directory matches it (<c>Core_internal_layering_holds</c>,
-    /// <c>Apply_is_the_only_public_mutation</c>). An exact match would leave a snapshot declared
-    /// one folder deeper — <c>Model/Snapshots/Player/</c>, say — outside this pin's subject set,
-    /// so the rule would stay vacuous forever rather than only until M1: a pin that never bites
-    /// and never says why, which is the one failure a pin cannot announce itself.
-    /// </para>
-    /// <para>
-    /// Exposed separately from <see cref="SnapshotRecords"/> so the self-tests can prove this half
-    /// is not the vacuity source either. It must be <b>non-empty today</b>: if this filter reaches
-    /// nothing, all four pin rules hold over nothing forever, including on the day M1 lands
-    /// <c>PlayerSnapshot</c>.
+    /// Exposed separately from <see cref="SnapshotRecords"/> so the self-tests can prove this half is not
+    /// the vacuity source: if this filter reaches nothing, all four pin rules hold over nothing.
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<Type> PublicTypesUnderSnapshots { get; } =

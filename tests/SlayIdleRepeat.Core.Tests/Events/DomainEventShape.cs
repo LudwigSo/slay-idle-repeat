@@ -4,24 +4,18 @@ using SlayIdleRepeat.Core.Events;
 namespace SlayIdleRepeat.Core.Tests.Events;
 
 /// <summary>
-/// The shape rules `30` §7 puts on the <c>DomainEvent</c> hierarchy, factored out of the tests
-/// that state them so each one's <b>teeth</b> can be proven against a deliberately wrong shape.
+/// The shape rules `30` §7 puts on the <c>DomainEvent</c> hierarchy, factored out of the tests that
+/// state them so each one's <b>teeth</b> can be proven against a deliberately wrong shape.
 /// </summary>
 /// <remarks>
+/// The hierarchy is two types today, because four of §7's six events name payload types no milestone
+/// has authored and a fifth has no producer. Every rule is stated over a set that grows through M3, M4,
+/// M12 and M14, and each is written so the <i>next</i> event is governed without a test edit.
 /// <para>
-/// The hierarchy is two types today — <see cref="DomainEvent"/> and the single concrete event
-/// <see cref="CurrencyChanged"/> — because four of `30` §7's six events name payload types no
-/// milestone has authored yet, and a fifth has no producer (see <c>GapRegister</c> in the
-/// architecture suite). Every rule
-/// below is therefore stated over a set that is small now and grows through M3, M4, M12 and M14,
-/// and each one is written so that the <i>next</i> event is governed without a test edit.
-/// </para>
-/// <para>
-/// 🔒 A rule over a two-element set proves very little about itself, which is why every predicate
-/// here takes its subject as a parameter rather than reading the assembly: the self-tests drive
-/// them with test-only shapes that violate each rule, so "this rule can fail" is demonstrated
-/// rather than asserted. Same construction as
-/// <c>SlayIdleRepeat.Core.Tests.Model.Snapshots.SnapshotFieldOrderPin.Violations</c>.
+/// 🔒 A rule over a two-element set proves very little about itself, which is why every predicate takes
+/// its subject as a parameter rather than reading the assembly: the self-tests drive them with
+/// test-only shapes that violate each rule, so "this rule can fail" is demonstrated rather than
+/// asserted.
 /// </para>
 /// </remarks>
 internal static class DomainEventShape
@@ -159,23 +153,16 @@ internal static class DomainEventShape
                 "further out, and it would travel into the 14 §7.1 economy log as if the domain had produced it.")
             .ToArray();
 
-    /// <summary>
-    /// 🔒 `14` §7.1 / `14` §2.4 — the event is immutable. Empty means the rule holds.
-    /// </summary>
+    /// <summary>🔒 The event is immutable. Empty means the rule holds.</summary>
     /// <remarks>
+    /// An <c>init</c> accessor is construction, not mutation, and is how a positional record is written.
+    /// A real <c>set</c> is not: the same list is an append-only Postgres log, an analytics payload, a
+    /// Feats counter input and the client's animation script, and a consumer that can rewrite it changes
+    /// what the other three see.
     /// <para>
-    /// An <c>init</c> accessor is construction, not mutation, and is permitted — it is how a
-    /// positional record is written. A real <c>set</c> is not: the same list is an append-only
-    /// Postgres log, an analytics payload, a Feats counter input and the client's animation script,
-    /// and a consumer that can rewrite it changes what the other three see.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Accessibility is not the test</b> — any non-<c>init</c> setter is. An
-    /// <c>internal set</c> is invisible from outside the assembly but perfectly reachable from the
-    /// code that would do the damage: the mutation this rule exists to prevent would be written
-    /// <i>in</i> <c>Core</c>, by a handler holding an event it has already emitted, and
-    /// <c>Core</c> also grants <c>InternalsVisibleTo</c> to this suite (`30` §11.3). Checking
-    /// <c>IsPublic</c> alone would let the one shape a real author would actually reach for pass.
+    /// 🔒 <b>Accessibility is not the test</b> — any non-<c>init</c> setter is. The mutation this prevents
+    /// would be written <i>in</i> <c>Core</c>, by a handler holding an event it has already emitted, so
+    /// checking <c>IsPublic</c> alone would let the one shape a real author would reach for pass.
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> SettablePropertyViolations(Type candidate) =>

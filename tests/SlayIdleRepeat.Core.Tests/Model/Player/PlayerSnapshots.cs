@@ -12,21 +12,16 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 // test written here could not name the very class it is testing (CS0118).
 
 /// <summary>
-/// Hermetic <see cref="PlayerSnapshot"/> fixtures — one valid row, and a <c>With(...)</c> that
-/// replaces exactly one field so a test names the single thing it is about.
+/// Hermetic <see cref="PlayerSnapshot"/> fixtures — one valid row, and a <c>With(...)</c> that replaces
+/// exactly one field so a test names the single thing it is about.
 /// </summary>
 /// <remarks>
+/// A test that built a whole snapshot inline would restate fourteen fields to change one, and the
+/// reader could not tell which it was asserting about.
 /// <para>
-/// The shape is <c>ProgressionDocuments</c>'s, deliberately: a shipped baseline plus per-leaf
-/// overrides. A test that built a whole snapshot inline would have to restate fourteen fields to
-/// change one, and the reader could not tell which of the fourteen the test was actually asserting
-/// about — the same reason the content fixtures are written this way.
-/// </para>
-/// <para>
-/// 🔒 Every instant here is UTC with a zero offset and every period boundary is 05:00 UTC, because
-/// <c>Player.Rehydrate</c> refuses anything else. <see cref="Monday"/> is a real Monday
-/// (2026-08-10) and <see cref="Wednesday"/> a real Wednesday (2026-08-12) — checked against the
-/// calendar rather than assumed, since a fixture that quietly named the wrong weekday would make
+/// 🔒 Every instant is UTC with a zero offset and every period boundary is 05:00 UTC, because
+/// <c>Player.Rehydrate</c> refuses anything else. <see cref="Monday"/> and <see cref="Wednesday"/> are
+/// real weekdays checked against the calendar, since a fixture quietly naming the wrong one would make
 /// the A2 assertion pass for the wrong reason.
 /// </para>
 /// </remarks>

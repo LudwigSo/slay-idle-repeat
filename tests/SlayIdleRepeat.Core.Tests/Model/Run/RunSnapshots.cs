@@ -14,17 +14,12 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// exactly one field so a test names the single thing it is about.
 /// </summary>
 /// <remarks>
+/// A test that built a whole snapshot inline would restate thirteen fields to change one, and the
+/// reader could not tell which of the thirteen it was asserting about.
 /// <para>
-/// The shape is <c>PlayerSnapshots</c>'s, deliberately: a shipped baseline plus per-field overrides.
-/// A test that built a whole snapshot inline would have to restate thirteen fields to change one,
-/// and the reader could not tell which of the thirteen the test was actually asserting about.
-/// </para>
-/// <para>
-/// ⚠️ <b>The baseline numbers are test values and carry no design claim.</b> 100/100 hit points,
-/// position 0 and chapter 1 are chosen because they are legal and unremarkable, not because any
-/// document authors a starting state — `02` §1 and `03` leave that to M3-15's <c>START_RUN</c>, and
-/// a fixture that looked like a starting run would be the S6 hole wearing a plausible value. Tests
-/// that care about a number state it.
+/// ⚠️ The baseline numbers are test values and carry <b>no design claim</b>: legal and unremarkable, not
+/// a starting state — no document authors one until <c>START_RUN</c>, and a fixture that looked like a
+/// starting run would be the S6 hole wearing a plausible value.
 /// </para>
 /// </remarks>
 internal static class RunSnapshots

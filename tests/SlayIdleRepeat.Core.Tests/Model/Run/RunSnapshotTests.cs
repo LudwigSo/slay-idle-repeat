@@ -42,21 +42,17 @@ public sealed class RunSnapshotTests
         CanonicalStateWriter.HashRunCommandState(PlayerSnapshots.Valid, run);
 
     /// <summary>
-    /// 🔒 A snapshot round-trips: rehydrate then snapshot again is the row you started with, value
-    /// for value.
+    /// 🔒 A snapshot round-trips: rehydrate then snapshot again is the row you started with, value for
+    /// value.
     /// </summary>
     /// <remarks>
-    /// Record equality compares the two dictionaries by reference, so this is asserted field by field
-    /// rather than with a single <c>ShouldBe</c> — which would pass for two rows whose maps differed
-    /// and fail for two whose maps were equal but not the same object.
+    /// Record equality compares the two dictionaries by reference, so this is asserted field by field —
+    /// a single <c>ShouldBe</c> would pass for two rows whose maps differed and fail for two whose maps
+    /// were equal but not the same object.
     /// <para>
-    /// ⚠️ The two maps are compared with <c>ignoreOrder</c>. Shouldly's <c>ShouldBe</c> over an
-    /// <see cref="IEnumerable{T}"/> is order-sensitive, and a dictionary's enumeration order is an
-    /// <b>implementation detail of the aggregate's copy</b>, not part of the contract:
-    /// <c>CanonicalStateWriter</c> imposes ascending key order itself (the case below pins exactly
-    /// that), so an implementation that copied into a sorted map would round-trip and hash
-    /// identically while failing an ordered comparison. Pinning the order here would be a test that
-    /// breaks on a harmless refactor.
+    /// ⚠️ The maps are compared with <c>ignoreOrder</c>: a dictionary's enumeration order is an
+    /// implementation detail of the aggregate's copy, and <c>CanonicalStateWriter</c> imposes ascending
+    /// key order itself. Pinning the order here would break on a harmless refactor.
     /// </para>
     /// </remarks>
     [Fact]
@@ -240,18 +236,15 @@ public sealed class RunSnapshotTests
     }
 
     /// <summary>
-    /// 🔒 `14` §8.1 — <c>RunSeed</c> is <b>in</b> the snapshot, because §8.1 makes it authoritative
-    /// run state: a run that lost it could not re-derive its board, its drops or its draft, and could
-    /// therefore not be resumed at all.
+    /// 🔒 `14` §8.1 — <c>RunSeed</c> is <b>in</b> the snapshot, because §8.1 makes it authoritative run
+    /// state: a run that lost it could not re-derive its board, drops or draft, and so could not be
+    /// resumed at all.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Doc contradiction, carried forward (steering S16).</b> `02` §2 says <c>runSeed</c> never
-    /// leaves the server, while `14` §16.6 makes the client-mirror <c>stateHash</c> a hash of the
-    /// snapshot DTOs — and this field is in the DTO. Those cannot both be literally true.
-    /// <b>M1-06 owns the ruling</b>, because it authors <c>stateHash</c> and <c>CommandResult</c> and
-    /// is the first task that has to say what the client actually hashes. This case pins the half
-    /// that <em>is</em> settled — the field is aggregate state — so the resolution has to be a
-    /// decision about the wire rather than a quiet deletion here.
+    /// ⚠️ Doc contradiction, carried forward: `02` §2 says <c>runSeed</c> never leaves the server, while
+    /// `14` §16.6 makes the client-mirror <c>stateHash</c> a hash of the snapshot DTOs — and this field
+    /// is in the DTO. This pins the half that <em>is</em> settled, so the resolution has to be a decision
+    /// about the wire rather than a quiet deletion here.
     /// </remarks>
     [Fact]
     public void The_run_seed_is_authoritative_run_state_and_travels_in_the_snapshot()
