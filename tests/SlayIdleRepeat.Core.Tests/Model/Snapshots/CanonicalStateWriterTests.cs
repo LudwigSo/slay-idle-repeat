@@ -11,9 +11,9 @@ namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 /// 🔒 The public surface of `14` §16.6: the wire form, the two hashing modes, and determinism.
 /// </summary>
 /// <remarks>
-/// §16.6 opens with the reason this class exists — *"A second serialiser producing 'almost the
-/// same bytes' is how parity tests rot; there is exactly one."* The two named modes here are that
-/// one writer's only doors, so no caller ever hand-rolls the run-command concatenation.
+/// §16.6 opens with the reason this class exists — <em>"A second serialiser producing 'almost the
+/// same bytes' is how parity tests rot; there is exactly one."</em> The two named modes are that
+/// writer's only doors, so no caller hand-rolls the run-command concatenation.
 /// </remarks>
 public sealed class CanonicalStateWriterTests
 {
@@ -358,16 +358,10 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔴 `14` §16.6 — a record carrying a public <b>field</b> outside its primary constructor is
-    /// refused too. The check above counted <i>properties</i>; a field is in no parameter list and
-    /// is not a property, so it slipped past both halves and hashed as zero bytes.
+    /// 🔴 A record carrying a public <b>field</b> outside its primary constructor is refused too: the
+    /// check above counted <i>properties</i>, and a field is in no parameter list and is not a
+    /// property, so it slipped past both halves and hashed as zero bytes.
     /// </summary>
-    /// <remarks>
-    /// Latent in M0-07 since it shipped, and harmless only while no snapshot record existed. M1-04
-    /// authors the first one, so it closes this: without the fix the record below encodes happily
-    /// and <see cref="HashMetaCommandState_refuses_a_public_field_record_equality_can_see"/> shows
-    /// what that costs.
-    /// </remarks>
     [Fact]
     public void CanonicalBytes_refuses_a_record_field_declared_outside_the_primary_constructor()
     {
@@ -383,17 +377,15 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔴 The consequence, stated as the assertion that fails without the fix: two states a
-    /// <b>public field</b> makes different must never share a <c>stateHash</c>.
+    /// 🔴 The consequence: two states a <b>public field</b> makes different must never share a
+    /// <c>stateHash</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Measured, not assumed:</b> Roslyn's synthesized record <c>Equals</c> compares every
-    /// <i>instance field</i> of the type, not only the primary-constructor components — so equality
-    /// <b>does</b> see this field, and the divergence is exactly the property case's. The first
-    /// draft of this test asserted the opposite on a plausible reading of "the field list is the
-    /// parameter list" and went red, which is the reading being corrected here. The assertion is on
-    /// the refusal rather than on the two hashes differing because there is no encoding of this
-    /// shape that could be correct: the field is in no parameter list, so it has no position.
+    /// ⚠️ Measured, not assumed: Roslyn's synthesized record <c>Equals</c> compares every <i>instance
+    /// field</i>, not only the primary-constructor components — so equality <b>does</b> see this field.
+    /// The assertion is on the refusal rather than on two hashes differing, because there is no
+    /// encoding of this shape that could be correct: the field is in no parameter list, so it has no
+    /// position.
     /// </remarks>
     [Fact]
     public void HashMetaCommandState_refuses_a_public_field_record_equality_can_see()
@@ -445,20 +437,13 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 A record carrying a public <b>field</b> is refused — the same zero-byte defect as the two
-    /// tests above, reached by the door the property check cannot watch.
+    /// 🔒 A record carrying a public <b>field</b> is refused — the same zero-byte defect, reached by
+    /// the door the property check cannot watch.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// A field is neither a primary-constructor parameter nor a property, so it falls through both
-    /// halves of the shape check. Before this rule, <c>CombatEventAsDocumented</c> hashed
-    /// <b>only its constructor parameter</b> and its two fields contributed nothing.
-    /// </para>
-    /// <para>
     /// ⚠️ The fixture is named after `05` §7's <c>CombatEvent</c> because that is where the shape
-    /// actually appears: the battle <c>LogHash</c> is defined over exactly such a record, and
-    /// M2-15 would have shipped a hash over one sixth of its own event had this stayed open.
-    /// </para>
+    /// actually appears: the battle <c>LogHash</c> is defined over exactly such a record, and would
+    /// have shipped as a hash over one sixth of its own event had this stayed open.
     /// </remarks>
     [Fact]
     public void CanonicalBytes_refuses_a_record_carrying_a_public_field()
@@ -480,15 +465,13 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 And it is refused rather than silently hashed to a fraction of itself: two instances that
-    /// record equality calls different, differing <b>only</b> in their fields, must not both reach a
-    /// hash.
+    /// 🔒 Refused rather than silently hashed to a fraction of itself: two instances record equality
+    /// calls different, differing <b>only</b> in their fields, must not both reach a hash.
     /// </summary>
     /// <remarks>
-    /// This is the assertion that fails loudly if the field rule is ever removed. Without the rule
-    /// both calls succeed and return the <i>same</i> value — which is why the test is written as two
-    /// refusals over a demonstrated inequality rather than as a hash comparison: a hash comparison
-    /// would have to spell out the collision it is trying to prevent.
+    /// Without the rule both calls succeed and return the <i>same</i> value — which is why this is two
+    /// refusals over a demonstrated inequality rather than a hash comparison, which would have to spell
+    /// out the collision it is preventing.
     /// </remarks>
     [Fact]
     public void HashMetaCommandState_refuses_the_shape_whose_fields_it_cannot_see()
@@ -536,8 +519,8 @@ public sealed class CanonicalStateWriterTests
     /// promoted into the primary constructor hashes normally.
     /// </summary>
     /// <remarks>
-    /// S2 — without this, the two tests above would pass just as well against a writer that had
-    /// started refusing every record for some unrelated reason.
+    /// Without this, the two tests above pass just as well against a writer that had started refusing
+    /// every record for some unrelated reason.
     /// </remarks>
     [Fact]
     public void A_record_whose_fields_are_constructor_parameters_still_hashes()
@@ -551,14 +534,13 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// A snapshot nested deeper than the writer's descent limit terminates with a diagnosable
-    /// failure rather than a stack overflow. Snapshots are shallow trees by construction; runaway
-    /// depth is a bug in the snapshot, and it must be sayable rather than fatal to the process.
+    /// A snapshot nested deeper than the descent limit fails diagnosably rather than overflowing the
+    /// stack — runaway depth is a bug in the snapshot, and must be sayable rather than fatal.
     /// </summary>
     /// <remarks>
-    /// A true reference cycle is not constructible from immutable positional records, so the
-    /// shape that stands in for one is a 200-level self-referencing chain — the same unbounded
-    /// descent, reached the only way a snapshot can actually reach it.
+    /// A true reference cycle is not constructible from immutable positional records, so the stand-in
+    /// is a 200-level self-referencing chain: the same unbounded descent, reached the only way a
+    /// snapshot can actually reach it.
     /// </remarks>
     [Fact]
     public void CanonicalBytes_refuses_a_snapshot_nested_deeper_than_the_descent_limit()

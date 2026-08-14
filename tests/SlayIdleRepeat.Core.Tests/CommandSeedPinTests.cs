@@ -7,32 +7,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `14` §8.1 / `30` §3 — <c>CommandSeed</c> is server-issued and <b>meta-only</b>: it is
-/// <c>null</c> on all 19 run commands and non-null on the nine meta commands that draw.
+/// 🔒 `14` §8.1 / `30` §3 — <c>CommandSeed</c> is server-issued and <b>meta-only</b>: <c>null</c> on
+/// all 19 run commands, non-null on the nine meta commands that draw.
 /// </summary>
 /// <remarks>
+/// 🔒 Every sweep takes its subject set from the dispatch table's <c>CommandKind</c>, and that
+/// separation is what stops the file agreeing with itself. The first draft of the meta sweep asked
+/// <see cref="CommandSeedPin.Violations"/> which rows draw and compared the answer to the list
+/// <c>Violations</c> consults — one source on both sides, so the rule held over any list at all;
+/// adding <c>"EQUIP"</c> to the nine left it green. It is now written as the <b>complement</b>: the
+/// 21 meta rows the document does not mark.
 /// <para>
-/// 🔒 <b>The half that quantifies over the real vocabulary went live in M1-02.</b> It was written
-/// against its final subject in M1-07 and held vacuously until then, with no <c>Skip</c>, in the
-/// same shape as <c>Model/Snapshots/SnapshotFieldOrderPinTests</c>. It now sweeps the dispatch
-/// table: all 19 <c>CommandKind.Run</c> rows must be refused a seed, exactly nine of the 30
-/// <c>CommandKind.Meta</c> rows must require one, and each of the nine must resolve to a
-/// <c>Meta</c> row.
-/// </para>
-/// <para>
-/// 🔒 <b>Every sweep takes its subject set from the dispatch table's <c>CommandKind</c>, and the
-/// separation is what stops it agreeing with itself.</b> The first draft of the meta sweep did not:
-/// it asked <see cref="CommandSeedPin.Violations"/> which meta rows draw and compared the answer to
-/// the list <c>Violations</c> consults, so both sides had one source and the rule held over any
-/// list at all — a review proved it by adding <c>"EQUIP"</c> to the nine and watching it stay green.
-/// It is now written as the <b>complement</b>: the 21 meta rows the document does not mark, driven
-/// two-armed. The nine are reached only through the identity pin and the kind cross-check, which are
-/// assertions <em>about</em> that list rather than assertions driven by it.
-/// </para>
-/// <para>
-/// <see cref="DrawsNothing"/> is kept as the stand-in for "a name outside the nine" in the
-/// classifier's own teeth-checks. It is deliberately not one of the forty-nine, so those checks
-/// stay independent of the vocabulary they are now also driven over.
+/// <see cref="DrawsNothing"/> is deliberately not one of the forty-nine, so the classifier's own
+/// teeth-checks stay independent of the vocabulary they are also driven over.
 /// </para>
 /// </remarks>
 public sealed class CommandSeedPinTests
@@ -141,16 +128,13 @@ public sealed class CommandSeedPinTests
     // ------------------------------------------------------- floors under the classifier's inputs
 
     /// <summary>
-    /// 🔒 Steering S3 — a floor under the set every rule here quantifies over, pinned by
-    /// <b>identity</b> rather than cardinality. A count-only floor is satisfied by swapping one of
-    /// the nine for a run command, and every other rule in this file is driven from this very set,
-    /// so the substitution would leave the whole file green with a run command classified as
-    /// seed-bearing.
+    /// 🔒 Steering S3 — a floor under the set every rule here quantifies over, pinned by <b>identity</b>
+    /// rather than cardinality: a count-only floor is satisfied by swapping one of the nine for a run
+    /// command, leaving the whole file green with a run command classified as seed-bearing.
     /// </summary>
     /// <remarks>
-    /// The nine are the ⚄-marked rows of `14` §2.3, restated by the M1 kickoff (2026-08-11), which
-    /// froze the vocabulary at 49 — 19 run commands, all carrying <c>null</c>, and 30 meta commands
-    /// of which exactly these nine draw. Changing this list is a vocabulary decision, not a test edit.
+    /// The nine are `14` §2.3's ⚄-marked rows. Changing this list is a vocabulary decision, not a test
+    /// edit.
     /// </remarks>
     [Fact]
     public void The_seed_bearing_set_is_the_nine_the_command_vocabulary_freezes()
@@ -186,14 +170,13 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §2.3 — the wire name is <b>read off the dispatch row that declares it</b>, not
-    /// derived from the type's name (carried-forward item 4, closed by M1-06).
+    /// 🔒 `14` §2.3 — the wire name is <b>read off the dispatch row that declares it</b>, not derived
+    /// from the type's name.
     /// </summary>
     /// <remarks>
-    /// The predecessor of this test pinned a heuristic — <c>SpinWheelCommand</c> → <c>SPIN_WHEEL</c>,
-    /// and <c>OpenPvPCommand</c> → <c>OPEN_PV_P</c>, a limit it could only document. It existed
-    /// because no authored scheme did. This drives the real lookup against a dispatch table built
-    /// here, so the mechanism is proven before the 49 rows M1-02 adds exist to prove it on.
+    /// The predecessor pinned a heuristic that turned <c>OpenPvPCommand</c> into <c>OPEN_PV_P</c>. This
+    /// drives the real lookup against a table built here, so the mechanism is proven before the 49 rows
+    /// exist to prove it on.
     /// </remarks>
     [Fact]
     public void A_wire_name_is_read_off_the_dispatch_row_that_declares_it()
@@ -206,14 +189,13 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §2.3 — a type the dispatch table does not name has no declared wire name, and says
-    /// <c>null</c> rather than inventing one from its type name.
+    /// 🔒 A type the dispatch table does not name has no declared wire name, and says <c>null</c>
+    /// rather than inventing one.
     /// </summary>
     /// <remarks>
-    /// This is the assertion that fails if the heuristic is ever reintroduced beside the
-    /// declaration: a guesser would answer <c>PIN_FIXTURE</c> here. The unregistered command itself
-    /// is reported by <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c>, which is why
-    /// this file does not complain about it a second time (steering S4).
+    /// The assertion that fails if the heuristic is ever reintroduced beside the declaration: a guesser
+    /// would answer <c>PIN_FIXTURE</c>. The unregistered command itself is reported by
+    /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c>.
     /// </remarks>
     [Fact]
     public void An_unregistered_command_type_has_no_declared_wire_name()
@@ -251,20 +233,17 @@ public sealed class CommandSeedPinTests
     // --------------------------------------------------- live over the real vocabulary from M1-02
 
     /// <summary>
-    /// 🔒 `14` §8.1 / `30` §3 — <b>every one of the 19 run commands is handed <c>null</c></b>, and a
-    /// seed on any of them is a violation. Driven over the wire names the <b>dispatch table</b>
-    /// carries for <c>CommandKind.Run</c> rows.
+    /// 🔒 <b>Every one of the 19 run commands is handed <c>null</c></b>, driven over the wire names the
+    /// <b>dispatch table</b> carries for <c>CommandKind.Run</c> rows.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>This is the half that cannot be tautological, and that is why it is written this way.</b>
-    /// The subject set comes from the dispatch table's <c>CommandKind</c>, which
-    /// <see cref="CommandSeedPin.SeedBearingMetaCommands"/> has never seen: a rule that derived
-    /// "does it draw?" from the same list the classifier consults would agree with itself over any
-    /// list at all. Put <c>ROLL_DICE</c> into the nine and this fails, naming it.
+    /// 🔒 The subject set comes from the table's <c>CommandKind</c>, which
+    /// <see cref="CommandSeedPin.SeedBearingMetaCommands"/> has never seen — a rule deriving "does it
+    /// draw?" from the same list the classifier consults would agree with itself over any list. Put
+    /// <c>ROLL_DICE</c> into the nine and this fails, naming it.
     /// <para>
-    /// A seed on a run command is a <b>second source of entropy</b> beside the <c>Run</c>
-    /// aggregate's committed <c>runSeed</c>, and the two diverge between client and server the first
-    /// time a replay uses the stored one.
+    /// A seed on a run command is a <b>second source of entropy</b> beside the aggregate's committed
+    /// <c>runSeed</c>, and the two diverge the first time a replay uses the stored one.
     /// </para>
     /// </remarks>
     [Fact]
@@ -300,27 +279,14 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §2.3's meta table has 30 rows and marks <b>nine</b> of them ⚄. This is the other
-    /// twenty-one: every meta command the document does <em>not</em> mark must be handed
-    /// <c>null</c>, and a seed on one is a violation.
+    /// 🔒 `14` §2.3's meta table has 30 rows and marks <b>nine</b> ⚄. This is the other twenty-one:
+    /// each must be handed <c>null</c>, and a seed on one is a violation.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Written as the complement, and that is the whole point — the obvious form of this rule
-    /// cannot fail.</b> The first version asked <see cref="CommandSeedPin.Violations"/> which meta
-    /// rows refuse a null seed and compared the answer to
-    /// <see cref="CommandSeedPin.SeedBearingMetaCommands"/>. But <c>Violations</c> decides that by
-    /// asking the very same list, so both sides came from one source and the comparison held over
-    /// <em>any</em> list of registered names. A review proved it: adding <c>"EQUIP"</c> to the nine
-    /// left it green, and only the identity pin fired.
-    /// </para>
-    /// <para>
-    /// The complement has two genuinely independent sources — <c>CommandKind.Meta</c> off the
-    /// dispatch table, minus the nine — and it is driven <b>two-armed</b>, the same shape as
-    /// <see cref="No_run_command_in_the_registry_may_carry_a_CommandSeed"/>: each of the twenty-one
-    /// must be clean with no seed <em>and</em> refused with "must be null" when handed one.
-    /// A meta command that quietly joined the nine drops out of this set and fails the count.
-    /// </para>
+    /// 🔒 Written as the complement because the obvious form cannot fail — see the class remarks. The
+    /// complement has two genuinely independent sources (<c>CommandKind.Meta</c> minus the nine) and is
+    /// driven <b>two-armed</b>: each must be clean with no seed <em>and</em> refused when handed one. A
+    /// meta command that quietly joined the nine drops out of this set and fails the count.
     /// </remarks>
     [Fact]
     public void The_twenty_one_meta_commands_that_do_not_draw_may_not_carry_a_CommandSeed()
@@ -362,12 +328,12 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 The count that closes the arithmetic: <b>19 run + 30 meta = 49</b>, and the nine ⚄ rows are
-    /// all inside the meta half.
+    /// 🔒 The count that closes the arithmetic: <b>19 run + 30 meta = 49</b>, with the nine ⚄ rows all
+    /// inside the meta half.
     /// </summary>
     /// <remarks>
-    /// Stated separately from the two sweeps because it is the one assertion that would notice a row
-    /// vanishing from the table altogether — both sweeps quantify over what the table <em>has</em>.
+    /// Separate from the two sweeps because it is the one assertion that would notice a row vanishing
+    /// from the table altogether — both sweeps quantify over what the table <em>has</em>.
     /// </remarks>
     [Fact]
     public void The_two_kinds_partition_the_whole_registry()
@@ -387,16 +353,14 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 The cross-check that closes the loop: <b>every seed-bearing name is registered
-    /// <c>CommandKind.Meta</c></b>. `30` §3 puts <c>CommandSeed</c> on meta commands only, so a run
-    /// command in the nine is the invariant inverted.
+    /// 🔒 Every seed-bearing name is registered <c>CommandKind.Meta</c> — `30` §3 puts
+    /// <c>CommandSeed</c> on meta commands only, so a run command in the nine is the invariant
+    /// inverted.
     /// </summary>
     /// <remarks>
-    /// It is separate from the two sweeps above and it is not redundant with them: those quantify
-    /// over the table's rows and would both stay green if one of the nine named no registered
-    /// command at all — that is
-    /// <see cref="Every_seed_bearing_command_name_names_a_real_command_type"/>'s job — while this one
-    /// asserts the <b>kind</b> of the row each of the nine resolves to.
+    /// Not redundant with the two sweeps: those quantify over the table's rows and would both stay
+    /// green if one of the nine named no registered command at all. This asserts the <b>kind</b> of the
+    /// row each of the nine resolves to.
     /// </remarks>
     [Fact]
     public void Every_seed_bearing_command_is_registered_as_a_meta_command()
@@ -430,17 +394,15 @@ public sealed class CommandSeedPinTests
             .ToArray();
 
     /// <summary>
-    /// 🔒 `14` §8.1 — every one of the nine seed-bearing names names a command type that actually
-    /// exists. It held vacuously from M1-07 until M1-02 landed the vocabulary; it is <b>live</b>
-    /// now, and it is what catches a typo in the nine or a rename on the other side.
+    /// 🔒 Every one of the nine seed-bearing names names a command type that actually exists — what
+    /// catches a typo in the nine or a rename on the other side.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The M1-07 version carried a <c>declared.Count == 0</c> arm so an empty subject set produced
-    /// no offenders — the vacuity it was written with, on purpose. That arm is <b>gone</b>, not
-    /// merely bypassed: the floor below is what now distinguishes "the vocabulary is gone" (a count
-    /// of 0, reported as itself) from "one of the nine is misspelled" (a named offender). Leaving a
-    /// dead branch under a floor that makes it unreachable would be a second answer to a question
-    /// with one.
+    /// ⚠️ The earlier version carried a <c>declared.Count == 0</c> arm so an empty subject set produced
+    /// no offenders. That arm is <b>gone</b>: the floor below now distinguishes "the vocabulary is
+    /// gone" (a count of 0, reported as itself) from "one of the nine is misspelled" (a named
+    /// offender), and a dead branch under a floor that makes it unreachable would be a second answer
+    /// to a question with one.
     /// </remarks>
     [Fact]
     public void Every_seed_bearing_command_name_names_a_real_command_type()

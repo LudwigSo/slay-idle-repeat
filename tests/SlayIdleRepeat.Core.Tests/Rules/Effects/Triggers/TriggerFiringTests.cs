@@ -7,14 +7,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
 /// <summary>
-/// 🔒 The firing predicate of every one of `18` §3's 23 trigger kinds, driven from a hand-cranked
-/// tick source.
+/// 🔒 The firing predicate of every one of `18` §3's 23 trigger kinds, from a hand-cranked tick
+/// source.
 /// </summary>
 /// <remarks>
-/// Every assertion below is on a <see cref="TriggerOutcome"/> rather than on a boolean, which is
-/// steering S2 made mechanical: eleven of the twelve refusals mean "did not fire", and a
-/// <c>PK_FLURRY</c> held back by a spent <c>once</c> latch instead of by its counter is a bug whose
-/// boolean test passes.
+/// Every assertion is on a <see cref="TriggerOutcome"/> rather than a boolean: eleven of the twelve
+/// refusals mean "did not fire", and a <c>PK_FLURRY</c> held back by a spent <c>once</c> latch instead
+/// of by its counter is a bug whose boolean test passes.
 /// </remarks>
 public sealed class TriggerFiringTests
 {

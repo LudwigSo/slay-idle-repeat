@@ -10,10 +10,9 @@ namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 /// 🔒 The scalar rules of the `14` §16.6 table, asserted as <b>bytes</b> rather than as hashes.
 /// </summary>
 /// <remarks>
-/// A hash test tells you something moved; a byte test tells you what. Each rule in the §16.6
-/// Scalars/Doubles rows gets its own assertion here, with the shapes that are easiest to get
-/// subtly right-looking and wrong — a negative integer zero-extended, a string counted in
-/// characters, a timestamp in seconds — pinned explicitly.
+/// A hash test tells you something moved; a byte test tells you what. The shapes easiest to get
+/// subtly right-looking and wrong — a negative integer zero-extended, a string counted in characters,
+/// a timestamp in seconds — are pinned explicitly.
 /// </remarks>
 public sealed class CanonicalEncodingTests
 {
@@ -352,16 +351,14 @@ public sealed class CanonicalEncodingTests
 
     /// <summary>
     /// 🔒 §16.6 — <c>-0.0</c> is <b>refused</b>. It is the one value where record equality and
-    /// <c>stateHash</c> disagree: <c>-0.0 == 0.0</c> is <c>true</c> in C#, so two snapshots the
-    /// language calls identical would carry different hashes. Encoding it and normalising it are
-    /// both wrong — the first is a false divergence in §2.4's mirror check and §13's chaos tests,
-    /// the second is the writer silently editing state on its way out — so it is neither.
+    /// <c>stateHash</c> disagree (<c>-0.0 == 0.0</c> is <c>true</c> in C#), so two snapshots the
+    /// language calls identical would carry different hashes. Encoding it is a false divergence in
+    /// the parity checks; normalising it is the writer silently editing state on its way out.
     /// </summary>
     /// <remarks>
-    /// It is reachable from `14` §8.2's own rounding rule rather than only from a hand-written
-    /// literal: <c>Math.Round(-0.00004, 4)</c> yields <c>-0.0</c>, and .NET preserves the sign of
-    /// zero. The value is built through <see cref="BitConverter"/> because the C# compiler folds a
-    /// <c>-0.0</c> literal to <c>+0.0</c> in some positions.
+    /// Reachable from `14` §8.2's own rounding rule, not only a hand-written literal:
+    /// <c>Math.Round(-0.00004, 4)</c> yields <c>-0.0</c> and .NET preserves the sign. Built through
+    /// <see cref="BitConverter"/> because the compiler folds a <c>-0.0</c> literal in some positions.
     /// </remarks>
     [Fact]
     public void CanonicalBytes_refuses_negative_zero()
@@ -419,13 +416,10 @@ public sealed class CanonicalEncodingTests
         Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*4*");
     }
 
-    /// <summary>
-    /// A value that is exactly representable at 4 dp passes the guard untouched.
-    /// </summary>
+    /// <summary>A value exactly representable at 4 dp passes the guard untouched.</summary>
     /// <remarks>
-    /// <c>-0.0</c> is deliberately absent, and no longer merely because the C# compiler folds it
-    /// to the same constant as <c>0.0</c>: it is refused outright, by
-    /// <see cref="CanonicalBytes_refuses_negative_zero"/>.
+    /// <c>-0.0</c> is deliberately absent — it is refused outright by
+    /// <see cref="CanonicalBytes_refuses_negative_zero"/>, not merely folded by the compiler.
     /// </remarks>
     [Theory]
     [InlineData(0.0)]
