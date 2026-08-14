@@ -15,9 +15,6 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ═══ 🔴 <b>WHAT WAS BROKEN, AND WHY NOTHING WENT RED</b> ═══
-/// </para>
-/// <para>
 /// <c>DurationEvaluator</c> has implemented `18` §6's boundary since M2-06 and it is correct: it ends
 /// the effect the moment <c>DurationProbe.CurrentPhase</c> exceeds
 /// <c>EffectApplication.AppliedInPhase</c>. But <b>nothing filled either field</b> — no seam could

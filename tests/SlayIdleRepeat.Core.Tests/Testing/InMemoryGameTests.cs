@@ -16,28 +16,12 @@ namespace SlayIdleRepeat.Core.Tests;
 /// <c>State</c> and the event list.
 /// </summary>
 /// <remarks>
-/// ⚠️ <b>What this file may and may not claim.</b> Several assertions below are about
-/// <c>CreatePlayer</c>'s own contract — the starting row it builds — and are therefore assertions
-/// about the fixture rather than about a rule. That is legitimate <em>here</em>, where the
-/// constructor is the subject, and it is called out because it is the failure mode `30` §6's harness
-/// is most exposed to: <c>game.State(player).Player.Energy</c> equalling what the harness just
-/// stored proves only that the harness stored a number. Everything the <b>rules</b> decide — accrual
-/// across a boundary, idempotence per game day, the event list's contents and order — is asserted in
+/// ⚠️ Several assertions here are about <c>CreatePlayer</c>'s own contract rather than about a rule.
+/// That is legitimate where the constructor <em>is</em> the subject, but it is called out because
+/// <c>game.State(player).Player.Energy</c> equalling what the harness just stored proves only that
+/// the harness stored a number. Everything the <b>rules</b> decide is in
 /// <c>InMemoryGameDayCycleTests</c>, and the determinism of the whole in
 /// <c>InMemoryGameDeterminismTests</c>.
-/// <para>
-/// 🔒 <b>The fixture-only assertions, named exactly, so nobody mistakes one for a rule.</b>
-/// <see cref="A_created_player_starts_at_the_authored_floor_holding_nothing"/> and
-/// <see cref="A_created_player_sits_in_the_game_day_and_week_the_clock_is_in"/> assert
-/// <c>CreatePlayer</c>'s own contract, which is legitimate because that method is the subject.
-/// <see cref="The_session_defaults_are_no_Plus_and_no_kill_switch_thrown"/> is a property round trip
-/// and <em>no more</em>: nothing in M1 reads <c>Entitlements</c> or <c>FeatureFlags</c>, and this
-/// type exposes no <c>GameContext</c>, so "they reach the domain" is not assertable until the first
-/// milestone whose handler reads one. ⚠️ The <b>Legend Level</b> half of the first of those is the
-/// case M1-11's review caught: comparing against the shipped floor cannot tell a tuning read from a
-/// literal, so <see cref="A_created_player_reads_its_Legend_Level_from_the_content_set"/> exists to
-/// discriminate.
-/// </para>
 /// </remarks>
 public sealed class InMemoryGameTests
 {
@@ -54,16 +38,15 @@ public sealed class InMemoryGameTests
             .ParamName.ShouldBe("clock");
     }
 
-    /// <summary>
-    /// 🔒 The harness never loads: it takes a pre-built <see cref="ContentSnapshot"/>, and the one it
-    /// was handed is the one every command reads (M1 kickoff decision 4).
-    /// </summary>
-    /// <remarks>
-    /// The identity comparison is the point. A harness that copied, re-stamped or rebuilt the
-    /// snapshot would break `30` §3's guarantee that a replayed command reproduces its original
-    /// outcome after a balance patch — the stamp is what makes that true, and a stamp the harness
-    /// invented is a stamp no adapter produced.
-    /// </remarks>
+/// <summary>
+/// 🔒 The harness never loads: it takes a pre-built <see cref="ContentSnapshot"/>, and the one it
+/// was handed is the one every command reads.
+/// </summary>
+/// <remarks>
+/// The identity comparison is the point. Copying or re-stamping the snapshot would break `30` §3's
+/// guarantee that a replayed command reproduces its outcome after a balance patch — a stamp the
+/// harness invented is a stamp no adapter produced.
+/// </remarks>
     [Fact]
     public void The_content_set_is_the_one_it_was_handed()
     {
@@ -104,28 +87,22 @@ public sealed class InMemoryGameTests
         plus.Flags.DisabledChapters.ShouldContain("CH_07");
     }
 
-    /// <summary>
-    /// 🔒 A created player starts at the <b>authored</b> Legend Level floor holding <b>nothing</b> —
-    /// six wallet rows at zero and both Energy banks at zero.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔒 <b>Zero is forced rather than chosen, and this test is where that ruling is pinned.</b>
-    /// `30` §7 requires every currency movement to be attributed by a <c>CurrencyChanged</c> and
-    /// `21` §8.3's <c>income_attribution.csv</c> is a query over those rows, so a player who
-    /// <em>started</em> with a balance would hold currency no row attributes. A starting grant needs
-    /// a rule, a reason token and an event, and the milestone that creates accounts (M4-10) owns
-    /// writing one — inventing an amount here is exactly what steering <b>S6</b> forbids.
-    /// </para>
-    /// <para>
-    /// ⚠️ The Legend Level assertion below compares against
-    /// <c>ProgressionDocuments.ShippedLegendLevelMin</c>, and on its own that is <b>not</b> a proof
-    /// that <c>CreatePlayer</c> reads the tuning — the shipped floor is 1, so replacing
-    /// <c>legend.Minimum</c> with the literal <c>1</c> leaves it green (measured on M1-11's review).
-    /// <see cref="A_created_player_reads_its_Legend_Level_from_the_content_set"/> is the assertion
-    /// that discriminates; this one pins the shipped value.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 A created player starts at the <b>authored</b> Legend Level floor holding <b>nothing</b> —
+/// six wallet rows at zero and both Energy banks at zero.
+/// </summary>
+/// <remarks>
+/// Zero is forced, not chosen: `30` §7 requires every currency movement to carry a
+/// <c>CurrencyChanged</c>, so a player who <em>started</em> with a balance would hold currency no
+/// row attributes. A starting grant needs a rule, a reason token and an event, and M4-10 owns
+/// writing one.
+/// <para>
+/// ⚠️ The Legend Level assertion compares against the shipped floor of 1, which cannot tell a
+/// tuning read from a literal —
+/// <see cref="A_created_player_reads_its_Legend_Level_from_the_content_set"/> is the discriminating
+/// half; this one pins the shipped value.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_created_player_starts_at_the_authored_floor_holding_nothing()
     {
@@ -155,26 +132,19 @@ public sealed class InMemoryGameTests
         game.CommandsIssued.ShouldBe(0L);
     }
 
-    /// <summary>
-    /// 🔒 A created player's Legend Level comes from the <b>content set</b>, not from a literal.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// `07` §1.1 authors the floor at <c>progression.json#/legendLevel/min</c> and `21` §3.1 makes
-    /// every such number a 📐 tunable — <em>"a 📐 tunable number that is not in this directory is a
-    /// bug"</em>. The only way to assert that <c>CreatePlayer</c> honours it is to hand the harness
-    /// a content set whose floor is <b>not</b> the shipped one: a comparison against the shipped
-    /// value cannot tell a read from a coincidence, because the shipped value is 1 and so is the
-    /// literal anyone would have written.
-    /// </para>
-    /// <para>
-    /// 🔒 Five is arbitrary and is the point — it is a number no document authors and no default
-    /// would produce, so the only way the player arrives at it is by the tuning being read. The
-    /// Energy assertion beside it is the consequence that makes it matter: `10` §3's Max Energy is
-    /// derived from the Legend Level, so a harness that hard-coded the level would silently hand
-    /// every simulated player the wrong tank.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 A created player's Legend Level comes from the <b>content set</b>, not from a literal.
+/// </summary>
+/// <remarks>
+/// The floor is authored at <c>progression.json#/legendLevel/min</c> (`07` §1.1) and is a 📐 tunable
+/// (`21` §3.1). Asserting the read needs a content set whose floor is <b>not</b> the shipped one:
+/// the shipped value is 1, and so is the literal anyone would have written. Five is arbitrary and
+/// that is the point — no document authors it and no default produces it.
+/// <para>
+/// The Energy assertion beside it is why it matters: `10` §3's Max Energy is derived from the
+/// Legend Level, so a hard-coded level hands every simulated player the wrong tank.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_created_player_reads_its_Legend_Level_from_the_content_set()
     {
@@ -199,17 +169,16 @@ public sealed class InMemoryGameTests
             "from a literal would give every simulated player the wrong tank.");
     }
 
-    /// <summary>
-    /// 🔒 A created player is already <b>inside</b> the game day and game week the clock is in.
-    /// </summary>
-    /// <remarks>
-    /// This is not decoration. If <c>CreatePlayer</c> left the two period boundaries at a default,
-    /// the very first command would clear a period the player never played — and worse, a boundary
-    /// <em>earlier</em> than the stored one makes <c>Player.RequireNotBefore</c> throw out of
-    /// <c>Apply</c>, which is a `30` §2.1 <b>P3</b> violation reported as a crash. Compared against
-    /// <c>GameCalendar</c>'s own answer rather than a literal, because that is the one definition
-    /// both the aggregate's invariant and <c>AdvanceTime</c>'s computation read.
-    /// </remarks>
+/// <summary>
+/// 🔒 A created player is already <b>inside</b> the game day and week the clock is in.
+/// </summary>
+/// <remarks>
+/// Left at a default, the first command would clear a period the player never played — and a
+/// boundary <em>earlier</em> than the stored one makes <c>Player.RequireNotBefore</c> throw out of
+/// <c>Apply</c>, a `30` §2.1 <b>P3</b> violation reported as a crash. Compared against
+/// <c>GameCalendar</c>'s own answer, the one definition both the invariant and <c>AdvanceTime</c>
+/// read.
+/// </remarks>
     [Fact]
     public void A_created_player_sits_in_the_game_day_and_week_the_clock_is_in()
     {
@@ -229,14 +198,13 @@ public sealed class InMemoryGameTests
             "not tell the two apart.");
     }
 
-    /// <summary>Players are distinct, deterministic and independent.</summary>
-    /// <remarks>
-    /// The identities are a counter rather than a <c>Guid</c> — `14` §8.1 bans the latter in
-    /// <c>Core</c>, and `02` §2 hashes the player id into every <c>runSeed</c>, so a random id would
-    /// make the simulation irreproducible from M3 onwards. Independence is asserted through a
-    /// command rather than through construction: two players sharing one slice is the defect a
-    /// dictionary keyed on the wrong thing produces.
-    /// </remarks>
+/// <summary>Players are distinct, deterministic and independent.</summary>
+/// <remarks>
+/// The identities are a counter rather than a <c>Guid</c> — `14` §8.1 bans the latter in
+/// <c>Core</c>, and `02` §2 hashes the player id into every <c>runSeed</c>. Independence is asserted
+/// through a command rather than construction: two players sharing one slice is the defect a
+/// dictionary keyed on the wrong thing produces.
+/// </remarks>
     [Fact]
     public void Two_players_have_distinct_identities_and_independent_state()
     {
@@ -295,16 +263,15 @@ public sealed class InMemoryGameTests
             "leave a player nobody can name.");
     }
 
-    /// <summary>
-    /// 🔒 An id this harness never issued is a <b>defect</b>, not a rejection — and both doors say so.
-    /// </summary>
-    /// <remarks>
-    /// The line `30` §2.1's <b>P3</b> draws: a player asking for something they cannot have is a
-    /// <c>RejectionReason</c>; a caller naming a player that does not exist is a miswired caller,
-    /// and answering it with <c>ILLEGAL_STATE</c> would tell the wrong person that a rule said no.
-    /// <c>default(PlayerId)</c> is asserted alongside a plausible-looking id because it is the one an
-    /// unassigned field produces.
-    /// </remarks>
+/// <summary>
+/// 🔒 An id this harness never issued is a <b>defect</b>, not a rejection — at both doors.
+/// </summary>
+/// <remarks>
+/// The line `30` §2.1's <b>P3</b> draws: a player asking for something they cannot have is a
+/// <c>RejectionReason</c>; a caller naming a player that does not exist is miswired, and
+/// <c>ILLEGAL_STATE</c> would tell the wrong person that a rule said no. <c>default(PlayerId)</c> is
+/// asserted alongside a plausible id because it is what an unassigned field produces.
+/// </remarks>
     [Fact]
     public void An_id_this_harness_never_issued_is_a_defect_at_both_doors()
     {
@@ -325,39 +292,23 @@ public sealed class InMemoryGameTests
             .Message.ShouldContain("holds no player", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 `30` §2.1's <b>P3</b>, through the harness: a <c>Deferred</c> command is <b>refused</b> with
-    /// <c>ILLEGAL_STATE</c> and does not throw — forty-eight of `14` §2.3's forty-nine rows today.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Driven over several rows rather than one, and over rows owned by different milestones, so
-    /// "the deferral answers a value" is a claim about the mechanism rather than about whichever
-    /// command the test happened to pick.
-    /// </para>
-    /// <para>
-    /// 🔒 The state comparison is the half that matters: `30` §2.1's <b>P4</b> makes a rejected
-    /// command provably state-free, and <c>GameRules</c>' rejection arm discards the catch-up with
-    /// it. A harness that stored the working copy on a rejection would silently hand the player
-    /// regeneration they were refused.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not through
-    /// <c>PlayerSnapshot</c> record equality — and M1-11's review found the first draft doing the
-    /// latter.</b> A record compares its dictionary components by <b>reference</b>, so
-    /// <c>ToSnapshot().ShouldBe(before)</c> was trivially true of the wallet and both counter maps
-    /// whatever they held (<c>Player.Copy</c> even hands out one shared empty singleton), and only
-    /// the Energy half was under test. The same file that documents this hazard is
-    /// <c>InMemoryGameDeterminismTests</c>, and this is the assertion it was documenting it for.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The player is driven for a day first and the gap crosses a boundary</b>, for the same
-    /// reason: an empty counter map and a refusal inside one game day would be identical under any
-    /// comparison, so the first draft could not have seen a catch-up that <em>was</em> stored. Now
-    /// there is a counter to wipe and a boundary to cross, and both are things a stored catch-up
-    /// would move.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 `30` §2.1's <b>P3</b>, through the harness: a <c>Deferred</c> command is <b>refused</b> with
+/// <c>ILLEGAL_STATE</c> and does not throw.
+/// </summary>
+/// <remarks>
+/// Several rows, owned by different milestones, so the claim is about the mechanism rather than
+/// whichever command the test picked. The state comparison is the half that matters: <b>P4</b>
+/// makes a rejected command provably state-free, and a harness that stored the working copy would
+/// silently hand the player regeneration they were refused.
+/// <para>
+/// 🔴 Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not <c>PlayerSnapshot</c>
+/// record equality: a record compares its dictionary components by <b>reference</b>, so
+/// <c>ToSnapshot().ShouldBe(before)</c> is trivially true of the wallet and both counter maps
+/// whatever they hold. The player is driven for a day first and the gap crosses a boundary for the
+/// same reason — otherwise there is nothing a stored catch-up could have moved.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_deferred_command_is_refused_with_ILLEGAL_STATE_and_changes_nothing()
     {
@@ -416,27 +367,17 @@ public sealed class InMemoryGameTests
         game.CommandsIssued.ShouldBe(7L, "a refused command is still a command that was issued.");
     }
 
-    /// <summary>
-    /// 🔒 <c>START_RUN</c> is <c>CommandKind.Run</c> and the harness carries no run, so it is a
-    /// <b>loading defect</b> — an exception, not <c>ILLEGAL_STATE</c>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// ⚠️ <b>This is the one row of `14` §2.3 that cannot be sent through the harness at all today,
-    /// and it is worth pinning rather than discovering.</b> <c>GameRules</c> rules a
-    /// <c>CommandKind.Run</c> command with no <c>Run</c> in the slice a <b>miswired caller</b>:
-    /// `30` §4.1 makes loading the right slice the Application layer's job and `14` §16.2's
-    /// <c>RUN_NOT_FOUND</c> is a transport-tier value <c>Apply</c> may not return. That reaches the
-    /// harness unchanged, which is the correct behaviour and also a message for <b>M3-15</b>: the
-    /// commit that makes <c>START_RUN</c> <c>Handled</c> has to decide how a run enters a
-    /// <c>WorldSlice</c> the harness owns, because today there is no door.
-    /// </para>
-    /// <para>
-    /// It also proves the harness passes the slice straight through rather than pre-screening it —
-    /// a harness that answered <c>ILLEGAL_STATE</c> here to be helpful would be hiding a defect the
-    /// domain deliberately raises.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 <c>START_RUN</c> is <c>CommandKind.Run</c> and the harness carries no run, so it is a
+/// <b>loading defect</b> — an exception, not <c>ILLEGAL_STATE</c>.
+/// </summary>
+/// <remarks>
+/// `30` §4.1 makes loading the right slice the Application layer's job and `14` §16.2's
+/// <c>RUN_NOT_FOUND</c> is a transport value <c>Apply</c> may not return. ⚠️ It is also a message for
+/// <b>M3-15</b>: the commit that makes <c>START_RUN</c> <c>Handled</c> must decide how a run enters
+/// a <c>WorldSlice</c> the harness owns, because today there is no door. It proves too that the
+/// harness passes the slice straight through rather than pre-screening it.
+/// </remarks>
     [Fact]
     public void A_run_command_with_no_run_in_the_slice_is_a_defect_the_harness_does_not_soften()
     {
@@ -465,15 +406,14 @@ public sealed class InMemoryGameTests
             .Message.ShouldContain("ROLL_DICE", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 The event list is the assertion surface and cannot be written through.
-    /// </summary>
-    /// <remarks>
-    /// The same hole <c>Player.WalletCurrencies</c> and <c>GameRules.Stamp</c> each close: an
-    /// <c>IReadOnlyList&lt;T&gt;</c> that <em>is</em> a <c>List&lt;T&gt;</c> or a <c>T[]</c> casts
-    /// straight back. Here it would be worse than elsewhere — a test could pass by appending to its
-    /// own evidence.
-    /// </remarks>
+/// <summary>
+/// 🔒 The event list is the assertion surface and cannot be written through.
+/// </summary>
+/// <remarks>
+/// The same hole <c>Player.WalletCurrencies</c> and <c>GameRules.Stamp</c> each close: an
+/// <c>IReadOnlyList&lt;T&gt;</c> that <em>is</em> a <c>List&lt;T&gt;</c> casts straight back. Worse
+/// here than elsewhere — a test could pass by appending to its own evidence.
+/// </remarks>
     [Fact]
     public void The_event_list_cannot_be_written_through()
     {
@@ -498,17 +438,14 @@ public sealed class InMemoryGameTests
         (game.Players as List<PlayerId>).ShouldBeNull();
     }
 
-    /// <summary>
-    /// 🔒 The event list is <b>live</b>, and accumulates in command order across commands.
-    /// </summary>
-    /// <remarks>
-    /// `30` §6 writes <c>game.Events.OfType&lt;GearGranted&gt;().Should().HaveCount(3)</c> after a
-    /// sequence of commands, which only reads as an accumulation. The <c>Sequence</c> assertion is
-    /// the other half and pins what the ordinal means: it is the event's position within
-    /// <b>one</b> <c>Apply</c> call's list, from 1 — not a running counter across the simulation.
-    /// A harness that renumbered would break `14` §7.1's economy log and `14` §2.4's animation
-    /// script at once.
-    /// </remarks>
+/// <summary>
+/// 🔒 The event list is <b>live</b>, and accumulates in command order across commands.
+/// </summary>
+/// <remarks>
+/// The <c>Sequence</c> assertion pins what the ordinal means: a position within <b>one</b>
+/// <c>Apply</c> call's list, from 1 — not a running counter across the simulation. Renumbering would
+/// break `14` §7.1's economy log and `14` §2.4's animation script at once.
+/// </remarks>
     [Fact]
     public void The_event_list_accumulates_in_command_order_and_keeps_each_commands_own_sequence()
     {
@@ -534,17 +471,15 @@ public sealed class InMemoryGameTests
         second.Events.ShouldNotBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 The harness carries the session forward: command <c>n + 1</c> starts where command
-    /// <c>n</c> left off.
-    /// </summary>
-    /// <remarks>
-    /// `30` §2.1's <b>P4</b> makes <c>Apply</c> return a <em>new</em> slice, so a harness that kept
-    /// re-sending against the slice it started with would be running a first command N times — the
-    /// one shape that cannot tell "grants once per game day" from "grants on every command". The
-    /// assertion is <c>ShouldNotBeSameAs</c> plus the advancing timestamp, because "it stored
-    /// something" and "it stored the result" are different claims.
-    /// </remarks>
+/// <summary>
+/// 🔒 The harness carries the session forward: command <c>n + 1</c> starts where <c>n</c> left off.
+/// </summary>
+/// <remarks>
+/// <b>P4</b> makes <c>Apply</c> return a <em>new</em> slice, so a harness re-sending against the
+/// slice it started with would run a first command N times — the one shape that cannot tell "grants
+/// once per game day" from "grants on every command". <c>ShouldNotBeSameAs</c> plus the advancing
+/// timestamp, because "it stored something" and "it stored the result" are different claims.
+/// </remarks>
     [Fact]
     public void The_slice_the_harness_holds_is_the_one_Apply_returned()
     {
@@ -571,26 +506,20 @@ public sealed class InMemoryGameTests
             .ParamName.ShouldBe("command");
     }
 
-    /// <summary>
-    /// 🔒 `14` §8.2 — the generated <see cref="PlayerId"/> is the same string under every culture.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// ⚠️ <b>This is not tidiness, and it is the one culture-sensitive rendering this type has.</b>
-    /// `02` §2 hashes the player id into every <c>runSeed</c>, so an id that rendered its counter
-    /// differently on a Swedish laptop would draw different boards from M3 onwards — a determinism
-    /// failure reproducible only on the machine of whoever wrote it, which is exactly what `14` §8.2
-    /// exists to rule out.
-    /// </para>
-    /// <para>
-    /// 🔒 <c>sv-SE</c> rather than <c>de-DE</c>, for the reason M1-06 recorded and M1-02 repeated:
-    /// German renders a negative integer with an ordinary hyphen, so a German test proves nothing.
-    /// Swedish renders it with U+2212 MINUS SIGN. The first assertion re-establishes that the runtime
-    /// actually <em>has</em> a Swedish culture — under globalization-invariant mode
-    /// <c>new CultureInfo("sv-SE")</c> silently returns the invariant one and everything below would
-    /// hold over nothing.
-    /// </para>
-    /// </remarks>
+/// <summary>
+/// 🔒 `14` §8.2 — the generated <see cref="PlayerId"/> is the same string under every culture.
+/// </summary>
+/// <remarks>
+/// `02` §2 hashes the player id into every <c>runSeed</c>, so an id rendering its counter
+/// differently on a Swedish laptop would draw different boards from M3 onwards.
+/// <para>
+/// 🔒 <c>sv-SE</c> rather than <c>de-DE</c>: German renders a negative integer with an ordinary
+/// hyphen, Swedish with U+2212. The first assertion re-establishes that the runtime actually
+/// <em>has</em> a Swedish culture — under globalization-invariant mode
+/// <c>new CultureInfo("sv-SE")</c> silently returns the invariant one and everything below would
+/// hold over nothing.
+/// </para>
+/// </remarks>
     [Fact]
     public void A_generated_player_id_reads_identically_under_any_culture()
     {

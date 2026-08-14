@@ -16,37 +16,15 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// hand-built evaluation context.
 /// </summary>
 /// <remarks>
+/// <c>PvpConditionTests</c> pins the same §3.3 rulings against a hand-built
+/// <see cref="EffectEvaluationContext"/>; this suite is the simulator's half — it says a running duel
+/// actually produces one.
 /// <para>
-/// ═══ 🔒 <b>WHY THIS SUITE EXISTS SEPARATELY FROM <c>PvpConditionTests</c></b> ═══
-/// </para>
-/// <para>
-/// M2-05 pinned `05` §3.3's four <em>condition</em> rulings — <c>TARGET_IS_ELITE</c>/
-/// <c>TARGET_IS_BOSS</c> false, <c>ENEMY_COUNT</c> 1, target-conditionals reading the opposing hero,
-/// and `18` §9.3's <c>IS_PVP</c> skip — and pinned them well, with a deliberately mislabelled ghost
-/// and a stray actor so that a roster-derived answer would fail. Every one of those assertions is
-/// made against an <see cref="EffectEvaluationContext"/> <b>constructed by the test</b>. None of them
-/// says that a running duel ever produces such a context. This suite closes that gap: it is the
-/// simulator's half of the same rulings.
-/// </para>
-/// <para>
-/// ═══ 🔴 <b>THE PROBE TECHNIQUE, AND WHY THE ROSTER IS DELIBERATELY MALFORMED</b> ═══
-/// </para>
-/// <para>
-/// <see cref="Inverted"/> gives the <b>defending</b> side the lower `05` §3.1 indices. No legitimate
-/// duel is built that way — <c>CombatActor</c> is explicit that the attacker's side takes the hero
-/// block <c>0..3</c> and the defender's side starts at <c>FirstEnemy</c>. It is malformed on purpose,
-/// for M2-05's reason and by its precedent: `05` §3.3 states initiative as a rule <b>about sides</b>,
-/// not as a consequence of how the indices happen to be laid out, so a probe that could be satisfied
-/// by a correctly-built roster would assert nothing.
-/// </para>
-/// <para>
-/// 🔴 <b>And it is not a stylistic choice — on a conventional roster the rule is unobservable.</b>
-/// Slot 4 walks non-pets only (`05` §3.2: pets never basic-attack), so a conventional duel's slot 4 is
-/// exactly two actors, the attacking hero at index 0 and the defending hero at index 4 — already in
-/// attacker-first order under plain index sorting. Changing the ordering rule there changes nothing
-/// that any assertion can see. <see cref="The_override_is_invisible_on_a_conventionally_indexed_duel"/>
-/// records that finding so it is not re-derived, and it is why every ordering assertion below runs on
-/// <see cref="Inverted"/>.
+/// 🔴 <see cref="Inverted"/> gives the <b>defending</b> side the lower indices, which no legitimate
+/// duel does. It is malformed on purpose: on a conventional roster slot 4 is exactly two actors
+/// already in attacker-first order, so the ordering rule is <b>unobservable</b> there and an
+/// assertion would pass with the rule deleted — see
+/// <see cref="The_override_is_invisible_on_a_conventionally_indexed_duel"/>.
 /// </para>
 /// </remarks>
 public sealed class PvpDuelTests
@@ -88,19 +66,10 @@ public sealed class PvpDuelTests
     /// abilities), then the defender's side."</em> Slot 4's half.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>The assertion distinguishes "acted first" from "acted at all", and it has to.</b> M2-08's
-    /// initiative test could not fail because a pet placed in the order still never swings, so
-    /// asserting on the swing <em>list</em> asserted the symptom (steering S2). Here both actors swing
-    /// in both shapes — the distinct-attacker count below pins that — so the swing list is identical
-    /// as a <em>set</em> and differs only in <b>order</b>. Nothing but the ordering rule can move it.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Two shapes over one roster, with the PvE arm as the negative control.</b> The only
-    /// difference between the arms is <c>CombatRules.IsPvp</c>: same actors, same indices, same seed,
-    /// same cap. A tick cap of 3 rather than `11` §4.3's 1200 is deliberate — it isolates the ordering
-    /// switch from the duration switch, so this test cannot pass because of the cap.
-    /// </para>
+    /// Both actors swing in both shapes, so the swing list is identical as a <em>set</em> and differs
+    /// only in order — nothing but the ordering rule can move it. The PvE arm is the negative control:
+    /// same actors, indices, seed and cap, differing only in <c>CombatRules.IsPvp</c>. The 3-tick cap
+    /// isolates the ordering switch from the duration switch.
     /// </remarks>
     [Fact]
     public void The_attackers_side_swings_first_even_when_the_defender_holds_the_lower_index()
@@ -126,20 +95,10 @@ public sealed class PvpDuelTests
     /// attacker's side's pet abilities advance before the defender's.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>Errata, recorded rather than resolved.</b> `05` §3.1's eight-slot order is 🔒 and puts
-    /// <b>every</b> basic attack in slot 4 and <b>every</b> pet ability in slot 5; `05` §3.3's
-    /// parenthetical reads as though one side's hero and pets both act before the other side's, which
-    /// would interleave the two slots. The reading implemented is the one that leaves <b>both</b>
-    /// locked statements true: §3.1 keeps the slots, and §3.3 orders the <em>sides</em> within each
-    /// slot — attacker's hero before defender's hero in slot 4, attacker's pets before defender's pets
-    /// in slot 5. Interleaving the slots would override a 🔒 order with a parenthetical.
-    /// </para>
-    /// <para>
-    /// The claim is observable for the same reason as slot 4's and by the same probe: on a
-    /// conventional roster the two orders coincide, so <see cref="Inverted"/> is what makes the rule
-    /// visible at all.
-    /// </para>
+    /// ⚠️ Errata, recorded rather than resolved: §3.3's parenthetical reads as though one side's hero
+    /// and pets both act before the other side's, which would interleave §3.1's slots 4 and 5. The
+    /// reading implemented leaves <b>both</b> 🔒 statements true — §3.1 keeps the slots, §3.3 orders
+    /// the <em>sides</em> within each. Interleaving would override a 🔒 order with a parenthetical.
     /// </remarks>
     [Fact]
     public void The_attackers_side_pet_abilities_advance_before_the_defenders()
@@ -167,11 +126,9 @@ public sealed class PvpDuelTests
     /// sequence, so the override is invisible.
     /// </summary>
     /// <remarks>
-    /// Recorded as a test rather than as a comment because it is the reason every other ordering
-    /// assertion here uses <see cref="Inverted"/>. A reader who "simplifies" those tests onto a
-    /// well-formed roster would produce two assertions that pass identically under the rule and
-    /// without it — a pair of tests that cannot fail (steering S1). This one fails the moment the
-    /// coincidence stops holding, which is the only way to notice that it was a coincidence.
+    /// A test rather than a comment: "simplifying" the ordering assertions onto a well-formed roster
+    /// would make them pass identically with the rule deleted. This one fails the moment the
+    /// coincidence stops holding.
     /// </remarks>
     [Fact]
     public void The_override_is_invisible_on_a_conventionally_indexed_duel()
@@ -191,18 +148,11 @@ public sealed class PvpDuelTests
     /// two <see cref="CombatRules"/> shapes consume the combat stream in a different order.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Pinned under both shapes, as literal draw indices rather than as "they differ": a rule that only
-    /// asserted inequality would be satisfied by any change at all, including one that made the duel's
-    /// sequence non-deterministic. `14` §8.1's stream is <c>Hash64(battleSeed, "combat", i)</c>, so the
-    /// index a swing draws at <b>is</b> the value it gets.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b><see cref="DrawingAttackPipeline"/> stands in for M2-09, and says so.</b> `05` §4's real
-    /// pipeline is not on this branch; what is asserted is the <em>position</em> in the stream at which
-    /// each attacker's swing begins, which is a property of slot 4's order and not of the damage
-    /// engine. Three draws per swing is `05` §4's own count.
-    /// </para>
+    /// Literal draw indices rather than "they differ": asserting inequality alone would be satisfied by
+    /// any change, including one making the duel non-deterministic. The stream is
+    /// <c>Hash64(battleSeed, "combat", i)</c>, so the index a swing draws at <b>is</b> its value.
+    /// <see cref="DrawingAttackPipeline"/> stands in for the damage engine — what is asserted is the
+    /// stream position each swing begins at, a property of slot 4's order.
     /// </remarks>
     [Fact]
     public void The_draw_order_is_pinned_under_both_CombatRules_shapes()
@@ -221,9 +171,9 @@ public sealed class PvpDuelTests
     /// <c>LogHash</c>es over the same roster and the same <c>battleSeed</c>.
     /// </summary>
     /// <remarks>
-    /// This is why initiative is not a cosmetic ordering. A server that re-ran an honest duel under
-    /// `05` §3.1's PvE order would compute a hash the client never produced, and `11` §6 would discard
-    /// the result and increment the player's flag — the anti-cheat firing on the anti-cheat.
+    /// Why initiative is not cosmetic: a server re-running an honest duel under §3.1's PvE order would
+    /// compute a hash the client never produced, and `11` §6 would flag the player — the anti-cheat
+    /// firing on itself.
     /// </remarks>
     [Fact]
     public void The_two_shapes_do_not_produce_the_same_LogHash()
@@ -247,18 +197,10 @@ public sealed class PvpDuelTests
     /// the fight."</em>
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>A 2×2 over the two independent guards, not one probe over their conjunction.</b> The rule
-    /// is enforced twice — <c>CombatRules.OnKillTriggersFire</c> gates the loop's firing, and
-    /// <c>TriggerInstance.Evaluate</c> refuses an <c>ON_KILL</c> occurrence carrying <c>IsPvp</c>
-    /// before it reaches the run-scoped counter (so a duel kill cannot advance <c>PK_MIDAS</c>). A
-    /// single duel-vs-PvE probe would pass with <b>either</b> guard deleted. Each off-diagonal cell
-    /// below is the other guard alone, so each cell names one guard (steering S2).
-    /// </para>
-    /// <para>
-    /// The observable is the effect that <c>ON_KILL</c> carries reaching <c>IStatusEngine</c> — the one
-    /// seam this suite can watch without standing in for M2-09 or M2-10.
-    /// </para>
+    /// A 2×2 because the rule is enforced twice — <c>CombatRules.OnKillTriggersFire</c> gates the loop,
+    /// and <c>TriggerInstance.Evaluate</c> refuses an <c>ON_KILL</c> carrying <c>IsPvp</c> before it
+    /// reaches the run counter. A single duel-vs-PvE probe would pass with <b>either</b> deleted; each
+    /// off-diagonal cell is the other guard alone.
     /// </remarks>
     [Theory]
     [InlineData(true, false, true)]    // PvE — the control: the trigger really does fire.
@@ -315,21 +257,12 @@ public sealed class PvpDuelTests
     /// the authored 60, never written down beside it.
     /// </summary>
     /// <remarks>
+    /// Two inputs, because a single 60 s → 1200 assertion is satisfied by a factory that ignores its
+    /// argument and returns 1200 — the hardcoding it exists to prevent.
     /// <para>
-    /// 🔒 <b>What this test owns is the <em>conversion</em>, and it is asserted at more than one
-    /// input.</b> A single assertion at 60 s → 1200 ticks is satisfied by a factory that ignores its
-    /// argument and returns <c>1200</c>, which is precisely the hardcoding the factory exists to
-    /// prevent — so a second, non-authored duration is converted alongside it. Two numbers stating one
-    /// cap is how the simulator and the tuner come to disagree about how long a duel is, and `11` §6
-    /// re-runs the fight, so a disagreement is a discarded honest result rather than a balance nudge.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>What it does NOT own is the authored 60.</b> <c>StatFixtures.CombatCapsSnapshot</c> is a
-    /// hand-built document, so reading <c>pvpMaxFightSeconds</c> out of it here would compare a test
-    /// literal against a test literal. The real <c>content/combat_caps.json</c> is pinned by
-    /// <c>CombatCapsDataTests.pvpMaxFightSeconds_is_the_number_11_section_4_3_states</c> in the
-    /// <c>Application</c> suite, which is the assembly that can reach the file. The two halves
-    /// together are the claim: that document says 60, and this factory turns a 60 into 1200.
+    /// ⚠️ It does <b>not</b> own the authored 60: <c>CombatCapsSnapshot</c> is hand-built, so reading
+    /// it here would compare a test literal against a test literal. The real document is pinned by
+    /// <c>CombatCapsDataTests</c> in the <c>Application</c> suite.
     /// </para>
     /// </remarks>
     [Fact]

@@ -8,9 +8,6 @@ namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ═══ 🔴 <b>A MEASURED, REPRODUCIBLE FLAKE THAT M2-16a CAUSED</b> ═══
-/// </para>
-/// <para>
 /// <c>CombatSimulatorTests.A_worst_case_1800_tick_fight_simulates_inside_the_budget</c> is M2-08's,
 /// and its own remarks claim it <em>"never flakes"</em> at ten times `05`'s 5 ms headnote budget.
 /// That was true of a suite whose other 2 875 cases are cheap. M2-16a added 121 cases that run
