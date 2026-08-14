@@ -42,21 +42,15 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// 🔒 The rounding is on the READING, before the division. This is the case that tells the two
-    /// orders apart.
+    /// 🔒 The rounding is on the READING, before the division — the case that tells the two orders
+    /// apart.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The reading <c>0.449994</c> is <c>0.4500</c> to four places. Rounding it first gives
-    /// <c>0.45 / 0.01 = 45</c> steps. Both of the plausible alternatives give <b>44</b>: dividing
-    /// the raw value floors <c>44.9994</c>, and rounding the QUOTIENT to four places leaves
-    /// <c>44.9994</c> untouched. One step of ATK, and the reading that produces it is exactly the
-    /// kind of value a missing-HP fraction lands on.
-    /// </para>
-    /// <para>
-    /// Steering S1: this case was run against both alternatives and failed against both. See the
-    /// task report for the literal output.
-    /// </para>
+    /// <c>0.449994</c> is <c>0.4500</c> to four places, so rounding first gives <c>0.45 / 0.01 = 45</c>
+    /// steps. Both plausible alternatives give <b>44</b>: dividing the raw value floors
+    /// <c>44.9994</c>, and rounding the quotient leaves it untouched. One step of ATK, and the reading
+    /// that produces it is exactly what a missing-HP fraction lands on. Run against both alternatives
+    /// and failed against both.
     /// </remarks>
     [Fact]
     public void The_reading_is_rounded_to_four_places_before_the_division_not_after_and_not_never()
@@ -103,21 +97,14 @@ public sealed class ValueScaleTests
     /// <c>-0.0</c>.
     /// </summary>
     /// <remarks>
+    /// <c>CanonicalStateWriter</c> throws on a negative zero rather than encoding one, since the two are
+    /// different bit patterns and one state would hash two ways;
+    /// <see cref="ValueScale.EffectiveValue"/> is the accumulation point where it is normalised.
     /// <para>
-    /// <c>CanonicalStateWriter</c> throws on a negative zero rather than encoding one: <c>-0.0</c>
-    /// and <c>0.0</c> are different bit patterns, so one state would hash two ways. Its comment
-    /// names the fix and names the owner — <em>"normalise at the accumulation point"</em> — and
-    /// <see cref="ValueScale.EffectiveValue"/> is that point (`18` §8 step 10).
-    /// </para>
-    /// <para>
-    /// ⚠️ The assertion has to be <c>double.IsNegative</c>. <c>(-0.0).Equals(0.0)</c> is <b>true</b>,
-    /// so <c>ShouldBe(0)</c> cannot see the sign — which is precisely why the defect survived the
-    /// first round of these tests.
-    /// </para>
-    /// <para>
-    /// Reachable with `18`'s own numbers: §7.10's Bog Air is <c>-0.35</c>, every §7.5-style drawback
-    /// is negative, and zero steps is the ordinary reading at full HP, at zero gold and under a cap
-    /// of zero.
+    /// ⚠️ The assertion has to be <c>double.IsNegative</c>: <c>(-0.0).Equals(0.0)</c> is <b>true</b>, so
+    /// <c>ShouldBe(0)</c> cannot see the sign — which is why the defect survived the first round.
+    /// Reachable with `18`'s own numbers: Bog Air is <c>-0.35</c>, and zero steps is the ordinary
+    /// reading at full HP, at zero gold and under a cap of zero.
     /// </para>
     /// </remarks>
     [Theory]

@@ -3,25 +3,14 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// Hermetic <c>tuning/progression.json</c> fixtures — the <c>energy</c> and <c>legendLevel</c>
-/// blocks, built as a <see cref="ContentSnapshot"/> in memory.
+/// Hermetic <c>tuning/progression.json</c> fixtures — the <c>energy</c> and <c>legendLevel</c> blocks,
+/// built as a <see cref="ContentSnapshot"/> in memory.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <c>Core.Tests</c> is hermetic: no file, no adapter, no parser (see
-/// <c>TestSupport/GameContexts.cs</c>). So this fixture <em>mirrors</em> the shipped
-/// <c>game-data/tuning/progression.json</c> rather than reading it, and the two are pinned
-/// together from the other side by
-/// <c>SlayIdleRepeat.Application.Tests.Rules.Economy.EnergyTuningMatchesTuningDataTests</c>, which
-/// reads the real file and asserts the same numbers at the same JSON pointers. Neither half is
-/// sufficient alone: this one proves the math is right about numbers, that one proves those are the
-/// numbers the game ships.
-/// </para>
-/// <para>
-/// The shipped values are `10` §3 and `28` Part C: <c>baseMax</c> 120, <c>perLegendLevel</c> 2,
-/// <c>maxCap</c> 200, <c>regenMinutesPerPoint</c> 4, <c>runCost</c> 20,
-/// <c>reserveMultipleOfMax</c> 1.
-/// </para>
+/// 🔒 <c>Core.Tests</c> is hermetic, so this <em>mirrors</em> the shipped file rather than reading it;
+/// <c>EnergyTuningMatchesTuningDataTests</c> in <c>Application.Tests</c> pins the two together by
+/// reading the real file at the same JSON pointers. Neither half is sufficient alone: this proves the
+/// math is right about the numbers, that one proves those are the numbers we ship.
 /// </remarks>
 internal static class ProgressionDocuments
 {

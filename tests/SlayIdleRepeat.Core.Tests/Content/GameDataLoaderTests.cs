@@ -6,22 +6,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// 🔒 <c>tools/BalanceHarness</c>'s <c>game-data</c> → <see cref="ContentSnapshot"/> loader, over
-/// the real tree.
+/// 🔒 The harness's <c>game-data</c> → <see cref="ContentSnapshot"/> loader, over the real tree.
 /// </summary>
 /// <remarks>
+/// The loader ships in the harness because that tool is pinned to <c>Core</c> with no packages, so it
+/// can reach neither the <c>Application</c> pipeline nor any adapter. These cases are stated here
+/// because this is the suite that consumes it, and because the composition asserted must be the one
+/// the harness actually runs rather than a restatement of it.
 /// <para>
-/// The loader ships in the harness because `30` §6 and `21` §2 pin that tool to
-/// <c>SlayIdleRepeat.Core</c> with no packages, so it can reach neither
-/// <c>SlayIdleRepeat.Application</c>'s pipeline nor any adapter. These cases are stated here because
-/// this is the suite that consumes it — <c>BossCatalogue</c> is read through it — and because the
-/// composition that is asserted must be the one the harness actually runs, not a restatement of it
-/// (the precedent is <c>SlayIdleRepeat.Application.Tests</c> consuming <c>tools/ContentValidator</c>).
-/// </para>
-/// <para>
-/// 🔴 Every negative case below carries a <b>negative control</b> that must stay green. A loader
-/// that threw on everything would satisfy the refusals and load nothing, which is the failure mode a
-/// refusal-only suite cannot see.
+/// 🔴 Every negative case carries a <b>negative control</b> that must stay green: a loader that threw on
+/// everything would satisfy the refusals and load nothing.
 /// </para>
 /// </remarks>
 public sealed class GameDataLoaderTests

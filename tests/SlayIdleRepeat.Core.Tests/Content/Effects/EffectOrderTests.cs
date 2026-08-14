@@ -12,18 +12,15 @@ namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 public sealed class EffectOrderTests
 {
     /// <summary>
-    /// 🔒 The pair the whole rule turns on. <c>"PK_A"</c> and <c>"PKA"</c> sort in <b>opposite
-    /// orders</b> under an ordinal comparison and under <c>en-US</c> collation, because the
-    /// underscore is U+005F (above <c>'A'</c>, U+0041) ordinally and a minor, low-weight difference
-    /// culturally.
+    /// 🔒 The pair the whole rule turns on: <c>"PK_A"</c> and <c>"PKA"</c> sort in <b>opposite orders</b>
+    /// ordinally and under <c>en-US</c> collation, because the underscore is U+005F (above <c>'A'</c>)
+    /// ordinally and a minor, low-weight difference culturally.
     /// </summary>
     /// <remarks>
-    /// Steering S1 — the guard is shown to bite before it is trusted. Swapping
-    /// <see cref="EffectOrder.IdComparer"/> to <see cref="StringComparer.CurrentCulture"/> makes
-    /// this case fail with the two ids transposed, on any machine whose collation is ICU's default;
-    /// the assertion below on <see cref="StringComparer.CurrentCulture"/> itself is what proves the
-    /// two comparers really do disagree on this pair, so the case cannot quietly stop being a test
-    /// of anything if a future .NET makes the two agree.
+    /// Swapping the comparer to <see cref="StringComparer.CurrentCulture"/> makes this fail with the two
+    /// ids transposed. The assertion on <c>CurrentCulture</c> itself proves the two comparers really do
+    /// disagree on this pair, so the case cannot quietly stop being a test of anything if a future .NET
+    /// makes them agree.
     /// </remarks>
     [Fact]
     public void Effect_id_order_is_ordinal_and_a_culture_aware_comparer_would_order_this_pair_the_other_way()

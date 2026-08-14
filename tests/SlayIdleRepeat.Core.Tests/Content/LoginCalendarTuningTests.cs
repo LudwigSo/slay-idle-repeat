@@ -9,18 +9,13 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// ways a data set can fail to answer, told apart.
 /// </summary>
 /// <remarks>
+/// `21` §3.1: <em>"A 📐 TUNABLE number that is not in this directory is a bug."</em> So there is no
+/// <c>const int CycleDays = 28</c> anywhere in <c>Core</c>, and the refusals are steering S6's: a
+/// missing cycle length read as <c>0</c> would make the calendar wrap on every advance, and nobody
+/// would learn that a number nobody authored had been treated as zero.
 /// <para>
-/// `21` §3.1: <em>"A 📐 TUNABLE number that is not in this directory is a bug."</em> `19` G marks all
-/// of its values tunable and names the file, so there is no <c>const int CycleDays = 28</c> anywhere
-/// in <c>Core</c> — and steering <b>S6</b>'s "never fill a hole with a plausible value" is what the
-/// refusals below are for: a missing cycle length read as <c>0</c> would make the calendar wrap on
-/// every advance, and nobody would learn that a number nobody authored had been treated as zero.
-/// </para>
-/// <para>
-/// ⚠️ <b>Only <c>cycleDays</c> is read, and no test here asserts a reward row.</b> Paying `19` G's
-/// twenty-eight rows is <c>CLAIM_CALENDAR</c>'s (M4-09) and the reward shapes name Pet Eggs and
-/// <c>CHEST_PREMIUM</c> containers whose types <c>GapRegister</c> defers. A test asserting them would
-/// imply something reads them.
+/// ⚠️ Only <c>cycleDays</c> is read. Paying `19` G's twenty-eight rows is M4-09's, and the reward shapes
+/// name types <c>GapRegister</c> defers — a test asserting them would imply something reads them.
 /// </para>
 /// </remarks>
 public sealed class LoginCalendarTuningTests
@@ -30,20 +25,13 @@ public sealed class LoginCalendarTuningTests
     /// value, not by agreeing with the fixture's own constant.
     /// </summary>
     /// <remarks>
+    /// 🔴 The first version was a tautology: it asserted <c>Read(Shipped).CycleDays</c> against the
+    /// <c>const</c> the fixture authors the leaf <em>from</em>, so both sides were one number and it
+    /// could only fail if <c>ReadInt32</c> broke.
     /// <para>
-    /// 🔴 <b>The first version of this case was a tautology and the M1-09 review caught it.</b> It
-    /// asserted <c>Read(Shipped).CycleDays == TuningDocuments.ShippedCycleDays</c> — and the fixture
-    /// authors the leaf <em>from</em> that same <c>const</c>, so both sides were one number and the
-    /// case could only fail if <c>ContentSnapshot.ReadInt32</c> broke. It said nothing about `19` G
-    /// and nothing about <c>game-data/</c>.
-    /// </para>
-    /// <para>
-    /// What is decidable <em>here</em> is that the reader is wired to the right pointer, so that is
-    /// what this asserts: author a value the shipped file does not carry and the reader must answer
-    /// it. That the shipped file carries <b>28</b>, and that 28 matches the twenty-eight authored
-    /// reward rows, is <c>SlayIdleRepeat.Application.Tests</c>'
-    /// <c>LoginCalendarTuningMatchesTuningDataTests</c>, which reads the real file — the half
-    /// <c>Core.Tests</c> cannot do and stay hermetic, and the half that was missing entirely.
+    /// What is decidable here is that the reader is wired to the right pointer. That the shipped file
+    /// carries <b>28</b>, matching the twenty-eight reward rows, is <c>Application.Tests</c>' — the half
+    /// <c>Core.Tests</c> cannot do and stay hermetic.
     /// </para>
     /// </remarks>
     [Theory]

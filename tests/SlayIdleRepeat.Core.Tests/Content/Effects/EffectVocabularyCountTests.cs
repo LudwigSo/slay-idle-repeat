@@ -8,21 +8,14 @@ namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 /// 🔒 The size of every closed set in the effect DSL, pinned against `18` §11's closing note.
 /// </summary>
 /// <remarks>
+/// Steering S3: a rule driven by reflection over an enum needs a floor on its subject set, or it passes
+/// forever over an emptied one. Every parity, partition and totality rule in this area quantifies over
+/// one of these enums, so deleting members would take all of them green together.
 /// <para>
-/// Steering S3: a rule driven by reflection over an enum needs a floor on its subject set, or it
-/// passes forever over an emptied one. Every parity, partition and totality rule in this task
-/// quantifies over one of these enums — <c>Enum.GetValues&lt;EffectOp&gt;()</c> and friends — so
-/// deleting members would take all of them green together. These are the counts that stop it.
-/// </para>
-/// <para>
-/// 🔒 <b>Equalities, not floors.</b> These are closed vocabularies fixed by a document, not
-/// growing populations like the adapter list: `18` §11 states <em>"44 ops = 41 +
-/// <c>CLEAR_SUMMONS</c> + <c>STAT_COPY</c> + <c>RANDOM_OUTCOME</c>; 23 triggers = 21 +
-/// <c>ON_DEATH</c> + <c>ON_REVIVE</c>;
-/// 23 conditions = 20 + the three <c>ATTACKER_IS_*</c>; 11 targets = 9 + <c>OTHER_ENEMIES</c> +
-/// <c>OWNER</c>; 6 duration scopes = 5 + <c>PHASE</c>"</em>. An op ARRIVING is as much a change to
-/// review as one leaving — `18` §10 requires the op, the schema and the document to move in one
-/// commit, and this number is the fourth thing that has to move with them.
+/// 🔒 <b>Equalities, not floors.</b> These are closed vocabularies fixed by a document, not growing
+/// populations — and an op <em>arriving</em> is as much a change to review as one leaving. `18` §10
+/// requires the op, the schema and the document to move in one commit, and this number is the fourth
+/// thing that has to move with them.
 /// </para>
 /// </remarks>
 public sealed class EffectVocabularyCountTests
