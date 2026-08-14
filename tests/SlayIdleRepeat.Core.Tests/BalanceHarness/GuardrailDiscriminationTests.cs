@@ -82,9 +82,15 @@ public sealed class GuardrailDiscriminationTests
     {
         // 🔴 The other half of the control: a real simulated cell that is genuinely inside [62%, 78%],
         // so "guardrail 1 fails on the shipped data" is a statement about the data and not about an
-        // assertion that can never pass. ARCH_LIFESTEAL at 2.4 × par measures 74.0% over 200 seeded
+        // assertion that can never pass. ARCH_LIFESTEAL at 2.42 × par measures 73.0% over 200 seeded
         // fights; the seeds are fixed, so this number is reproducible rather than sampled.
-        var cell = RealCell("ARCH_LIFESTEAL", multiple: 2.4, fights: 200);
+        //
+        // 🔴 M2-R1 — re-measured after fired triggered stat ops (SYS_ENRAGE and boss ON_PHASE_ENTER
+        // stat buffs) started applying for the first time. Before this fix 2.4 × par measured 74.0%;
+        // SYS_ENRAGE now actually raises boss ATK, so 2.4 × par dropped to 59.0% (outside the band —
+        // bosses got harder, exactly as the fix predicts) and 2.42 × par is the nearby multiple that
+        // lands back inside it. Not a game-data retune: the multiple, not the content, moved.
+        var cell = RealCell("ARCH_LIFESTEAL", multiple: 2.42, fights: 200);
 
         cell.ClearRate.ShouldBeInRange(0.62, 0.78);
         SweepGuardrails.ClearRateAtPar([cell], 0.62, 0.78).Verdict.ShouldBe(GuardrailVerdict.Pass);

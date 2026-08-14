@@ -192,6 +192,18 @@ internal static class StatOps
     /// because the group selector cannot express the second"</em>. A conversion or a cap over
     /// fourteen stats at once has no stated meaning either.
     /// </remarks>
+    /// <summary>
+    /// 🔒 M2-R1 — the single stat a §2.1 basic stat op names, for a FIRED activation. Delegates to the
+    /// same reading <see cref="Conversion"/> and <see cref="CapOverride"/> use, so the three stat ops
+    /// that must name exactly one stat cannot answer the question differently.
+    /// </summary>
+    /// <exception cref="EffectContextException">
+    /// The effect names no <c>stat</c>, or names a group selector (<c>ALL_COMBAT</c> or
+    /// <c>HIGHEST_PCT_BONUS</c>) — see <see cref="SingleStat"/>'s remarks on <c>CP_GLASS_HEART</c>.
+    /// </exception>
+    internal static StatId SingleStatOf(EffectDefinition effect) =>
+        SingleStat(effect, effect.Stat, "stat", "the");
+
     private static StatId SingleStat(
         EffectDefinition effect, StatSelector? selector, string key, string role)
     {

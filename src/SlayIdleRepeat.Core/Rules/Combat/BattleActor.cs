@@ -244,6 +244,19 @@ internal sealed class BattleActor : IEffectActorView
     internal List<EffectInstanceId> Periodics { get; } = new();
 
     /// <summary>
+    /// 🔒 M2-R1 — this actor's live <b>fired</b> `18` §2.1 stat ops, keyed by the firing effect's
+    /// `18` §8 id. The other half of `18` §8 step 1 — see <see cref="TriggeredStatInstance"/>.
+    /// </summary>
+    /// <remarks>
+    /// Empty for almost every actor in almost every fight: only a target of a <c>SYS_ENRAGE</c> or a
+    /// boss's own triggered stat mechanic ever populates it, which is why
+    /// <c>BattleSimulation.RefreshStats</c> early-outs on <see cref="Dictionary{TKey,TValue}.Count"/>
+    /// before walking it, exactly as it does for <see cref="CombatFlowState.PercentBuckets"/>.
+    /// </remarks>
+    internal Dictionary<string, TriggeredStatInstance> TriggeredStatFirings { get; } =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Records a registered instance, in `05` §3.1's ascending effect-id order.
     /// </summary>
     /// <param name="id">The instance id it was registered under.</param>

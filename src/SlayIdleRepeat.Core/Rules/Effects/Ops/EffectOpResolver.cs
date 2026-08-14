@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Rules.Effects.Values;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
@@ -52,8 +53,11 @@ internal enum OpDisposition
     QUEUED_FOR_RUN = 2,
 
     /// <summary>
-    /// `18` §8 step 6 / step 9 — a stat op the aggregation applies, not the simulator. Reaching one
-    /// through this resolver is a routing mistake, so it is named rather than silently skipped.
+    /// `18` §8 step 6 / step 9 — <c>STAT_CONVERT</c> / <c>STAT_CAP_OVERRIDE</c>, applied by the
+    /// aggregation only and never by a firing effect (see <see cref="EffectOpResolver"/>'s remarks).
+    /// 🔒 <b>M2-R1 narrowed this from all six §2.1 ops to these two</b> — the other four
+    /// (<c>STAT_ADD_FLAT</c>/<c>STAT_ADD_PCT</c>/<c>STAT_MULT</c>/<c>STAT_SET</c>) now resolve as
+    /// <see cref="RESOLVED"/> when a trigger fires them, through <c>ITriggeredStatSink</c>.
     /// </summary>
     AGGREGATED = 3,
 }
@@ -77,11 +81,15 @@ internal enum OpDisposition
 /// M2-01 records for <c>EffectOps.FamilyOf</c>.
 /// </para>
 /// <para>
-/// ⚠️ <b>Three ops route nowhere, and all three are correct.</b> <c>STAT_CONVERT</c> and
-/// <c>STAT_CAP_OVERRIDE</c> are applied by `18` §8's aggregation at steps 6 and 9, not by a firing
-/// effect (<see cref="StatOps"/> holds their arithmetic, <c>Rules/Stats/StatOpBehaviour.cs</c> the
-/// plumbing); the other four §2.1 ops are the same. And every §2.5 op is queued rather than
-/// resolved. <see cref="OpDisposition"/> is how the caller tells those apart from "it did nothing".
+/// ⚠️ <b>Two ops route nowhere, and both are correct.</b> <c>STAT_CONVERT</c> and
+/// <c>STAT_CAP_OVERRIDE</c> are applied by `18` §8's aggregation at steps 6 and 9 only, never by a
+/// firing effect (<see cref="StatOps"/> holds their arithmetic, <c>Rules/Stats/StatOpBehaviour.cs</c>
+/// the plumbing) — their arithmetic needs a post-aggregation value neither a trigger nor this resolver
+/// has in hand. 🔒 <b>M2-R1 — the other four §2.1 ops are NOT the same anymore.</b> A fired
+/// <c>STAT_ADD_FLAT</c>/<c>STAT_ADD_PCT</c>/<c>STAT_MULT</c>/<c>STAT_SET</c> now resolves through
+/// <c>ITriggeredStatSink</c>, which holds it for `18` §8 step 1's other half — see that seam's
+/// remarks. Every §2.5 op is queued rather than resolved.
+/// <see cref="OpDisposition"/> is how the caller tells those apart from "it did nothing".
 /// </para>
 /// <para>
 /// ⚠️ <b>What this resolver does NOT do.</b> It does not evaluate the effect's condition (`18` §4 —
@@ -107,11 +115,22 @@ internal static class EffectOpResolver
 
         return effect.Op switch
         {
-            // ── §2.1 stat (6) · applied by 18 §8's aggregation, never by a firing effect.
+            // ── §2.1's four basic stat ops · applied by 18 §8's aggregation when UNTRIGGERED
+            // (ALWAYS), and — M2-R1 — through ITriggeredStatSink when a `18` §3 trigger fires them.
+            // Reaching either path twice for the SAME activation cannot happen: an untriggered
+            // effect never reaches this resolver at all (BattleActor only registers a TRIGGERED
+            // effect as an instance; ALWAYS ones sit in StandingEffects and are read straight by
+            // StatAggregation), so an effect fires through exactly one of the two.
             EffectOp.STAT_ADD_FLAT or
             EffectOp.STAT_ADD_PCT or
             EffectOp.STAT_MULT or
-            EffectOp.STAT_SET or
+            EffectOp.STAT_SET => FiredStat(effect, context),
+
+            // ── STAT_CONVERT / STAT_CAP_OVERRIDE · applied by 18 §8's aggregation ONLY, at steps 6
+            // and 9 — never by a firing effect. Their arithmetic reads a POST-aggregation value
+            // (§8's "reads post-step-5 values") that only StatAggregation has in hand, so there is
+            // nothing this resolver could hand ITriggeredStatSink even if a future author triggered
+            // one; no content does today.
             EffectOp.STAT_CONVERT or
             EffectOp.STAT_CAP_OVERRIDE => Aggregated(effect),
 
@@ -168,6 +187,40 @@ internal static class EffectOpResolver
                 "18 §11 fixes the count and 18 §10 is the procedure for a forty-fifth: the op, its " +
                 "schema branch and its row in 18, in one commit — and an arm here."),
         };
+    }
+
+    /// <summary>
+    /// 🔒 M2-R1 — a `18` §2.1 basic stat op reached through a `18` §3 trigger firing it, rather than
+    /// through `18` §8's aggregation collecting it as an untriggered <c>ALWAYS</c> passive.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The value is read exactly as every other firing op reads its value — `18` §1.1's
+    /// <c>effectiveValue = value × steps</c>, through <see cref="context"/>'s
+    /// <see cref="EffectOpContext.Evaluation"/> — and rounded once, at this accumulation point, per
+    /// `05` §1.1. What is new is where the number goes: not into a <c>CombatEvent</c> or an actor's HP,
+    /// but into <see cref="ITriggeredStatSink"/>, which holds it against the effect's own `18` §6
+    /// duration until <c>BattleSimulation.RefreshStats</c> next folds it into an aggregation pass.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Targets, not the holder.</b> `18` §5's token can name a set the holder is not a member of
+    /// — <c>BOSS_THORNMAW_P2_ROOT</c> is <c>STAT_ADD_PCT ASPD</c> targeted at <c>ALL_ENEMIES</c>, and
+    /// it is the hero's ASPD that must fall, not Thornmaw's. <see cref="OpTargets.Resolve"/> is the one
+    /// place `18` §5 is read for an op; using it here rather than a bespoke reading is what keeps this
+    /// arm from becoming a second target resolver.
+    /// </para>
+    /// </remarks>
+    private static EffectOpOutcome FiredStat(EffectDefinition effect, EffectOpContext context)
+    {
+        var stat = StatOps.SingleStatOf(effect);
+        var value = OpRounding.Round(
+            ValueScaleEvaluator.EffectiveValue(effect, context.Evaluation), effect.Id, "stat op value");
+        var targets = OpTargets.Resolve(effect, context);
+
+        context.Seams.TriggeredStats.Apply(
+            targets, effect.Op, stat, value, effect.Duration, effect.Stacking, effect.Id);
+
+        return new EffectOpOutcome(effect.Op, value, OpDisposition.RESOLVED);
     }
 
     private static EffectOpOutcome Resolved(EffectDefinition effect, double amount) =>

@@ -59,6 +59,29 @@ public sealed class EffectOpSeamTests
     /// <summary>`18` §2.4's twelve, `18` §10.1 E6's <c>RANDOM_OUTCOME</c> included.</summary>
     public static TheoryData<EffectOp> CombatFlowOps() => Family(EffectOpFamily.COMBAT_FLOW, 12);
 
+    /// <summary>
+    /// 🔒 M2-R1 — a FIRED `18` §2.1 basic stat op names <b>M2-R1</b> rather than resolving to
+    /// nothing, exactly like every other family's unwired seam.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(FiredStatOps))]
+    public void An_unwired_fired_stat_op_names_M2_R1(EffectOp op) => Unwired(op, "M2-R1");
+
+    /// <summary>`18` §2.1's four basic ops that a trigger can fire — excludes STAT_CONVERT/STAT_CAP_OVERRIDE.</summary>
+    public static TheoryData<EffectOp> FiredStatOps()
+    {
+        var data = new TheoryData<EffectOp>();
+        foreach (var op in new[]
+                 {
+                     EffectOp.STAT_ADD_FLAT, EffectOp.STAT_ADD_PCT, EffectOp.STAT_MULT, EffectOp.STAT_SET,
+                 })
+        {
+            data.Add(op);
+        }
+
+        return data;
+    }
+
     /// <summary>`18` §1.1's <c>valueScale</c> still names M2-06 — M2-03 owns only the value mode.</summary>
     [Fact]
     public void A_valueScale_names_M2_06_and_not_M2_03()

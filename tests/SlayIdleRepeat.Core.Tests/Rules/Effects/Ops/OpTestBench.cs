@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Ops;
@@ -64,6 +65,14 @@ internal sealed class OpTestBench
 
     /// <summary>The percent-bucket writes <c>STAT_COPY</c> made, and who they landed on.</summary>
     internal List<(string Holder, StatId Stat, double Fraction)> PercentBuckets { get; } = [];
+
+    /// <summary>
+    /// 🔒 M2-R1 — every <c>ITriggeredStatSink.Apply</c> call, one row per resolved target, as
+    /// <c>(targetId, op, stat, value, sourceEffectId)</c>.
+    /// </summary>
+    internal List<(string TargetId, EffectOp Op, StatId Stat, double Value, string SourceEffectId)>
+        TriggeredStatFirings
+    { get; } = [];
 
     /// <summary>
     /// 🔒 `18` §10.1 E6 — every <c>RANDOM_OUTCOME</c> hand-off, as
@@ -132,7 +141,8 @@ internal sealed class OpTestBench
         new RecordingStatusEngine(this),
         new RecordingCombatFlow(this),
         new FrozenStatReader(this),
-        new RecordingRunQueue(this));
+        new RecordingRunQueue(this),
+        new RecordingTriggeredStatSink(this));
 
     /// <summary>A firing context over the given battle.</summary>
     internal EffectOpContext Context(
@@ -330,6 +340,22 @@ internal sealed class OpTestBench
                 ? stat
                 : throw new InvalidOperationException(
                     $"the snapshot holds no HIGHEST_PCT_BONUS answer for '{actor.Id}'.");
+    }
+
+    /// <summary>M2-R1's seam — records one row per resolved target, exactly as production does.</summary>
+    private sealed class RecordingTriggeredStatSink(OpTestBench bench) : ITriggeredStatSink
+    {
+        public void Apply(
+            IReadOnlyList<IEffectActorView> targets, EffectOp op, StatId stat, double value,
+            EffectDuration? duration, EffectStacking? stacking, string sourceEffectId)
+        {
+            foreach (var target in targets)
+            {
+                bench.TriggeredStatFirings.Add((target.Id, op, stat, value, sourceEffectId));
+            }
+
+            bench.Record($"{nameof(Apply)}:{stat}", string.Join(",", targets.Select(t => t.Id)), value, sourceEffectId, duration, stacking);
+        }
     }
 
     private sealed class RecordingRunQueue(OpTestBench bench) : IRunEffectQueue

@@ -128,6 +128,22 @@ internal static class BossTestBench
     };
 
     /// <summary>
+    /// 🔒 M2-R1 — a `18` §2.1 basic stat op fired by a boss's own <c>ON_PHASE_ENTER</c>,
+    /// <c>PHASE</c>-scoped — the shape `17`'s authored boss AURAs use (Cindermaw's Overheat,
+    /// Rimehold's Glacial Armour), stated as a fixture so a test can name any stat and any phase.
+    /// </summary>
+    internal static EffectDefinition PhaseStatBuff(string id, int phase, StatId stat, double pct) => new()
+    {
+        Id = id,
+        Op = EffectOp.STAT_ADD_PCT,
+        Stat = StatSelector.Of(stat),
+        Value = pct,
+        Target = EffectTarget.SELF,
+        Trigger = new EffectTrigger { Kind = TriggerKind.ON_PHASE_ENTER, Phase = phase },
+        Duration = new EffectDuration { Scope = DurationScope.PHASE },
+    };
+
+    /// <summary>
     /// `17` §6's Rimehold Core, as `17` §11's <em>"<c>Core</c> state flag for damage-amplification
     /// states"</em>: <c>DAMAGE_TAKEN_MULT ×1.6</c> on the boss's own phase-2 entry.
     /// </summary>
