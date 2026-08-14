@@ -6,19 +6,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `30` §2 / §2.2 — the façade's dispatch: which handler runs, what happens when none does, and
-/// the boundary between a <b>rejection</b> (the game saying no to the player) and a <b>defect</b>
-/// (the caller or the domain being wrong).
+/// 🔒 `30` §2 / §2.2 — the façade's dispatch: which handler runs, what happens when none does, and the
+/// boundary between a <b>rejection</b> (the game saying no) and a <b>defect</b> (the caller or the
+/// domain being wrong).
 /// </summary>
 /// <remarks>
-/// The rules here are driven through <c>GameRules.Execute</c> over tables built in the test, for the
-/// reason <c>GapRegister.Expired(entries)</c> takes its entries as a parameter: the shapes they need
+/// Driven through <c>GameRules.Execute</c> over tables built in the test, because the shapes they need
 /// must <b>never</b> be committed to <c>Core</c> — a handler that hand-writes an RNG counter, a
-/// duplicate registration, an undefined <c>CommandKind</c>. ⚠️ M1-02 filling the real table with 49
-/// rows did not change that: every row is <c>Deferred</c>, so the production table still holds no
-/// handler at all and every handler-shaped rule stated over it would report success forever
-/// (steering <b>S3</b>). What did change is that <c>Apply</c> over the real table is no longer a
-/// one-assertion affair — <c>Commands.CommandVocabularyTests</c> drives all forty-nine through it.
+/// duplicate registration, an undefined <c>CommandKind</c>. ⚠️ Every row of the real table is
+/// <c>Deferred</c>, so a handler-shaped rule stated over it would report success forever.
 /// </remarks>
 public sealed class GameRulesDispatchTests
 {
