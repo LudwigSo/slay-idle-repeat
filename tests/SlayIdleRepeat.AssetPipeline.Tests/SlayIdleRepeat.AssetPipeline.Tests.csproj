@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The `15` §B4 post-processing pipeline's suite (M8-06).
+
+    Discovered automatically into the `unit` group by build/ci/Invoke-UnitTests.ps1's
+    tests/*/*.csproj glob — no edit to build/ci/test-suites.json, and REQUIRED to contain tests
+    from day one, which is why it ships populated rather than seeded empty.
+
+    It reads the real game-data/assets/asset_manifest_art.json and the real
+    assets/pipeline/thresholds.json. That is not an integration test: both are committed text
+    files in this repository, the same way SlayIdleRepeat.AssetManifest.Tests reads the register.
+    Every image it works on is generated in code by SyntheticAsset — no binary fixture is
+    committed, nothing here needs Docker, a server, a database or the Godot runtime, and no
+    native tool is ever invoked.
+
+    🔒 SkiaSharp is NOT PackageReference'd here. It arrives transitively through the
+    ProjectReference to tools/AssetPipeline, which keeps
+    ProjectFileTests.Vendor_package_is_referenced_by_exactly_one_project green AND armed: that
+    rule reads PackageReference Include attributes in production .csproj files, so naming
+    SkiaSharp in a second production project fires it. Adding it here would not fire it, and
+    would quietly spread a native-binary dependency to a second project.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\tools\AssetPipeline\SlayIdleRepeat.AssetPipeline.csproj" />
+  </ItemGroup>
+
+  <!--
+    Shared test vocabulary, linked rather than project-referenced — tests/Shared/ holds no .csproj
+    because the discovery glob would find it and fail it as a permanently empty suite.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+</Project>

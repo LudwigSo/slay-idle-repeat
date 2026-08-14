@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The provenance tooling's suite (M8-01a).
+
+    Discovered automatically into the `unit` group by build/ci/Invoke-UnitTests.ps1's
+    tests/*/*.csproj glob — no edit to build/ci/test-suites.json, and REQUIRED to contain tests
+    from day one, which is why it ships populated rather than seeded empty.
+
+    It reads the real game-data/assets/*.json register and the real assets/provenance/ store. That
+    is not an integration test: both are committed text in this repository, the same way
+    SlayIdleRepeat.AssetManifest.Tests reads the real manifest. Nothing here needs Docker, a
+    server, a database or the Godot runtime. The cases that need a populated store build one in a
+    temp directory and delete it.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\tools\AssetProvenance\SlayIdleRepeat.AssetProvenance.csproj" />
+  </ItemGroup>
+
+  <!--
+    Shared test vocabulary, linked rather than project-referenced — tests/Shared/ holds no .csproj
+    because the discovery glob would find it and fail it as a permanently empty suite.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+</Project>

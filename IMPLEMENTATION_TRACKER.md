@@ -23,7 +23,7 @@ This is the single tracking document for turning the design set in [`game-design
 | M5 | Application layer, server backbone & inbox | 2, 3, 4 | ⬜ |
 | M6 | Power model & economy simulator | 5 (∥ from end of M4) | ⬜ |
 | M7 | Godot client vertical slice | 6 | ⬜ |
-| M8 | Art & audio pipeline + Chapter 1 assets | 7 (∥ workstream) | ⬜ |
+| M8 | Art & audio pipeline + Chapter 1 assets | 7 (∥ workstream) | 🔄 **pipeline half implementation-complete, awaiting review** (kicked off 2026-08-12, 3 waves, 4 tasks 🔍 on `milestone/M8`). 6 generation tasks ⛔ **capability-blocked** — no agent can run Midjourney/Suno; **M8-02 is the critical path and unblocks four of them**. ✅ The "not until M1 lands" block is **lifted** — M1 merged to `main` at `22f2289`. ⚠️ `milestone/M8` is based on `milestone/M1` @ `4e032de`; `main` has since taken M1's review fixes and a retro `STEERING.md` update, so re-verify against current `main` before merging |
 | M9 | Meta screens & **First Playable** (Ch 1–3) | 8 | ⬜ |
 | M10 | Resource Dungeons | 9 | ⬜ |
 | M11 | Content fill: chapters 4–8, full catalogues & asset batches | 10 | ⬜ |
@@ -395,24 +395,170 @@ These live across the whole project; they start in M0 and grow with every milest
 ## M8 — Art & audio pipeline + Chapter 1 assets ∥
 
 **Goal:** the generation pipeline proven end-to-end and the assets that unblock screens and the vertical slice. Runs as a parallel workstream from M5 onward.
-**Exit:** anchor sheet locked; UI kit + Ch1 biome + core SFX shipped through the full post-processing/QA pipeline.
+**Exit (as authored):** anchor sheet locked; UI kit + Ch1 biome + core SFX shipped through the full post-processing/QA pipeline.
 
-**Kickoff decisions**
-1. ⚠️ Confirm **commercial licence terms in writing** for Midjourney and every audio tool before generating anything; provenance record format.
-2. **O7** — layered gear rigging spike result: shared-skeleton overlays vs the 20-composited-looks fallback.
-3. **O8** — VFX method: procedural in-engine (recommended) vs generated sheets.
-4. UI clicks: AI vs CC0 pack for the ~20 weakest sounds.
+🔒 **Split at the 2026-08-12 kickoff into a *pipeline* half and a *generation* half.** Six of the eight
+original tasks are asset **generation** — they need a paid image/audio model **and human aesthetic
+iteration** ("iterate until it is exactly right", the §A4 silhouette test, the Part F side-by-side drift
+check). No autonomous agent can perform them; a `feature-oneshot` run cannot produce a Midjourney render
+or a Suno loop. They are ⛔ **capability-blocked**, not merely unscheduled, and the milestone row stays 🔄
+until a human generation session runs.
+
+**Scoped exit for this run:** the asset manifest exists as machine-readable data; the 7-step
+post-processing pipeline, the 11-item QA checklist and the silhouette gate run in CI; every delivered
+asset carries a provenance record; and a full placeholder set is generatable for every runtime asset
+slot. In doc `15` §B2/§B4 order this is correct — **the QA gate is built before the first batch**, not
+after it.
+
+**Kickoff decisions** — resolved 2026-08-12 (record: `.claude/.milestone-runs/M8/kickoff.md`)
+
+1. **Licences (⚠️ partially open).** ✅ **Midjourney paid plan held** — art generation is licence-clear
+   once the §G terms are confirmed in writing. 🔴 **No Suno/Udio and no ElevenLabs licence** — all 106
+   audio assets are blocked on both licence *and* capability. The written confirmation itself is a legal
+   act the **product owner owns**; it is not delegable to an agent. Provenance record format is
+   M8-01a's deliverable and covers procedurally-generated assets too (`kind: procedural`, generator +
+   commit in place of job ID + seed).
+2. **O7 — deferred with M8-04.** The ruling is only obtainable from a real Midjourney spike (generate
+   overlays on a ghosted body, measure alignment against the shared skeleton). Nothing in this run
+   depends on it. Owner: the M8-04 generation session.
+3. **O8 — ✅ RULED: procedural in-engine VFX.** Doc `15` §G's recommendation is formally accepted.
+   **All 32 E19 sprite sheets are cut**, retiring one of the three High risks in Part G outright. VFX
+   becomes Godot particle/shader work in M7/M9 rather than an art batch — **carry this into the M7 and
+   M9 kickoffs.** → fold into `16` Part B as **O8 closed**.
+   ⚠️ **Two post-cut totals, and both are correct.** `15` §E1 *claims* 975, giving **943**. M8-09's
+   transcription found **974** actual rows — §E20 says "Counted individually (50)" over a list of
+   **49** — giving **942**. The −1 is `DSC_E20_COUNT`, recorded in the data and **owned by O30 at
+   M11-01**. The kickoff's original "975 → 943" was derived from §E1's claim before the count existed;
+   quote 942 for the transcription and 943 for the doc, never one for the other.
+4. **UI clicks (AI vs CC0) — deferred with M8-07.** Rides with the audio session; blocked identically.
+5. **Art sourcing re-confirmed:** doc `15` §B0's 🔒 Midjourney lock stands for v1. Code-authored vector
+   art was considered for the UI/icon register (E8/E14/E15/E16/E17/E20 = 182 assets, where exact square
+   9-slice corners and exact palette conformance are *guaranteed* rather than merely checked) and
+   **declined** — it would override a locked doc and put the UI's look in a different hand from the
+   anchor sheet's. Code-drawn output is confined to **placeholders**, which every real asset overwrites.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| M8-01 | Licence confirmations + provenance tooling (job ID, prompt, seed, sref, date per asset) | 15 §B0, 20 §2.1 | ⬜ |
-| M8-02 | **Style Anchor Sheet** (6 characters in one image) + locked seed family — gates all other art | 15 §B2 | ⬜ |
-| M8-03 | UI kit E17 (12 panels, 18 buttons, frames, bars, tabs, card backs — square corners) — unblocks all screen implementation | 15 §E17 | ⬜ |
-| M8-04 | Hero body poses + one full gear family at all 5 rarities — validates rigging (O7) and the rarity language | 15 §E2 | ⬜ |
-| M8-05 | Chapter-1 batch: 14 tile icons, board pieces, Ch1 enemies (8×2), Thornmaw (4 poses), Greenwood backdrop layers | 15 Part H step 4 | ⬜ |
-| M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate | 15 §C–D, F | ⬜ |
-| M8-07 | Audio: `mus_home` (defines the palette), core combat SFX, dice SFX, UI SFX; bus structure, ducking (incl. mandatory full duck around ads), polyphony caps | 20 §2, §4–5 | ⬜ |
-| M8-08 | Currency, status and misc icon sets | 15 §E14–E15, E20 | ⬜ |
+| M8-09 | **Asset manifest register** — doc `15` §E2–E20 and `20` §3–4 as machine-readable data: one row per asset slot (id, category, delivery size, pivot, atlas, biome/palette, subject descriptor, source doc §). The shared foundation M8-01a/M8-06/M8-10 all consume. Discrepancies against the §E1 totals are **reported, never silently reconciled** — that is O30's job at M11-01 | 15 §C–E, 20 §3–4 | 🔍 merged to `milestone/M8` · `feature-M8-09-asset-manifest` — **974 art + 106 audio rows**, 208-test suite, schema-validated at build time. 11 doc discrepancies recorded as data, none reconciled (see below) |
+| M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | 🔍 merged to `milestone/M8` · `feature-M8-01a-provenance` — 102 tests, own CI job. Gate reads **1080 register ids / 1048 uncut / 32 cut**, 0 delivered, **licences confirmed 0 of 1**. Coverage is a 3-state enum, so the empty state cannot be mistaken for a populated pass |
+| M8-01b | **Licence confirmations in writing** — Midjourney §G terms; audio tools not yet licensed | 15 §G, 20 §2.1 | ⛔ **product owner owns this** — a legal act, not an engineering task |
+| M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | 🔍 merged to `milestone/M8` · `feature-M8-06-asset-pipeline` — 209 tests. All 7 steps independently runnable; **11 QA items classified 2 mechanical / 4 uncalibrated / 5 human**, with `Accepted` structurally unreachable by machinery. **17 thresholds ship `null`** (S6). Two documented deviations: no `pngquant`, no Lanczos |
+| M8-10 | **Placeholder generator** — renders a correctly-named, correctly-sized, correctly-pivoted, ID-stamped placeholder for every runtime slot in M8-09, drives them through M8-06's full pipeline into the §D2 atlases, and asserts the QA gate passes. Output is a **build artifact, never committed** (binary churn, and it must not enter the Godot checkout). Answers M7's open placeholder-asset-policy decision in advance | 15 §C–D, §D2, F | 🔍 merged to `milestone/M8` · `feature-M8-10-placeholders` — ⚠️ **the task's "asserts the QA gate passes" was unachievable as written**: with all 17 thresholds `null` (S6) and 5 Part F items classified human, no run can reach `Accepted`. **641 generated · 32 cut · 144 no §C size · 157 no §C pivot = 974/974 reconciled**, 0 failures, 58 tests. **0 `Fail` on the two fully-mechanical Part F items** (#7 size/pivot, #10 §D1 naming/atlas), with no threshold calibrated to get there. Provenance gate still *AWAITING FIRST DELIVERY*. ⚠️ The dispatch's own correction was half wrong: the batch reaches **`BlockedByUncalibratedThreshold`**, which outranks `AwaitingHumanReview` — the latter is unreachable while any of the 8 mechanical cutoffs is `null` |
+| M8-02 | **Style Anchor Sheet** (6 characters in one image) + locked seed family — gates all other art | 15 §B2 | ⛔ **generation** — needs a human Midjourney session |
+| M8-03 | UI kit E17 (12 panels, 18 buttons, frames, bars, tabs, card backs — square corners) — unblocks all screen implementation | 15 §E17 | ⛔ **generation** — blocked behind M8-02 |
+| M8-04 | Hero body poses + one full gear family at all 5 rarities — validates rigging (O7) and the rarity language | 15 §E2 | ⛔ **generation** — blocked behind M8-02; carries the O7 ruling |
+| M8-05 | Chapter-1 batch: 14 tile icons, board pieces, Ch1 enemies (8×2), Thornmaw (4 poses), Greenwood backdrop layers | 15 Part H step 4 | ⛔ **generation** — blocked behind M8-02 |
+| M8-07 | Audio: `mus_home` (defines the palette), core combat SFX, dice SFX, UI SFX; bus structure, ducking (incl. mandatory full duck around ads), polyphony caps | 20 §2, §4–5 | ⛔ **no audio-tool licence** *and* the bus/ducking half is Godot client work that M7-01 has not created yet |
+| M8-08 | Currency, status and misc icon sets | 15 §E14–E15, E20 | ⛔ **generation** — blocked behind M8-02 |
+
+**Carried forward from M8 wave 1** (recorded, not fixed here)
+
+- 🔴 **The asset register is inside the content version stamp — owner: M5-09.** `LocalFileContentSource`
+  enumerates every `*.json` under `game-data/` recursively, so `game-data/assets/` is paired with a
+  schema (good — it is validated, not silently escaping) but also enters `ContentSnapshot` and therefore
+  `ContentHashing.Compute`. Consequences: ~551 KB, **86 % of the shipped non-schema `game-data` payload**,
+  for data no game rule reads; and every edit to a bookkeeping file **moves the content hash** that
+  `14` §6 makes load-bearing for replay and `CONTENT_VERSION_MISMATCH`. `ContentLayout.IsExperiment` is
+  the existing precedent for *validated-and-paired but never snapshotted* — `assets/` wants that third
+  category. 🔒 **Must be resolved before M5-09 ships the content endpoint and the client hash check.**
+  🔒 **Conductor ruling for M8 waves 2–3:** provenance records, pipeline config and placeholder output go
+  **outside `game-data/`** so they never touch the stamp. Not fixed in wave 1 because it needs an M0-09
+  change and S12 forbids an agent patching a mechanism it does not own.
+- **11 doc disagreements are recorded as data, none reconciled → O30 at M11-01.** `DSC_E20_COUNT`
+  (§E20 claims 50 over a 49-item list) · `DSC_DIE_BODY` (§D2's `atlas_dice` counts a die body §E1 does
+  not: 12 vs 11) · `DSC_E4_POSES` (§E4 never names its two poses) · `DSC_STINGER_LENGTH` (`20` §1 caps
+  stingers at 1.2 s; `sfx_victory` is 1.5 s) · `DSC_DUCKING_SET` (`20` §1 names 2 ducking triggers,
+  §5 names 4) · plus `DSC_TILE_ATLAS`, `DSC_UNASSIGNED_ATLASES`, `DSC_MISSING_SIZES`,
+  `DSC_DIE_VARIANT_SUFFIX`, `DSC_SHARED_DESCRIPTORS`. Each is self-expiring (**S4**): the record fails
+  the build once the doc and the transcription agree, so a fixed doc cannot leave a stale exception behind.
+- **`atlas_vfx` (`15` §D2) has 32 members and 0 uncut** — no contents after the O8 ruling. Drop the atlas
+  at O30/M11-01.
+- **84 rows are `derived: true`**, from exactly two sections: E9 (64 — 8 decor props × 8 biomes, a prose
+  list with no ids) and E17 (20 — card frames, dividers/ribbons/banners, toast chrome). Everything doc
+  `15` delegates elsewhere (E11→`08` §1, E12/E13→`22` Parts A/B) is individually authored, not derived.
+- **Three stale comments in M0-08's rule files — owner: M1-12.** `SubjectSetFloorTests.ProductionProjectFloor`
+  says `= 29; // 26 under src/ + 3 under tools/`; the truth is now **26 + 5 = 31**. Same drift in
+  `RepoLayout.cs:21` (names only EconomySim/BalanceHarness/ContentValidator) and
+  `Architecture.Tests.csproj:86` ("Four projects"). Nothing is red — a floor is a floor — only the
+  breakdowns are wrong. Both waves correctly declined to touch them: M1-12 is in flight on exactly
+  those files (**S12**).
+- 🔴 **Cross-task decision, conductor-owned: where the shared register vocabulary lives.** M8-01a found
+  that `AssetMedium`, the id→register lookup, the `15` §D1 / `20` §5 delivery-format table,
+  `DeliveredAsset` and the JSON member-access helpers are all things M8-06 and M8-10 want too — and its
+  own new architecture rule forbids one register consumer from referencing another, so
+  `tools/AssetManifest` is the **only** place a consolidation can go. It deliberately did not move them
+  (M8-09's merged component, outside its territory, M8-06 in flight). **Resolve at the wave-2 merge if
+  M8-06 duplicated any of them.**
+- **A fourth shared file, discovered mid-wave:** `tests/SlayIdleRepeat.Architecture.Tests/SlayIdleRepeat.Architecture.Tests.csproj`
+  needs a `ProjectReference` to every new `tools/` project, or `DependencyRuleTests` throws
+  `FileNotFoundException` on it (`ProductionAssemblies.AllNames` covers `tools/`). One additive line each.
+- 🔒 **M8-10 must write placeholder output to `artifacts/` (gitignored), never `assets/`.** M8-01a's
+  delivery scan reads the filesystem, not the git index, so an uncommitted placeholder run under
+  `assets/` would redden the provenance gate for every developer. Carried into the wave-3 prompt.
+  ⚠️ Related: **`assets/` now means two things** — M8-01a's delivery root and M8-06's config home. They
+  do not collide today (config is `.json`), but the first `.png` committed under `assets/pipeline/`
+  fails the provenance gate.
+
+**Carried forward from M8 wave 2** (recorded, not fixed here)
+
+- ✅ **`CON_DELIVERY_ASPECT` — RULED by the conductor, 2026-08-13: the generation canvas takes the
+  delivery aspect, per `15` §B0.** M8-06's architecture review found that a square generation canvas
+  cannot reach §C's non-square delivery sizes (mounts 512×384, backdrops 1080×1440) without distorting,
+  and no section authorises letterboxing or cropping. **Resolution: §C's "1024×1024" is the baseline
+  resolution, not a universal aspect.** §B0 already says *"Lock `--ar` … per category and record them"* —
+  `--ar` is precisely Midjourney's aspect control, so per-category aspect is authorised doc text, and
+  reading §C as forcing square would make §B0's `--ar` dead text (the same argument M8-06 used to split
+  steps 2 and 5). **Mounts generate at `--ar 4:3`, backdrops at `--ar 3:4`, everything else 1:1**, so
+  step 5 is a pure uniform scale. Nothing invented — this is §B0 applied, not a new rule. Fold into the
+  §B0 parameter table at O30/M11-01, and into the anchor-sheet session's recorded parameters (M8-02).
+- **Atlas gutter is zero, and no doc authorises otherwise.** M8-06 declined to add the conventional
+  1–2 px bleed guard because no §D2/§C sentence permits one (**S6**). Harmless for placeholders; **needs
+  a ruling before the first real atlas ships**. Owner: **M11-03**.
+- 🔴 **Two near-synonymous architecture categories, kept deliberately.**
+  `RegisterConsumerToolNames` (M8-01a) and `ManifestConsumerToolNames` (M8-06) both permit exactly one
+  project reference — the register — and differ only on **packages**: the former forbids them, the
+  latter allows an imaging package. Collapsing them turns `Architecture.Tests` red. Kept both at the
+  wave-2 merge with the distinction documented at the declaration site; **renaming them to say
+  package-free vs package-bearing is an M8 milestone-review item.**
+- **`AssetNaming` is the better of two §D1 name→id implementations** — M8-01a derives the id with
+  `Path.GetFileNameWithoutExtension`; M8-06's `AssetNaming` validates the full §D1 grammar and accepts
+  all 974 shipped ids. The architecture rules forbid one consumer referencing another, so consolidation
+  can only go into `tools/AssetManifest`. **Not done during the run** (M8-09's merged component, both
+  consumers in flight). Owner: **M8 milestone-review**, which does exactly this cross-task pass.
+- **`RequireDeliverySize()` throws on 144 size-less and 284 pivot-less register rows** — by design
+  (**S6**), not a defect. M8-10 must handle them explicitly rather than defaulting.
+
+**Carried forward from M8 wave 3** (recorded; the vendor gate was fixed, the rest were not)
+
+- 🔴 **`14` §1.1's scope needs ratifying — owner: the M8 milestone review, alongside X-07.** A9-LOCATION
+  had been **red since M8-06 merged** (SkiaSharp in `tools/AssetPipeline`; a vendor SDK outside an
+  adapter). Found by M8-10, the first agent to run that gate — the conductor's post-merge checks covered
+  unit, architecture and content validation but not this one, so it survived two merges. **Fixed at
+  `c3cacaa`** with a *location pin* (`build/ci/vendor-location-exceptions.json`) rather than an
+  allow-list entry: the package stays a **vendor** package so A9-UNIQUE still governs it in full, and
+  only its permitted location moves to one named project. Pins self-expire as `A9-STALE-PIN` (**S4**).
+  🔒 **This interprets `14` §1.1's scope — build-time tools that ship in no artifact — and the scope is
+  the product owner's to set.** Ratify the carve-out, or amend `14` §1.1 to state it directly.
+- 🔴 **`.github/workflows/README.md:290` is stale** — claims "34 projects, 12 with a PackageReference,
+  8 vendor SDKs"; the tree is now **41 / 16 / 10**. Not fixed (documentation owned by M0-02's CI work).
+- **`CON_ATLAS_PAGE_CAP` fires on 14 of 14 atlases**, so `15` §D2's "one atlas per category" is
+  unreachable in practice — `atlas_biome_*` needs **3 pages** for 24 assets, because four 1024² bosses
+  fill a 2048 page two to a shelf. Deterministic and declared, not a defect. Owner: **O30 at M11-01**,
+  with the atlas-gutter ruling.
+- **`CON_DELIVERY_ASPECT` fired 0 times in 641** — the §B0 aspect ruling works; step 5 is a genuine
+  uniform downscale for all 24 mounts it was declared about.
+- **Two native-memory leaks fixed in M8-06's just-merged pipeline**, both on throw paths that no
+  synthetic fixture reached: `AssetPipeline.Run` freed nothing when a later step threw, and
+  `PlaceholderBatch.Process` disposed only on the straight-line path. Both are **inspection-only** —
+  unobservable from outside, and wave 3 said so rather than claiming a test.
+- **`AssetNaming.CategoryOf` throws uncaught out of Part F item 1** for any prefix outside
+  `ManifestValidator.IdPrefixes` — would abort a batch rather than fail one asset. Harmless today
+  (all 641 conform). Owner: **M8 milestone review**.
+- **E8's 14 tile icons carry `atlas: null`** while `15` §D2 puts tiles in the biome atlas — a
+  register/doc gap. Owner: **O30 at M11-01**.
+- **`RepoLayout` cannot see a `ProjectReference` injected via `Directory.Build.props`** (latent), and
+  `RepoLayout.ToolsRoot`'s summary still names three tools where there are now six. M0-08 files;
+  **M1-12** is in flight on them (**S12**).
 
 ---
 
@@ -636,8 +782,8 @@ Quick index of every open item from `16_DECISION_LOG.md` Part B to the kickoff t
 | O4 | Server cost model | M18 kickoff (estimate before launch) |
 | O5 | Push transport | M5 kickoff |
 | O6 | Postgres hosting | M18 (deploy time) |
-| O7 | Gear overlay rigging | M8 kickoff |
-| O8 | VFX method | M8 kickoff |
+| O7 | Gear overlay rigging | ⛔ **Deferred at the M8 kickoff (2026-08-12).** Only obtainable from a real Midjourney spike (overlays on a ghosted body, alignment measured against the shared skeleton) — no agent can run one. Owner: the M8-04 generation session |
+| O8 | VFX method | ✅ **CLOSED at the M8 kickoff (2026-08-12): procedural in-engine.** Doc `15` §G's recommendation formally accepted; **all 32 E19 sprite sheets cut (975 → 943)**, retiring a High risk outright. VFX becomes Godot particle/shader work — **carry into the M7 and M9 kickoffs** |
 | O10 | 8 → 7 currencies? | Post-playtest review (scheduled in M18) |
 | O11 | Preset slot count | M9 kickoff; re-review M18 |
 | O12 | Revenue validation | M15 kickoff (store-page test) |

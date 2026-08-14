@@ -1,0 +1,40 @@
+{
+  "_status": [
+    "The 15 §G / 20 §6 register: one row per generation tool, and whether its commercial terms",
+    "have been confirmed IN WRITING.",
+    "",
+    "🔒 `confirmedInWriting` is ABSENT on every row below, and absent means UNSET — nobody has",
+    "confirmed anything. There is no default: tools/AssetProvenance reads an absent member as null,",
+    "ToolLicence.RequireConfirmedInWriting() throws on it, and ProvenanceGate raises",
+    "UnconfirmedLicence for any asset whose record names the tool. The day the first Midjourney",
+    "asset is delivered, this file is what decides whether the build is green.",
+    "",
+    "⛔ FILLING THIS IN IS M8-01b AND THE PRODUCT OWNER OWNS IT. Confirming a licence is a legal",
+    "act, not an engineering task; no agent may set `confirmedInWriting`. A `true` also requires a",
+    "`confirmationRef` naming where the written confirmation is filed — 15 §G calls the bare claim",
+    "a formality, and a formality is what this register exists to refuse.",
+    "",
+    "Adding a row is not the same as licensing a tool. A row with no confirmation still fails the",
+    "gate; what a row buys is that the failure says 'not confirmed' rather than 'never heard of it'."
+  ],
+
+  "licences": [
+    {
+      "tool": "midjourney",
+      "appliesTo": "art",
+      "note": "15 §B0 🔒 locks Midjourney as the art tool and states that commercial rights are included on paid plans. M8 kickoff 2026-08-12: the paid plan IS held. §G's separate requirement — confirm the current commercial terms in writing before the first batch — is M8-01b and is NOT DONE. `confirmedInWriting` stays absent until it is."
+    }
+  ],
+
+  "$notListed": [
+    "Suno, Udio and ElevenLabs are NOT rows here, deliberately. M8 kickoff 2026-08-12: no licence",
+    "is held for any of them, and 20 §2.1 says to check the terms BEFORE generating anything. All",
+    "106 audio assets are blocked on licence and on capability alike. A row with no confirmation",
+    "would still fail the gate, so adding one would change nothing about what may be generated —",
+    "but it would read as a shortlist somebody had decided on, and nobody has.",
+    "",
+    "Procedural output names no tool at all: its 'tool' is this repository, which needs no",
+    "commercial licence. A CC0 pack names none either — its terms travel on the record, in the",
+    "`licence` member, which is what a CC0 dedication is."
+  ]
+}
