@@ -5,21 +5,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
 /// <summary>
-/// `14` §16.2 / `30` §2 — the <see cref="RejectionReason"/> catalogue, its permanent wire
-/// numbers, and the two-tier split that decides which values <c>Apply</c> may return.
+/// `14` §16.2 / `30` §2 — the <see cref="RejectionReason"/> catalogue, its permanent wire numbers, and
+/// the two-tier split that decides which values <c>Apply</c> may return.
 /// </summary>
 /// <remarks>
+/// 🔒 Every list is written out as literal names, not derived from the enum: deriving "the domain
+/// tier" from <c>TierOf</c> and then asserting <c>TierOf</c> against it is a test that cannot fail.
 /// <para>
-/// 🔒 Every list here is written out as literal names, not derived from the enum. A pin
-/// generated from the thing it is pinning proves only self-consistency: deriving "the domain
-/// tier" from <c>TierOf</c> and then asserting <c>TierOf</c> against it is a test that cannot
-/// fail. The ten domain names come from `30` §2's sentence, the twenty rows from `14` §16.2's
-/// table, and the numbers from the enum's own permanence rule.
-/// </para>
-/// <para>
-/// ⚠️ A failure here is not a test to fix. `14` §16.2: <i>"values may be appended, never
-/// renamed or reused"</i>. Appending one is a deliberate change to a wire contract, and it is
-/// meant to cost a deliberate edit to these lists.
+/// ⚠️ A failure here is not a test to fix — <em>"values may be appended, never renamed or reused"</em>.
+/// Appending one is a deliberate change to a wire contract and is meant to cost a deliberate edit.
 /// </para>
 /// </remarks>
 public sealed class RejectionReasonTests
@@ -254,12 +248,10 @@ public sealed class RejectionReasonTests
     /// 🔒 The three published sets are immutable at runtime, not merely typed as if they were.
     /// </summary>
     /// <remarks>
-    /// <c>IReadOnlyList&lt;T&gt;</c> over a bare array states an intention it cannot enforce: the
-    /// runtime type is still <c>RejectionReason[]</c>, so one cast and one indexer write re-label a
-    /// row of `14` §16.2 permanently, process-wide, for every reader of the static — with no
-    /// allocation and nothing anywhere to notice. On <c>DomainTier</c> that is the set M1-06 will
-    /// police handler results against, so the write inserts a transport-tier value into the list
-    /// that decides whether a transport-tier value is allowed.
+    /// <c>IReadOnlyList&lt;T&gt;</c> over a bare array states an intention it cannot enforce: one cast
+    /// and one indexer write re-label a row of `14` §16.2 permanently, process-wide, with nothing to
+    /// notice. On <c>DomainTier</c> that inserts a transport-tier value into the list that decides
+    /// whether a transport-tier value is allowed.
     /// </remarks>
     [Theory]
     [InlineData(nameof(RejectionReasons.All))]
@@ -310,14 +302,10 @@ public sealed class RejectionReasonTests
     /// for it — asserted as two independent fragments.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Deliberately <b>not</b> one ordered <c>ShouldMatchWildcard("*0*14 §16.2*")</c>.
-    /// <see cref="ArgumentOutOfRangeException"/> appends its own <c>"Actual value was 0."</c> line
-    /// <i>after</i> whatever message the thrower wrote, so an ordered pattern demanding the value
-    /// before the citation cannot be satisfied by the idiomatic
-    /// <c>new ArgumentOutOfRangeException(nameof(reason), reason, "… 14 §16.2 …")</c> at all — it
-    /// would force the thrower to duplicate the value into the prose purely to satisfy a word order
-    /// nothing in the spec asks for. Both fragments are the claim (steering S2: pin which rule fired);
-    /// their order is not.
+    /// ⚠️ Deliberately not one ordered wildcard: <see cref="ArgumentOutOfRangeException"/> appends its
+    /// own <c>"Actual value was 0."</c> <em>after</em> the thrower's message, so a pattern demanding
+    /// the value before the citation cannot be satisfied by the idiomatic constructor at all. Both
+    /// fragments are the claim; their order is not.
     /// </remarks>
     private static void ShouldNameTheValueAndTheTable(
         ArgumentOutOfRangeException thrown, string value, string? valueMessage = null)

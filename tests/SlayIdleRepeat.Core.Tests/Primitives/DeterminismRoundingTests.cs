@@ -5,21 +5,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
 /// <summary>
-/// 🔒 `05` §1.1's 4-decimal-place rule, pinned <b>numerically</b> at the one place it is now stated.
+/// 🔒 `05` §1.1's 4-decimal-place rule, pinned <b>numerically</b> at the one place it is stated.
 /// </summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b>Why this suite exists separately from the architecture rule.</b>
-/// <c>DeterminismRoundingRuleTests</c> is an IL scan: it asserts <em>where</em> the rule is stated
-/// and says nothing about what it computes. Every other caller — <c>StatRounding</c>,
-/// <c>OpRounding</c>, <c>ValueScale</c>, <c>ConditionEvaluator</c> — refuses NaN and infinity
-/// <em>before</em> reaching the primitive, so their suites cannot see its behaviour on either. The
-/// two sites that <b>do</b> depend on it are <c>CanonicalStateWriter</c> and <c>CombatLog</c>, whose
-/// rounding guards are <c>DeterminismRounding.Round(value) != value</c> — and that guard only fires
-/// on a NaN because <c>Round(NaN)</c> is a NaN and <c>NaN != NaN</c>. Make <c>Round</c> "helpfully"
-/// clamp a NaN to zero and both guards go quiet with every other test in the repository still green.
-/// This suite is what stops that.
-/// </para>
+/// ⚠️ Separate from <c>DeterminismRoundingRuleTests</c>, which is an IL scan asserting <em>where</em>
+/// the rule is stated and nothing about what it computes. Every other caller refuses NaN and infinity
+/// before reaching the primitive, so their suites cannot see its behaviour on either — but
+/// <c>CanonicalStateWriter</c> and <c>CombatLog</c> guard with
+/// <c>DeterminismRounding.Round(value) != value</c>, which fires on a NaN only because
+/// <c>NaN != NaN</c>. Make <c>Round</c> "helpfully" clamp a NaN to zero and both guards go quiet with
+/// every other test still green.
 /// </remarks>
 public sealed class DeterminismRoundingTests
 {
@@ -71,25 +66,16 @@ public sealed class DeterminismRoundingTests
     }
 
     /// <summary>
-    /// 🔒 <b>Midpoints go to even</b>, which is <c>Math.Round</c>'s default and is now written out —
-    /// so the rule no longer depends on six authors agreeing about a default.
+    /// 🔒 <b>Midpoints go to even</b> — <c>Math.Round</c>'s default, written out so the rule does not
+    /// depend on six authors agreeing about a default.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>A decimal literal ending in 5 is usually NOT a midpoint</b>, and the two rows that look
-    /// like counterexamples are the point of the theory. <c>0.00005</c> and <c>0.12345</c> have
-    /// nearest <c>double</c>s just <em>below</em> their decimal midpoint and round down;
-    /// <c>1.00005</c> and <c>0.12355</c> have nearest <c>double</c>s just <em>above</em> theirs and
-    /// round up. None of the four is decided by the midpoint mode at all — they are decided by
-    /// binary representation, identically on every IEEE-754 platform, which is what makes `05` §1.1 a
-    /// determinism rule rather than a rounding preference.
-    /// </para>
-    /// <para>
-    /// The values are pinned as computed so that a future edit to <c>Round</c> — a different mode, a
-    /// different constant, an added epsilon — moves at least one of them.
-    /// <c>StatAggregationTests</c> independently asserts <c>1.00005 → 1.0001</c> through the whole
-    /// `18` §8 pipeline.
-    /// </para>
+    /// ⚠️ A decimal literal ending in 5 is usually <b>not</b> a midpoint, and the four rows that look
+    /// like counterexamples are the point: <c>0.00005</c> and <c>0.12345</c> have nearest doubles just
+    /// <em>below</em> their decimal midpoint, <c>1.00005</c> and <c>0.12355</c> just <em>above</em>.
+    /// None is decided by the midpoint mode — they are decided by binary representation, identically
+    /// on every IEEE-754 platform, which is what makes this a determinism rule rather than a
+    /// preference.
     /// </remarks>
     [Theory]
     [InlineData(0.00005, 0.0)]      // nearest double is below the decimal midpoint

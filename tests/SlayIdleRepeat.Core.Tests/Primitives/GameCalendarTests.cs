@@ -42,10 +42,9 @@ public sealed class GameCalendarTests
     /// 05:00:00.000 exactly is its own boundary; one tick earlier belongs to the previous day.
     /// </summary>
     /// <remarks>
-    /// The single-tick pair is the whole test. `30` §2.3 resets quest expiry, the wheel's free spin,
-    /// ad caps and dungeon entries at 05:00 UTC "whether or not anyone logs in", and an
-    /// off-by-one-tick boundary gives one player in every few thousand a second free spin or a
-    /// missing one — the kind of defect that is only ever reported as "it happened once".
+    /// The single-tick pair is the whole test: an off-by-one-tick boundary gives one player in every
+    /// few thousand a second free spin or a missing one — the kind of defect only ever reported as
+    /// "it happened once".
     /// </remarks>
     [Fact]
     public void The_game_day_boundary_is_the_latest_0500_UTC_at_or_before_the_instant()
@@ -73,13 +72,12 @@ public sealed class GameCalendarTests
     }
 
     /// <summary>
-    /// 🔒 `30` §2.3 — the game day steps back across a month <b>and</b> a year, because
-    /// <c>AddDays(-1)</c> is the only step and the calendar owns the rest.
+    /// 🔒 `30` §2.3 — the game day steps back across a month <b>and</b> a year.
     /// </summary>
     /// <remarks>
-    /// A day boundary computed by subtracting from the day-of-month, or by zeroing the time and
-    /// hoping, breaks on exactly these two instants and on no fixture that stays inside one month —
-    /// which is every other fixture in this file.
+    /// A boundary computed by subtracting from the day-of-month, or by zeroing the time and hoping,
+    /// breaks on exactly these two instants and on no fixture that stays inside one month — which is
+    /// every other fixture in this file.
     /// </remarks>
     [Fact]
     public void The_game_day_boundary_crosses_a_month_and_a_year()
@@ -97,14 +95,13 @@ public sealed class GameCalendarTests
     // ------------------------------------------------------------------ A2 · the Monday game week
 
     /// <summary>
-    /// 🔒 Milestone assumption <b>A2</b> (`27` §4) — the game week starts on <b>Monday at 05:00
-    /// UTC</b>, and every day of that week answers the same Monday.
+    /// 🔒 Assumption <b>A2</b> (`27` §4) — the game week starts <b>Monday 05:00 UTC</b>, and every day
+    /// of that week answers the same Monday.
     /// </summary>
     /// <remarks>
-    /// The theory runs all seven weekdays because the failure mode is directional: an implementation
-    /// that stepped back seven days from the current game day answers a different date on six of
-    /// them and the right one on Monday, so a single-day fixture would pass under it. The weekday of
-    /// each fixture is asserted, not assumed.
+    /// All seven weekdays, because the failure is directional: stepping back seven days from the
+    /// current game day answers a different date on six of them and the right one on Monday, so a
+    /// single-day fixture would pass under it.
     /// </remarks>
     [Theory]
     [InlineData(10, DayOfWeek.Monday)]
@@ -140,9 +137,9 @@ public sealed class GameCalendarTests
     /// still belongs to the previous week.
     /// </summary>
     /// <remarks>
-    /// This is the case a "step back to the nearest Monday" implementation gets wrong: it answers
-    /// this Monday, which is in the future relative to the instant, and
-    /// <c>Player.ResetWeeklyCounters</c> would then record a week the player has not reached.
+    /// The case "step back to the nearest Monday" gets wrong: it answers this Monday, which is in the
+    /// future relative to the instant, and <c>Player.ResetWeeklyCounters</c> would record a week the
+    /// player has not reached.
     /// </remarks>
     [Fact]
     public void A_Monday_before_0500_UTC_still_belongs_to_the_previous_game_week()
@@ -155,17 +152,14 @@ public sealed class GameCalendarTests
     }
 
     /// <summary>
-    /// 🔒 <b>A2</b> — a game-week boundary is a Monday <b>and</b> 05:00:00.000 UTC. Both halves,
-    /// asserted separately, because either one alone is a predicate that answers <c>true</c> for
-    /// instants <c>Player.ResetWeeklyCounters</c> refuses.
+    /// 🔒 <b>A2</b> — a game-week boundary is a Monday <b>and</b> 05:00:00.000 UTC, asserted
+    /// separately: either half alone answers <c>true</c> for instants the aggregate refuses.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>The two Monday cases are what give this predicate teeth</b> (steering <b>S1</b>).
-    /// Without them the only <c>false</c> case in the whole file is a Wednesday, so
-    /// <c>IsGameWeekBoundary(i) =&gt; i.DayOfWeek == DayOfWeek.Monday</c> — which calls every instant
-    /// of every Monday a week boundary, including 00:00 and 23:59 — would satisfy every assertion in
-    /// this suite. That predicate handed to the aggregate is a `30` §2.1 <b>P3</b> violation, since
-    /// <c>Player</c> refuses any weekly period that is not 05:00 UTC exactly.
+    /// ⚠️ The two Monday cases are what give the predicate teeth. Without them the only <c>false</c>
+    /// case in the file is a Wednesday, so <c>i.DayOfWeek == DayOfWeek.Monday</c> — which calls 00:00
+    /// and 23:59 boundaries too — satisfies every assertion here, and handing that to the aggregate is
+    /// a `30` §2.1 <b>P3</b> violation.
     /// </remarks>
     [Fact]
     public void A_game_week_boundary_is_a_Monday_at_0500_UTC_exactly()
@@ -184,14 +178,13 @@ public sealed class GameCalendarTests
     }
 
     /// <summary>
-    /// 🔒 <b>A2</b> — the week step-back crosses a year boundary, where "the Monday of this week"
-    /// and "the Monday of this year" are different answers.
+    /// 🔒 <b>A2</b> — the week step-back crosses a year boundary, where "the Monday of this week" and
+    /// "the Monday of this year" are different answers.
     /// </summary>
     /// <remarks>
-    /// 2027-01-01 is a Friday and its game week began on 2026-12-28 — a Monday in the previous
-    /// year. An implementation that clamped the step-back inside the calendar year would answer
-    /// 2027-01-01 and hand <c>Player.ResetWeeklyCounters</c> a Friday, which it refuses outright:
-    /// a `30` §2.1 <b>P3</b> violation on every command in the first days of January.
+    /// 2027-01-01 is a Friday whose game week began 2026-12-28. Clamping the step-back inside the
+    /// calendar year answers 2027-01-01 and hands <c>ResetWeeklyCounters</c> a Friday, which it
+    /// refuses — a P3 violation on every command in the first days of January.
     /// </remarks>
     [Fact]
     public void The_game_week_start_crosses_a_year_boundary()
@@ -209,30 +202,18 @@ public sealed class GameCalendarTests
     // ------------------------------------------------------------------ A7 · the floor
 
     /// <summary>
-    /// 🔒 Recorded assumption <b>A7</b> / `30` §2.1 <b>P3</b> — an instant before the first game day
-    /// answers the <b>floor</b> rather than throwing.
+    /// 🔒 Assumption <b>A7</b> / `30` §2.1 <b>P3</b> — an instant before the first game day answers the
+    /// <b>floor</b> rather than throwing.
     /// </summary>
     /// <remarks>
+    /// ⚠️ Reachable, not theoretical: <c>default(DateTimeOffset)</c> passes <c>GameContext</c>'s
+    /// zero-offset guard, so a <c>VirtualClock</c> or a fixture that forgot to set <c>NowUtc</c> lands
+    /// exactly there — and the naive <c>startOfDay.AddDays(-1)</c> throws out of <c>Apply</c>.
     /// <para>
-    /// ⚠️ <b>Reachable, not theoretical.</b> <c>default(DateTimeOffset)</c> is
-    /// <c>0001-01-01T00:00:00+00:00</c>, which passes <c>GameContext</c>'s zero-offset guard — so a
-    /// <c>VirtualClock</c> (M1-11) or a fixture that forgot to set <c>NowUtc</c> lands exactly there.
-    /// The naive <c>startOfDay.AddDays(-1)</c> throws <see cref="ArgumentOutOfRangeException"/> from
-    /// <see cref="DateTimeOffset"/> itself, which would come out of <c>GameRules.Apply</c> and
-    /// violate P3.
-    /// </para>
-    /// <para>
-    /// The weekly answer is the same instant because <c>0001-01-01</c> is a Monday in .NET's
-    /// proleptic Gregorian calendar — asserted below rather than taken on trust, since the whole
-    /// floor rests on it not underflowing a second time.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The floor is pinned to A7's literal instant, not to <c>GameCalendar.FirstGameDay</c>.</b>
-    /// Every assertion here used to be expressed in terms of the constant itself, which made the
-    /// whole test true of <em>any</em> Monday 05:00 UTC the field happened to hold — a recorded
-    /// assumption stating a specific instant, asserted by a test that could not tell that instant
-    /// from another (steering <b>S1</b>). The literal below is the claim; the constant is the
-    /// subject.
+    /// 🔒 The floor is pinned to A7's <b>literal instant</b>, not to <c>GameCalendar.FirstGameDay</c>:
+    /// expressed in terms of the constant, the whole test was true of <em>any</em> Monday 05:00 UTC the
+    /// field happened to hold. The weekly answer is the same instant because <c>0001-01-01</c> is a
+    /// Monday, asserted rather than trusted.
     /// </para>
     /// </remarks>
     [Fact]
@@ -266,30 +247,15 @@ public sealed class GameCalendarTests
     /// <b>accepts</b>: as a persisted period start, and as an argument to its own resets.
     /// </summary>
     /// <remarks>
+    /// The arithmetic here and the invariant on the aggregate are written in two layers that cannot
+    /// see each other, and this is the only place they meet. A calendar answering 04:00, a non-Monday
+    /// week start or a non-zero offset would compile, and <c>AdvanceTime</c> would throw out of
+    /// <c>Apply</c> on the first crossing — a P3 violation reported as a crash.
     /// <para>
-    /// The two halves of the design are written in two layers that cannot see each other — the
-    /// arithmetic here, the invariant on the aggregate — and this is the only place they meet. A
-    /// calendar that answered 04:00, a non-Monday week start or a non-zero offset would compile, and
-    /// M1-08's <c>AdvanceTime</c> would then throw <see cref="ArgumentOutOfRangeException"/> out of
-    /// <c>GameRules.Apply</c> on the first command that crossed a boundary — a `30` §2.1 <b>P3</b>
-    /// violation reported as a crash rather than as a wrong number.
-    /// </para>
-    /// <para>
-    /// Driven through <c>Player.Rehydrate</c> (which validates the two persisted boundaries) and
-    /// through the mutators themselves. Resetting to the boundary already in force is legal and a
-    /// no-op, so the aggregate is built <em>at</em> the computed boundaries — nothing here can pass
-    /// by moving a period backwards.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The rehydration is read through <c>Value</c> inside <c>Should.NotThrow</c>, and that is
-    /// not a style choice.</b> <c>Result&lt;T&gt;.Error</c> <em>throws</em> on a <b>success</b>
-    /// (<em>"This Result succeeded, so it has no error to read"</em>), Shouldly 4.3.0 has no
-    /// <c>Func&lt;string&gt;</c> overload of <c>ShouldBeTrue</c> — checked against the shipped
-    /// assembly, not assumed — and a custom message is therefore built <b>eagerly</b>. An
-    /// interpolated <c>rehydrated.Error</c> would throw on exactly the path this test exists to
-    /// assert, so the test could never be green whatever the calendar answered.
-    /// <c>Result&lt;T&gt;.Value</c>'s own refusal message quotes the validation error, which is the
-    /// diagnostic that was wanted.
+    /// 🔒 The rehydration is read through <c>Value</c> inside <c>Should.NotThrow</c> deliberately:
+    /// <c>Result&lt;T&gt;.Error</c> throws on a <em>success</em>, Shouldly 4.3.0 has no lazy-message
+    /// <c>ShouldBeTrue</c> overload, so an interpolated <c>.Error</c> would throw on exactly the path
+    /// this asserts and the test could never be green.
     /// </para>
     /// </remarks>
     [Theory]
