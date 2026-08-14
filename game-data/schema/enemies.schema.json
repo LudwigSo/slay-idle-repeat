@@ -1,0 +1,369 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/enemies.schema.json",
+  "title": "content/enemies/enemies.json",
+  "description": "05 §6.0-6.2 — enemy stat derivation from Power, the enemy level table, the archetype coefficient rows, the on-hit status parameters, the elite modifiers and identities, and the per-chapter draw weights. The whole derivation is total: every stat of every enemy is computable from (power, archetype, chapter, tier) with no free variables. 🔒 It lives under content/ rather than tuning/: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are content identity and combat balance, not economy dials the economy simulator sweeps. The same ruling is recorded in TunableMarkerAudit.NonEconomyDataFiles, which already names enemies.json. ⚠️ Two citations are deliberately NOT written here. The first is the section that catalogues the sixteen tuning files, which is itself a recorded out-of-scope 📐 baseline entry. The second is the section that states the per-chapter enemy-pool weights: those weights are authored on each chapter's own enemyPool field, chapter.schema.json governs that key, and its 📐 baseline entry is owned by M3-14 — citing the section here would close an entry this change did not close. The chapterPools block below is M2-11's producer-side transcription of the same table, and the cross-file rule that pins the two together is stated in DeclaredRules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "derivation", "enemyLevel", "archetypes", "onHit", "elites", "chapterPools", "targetPriority"],
+
+  "$defs": {
+    "chapterNumber": {
+      "description": "A chapter, 1..8. The eight chapters are 03's, and every per-chapter table in this file is keyed by one.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8
+    },
+    "archetypeId": {
+      "description": "05 §6.1 — one of the eight base shapes. A closed vocabulary: 05 §6.1's table has exactly these rows and every other table in this file references them.",
+      "enum": ["GRUNT", "SWARM", "BRUTE", "SKIRMISHER", "WARDEN", "CASTER", "LEECH", "REAVER"]
+    },
+    "coefficient": {
+      "description": "05 §6.0-6.1 — a multiplier on the derived stat. Never negative; 05 §6.1's BRUTE hpCoef 2.00 is the largest authored value and no upper bound is stated, so none is invented. multipleOf pins it to 05 §1.1's 4-decimal-place form, because an unrounded coefficient puts an unrounded value into the stat block that ActorStats then refuses.",
+      "type": "number",
+      "minimum": 0,
+      "multipleOf": 0.0001
+    },
+    "ratio01": {
+      "description": "05 §6.1 — a secondary stat the archetype table states as a 0..1 fraction (crit, dodge, lifesteal). Pinned to 05 §1.1's 4-decimal-place form.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "multipleOf": 0.0001
+    },
+    "seconds": {
+      "description": "05 §6.1a / §6.2 — a duration in seconds, as the document states it. Strictly positive: a zero-second status is not something 05 authorises and would be a status that never ticks.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "multipleOf": 0.0001
+    },
+    "procChance": {
+      "description": "05 §6.1a — a proc chance PER LANDED HIT. Every row of the on-hit tables states one, and the qualifier is load-bearing: a proc rolled per attack rather than per landed hit fires through dodges.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "multipleOf": 0.0001
+    },
+    "potencyBasis": {
+      "description": "05 §6.1a — the unit of the row's potency, named rather than left to prose. 'X% caster ATK/s' is APPLIER_ATK_PCT_PER_SECOND, '1.5% target Max HP/s' is TARGET_MAX_HP_PCT_PER_SECOND, '−50% ASPD' is TARGET_ASPD_PCT, '−5% DEF per stack' is TARGET_DEF_PCT_PER_STACK and '−10% healing received per stack' is TARGET_HEALING_RECEIVED_PCT_PER_STACK. The names are a transcription of the units the table already states; no basis exists here that the table does not state.",
+      "enum": [
+        "APPLIER_ATK_PCT_PER_SECOND",
+        "TARGET_MAX_HP_PCT_PER_SECOND",
+        "TARGET_ASPD_PCT",
+        "TARGET_DEF_PCT_PER_STACK",
+        "TARGET_HEALING_RECEIVED_PCT_PER_STACK"
+      ]
+    },
+    "maxStacks": {
+      "description": "05 §6.1a — how many applications of this status coexist. 🔒 null is NOT 'unlimited' and NOT 'one': it means the documents authorise no stack count for that status, which is true of exactly one row (the FREEZE row, whose stacking neither 05 §6.1a nor the status catalogue states). Anything reading this must fail loudly on a null rather than coerce it.",
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "null" }
+      ]
+    },
+    "locKey": {
+      "description": "A localisation key. Every key named here must exist in every locale file, which the content pipeline's cross-file rules enforce.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+
+    "derivation": {
+      "description": "05 §6.0's EnemyStats(power, archetype) pseudocode, coefficient by coefficient. 🔒 additionalProperties is false and every term is required, so a coefficient that is dropped or renamed fails the build rather than silently becoming zero — which for hpPerPower would give every enemy in the game 0 Max HP.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "hpPerPower", "atkPerPower", "defPerPower", "baseAspd", "roundingDecimals", "fixedStats"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "hpPerPower": { "description": "05 §6.0 — MaxHP = power * 0.60 * archetype.hpCoef.", "$ref": "#/$defs/coefficient" },
+        "atkPerPower": { "description": "05 §6.0 — ATK = power * 0.045 * archetype.atkCoef.", "$ref": "#/$defs/coefficient" },
+        "defPerPower": { "description": "05 §6.0 — DEF = power * 0.030 * archetype.defCoef.", "$ref": "#/$defs/coefficient" },
+        "baseAspd": { "description": "05 §6.0 — ASPD = 1.00 * archetype.aspdCoef.", "$ref": "#/$defs/coefficient" },
+        "roundingDecimals": {
+          "description": "05 §6.0 — 'every term rounded to 4 dp'. Authored so the file states the rule it was written under. ⚠️ It is NOT a dial: 05 §1.1's rounding is the locked determinism rule and StatRounding is its one implementation, so EnemyCatalogue.Read rejects any value but that one rather than reading a number nothing honours.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        },
+        "fixedStats": {
+          "description": "05 §6.0 — BLOCK 0.00, PEN 0.00, DMG% 0.00, DR% 0.00, HEAL% 1.00 and THORN 0.00 for every archetype. 🔒 All six are required: an actor block states all fourteen combat stats and 'an unstated stat is a bug, not a zero', and HEAL_PCT is the case that proves it — its value is 1.0 because it multiplies all healing received, so a defaulted 0 would disable every heal an enemy could ever receive.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "BLOCK": { "description": "05 §6.0 — BLOCK = 0.00.", "$ref": "#/$defs/ratio01" },
+            "PEN": { "description": "05 §6.0 — PEN = 0.00.", "$ref": "#/$defs/ratio01" },
+            "DMG_PCT": { "description": "05 §6.0 — DMG% = 0.00.", "$ref": "#/$defs/coefficient" },
+            "DR_PCT": { "description": "05 §6.0 — DR% = 0.00.", "$ref": "#/$defs/ratio01" },
+            "HEAL_PCT": { "description": "05 §6.0 — HEAL% = 1.00.", "$ref": "#/$defs/coefficient" },
+            "THORNS": { "description": "05 §6.0 — THORN = 0.00.", "$ref": "#/$defs/coefficient" }
+          }
+        }
+      }
+    },
+
+    "enemyLevel": {
+      "description": "05 §6.0 — EnemyLevel(c, t) = BaseEnemyLevel(c) + TierLevelBonus(t). The damage formula needs an attacker/defender Level for enemies that the Power derivation does not produce, and all enemies, Elites, Guardians and bosses in a (chapter, tier) share this one. ⚠️ ERRATUM, recorded rather than papered over: 05 §6.0 states this table 'lives in data/tuning/par_power.json beside the par table'. It does not, and M2-11 could not put it there — doc 21's catalogue fixes tuning/ at sixteen files, par_power.schema.json is additionalProperties:false with a closed required list, and the standing rules for this milestone forbid editing game-data/tuning/ at all. It is authored here with the rest of the section instead.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "baseByChapter", "tierBonus"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "baseByChapter": {
+          "description": "05 §6.0 — BaseEnemyLevel(c), set to roughly the Legend Level a player typically has at that chapter. Exactly one row per chapter 1..8; the cross-file rule that pins the coverage is stated in DeclaredRules, because no JSON Schema keyword can say 'every chapter appears exactly once'.",
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["chapter", "level"],
+            "properties": {
+              "chapter": { "$ref": "#/$defs/chapterNumber" },
+              "level": {
+                "description": "05 §6.0 — Ch1 10 · Ch2 15 · Ch3 20 · Ch4 30 · Ch5 40 · Ch6 50 · Ch7 60 · Ch8 80.",
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "tierBonus": {
+          "description": "05 §6.0 — TierLevelBonus(t): Normal +0 · Heroic +10 · Mythic +20. 🔒 All three are required and additionalProperties is false, so a tier that loses its row fails the build rather than deriving level 0. The three names are the ones par_power.json already keys on — the only other file in the repository that names the tiers.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "NORMAL", "HEROIC", "MYTHIC"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "NORMAL": { "description": "05 §6.0 — Normal +0.", "type": "integer", "minimum": 0 },
+            "HEROIC": { "description": "05 §6.0 — Heroic +10.", "type": "integer", "minimum": 0 },
+            "MYTHIC": { "description": "05 §6.0 — Mythic +20.", "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+
+    "archetypes": {
+      "description": "05 §6.1 — the eight base shapes, reskinned per biome. 🔒 Exactly eight rows: the table is closed, every other table in this file references it, and a ninth shape is a design decision rather than a data edit. The three secondary values 05 §6.1 preserves from earlier prose — SKIRMISHER dodge 0.15, LEECH lifesteal 0.25, REAVER crit 0.30 / critDamage 1.20 — are transcribed exactly.",
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "hpCoef", "atkCoef", "defCoef", "aspdCoef", "crit", "critDamage", "dodge", "lifesteal", "unitsPerDraw", "onHit"],
+        "properties": {
+          "id": { "$ref": "#/$defs/archetypeId" },
+          "hpCoef": { "description": "05 §6.1 — GRUNT 1.00 · SWARM 0.35 · BRUTE 2.00 · SKIRMISHER 0.70 · WARDEN 1.60 · CASTER 0.75 · LEECH 1.10 · REAVER 0.90.", "$ref": "#/$defs/coefficient" },
+          "atkCoef": { "description": "05 §6.1 — GRUNT 1.00 · SWARM 0.55 · BRUTE 1.35 · SKIRMISHER 0.85 · WARDEN 0.70 · CASTER 1.50 · LEECH 0.95 · REAVER 1.20.", "$ref": "#/$defs/coefficient" },
+          "defCoef": { "description": "05 §6.1 — GRUNT 1.00 · SWARM 0.60 · BRUTE 1.20 · SKIRMISHER 0.70 · WARDEN 2.20 · CASTER 0.55 · LEECH 0.90 · REAVER 0.80.", "$ref": "#/$defs/coefficient" },
+          "aspdCoef": { "description": "05 §6.1 — GRUNT 1.00 · SWARM 1.30 · BRUTE 0.60 · SKIRMISHER 1.70 · WARDEN 0.85 · CASTER 0.70 · LEECH 1.10 · REAVER 1.00.", "$ref": "#/$defs/coefficient" },
+          "crit": { "description": "05 §6.1 — the archetype's Crit Chance, taken as the stat rather than derived from Power.", "$ref": "#/$defs/ratio01" },
+          "critDamage": { "description": "05 §6.1 — the archetype's Crit Damage bonus. Not a 0..1 ratio: REAVER's is 1.20.", "$ref": "#/$defs/coefficient" },
+          "dodge": { "description": "05 §6.1 — the archetype's Dodge. BRUTE's is 0.00 and SKIRMISHER's 0.15.", "$ref": "#/$defs/ratio01" },
+          "lifesteal": { "description": "05 §6.1 — the archetype's Lifesteal. Zero for every shape but LEECH, whose 0.25 is one of the three values 05 §6.1 preserves from prose.", "$ref": "#/$defs/ratio01" },
+          "unitsPerDraw": {
+            "description": "05 §6.1 — how many bodies one draw of this archetype puts on the field. One for every shape but SWARM, whose header reads '(×3 units)' and whose three weak bodies are the point: they punish single-target builds.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "onHit": {
+            "description": "05 §6.1a — which on-hit parameter set this archetype carries. WARDEN carries SUNDER wherever it appears; CASTER carries its chapter's biome status; the other six carry none, which is NONE rather than null because it is an authored fact and not an unfilled hole.",
+            "enum": ["NONE", "SUNDER", "BIOME_STATUS"]
+          }
+        }
+      }
+    },
+
+    "onHit": {
+      "description": "05 §6.1a — the on-hit status parameters, ruled once for the whole game. Both blocks state a proc chance per LANDED hit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "wardenSunder", "casterBiomeStatus"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "wardenSunder": {
+          "description": "05 §6.1a — WARDEN's SUNDER: one authored parameter set that holds wherever a WARDEN appears, in any chapter, including a boss's WARDEN drones.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "statusId", "procChancePerLandedHit", "potency", "potencyBasis", "durationSeconds", "refreshOnReapply", "maxStacks"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "statusId": { "description": "05 §6.1a — the status this archetype applies.", "type": "string", "minLength": 1 },
+            "procChancePerLandedHit": { "description": "05 §6.1a — 0.35.", "$ref": "#/$defs/procChance" },
+            "potency": { "description": "05 §6.1a — −5% DEF per stack. Negative, because the debuff subtracts.", "type": "number", "multipleOf": 0.0001 },
+            "potencyBasis": { "$ref": "#/$defs/potencyBasis" },
+            "durationSeconds": { "description": "05 §6.1a — 6 s.", "$ref": "#/$defs/seconds" },
+            "refreshOnReapply": { "description": "05 §6.1a — 'refresh on reapply'. Authored rather than assumed: refreshing and extending are different fights.", "type": "boolean" },
+            "maxStacks": { "description": "05 §6.1a — 5.", "$ref": "#/$defs/maxStacks" }
+          }
+        },
+        "casterBiomeStatus": {
+          "description": "05 §6.1a — each chapter's CASTER applies that chapter's signature status on hit, one row per chapter. Chapters whose signature is already a combat status use exactly that status; the rest reuse the closest-fitting status under a biome skin, which is the archetype system's normal mode. ⚠️ Sporequeen's own SPORE (−12%, never expires) is a boss-authored override in 17 and is NOT this table: a boss that inherited these numbers would be a different fight.",
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["chapter", "biome", "statusId", "flavourName", "potency", "potencyBasis", "durationSeconds", "maxStacks", "procChancePerLandedHit"],
+            "properties": {
+              "chapter": { "$ref": "#/$defs/chapterNumber" },
+              "biome": { "description": "05 §6.1a — the biome name the row is aligned to. Prose, carried so the row can be read against the chapter signatures without a second document open.", "type": "string", "minLength": 1 },
+              "statusId": { "description": "05 §6.1a — Ch1 BLEED · Ch2 POISON · Ch3 BLEED · Ch4 BURN · Ch5 FREEZE · Ch6 SUNDER · Ch7 SPORE · Ch8 BURN.", "type": "string", "minLength": 1 },
+              "flavourName": { "description": "05 §6.1a — the biome skin's name: Thorn Gash, Bog Rot, Bone Splinter, Magma Splash, Deep Chill, Shear, Spore Cloud, Starfire. A localisation key, because it is shown to a player.", "$ref": "#/$defs/locKey" },
+              "potency": { "description": "05 §6.1a — the magnitude in the row's own unit. Negative where the status subtracts (FREEZE, SUNDER, SPORE).", "type": "number", "multipleOf": 0.0001 },
+              "potencyBasis": { "$ref": "#/$defs/potencyBasis" },
+              "durationSeconds": { "description": "05 §6.1a — Ch1 3 s · Ch2 4 s · Ch3 4 s · Ch4 3 s · Ch5 2 s · Ch6 6 s · Ch7 8 s · Ch8 3 s.", "$ref": "#/$defs/seconds" },
+              "maxStacks": { "description": "05 §6.1a states a stack count for five rows (3, 5, 5, 4, 5) and defers the rest to the status catalogue, which fixes BLEED as non-stacking (1) and says nothing at all about FREEZE — so the FREEZE row carries null. See the maxStacks definition: null is a hole, not a default.", "$ref": "#/$defs/maxStacks" },
+              "procChancePerLandedHit": { "description": "05 §6.1a — Ch1 0.30 · Ch2 0.30 · Ch3 0.35 · Ch4 0.35 · Ch5 0.25 · Ch6 0.35 · Ch7 0.35 · Ch8 0.35.", "$ref": "#/$defs/procChance" }
+            }
+          }
+        }
+      }
+    },
+
+    "elites": {
+      "description": "05 §6.2 — Elite = base archetype × 2.2 power, plus exactly one Elite Modifier drawn per encounter.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "powerMultiplier", "modifiersPerElite", "noRepeatWithPreviousEliteInRun", "modifiers", "identities"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "powerMultiplier": {
+          "description": "05 §6.2 — 2.2. ⚠️ This is the ELITE multiplier and nothing else. A boss's Power already carries its own stage multiplier, and 05 §6.3 says in terms not to multiply it again.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "multipleOf": 0.0001
+        },
+        "modifiersPerElite": {
+          "description": "05 §6.2 — 'plus ONE Elite Modifier'. Authored as a number rather than assumed so the file states the rule it was written under. ⚠️ It is NOT a dial: EliteModifierDraw draws exactly one, and a second would need a draw that excludes the first, which 05 §6.2 does not state — so EnemyCatalogue.Read rejects any value but 1 rather than reading a number nothing honours.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "noRepeatWithPreviousEliteInRun": {
+          "description": "🔒 05 §6.2 — 'No Elite may draw the same modifier as the immediately preceding Elite in the same run — redraw on collision.' The rule is run-scoped state, which 24 §4.10's B2 protection owns and M4-01's LuckService implements; M2-11 declares the seam (IEliteModifierHistory) and does not wire it. This key is the rule's own switch and EliteModifierDraw.Draw is handed it: authoring false really does turn the redraw off, rather than being a flag nothing reads.",
+          "type": "boolean"
+        },
+        "modifiers": {
+          "description": "05 §6.2 — the eight Elite Modifiers, shown on the pre-battle banner so the player can read the threat before it starts. 🔒 Exactly eight rows: the list is closed. ⚠️ The parameters are authored as named numbers rather than as embedded effect JSON. That is deliberate and it is a limitation of the pipeline, not a preference: this validator resolves same-document pointers only, so this schema cannot $ref the effect vocabulary, and a schema that restated it would trip the rule forbidding a second copy of the op set — so embedded effect JSON here would ship completely unvalidated, which is the one thing the content build exists to prevent. ⚠️ THE CONSEQUENCE, STATED RATHER THAN GLOSSED: each row has its own parameter key vocabulary, so a consumer must know which keys belong to which modifier — and the path of least resistance is a branch per modifier, which 18's headnote forbids. M2-11 authors the numbers and deliberately writes no consumer; whoever writes the first one owes ONE table mapping every row to its 18 §1 effects, not eight branches spread across the tick engine. That obligation is parked as a self-expiring entry in SubjectSetFloorTests so it cannot be forgotten, and the conductor has it as errata.",
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "displayName", "_doc", "parameters"],
+            "properties": {
+              "id": {
+                "description": "05 §6.2 — Enraged · Armored · Vampiric · Volatile · Shielded · Swift · Cursed · Reflective.",
+                "enum": ["ENRAGED", "ARMORED", "VAMPIRIC", "VOLATILE", "SHIELDED", "SWIFT", "CURSED", "REFLECTIVE"]
+              },
+              "displayName": { "description": "05 §6.2 — the name on the pre-battle banner.", "$ref": "#/$defs/locKey" },
+              "_doc": { "type": "string", "minLength": 1 },
+              "parameters": {
+                "description": "05 §6.2 — the modifier's authored numbers, one key per number the section states. atkMult 1.50 and belowHpFraction 0.40 (Enraged); defMult 1.80 and aspdMult 0.80 (Armored); lifesteal 0.35 (Vampiric); deathExplosionHeroMaxHpPct 0.15 (Volatile); startingWardMaxHpPct 0.30 (Shielded); aspdMult 1.60 (Swift); killWithinSeconds 20 (Cursed); thorns 0.25 (Reflective). A *Mult key is a STAT_MULT multiplier — the value IS the multiplier, so +80% DEF is 1.80. Every value is a number: a modifier whose parameter is not a number is a modifier the derivation cannot apply.",
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": false,
+                "patternProperties": {
+                  "^[a-z][A-Za-z0-9]*$": { "type": "number", "multipleOf": 0.0001 }
+                }
+              },
+              "curseId": {
+                "description": "🔒 05 §6.2 says Cursed 'applies a run-scoped curse' and names none, and content/curses/ is empty — so this is null, and null here means the design documents authorise no value. 16 R6: a fabricated id that looks precise is worse than a missing one. It is the only row that carries this key, and it carries it so the hole is greppable rather than absent.",
+                "oneOf": [
+                  { "type": "string", "pattern": "^CU_[A-Z0-9_]+$" },
+                  { "type": "null" }
+                ]
+              }
+            }
+          }
+        },
+        "identities": {
+          "description": "🔒 05 §6.2 — the sixteen elite identities and their base archetypes. This table is the single source of truth for the mapping; doc 15's E4 owns only the art identities. An elite is its base archetype's statline at the elite power multiplier — the CASTER elites also apply their chapter's biome status and the WARDEN elites SUNDER, exactly as their base archetype does. 🔒 Exactly sixteen rows, two per chapter.",
+          "type": "array",
+          "minItems": 16,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "baseArchetype"],
+            "properties": {
+              "id": {
+                "description": "05 §6.2 — the elite's id. Declares the EL_ id space that each chapter's elitePool references.",
+                "type": "string",
+                "pattern": "^EL_[A-Z0-9_]+$"
+              },
+              "baseArchetype": { "$ref": "#/$defs/archetypeId" }
+            }
+          }
+        }
+      }
+    },
+
+    "chapterPools": {
+      "description": "The per-chapter draw table: which archetypes a TILE_ENEMY battle can produce, at what weight, and which two elites the chapter's elitePool holds. One draw picks one entry by weight, and a SWARM draw spawns its three units. ⚠️ The doc section that states these weights is deliberately NOT cited here — see this schema's own title description for why: the weights' governing schema key is chapter.schema.json's enemyPool, whose 📐 baseline entry belongs to M3-14, and a citation here would close an entry this change did not close. This block is M2-11's producer-side transcription; the cross-file rule pinning the two together lives in DeclaredRules.",
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chapter", "weights", "elitePool"],
+        "properties": {
+          "chapter": { "$ref": "#/$defs/chapterNumber" },
+          "weights": {
+            "description": "🔒 All eight archetypes are required and additionalProperties is false. That is the whole point of the block: Chapter 1 has NO REAVER and Chapter 6 has NO LEECH, and both are authored intent — no 30%-crit spikes in the tutorial chapter, and machines do not drink. An explicit 0 says so; an omitted key would let either be edited away in silence, and a rule that only checked the row's total would not notice. The rows total 100, which no schema keyword can assert and DeclaredRules therefore states.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["GRUNT", "SWARM", "BRUTE", "SKIRMISHER", "WARDEN", "CASTER", "LEECH", "REAVER"],
+            "properties": {
+              "GRUNT": { "description": "The GRUNT draw weight for this chapter.", "type": "number", "minimum": 0 },
+              "SWARM": { "description": "The SWARM draw weight for this chapter.", "type": "number", "minimum": 0 },
+              "BRUTE": { "description": "The BRUTE draw weight for this chapter.", "type": "number", "minimum": 0 },
+              "SKIRMISHER": { "description": "The SKIRMISHER draw weight for this chapter.", "type": "number", "minimum": 0 },
+              "WARDEN": { "description": "The WARDEN draw weight for this chapter.", "type": "number", "minimum": 0 },
+              "CASTER": { "description": "The CASTER draw weight for this chapter.", "type": "number", "minimum": 0 },
+              "LEECH": { "description": "The LEECH draw weight for this chapter.", "type": "number", "minimum": 0 },
+              "REAVER": { "description": "The REAVER draw weight for this chapter.", "type": "number", "minimum": 0 }
+            }
+          },
+          "elitePool": {
+            "description": "05 §6.2 — each chapter's elitePool is exactly its two biome elites, and elites come only from here. Every id must resolve to an entry in elites.identities; the id-space rule the content pipeline derives from the EL_ pattern enforces that without a second mechanism.",
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^EL_[A-Z0-9_]+$" }
+          }
+        }
+      }
+    },
+
+    "targetPriority": {
+      "description": "05 §3.2 — the targetPriority field on an enemy definition, and the two authored non-default values. The hero targets the HIGHEST priority, ties broken by LOWEST current HP; −1 deprioritises a summon the player should ignore and +1 forces focus. 🔒 This block declares the field only. The selection algorithm reading it belongs to the tick engine and is deliberately not implemented alongside the data.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "default", "deprioritised", "forced"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "default": { "description": "05 §3.2 — an enemy that states no priority has 0.", "type": "integer" },
+        "deprioritised": { "description": "05 §3.2 — −1, the value a summon the player should ignore carries.", "type": "integer" },
+        "forced": { "description": "05 §3.2 — +1, the value that forces the hero to focus.", "type": "integer" }
+      }
+    }
+  }
+}

@@ -67,6 +67,38 @@ public static class ContentLoader
         "schema/event.schema.json",
     ];
 
+    /// <summary>
+    /// 🔒 Schemas that describe a <em>shape other schemas are written to</em>, not a file. They
+    /// govern nothing permanently and by design — which is a different claim from
+    /// <see cref="SchemasAwaitingContent"/>'s, and is why it is a different list.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="SchemasAwaitingContent"/> promises the content <em>"has an owner and a date rather
+    /// than a doubt"</em>, and its exemption really does expire: the build fails the day the schema
+    /// governs a file. Filing a permanently-unpaired schema in that list would make the promise
+    /// untrue for the entries where it still holds, and would leave two entries that expire sitting
+    /// next to one that cannot. Two lists, two honest contracts.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The cost of being in this list, stated plainly:</b> there is no mechanical expiry here
+    /// at all. What guards it instead is
+    /// <c>EffectSchemaTests.No_other_schema_restates_the_effect_vocabulary</c>, which fails on the
+    /// commit that copies this shape into a content-type schema — the duplication being the thing
+    /// that would actually go wrong, since <see cref="JsonSchemaValidator"/> resolves same-document
+    /// pointers only and no content schema can <c>$ref</c> across files.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string> VocabularySchemas { get; } =
+    [
+        // 18 §1 — the EffectDefinition shape (M2-01). An effect is never a file: it is always
+        // embedded in the perk, talent, pet, mount, curse or boss script that owns it, so no data
+        // file will ever pair with this under the stem rule. It is authored anyway because 18 §10
+        // makes it the thing a new op must be added to, and because it is the specification M2-07
+        // and M3 author their content-type schemas against.
+        "schema/effect.schema.json",
+    ];
+
     /// <summary>Loads the canonical content with no overrides.</summary>
     public static ContentLoadResult Load(IContentSourcePort source) => Load(source, ContentLoadOptions.Canonical);
 
@@ -141,7 +173,7 @@ public static class ContentLoader
         // finding with a stack trace naming neither document nor pointer.
         if (issues.Count == 0)
         {
-            issues.AddRange(ContentInvariants.Check(data, bindings, options));
+            issues.AddRange(ContentInvariants.Check(data, bindings, schemas, options));
         }
 
         var ordered = issues
@@ -241,14 +273,28 @@ public static class ContentLoader
         foreach (var schema in schemas.Keys.OrderBy(s => s, StringComparer.Ordinal))
         {
             var awaitingContent = SchemasAwaitingContent.Contains(schema, StringComparer.Ordinal);
+            var vocabulary = VocabularySchemas.Contains(schema, StringComparer.Ordinal);
 
-            if (!used.Contains(schema) && !awaitingContent)
+            if (awaitingContent && vocabulary)
+            {
+                // The two lists make opposite claims — "its content is coming" and "it will never
+                // have content". A schema in both is a claim nobody has decided between.
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OrphanSchema, schema,
+                    "is in both ContentLoader.SchemasAwaitingContent and ContentLoader.VocabularySchemas. " +
+                    "The first says its content has an owner and a date; the second says it describes a " +
+                    "shape and will never govern a file. Pick one."));
+            }
+
+            if (!used.Contains(schema) && !awaitingContent && !vocabulary)
             {
                 issues.Add(new ContentIssue(
                     ContentIssueCode.OrphanSchema, schema,
                     "governs no data file. Either the data it describes is missing, or the schema " +
                     "outlived its content and should be deleted. If the content has an owner and a " +
-                    "milestone, say so in ContentLoader.SchemasAwaitingContent."));
+                    "milestone, say so in ContentLoader.SchemasAwaitingContent; if it describes a " +
+                    "shape other schemas are written to rather than a file, say so in " +
+                    "ContentLoader.VocabularySchemas."));
             }
             else if (used.Contains(schema) && awaitingContent)
             {
@@ -256,6 +302,14 @@ public static class ContentLoader
                     ContentIssueCode.OrphanSchema, schema,
                     "is listed in ContentLoader.SchemasAwaitingContent but now governs a data file. " +
                     "The exemption has outlived its milestone — remove it."));
+            }
+            else if (used.Contains(schema) && vocabulary)
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OrphanSchema, schema,
+                    "is listed in ContentLoader.VocabularySchemas — a shape other schemas are written " +
+                    "to, never a file's governor — but it now governs a data file. Either the file is " +
+                    "misnamed, or the schema has become a content type and belongs out of that list."));
             }
         }
 

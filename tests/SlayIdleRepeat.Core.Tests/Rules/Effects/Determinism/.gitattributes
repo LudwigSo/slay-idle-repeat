@@ -1,0 +1,8 @@
+# The M2-17 determinism baseline is a byte-for-byte artefact: LF on every platform, so a one-hash
+# change diffs as one line rather than as a whole-file rewrite, and so the file stays identical on
+# whichever runtime reads it. Same rule as Rng/.gitattributes and Model/Snapshots/.gitattributes.
+#
+# The off-host reader would be M5-12's determinism job (Linux x64 + Android ARM64; the iOS ARM64 leg
+# is authored but gated off with iOS itself, `16` D34). ⚠️ That job is `if: false` in ci.yml and its
+# tracker row does not name this table yet — see `18` §11.1. LF is worth pinning regardless.
+*.json text eol=lf

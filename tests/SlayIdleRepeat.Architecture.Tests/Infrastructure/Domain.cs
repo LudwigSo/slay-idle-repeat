@@ -30,6 +30,7 @@ internal static class Domain
     internal const string GuildModelNamespace = "SlayIdleRepeat.Core.Model.Guild";
     internal const string RulesNamespace = "SlayIdleRepeat.Core.Rules";
     internal const string CombatRulesNamespace = "SlayIdleRepeat.Core.Rules.Combat";
+    internal const string StatsRulesNamespace = "SlayIdleRepeat.Core.Rules.Stats";
     internal const string CommandsNamespace = "SlayIdleRepeat.Core.Commands";
     internal const string EventsNamespace = "SlayIdleRepeat.Core.Events";
     internal const string HandlersNamespace = "SlayIdleRepeat.Core.Handlers";
@@ -106,11 +107,61 @@ internal static class Domain
     internal const string MetaDrawScopeType = "MetaDrawScope";
 
     /// <summary>
-    /// The two <c>Rules</c> types <c>30</c> §11.2 documents as public, each with a named
-    /// external consumer: the client's local battle simulation (<c>14</c> §2.4) and the
-    /// Hero screen's power readout (<c>29</c> §1).
+    /// 🔒 The <b>third</b> sanctioned <c>DeterministicRng</c> construction site — `14` §8.1's combat
+    /// regime, landed closing the gap the M1/M2 merge surfaced (M2's <c>BattleSimulation</c> and
+    /// <c>EncounterFight</c> had been constructing the stream directly, unchecked by this rule until
+    /// the two milestones' code met). An IDENTITY floor for the same reason
+    /// <see cref="RunRngScopeType"/> and <see cref="MetaDrawScopeType"/> are: a count-only floor stays
+    /// satisfied by either of the other two alone while the combat regime stops opening streams
+    /// entirely.
     /// </summary>
-    internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[] { "CombatSimulator", "PowerCalculator" };
+    internal const string BattleRngScopeType = "BattleRngScope";
+
+    /// <summary>
+    /// The <c>Rules</c> types that may be public: <c>30</c> §11.2's two documented entry points —
+    /// the client's local battle simulation (<c>14</c> §2.4) and the Hero screen's power readout
+    /// (<c>29</c> §1) — plus the enumerated signature closure of <c>CombatSimulator.Simulate</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>R15 — <c>30</c> §11.2 enumerates public ENTRY POINTS, not the closure of the public
+    /// surface.</b> It reads <i>"the only two <c>Rules</c> types that are public"</i>, and <c>05</c>
+    /// §7 separately declares <c>SimulationResult</c>, <c>CombatEvent</c> and <c>CombatEventType</c>
+    /// public because <c>05</c> §8 has the client replay the log and <c>11</c> §6 has the backend
+    /// recompute <c>LogHash</c> over it. C# forces the same conclusion: a public
+    /// <c>CombatSimulator.Simulate</c> returning an internal <c>SimulationResult</c> does not compile
+    /// (CS0050/CS0051). A public entry point's parameter and return types are public BY CONSEQUENCE
+    /// — a language requirement, not a new design exception. Nothing §11.2 protects is weakened: its
+    /// actual claim is that <c>GameRules.Apply</c> is the only public way to change state, and none
+    /// of the types below mutate anything.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>R16 — the list is ENUMERATED, never a blanket "anything reachable from a public
+    /// type".</b> These six are exactly the signature closure of
+    /// <c>Simulate(ulong, ActorStats, int, IReadOnlyList&lt;ActorStats&gt;, int)</c> and its
+    /// <c>SimulationResult</c> return. A blanket rule would let a third public entry point appear
+    /// without anyone deciding to add one; enumerated, it costs a line in this diff. Everything a
+    /// fight can carry beyond a stat block and a level goes through the INTERNAL
+    /// <c>Simulate(BattlePlan)</c>, which is why <c>EffectDefinition</c>, <c>StatCaps</c> and the
+    /// seam interfaces are not here.
+    /// </para>
+    /// <para>
+    /// ⚠️ <c>ActorStats</c> stays in <c>Core/Rules/Stats/</c>. Relocating it to <c>Content/</c> was
+    /// considered and rejected: <c>30</c> §11.4 defines <c>Content/</c> as "ContentSnapshot + every
+    /// definition type", and <c>ActorStats</c> is a COMPUTED VALUE, not a definition — the move would
+    /// also drag <c>StatRounding</c> across the layering boundary to solve a visibility problem that
+    /// visibility solves.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
+    {
+        "CombatSimulator",
+        "PowerCalculator",
+        "SimulationResult",
+        "CombatEvent",
+        "CombatEventType",
+        "ActorStats",
+    };
 
     /// <summary>
     /// True when a namespace is one <c>30</c> §11.4 enumerates, or a namespace beneath one.

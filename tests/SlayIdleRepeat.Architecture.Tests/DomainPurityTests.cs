@@ -281,20 +281,27 @@ public sealed class DomainPurityTests
     /// <para>
     /// 🔒 <b>M1-09 landed the SECOND sanctioned construction site and the floor grew with it.</b>
     /// <c>MetaDrawScope</c> is `14` §8.1's meta regime — <c>Hash64(CommandSeed, s, i)</c> from
-    /// <c>i = 0</c> with no persisted counter — and it is the <em>only</em> site of that regime. Both
-    /// names are asserted, because a floor naming one of two sanctioned sites is satisfied while the
-    /// other stops constructing anything at all, which is the <c>Run::_wallet</c> argument this file
-    /// makes about itself one rule up. ⚠️ The summary above still says "a handler draws through the
-    /// <c>RunRngScope</c> <c>Apply</c> hands it" — true of a <c>CommandKind.Run</c> handler and only
-    /// of one; a meta handler draws through <c>HandlerInput.MetaDraws</c>, which folds nothing back
-    /// because there is nothing to fold.
+    /// <c>i = 0</c> with no persisted counter — and it is the <em>only</em> site of that regime.
+    /// ⚠️ The summary above still says "a handler draws through the <c>RunRngScope</c> <c>Apply</c>
+    /// hands it" — true of a <c>CommandKind.Run</c> handler and only of one; a meta handler draws
+    /// through <c>HandlerInput.MetaDraws</c>, which folds nothing back because there is nothing to
+    /// fold.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The M1/M2 merge landed the THIRD — <c>BattleRngScope</c>, `14` §8.1's combat regime.</b>
+    /// M2 built <c>BattleSimulation</c> and <c>EncounterFight</c> on a branch parallel to this rule's
+    /// own milestone, and both constructed the combat stream directly; the rule was never wrong, it
+    /// simply never ran against that code until the merge, at which point it caught exactly the gap
+    /// it exists to catch. All three names are asserted, because a floor naming fewer than three
+    /// sanctioned sites is satisfied while one of them stops constructing anything at all — the
+    /// <c>Run::_wallet</c> argument this file makes about itself one rule up.
     /// </para>
     /// <para>
     /// 🔒 <b>The floor, pinned by identity</b> (steering S3). The subject set is "construction sites
-    /// in <c>Core</c>", which becomes empty the moment the scope stops constructing one — at which
-    /// point the rule would report success forever over a domain that had lost its only sanctioned
-    /// draw path. A count-only floor is satisfied by any construction anywhere, so the assertion
-    /// names <c>RunRngScope</c>: moving the scope out of <c>Core/Rng/</c>, or having it stop opening
+    /// in <c>Core</c>", which becomes empty the moment a scope stops constructing one — at which
+    /// point the rule would report success forever over a domain that had lost a sanctioned draw
+    /// path. A count-only floor is satisfied by any construction anywhere, so the assertion names
+    /// each scope individually: moving one out of <c>Core/Rng/</c>, or having it stop opening
     /// streams, fails here rather than quietly.
     /// </para>
     /// </remarks>
@@ -305,10 +312,10 @@ public sealed class DomainPurityTests
             .Where(ConstructsADeterministicRng)
             .ToArray();
 
-        // 🔒 BOTH sanctioned sites, by identity (steering S3). RunRngScope is 14 §8.1's run regime and
-        // MetaDrawScope is its meta one; a floor naming only the first stays satisfied while the
-        // second stops constructing anything at all, which is precisely the argument this file makes
-        // about Run::_wallet one rule up. Asserted separately so a failure names which one went.
+        // 🔒 ALL THREE sanctioned sites, by identity (steering S3). RunRngScope is 14 §8.1's run
+        // regime, MetaDrawScope is its meta one, and BattleRngScope is its combat one; a floor naming
+        // fewer than three sanctioned sites stays satisfied while one of them stops constructing
+        // anything at all. Asserted separately so a failure names which one went.
         Assert.Contains(
             sites,
             m => m.DeclaringType.Name.Equals(Domain.RunRngScopeType, StringComparison.Ordinal));
@@ -316,6 +323,10 @@ public sealed class DomainPurityTests
         Assert.Contains(
             sites,
             m => m.DeclaringType.Name.Equals(Domain.MetaDrawScopeType, StringComparison.Ordinal));
+
+        Assert.Contains(
+            sites,
+            m => m.DeclaringType.Name.Equals(Domain.BattleRngScopeType, StringComparison.Ordinal));
 
         var offenders = sites
             .Where(m => !Il.IsUnder(Il.NamespaceOf(m.DeclaringType), Domain.RngNamespace))

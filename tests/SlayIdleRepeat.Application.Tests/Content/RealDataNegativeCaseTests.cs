@@ -426,19 +426,49 @@ public sealed class RealDataNegativeCaseTests
     /// 🔒 Pins the <em>population</em> of unauthorised holes, not a sample of it.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The count is <b>96</b>, not the 98 the M0-09 brief states. Counted three ways — this
+    /// ⚠️ The count was <b>96</b> at M0-09, not the 98 that brief states. Counted three ways — this
     /// loader over the snapshot, a JSON walk over <c>tuning/*.json</c>, and per file — the shipped
-    /// data holds 96 JSON nulls, all in <c>tuning/</c> and none in <c>loc/</c>: guilds 32,
+    /// data held 96 JSON nulls, all in <c>tuning/</c> and none in <c>loc/</c>: guilds 32,
     /// drops 25, power_model 13, events 7, progression 5, luck 4, sim_profiles 4, currencies 2,
-    /// forge 2, beasts 1, calibration_builds 1. The brief is off by two; this records what is
+    /// forge 2, beasts 1, calibration_builds 1. The brief was off by two; this records what is
     /// actually there, because a guarded number that does not match the data guards nothing.
+    /// <para>
+    /// ⚠️ <b>M2-11 opened the first two holes outside <c>tuning/</c>, deliberately, and they are the
+    /// reason this number is now 98.</b> Both are in <c>content/enemies/enemies.json</c> and both are
+    /// `05` §6 declining to authorise a value:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><c>onHit/casterBiomeStatus/4/maxStacks</c> — `05` §6.1a states a stack count for five
+    /// of its eight <c>CASTER</c> rows and defers the rest to `05`'s status catalogue, which fixes
+    /// <c>BLEED</c> as non-stacking and says <em>nothing at all</em> about <c>FREEZE</c>. Chapter 5
+    /// is that row.</item>
+    /// <item><c>elites/modifiers/6/curseId</c> — `05` §6.2 says <c>CURSED</c> <em>"applies a
+    /// run-scoped curse"</em> and names none; <c>content/curses/</c> is empty.</item>
+    /// </list>
+    /// <para>
+    /// Both have a <c>Require…</c> accessor in <c>Core</c> that throws by name if anything tries to
+    /// use them, and both are asserted individually in <c>EnemiesDataTests</c>. Filling either is a
+    /// design decision that changes this number in the same commit — which is what this guard is for.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>M2-10 opened the third, and it is the reason this number is now 99.</b>
+    /// <c>content/statuses.json#/statuses/8/decayCurve</c> — `05` §5 says <c>RAGE</c> is <em>"+X%
+    /// ATK, <b>decays over D s</b>"</em> and states no curve, not linear, not stepped, not
+    /// exponential; no boss script, perk row or on-hit row in the content set authors one either.
+    /// A plausible linear ramp would be a balance decision invented by the implementer and invisible
+    /// afterwards, so <c>RAGE</c> ships holding its full potency for its duration — the only shape
+    /// `18` §6 can express — and the missing decay is greppable rather than absent. It is the only
+    /// row in that file carrying the key, <c>StatusDefinition.RequireDecayCurve</c> throws by name if
+    /// anything tries to use it, and the obligation expires by itself through
+    /// <c>SubjectSetFloorTests.Pending</c>'s <c>StatusDecayCurve</c> entry.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_96_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_99_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(96,
+        CountUnauthorised(snapshot).ShouldBe(99,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -446,7 +476,7 @@ public sealed class RealDataNegativeCaseTests
     }
 
     /// <summary>
-    /// 🔒 The same population, <b>per file</b>. A total of 96 cannot see a <em>compensating</em>
+    /// 🔒 The same population, <b>per file</b>. A total of 98 cannot see a <em>compensating</em>
     /// change — one hole filled in <c>guilds.json</c> and one opened in <c>drops.json</c> nets to
     /// zero, and the filled one is precisely the design decision this suite exists to make
     /// deliberate. The breakdown was already written down in the remark above; asserting it costs
@@ -471,6 +501,24 @@ public sealed class RealDataNegativeCaseTests
     [InlineData("tuning/sim_thresholds.json", 0)]
     [InlineData("loc/en.json", 0)]
     [InlineData("loc/de.json", 0)]
+
+    // M2-11 — the first two holes outside tuning/. 05 §6.1a authorises no stack count for the
+    // FREEZE row and 05 §6.2 names no curse for CURSED; see the remarks on the total above.
+    [InlineData("content/enemies/enemies.json", 2)]
+    [InlineData("content/combat_caps.json", 0)]
+
+    // M2-10 — the third hole outside tuning/. 05 §5 says RAGE decays over D s and states no curve;
+    // see the remarks on the total above.
+    [InlineData("content/statuses.json", 1)]
+
+    // M2-13 — the eight boss scripts and the FTUE row, and NO hole, which is worth a line rather
+    // than a silence. Where 17 authorises nothing, the boss data omits the key instead of writing
+    // null: a boss that does not summon carries no adds fraction, a mechanic that needs no wind-up
+    // carries no telegraphSeconds, and the FTUE row alone carries the two fixed inputs. The two
+    // holes 17 §7 and §8 really do leave — Piston Slam's DEF penetration and the sporeling-death
+    // heal — are mechanics the DSL cannot express at all, so there is no key to write null INTO;
+    // they are recorded in the affected scripts' own _doc.
+    [InlineData("content/bosses/bosses.json", 0)]
     public void Each_shipped_file_carries_exactly_the_unauthorised_holes_it_is_recorded_as_carrying(
         string documentPath, int expected)
     {

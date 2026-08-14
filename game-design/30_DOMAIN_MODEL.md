@@ -402,8 +402,8 @@ SlayIdleRepeat.Core/
 ├── Model/               # THE AGGREGATES. Public getters, internal ctors, invariants only.
 │   ├── Player/ Run/ Guild/
 │   └── Snapshots/       #   public persistence DTOs + Rehydrate (§11.3)
-├── Rules/               # internal, static, stateless calculators
-│   ├── Combat/          #   05, 17 — CombatSimulator is public
+├── Rules/               # internal, static, stateless calculators (🔴 see the note below)
+│   ├── Combat/          #   05, 17 — CombatSimulator is public; per-battle state, enumerated
 │   ├── Stats/           #   05 §1.1, 29 — PowerCalculator is public
 │   ├── Board/ Dice/     #   03, 04
 │   ├── Effects/         #   18 — the DSL interpreter
@@ -424,6 +424,10 @@ Handlers ──▶ Rules ──▶ Model ──▶ Content ──▶ Primitives
 ```
 
 `Rules` never references `Handlers`. `Model` never references `Rules`.
+
+🔴 **Erratum, recorded by M2-09 — `Rules/` is not entirely stateless, and the exceptions are enumerated.** `05` §3's simulator is a **fixed-tick loop**: 1800 iterations that accumulate HP, cooldowns, an event log, `18` §2.4's charges and `05` §4.1's ward segments. A stateless function would have to take and return the whole battle on every call. So a handful of types under `Rules/Combat/` hold per-battle or per-actor state, each owned by exactly one caller, never shared and never `static`, so none carries the properties this annotation exists to protect. The list is **closed and mechanical**: `StatefulRuleTypeRuleTests.Stateful` is the authority, it fails the build on a type that is not on it, and equally on a listed type that has stopped holding state. Adding one is allowed and is a deliberate edit with its reason in the diff, which is the point. Everything else under `Rules/` — including every type in `Rules/Combat/` not on that list, `AttackPipeline` among them — is still the static, stateless calculator this line describes. ⚠️ The rule is scoped to `Rules/Combat/`; whether the same enumeration should cover `Rules/Effects/`'s trigger and stacking state is a milestone-review question, not M2-09's.
+
+⚠️ **The list is not restated here on purpose, and this paragraph replaces one that was.** M2-09 wrote the erratum above naming its five entries — `CombatLog`, `BattleSimulation`, `BattleActor`, `CombatFlowState`, `WardPool` — and by the end of M2 the rule enumerated **nine**: M2-10 added `Status.ActorStatuses`, `Status.StatusTimeline` and `Status.StunWindow`, and M2-12 added `Bosses.BossPhaseController` (`05` §3.1's *"while `currentPhase < PhaseFor(hp)`"* and *"phases never revert"* are both stated over what has already happened, which no function of present HP can recover). Three milestones running, the document's copy of the list was the one nobody updated. A second copy of a closed list is a second list; the rule file is the one that fails the build, so it is the one that holds the names.
 
 ### 11.5 Why `Model` does not reference `Rules` — and the trade this accepts ⚠️
 

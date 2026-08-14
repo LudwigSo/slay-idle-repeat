@@ -1,0 +1,922 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/effect.schema.json",
+  "title": "an EffectDefinition (18 §1)",
+  "description": "18 §1 — one authored effect. Every perk, talent, gear affix, pet aura, mount bonus, status effect, event outcome, shrine buff, curse and boss mechanic is one or more of these, and there is no per-perk, per-talent or per-boss code. VOCABULARY schema, not a content schema: it governs no data file of its own, because an effect is always embedded in the thing that owns it. The content-type schemas M2 and M3 author (perks, talents, pets, bosses) restate this shape; this file is what they restate. The root is deliberately a oneOf over seventeen closed key-shapes rather than one permissive object, so that an op-specific key on the wrong op is a validation failure and not a field that silently means nothing. The seventeenth branch is RANDOM_OUTCOME, the 44th op, added by M2-12 under 18 §10 (extension E6). A 45th op means adding a branch here, an EffectOp member and a row in 18 — all three, in the same commit (18 §10).",
+  "oneOf": [
+    {
+      "title": "18 §2.1 — STAT_ADD_FLAT / STAT_ADD_PCT / STAT_MULT",
+      "description": "18 §2.1 — the three aggregating stat ops. These are the only ops that admit the ALL_COMBAT group selector, because they are the only ones whose meaning survives being applied to fourteen stats at once (18 §9.1's CP_GLASS_HEART).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "stat"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "enum": ["STAT_ADD_FLAT", "STAT_ADD_PCT", "STAT_MULT"] },
+        "stat": { "$ref": "#/$defs/statSelector" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.1 — STAT_SET",
+      "description": "18 §2.1 — forces a stat to a value; 18 §9.1 names CP_GLASS_HEART as its only user, and writes it with valueMode FLAT. 🔒 One concrete stat, never ALL_COMBAT: 18 §9.1's ruling is TWO effects, a STAT_MULT over the group and a separate STAT_SET on MAX_HP, precisely because the group selector cannot express the second.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "stat"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "STAT_SET" },
+        "stat": { "$ref": "#/$defs/stat" },
+        "valueMode": { "$ref": "#/$defs/valueMode" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.1 — STAT_CONVERT",
+      "description": "18 §2.1 — converts a percentage of stat A into stat B (PK_TURTLE, PK_JUGGERNAUT). 🔒 M2-01 left the DESTINATION stat undeclared because 18 named no key for it; M2-03 adds it as 'toStat' under 18 §10's procedure (op + schema + document in one commit), because without it the op is unimplementable as authored. 'stat' is the SOURCE and 'toStat' the destination: 06's two named users, PK_TURTLE ('convert 20% of DEF into ATK') and PK_JUGGERNAUT ('convert 8% of Max HP into ATK'), share a destination and differ in source. Both keys are required — a conversion with one end unwritten converts nothing into nothing.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "stat", "toStat"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "STAT_CONVERT" },
+        "stat": { "$ref": "#/$defs/stat" },
+        "toStat": { "$ref": "#/$defs/toStat" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.1 — STAT_CAP_OVERRIDE",
+      "description": "18 §2.1 — raises or redirects a stat cap (the Perfect Strike keystone). 18 §7.6's Avatar of War is the worked example, and HEAL_CEILING was the only authored capKind — which is a ceiling on Heal() (05 §4.3), NOT one of 05 §1's six stat caps, so with that one token the op could neither raise a cap nor redirect one. M2-03 adds STAT_MAX (the raise) and REDIRECT_EXCESS (the redirect, 09 §4's Perfect Strike) under 18 §10, plus 'toStat' for the redirect's destination. 🔒 Keys only, never values: the new ceiling and the redirect ratio are both the effect's own 'value', so Perfect Strike's 1:4 stays in the talent catalogue.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "stat", "capKind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "STAT_CAP_OVERRIDE" },
+        "stat": { "$ref": "#/$defs/stat" },
+        "capKind": { "$ref": "#/$defs/capKind" },
+        "toStat": { "$ref": "#/$defs/toStat" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — STAT_COPY",
+      "description": "18 §2.4 — copies value × the copy-source's final resolved stat onto the holder as a percent-bucket add for duration, reading the start-of-tick snapshot so mutual copies cannot recurse. Its stat may be a stat name or HIGHEST_PCT_BONUS, which is the only op that admits that token.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "stat"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "STAT_COPY" },
+        "stat": { "$ref": "#/$defs/statCopySelector" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.2 — DAMAGE / DAMAGE_TRUE / DAMAGE_MAXHP_PCT / HEAL / HEAL_LEECH / REFLECT",
+      "description": "18 §2.2 — six of the seven damage and healing ops. value is a multiple of the source's ATK unless valueMode says otherwise.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "enum": ["DAMAGE", "DAMAGE_TRUE", "DAMAGE_MAXHP_PCT", "HEAL", "HEAL_LEECH", "REFLECT"] },
+        "valueMode": { "$ref": "#/$defs/valueMode" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.2 — SHIELD",
+      "description": "18 §2.2 — grants a WARD absorb. The seventh damage-and-healing op, split out for sourceCapPct: the total unbroken ward contributed by that effect instance is clamped at sourceCapPct × Max HP (PK_TRANSFUSION).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "SHIELD" },
+        "valueMode": { "$ref": "#/$defs/valueMode" },
+        "sourceCapPct": {
+          "description": "18 §2.2 — a fraction of Max HP. Bounded below only: 18 gives 0.20 for PK_TRANSFUSION and states no ceiling, and inventing one would be a number nobody agreed.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.3 — APPLY_STATUS / EXTEND_STATUS / IMMUNE_STATUS",
+      "description": "18 §2.3 — the three status ops that must name the status they act on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "statusId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "enum": ["APPLY_STATUS", "EXTEND_STATUS", "IMMUNE_STATUS"] },
+        "statusId": { "$ref": "#/$defs/statusId" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.3 — REMOVE_STATUS",
+      "description": "18 §2.3 — clears a status OR a tag group, which is why statusId is optional here and required on the other three: an effect that clears by tag names no status at all. M2-03 adds 'statusTag' under 18 §10 — the tag-group form had no key at all, so only the first half of the op was authorable. 🔒 statusTag is a STATUS label and is NOT the effect's own 'tags' array: 18 §1's tags label the effect and reserve 'drawback' for 05 §4.1's ward bypass. Exactly one of statusId / statusTag, never both and never neither.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "oneOf": [
+        { "title": "the status form", "required": ["statusId"] },
+        { "title": "the tag-group form", "required": ["statusTag"] }
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "REMOVE_STATUS" },
+        "statusId": { "$ref": "#/$defs/statusId" },
+        "statusTag": { "$ref": "#/$defs/statusTag" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — SUMMON",
+      "description": "18 §2.4 / §7.8 — spawns value enemies of an archetype, at most maxAlive at once.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "archetype"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "SUMMON" },
+        "archetype": {
+          "description": "18 §7.8 — an enemy archetype id, e.g. SWARM. Resolves against content/enemies/, which M2 authors; until then this is a shape constraint and not an id space.",
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "maxAlive": {
+          "description": "18 §7.8 — the ceiling on simultaneously living summons from this effect.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — RANDOM_OUTCOME",
+      "description": "18 §2.4 / §10.1 E6, added by M2-12 — one draw over a weighted table of MUTUALLY EXCLUSIVE outcomes: 17 §9's Dicelord Roll of Fate, one visible d6 with three results. 🔒 Not expressible as three chance-gated effects: 18 §4's conditions are pure functions of current state and a draw is not state, so three gates are three INDEPENDENT draws (all three can fire, or none) and spend THREE draw indices where 14 §8.0's WeightedPick spends ONE — and the draw counter is the persisted state of the stream, so the two readings desynchronise every later draw of the battle. 🔒 The table is the new 'outcomes' key and NOT 'value': $defs/value is [\"number\",\"null\"] and there is no collection-shaped value anywhere in the DSL, which is why 18 §10.1's doctrine is 'a key or a token, never a number'. value and valueScale are omitted from this branch entirely, so additionalProperties: false rejects an authored one at validation instead of mid-battle — the op's own number is the 1-based index of the row that won, which nothing authors.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "outcomes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "RANDOM_OUTCOME" },
+        "outcomes": { "$ref": "#/$defs/outcomes" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.5 — MODIFY_DIE_FACE",
+      "description": "18 §2.5 / §7.9 / §9.2 — replaces a die face. A run and board op, resolved by the run controller and never by the combat simulator; a COMBAT trigger may still emit it (18 §2.5's sanctioned combat-context exception, the Dicelord's Scramble firing it from PERIODIC), in which case the simulator appends RunEffectQueued and the run controller applies it in log order when the battle resolves.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "MODIFY_DIE_FACE" },
+        "faceIndex": { "$ref": "#/$defs/faceIndex" },
+        "newFace": { "$ref": "#/$defs/dieFace" },
+        "scope": {
+          "description": "18 §9.2's own scope key on PET_DICEBEAST, which is NOT duration.scope and uses a different vocabulary. Both spellings are authored in 18 and both are declared; which survives is a design decision, recorded as errata rather than settled here by deleting one.",
+          "enum": ["NEXT_3_ROLLS"]
+        },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.3 — STATUS_POWER_PCT / STATUS_DURATION_PCT",
+      "description": "18 §2.3 — the two status ops that scale statuses in bulk rather than naming one. STATUS_POWER_PCT scales the potency of statuses this actor applies; STATUS_DURATION_PCT scales the duration of statuses applied TO this actor.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "enum": ["STATUS_POWER_PCT", "STATUS_DURATION_PCT"] },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — ATTACK_MULT_NEXT",
+      "description": "18 §2.4 — 'multiply the damage of the next N attacks' by value. It needs an N as well as a multiplier, and the eight-part shape carries one 'value' which 05 §4 already spends on the multiplier (PK_OPENER's ×3 first attack). M2-03 adds 'charges' under 18 §10: without it the op could not say how many attacks it covers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "charges"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "ATTACK_MULT_NEXT" },
+        "charges": { "$ref": "#/$defs/charges" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — FORCE_CRIT_NEXT",
+      "description": "18 §2.4 — 'the next N attacks always crit'. 🔒 Split from ATTACK_MULT_NEXT because it carries NO value at all: how hard a forced crit hits is the actor's own CDMG (05 §4 step 4), and CombatFlowOps refuses an effect that authors one rather than ignoring it — {\"charges\": 2, \"value\": 3} reads as 'three attacks' to whoever wrote it. Omitting value and valueScale from this branch is what makes additionalProperties: false reject that at validation instead of mid-battle.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "charges"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "FORCE_CRIT_NEXT" },
+        "charges": { "$ref": "#/$defs/charges" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 — SURVIVE_LETHAL",
+      "description": "18 §2.4 — 'survive an otherwise-fatal hit at a given HP fraction'. 18 §7.4 authors PK_UNBREAKABLE with \"value\": 1, which as a fraction is FULL HP, while 06's row for the same perk reads 'survive a lethal hit at 1 HP'. M2-03 resolves the contradiction by giving the op a valueMode exactly as the 18 §2.2 damage ops have one, rather than by picking a reading: PK_UNBREAKABLE is {\"value\": 1, \"valueMode\": \"FLAT\"} = 1 HP. Recorded as errata against 18 §2.4 and §7.4. ⚠️ REVIVE has the identical shape and the identical wording and is deliberately NOT changed — no authored content needs a flat revive, and widening it too would be a key nobody asked for.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": { "const": "SURVIVE_LETHAL" },
+        "valueMode": { "$ref": "#/$defs/valueMode" },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    },
+    {
+      "title": "18 §2.4 / §2.5 — the ops that carry no key beyond the eight-part shape",
+      "description": "Six combat-flow ops (18 §2.4) and twelve run and board ops (18 §2.5) — eighteen in all. Listed explicitly rather than as 'everything else': a 45th op must be placed in a branch deliberately, and an enum here is what makes forgetting one a validation failure instead of a silent admission. RANDOM_OUTCOME, the 44th, is deliberately NOT here — it carries the 'outcomes' key and has a branch of its own.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/effectId" },
+        "op": {
+          "enum": [
+            "EXTRA_ATTACK",
+            "REDUCE_COOLDOWN",
+            "REVIVE",
+            "SET_TARGET_PRIORITY",
+            "DAMAGE_TAKEN_MULT",
+            "CLEAR_SUMMONS",
+            "GRANT_CURRENCY",
+            "GRANT_ITEM",
+            "GRANT_PERK",
+            "UPGRADE_PERK",
+            "GRANT_REROLL",
+            "MOVE_NODES",
+            "REVEAL_TILES",
+            "RESOLVE_TILE_AGAIN",
+            "MODIFY_SHOP",
+            "MODIFY_DROP_TABLE",
+            "APPLY_CURSE",
+            "CLEANSE_CURSE"
+          ]
+        },
+        "trigger": { "$ref": "#/$defs/trigger" },
+        "condition": { "$ref": "#/$defs/condition" },
+        "target": { "$ref": "#/$defs/target" },
+        "value": { "$ref": "#/$defs/value" },
+        "valueScale": { "$ref": "#/$defs/valueScale" },
+        "duration": { "$ref": "#/$defs/duration" },
+        "stacking": { "$ref": "#/$defs/stacking" },
+        "tags": { "$ref": "#/$defs/tags" }
+      }
+    }
+  ],
+
+  "$defs": {
+    "effectId": {
+      "description": "🔒 18 §8 — the authored, repository-unique effect id. Effect-id order is the ascending LEXICOGRAPHIC order of these, not draft order, and it is what removes the last source of order-dependence between client and server; 05 §3.1 keys on it in five places. Never derived, never defaulted, never positional. Uniqueness is 14 §6's duplicate-id failure class, not a second mechanism here. ⚠️ THE PATTERN IS AN INFERENCE, recorded as one: 18 writes no effect id anywhere, so no format is authored. This is the uppercase-snake shape every other id in the content set uses (PK_*, CP_*, BOSS_*, TILE_*, SYS_ENRAGE) and the same pattern chapter.schema.json applies to enemy-pool keys; it constrains shape only and asserts nothing about prefixes.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+
+    "value": {
+      "description": "18 §1 — the authored magnitude, before valueScale. Unbounded in both directions: 18 §7.10's Bog Air is -0.35 and 18 §7.6's Avatar of War is 1.20.",
+      "type": ["number", "null"]
+    },
+
+    "target": {
+      "description": "18 §5 — the eleven targets. OTHER_ENEMIES is valid only inside an attack context and degrades to ALL_ENEMIES elsewhere; OWNER skips the effect on an actor that is not a summon.",
+      "enum": [
+        "SELF",
+        "CURRENT_TARGET",
+        "OTHER_ENEMIES",
+        "ALL_ENEMIES",
+        "LOWEST_HP_ENEMY",
+        "HIGHEST_HP_ENEMY",
+        "RANDOM_ENEMY",
+        "ALL_PETS",
+        "ATTACKER",
+        "OWNER",
+        "RUN"
+      ]
+    },
+
+    "stat": {
+      "description": "18 §2.1 — the 26 stats: fourteen combat, twelve non-combat. 🔒 ALL_COMBAT is deliberately absent: it names a SET of stats, has no base value, no cap and no row in the aggregation, and the fourteen combat entries here are exactly the actor stat block the combat document fixes.",
+      "enum": [
+        "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
+        "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
+        "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
+        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT"
+      ]
+    },
+
+    "statSelector": {
+      "description": "18 §2.1 plus 18 §9.1's ALL_COMBAT — the 26 stats or the combat group. Admitted only by STAT_ADD_FLAT, STAT_ADD_PCT and STAT_MULT.",
+      "enum": [
+        "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
+        "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
+        "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
+        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT",
+        "ALL_COMBAT"
+      ]
+    },
+
+    "statCopySelector": {
+      "description": "18 §2.4 — the 26 stats or HIGHEST_PCT_BONUS, which names whichever stat carries the largest percent bucket at copy time. Admitted only by STAT_COPY.",
+      "enum": [
+        "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
+        "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
+        "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
+        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT",
+        "HIGHEST_PCT_BONUS"
+      ]
+    },
+
+    "valueMode": {
+      "description": "18 §2.2 — what value is a multiple of. ATK_MULT is the stated default. ⚠️ HEAL_AMOUNT and OVERHEAL_AMOUNT exist only inside ON_HEAL contexts, which this schema cannot assert: the context may come from the wrapper an effect list sits in rather than from the effect's own trigger (a pet active block carries no trigger of its own, 18 §7.7). M2-06 enforces it at evaluation.",
+      "enum": [
+        "ATK_MULT",
+        "FLAT",
+        "SELF_MAXHP_PCT",
+        "TARGET_MAXHP_PCT",
+        "TARGET_MISSING_HP_PCT",
+        "DAMAGE_DEALT_PCT",
+        "HEAL_AMOUNT",
+        "OVERHEAL_AMOUNT"
+      ]
+    },
+
+    "toStat": {
+      "description": "18 §2.1, added by M2-03 under 18 §10 — the DESTINATION stat of a STAT_CONVERT and of a REDIRECT_EXCESS cap override. 'stat' is the source. Never ALL_COMBAT and never HIGHEST_PCT_BONUS: a conversion writes to one concrete stat, and 18 §9.1's own ruling (CP_GLASS_HEART as two effects) is the precedent for why a group selector cannot stand in for one.",
+      "enum": [
+        "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
+        "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
+        "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
+        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT"
+      ]
+    },
+
+    "charges": {
+      "description": "18 §2.4, added by M2-03 under 18 §10 — the N of 'the next N attacks'. A whole number of attacks, so at least one: an effect granting zero charges is authored dead weight, not a design.",
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "statusTag": {
+      "description": "18 §2.3, added by M2-03 under 18 §10 — the tag group REMOVE_STATUS clears. 🔒 A STATUS label, a different vocabulary from the effect's own 'tags' array (18 §1), which labels the EFFECT and reserves 'drawback' for the ward-bypass list the combat document states. Not a closed set: the twelve statuses that document fixes carry no tags yet, and enumerating a guess would invent a taxonomy nobody agreed.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+
+    "capKind": {
+      "description": "18 §7.6 — which cap a STAT_CAP_OVERRIDE raises or redirects. HEAL_CEILING is the one token 18 authors and is a ceiling on Heal() (05 §4.3), not one of 05 §1's six stat caps; M2-03 adds STAT_MAX and REDIRECT_EXCESS under 18 §10 so that §2.1's own 'raise or redirect' is expressible at all. 🔒 Keys, not values — the ceiling and the ratio are the effect's 'value'.",
+      "enum": ["HEAL_CEILING", "STAT_MAX", "REDIRECT_EXCESS"]
+    },
+
+    "statusId": {
+      "description": "The twelve statuses the combat document fixes, which 18 §2.3 refers to rather than restating.",
+      "enum": [
+        "BURN", "POISON", "BLEED", "FREEZE", "STUN", "WEAKEN",
+        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN"
+      ]
+    },
+
+    "dieFaceKind": {
+      "description": "The six DieFaceKind names the dice document fixes, spelled as 18 §7.9 and §9.2 write them.",
+      "enum": ["Pip", "Star", "Surge", "Fortune", "Void", "Chain"]
+    },
+
+    "dieFace": {
+      "description": "18 §7.9 — the replacement face a MODIFY_DIE_FACE writes: {\"kind\":\"Pip\",\"value\":4} or {\"kind\":\"Star\"}. The dice document's DieFace also carries a Tier; no effect in 18 writes one, so none is admitted here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/dieFaceKind" },
+        "value": {
+          "description": "Pips, for Pip faces; ignored otherwise.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        }
+      }
+    },
+
+    "outcomes": {
+      "description": "18 §10.1 E6 — RANDOM_OUTCOME's weighted table. minItems 2 because one outcome is not a choice: an effect that always fires should be authored directly rather than spending a combat draw index to reach itself. 🔒 Each row names a SIBLING effect id — an id declared by the SAME owning content as the RANDOM_OUTCOME itself — and never embeds an effect object. An effect is embedded in the content that owns it rather than living in a registry, so the reference resolves inside that one owner and needs nothing global: the boss encounter builder is holding the script's own effect set at the moment it has to answer, and it refuses a row naming an id the script does not declare. It is a reference rather than a nested object for three reasons: (1) the outcome rows are ordinary phase mechanics that must ALSO sit on ActorPlan.Effects to be registered, telegraphable and resolvable in the battle's effect table, so inlining would author each one twice and give the log two identities for one mechanic; (2) no other op nests an effect inside an effect and this file's oneOf is a closed op-to-key partition with no branch shaped like one; (3) a nested effect would sit outside 18 §8's ascending-effect-id ordering and outside every id-keyed lookup 05 §3.1 and 05 §4 make. ⚠️ uniqueItems catches two IDENTICAL rows only; a table naming one effect twice at DIFFERENT weights is refused by EffectOpValidation, which is also where the self-reference and all-zero-weights rules live — this schema cannot compare a row against the effect's own id.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["effectId", "weight"],
+        "properties": {
+          "effectId": { "$ref": "#/$defs/effectId" },
+          "weight": {
+            "description": "14 §8.0 — the row's share of the one draw, relative and not a probability: 17 §9's Roll of Fate is 2/2/2 in phase 1 and 4/2 in phase 2, one op and no branch. 🔒 Zero is admitted and DISABLES the row — the weighted walk's comparison is strict, so a zero-weight row is unreachable wherever it sits, which is how content turns one outcome off without renumbering the others.",
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+
+    "faceIndex": {
+      "description": "18 §7.9 — which face is replaced. PLAYER_CHOICE is the only form 18 writes; the numbered form is taken to be 1-based over the six faces the dice document gives the die, which is how that document prints the starting die. The base is an inference and is recorded as such.",
+      "oneOf": [
+        { "const": "PLAYER_CHOICE", "type": "string" },
+        { "type": "integer", "minimum": 1, "maximum": 6 }
+      ]
+    },
+
+    "tags": {
+      "description": "18 §1 / §7.5 — free-form author tags (\"offense\", \"drawback\") on the EFFECT. 🔒 'drawback' is RESERVED: it is the marker 05 §4.1's ward bypass list (b) keys on, defined by 18 §7.5's CP_BLOOD_PRICE. ⚠️ NOT what REMOVE_STATUS means by a tag group — that is $defs/statusTag, a label on a STATUS, and the two are separate C# types so they cannot be confused. Not a closed set: no document catalogues them, and enumerating a guess would be worse than a shape.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+    },
+
+    "valueScale": {
+      "description": "🔒 18 §1.1 — effectiveValue = value × steps, steps = min(floor(fn / per), cap). fn is evaluated against current state and rounded to 4 decimal places BEFORE the division. null — the default — means effectiveValue = value. 🔴 ERRATUM ON 18 §1.1, closed by M2-06 via §10's route: §1.1 offers fn 'any condition function from §4' and its own worked list names STATUS_STACKS and DIE_FACE_COUNT, but both take an argument (§4 types DIE_FACE_COUNT 'by face kind'; STATUS_STACKS counts one status, the same one §4 types HAS_STATUS 'by status id' — §4's own STATUS_STACKS row states no argument at all, which is the same gap one section over) and §1.1's table declared no field to carry either — so a scale over either was unexpressible, and the two functions were offered for something the vocabulary could not do. The three argument keys below close it. They are NOT new vocabulary: they are conditionTerm's own three keys, pointed at the same $defs, so a function reads an argument the same way from a scale as from a condition.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["fn", "per"],
+      "properties": {
+        "fn": { "$ref": "#/$defs/conditionFunction" },
+        "per": {
+          "description": "18 §1.1 — state units per step. The divisor, so never zero and never negative.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "cap": {
+          "description": "18 §1.1 — the maximum number of steps; null is uncapped (PK_HOARD).",
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "statusId": {
+          "description": "18 §4 — the status STATUS_STACKS and HAS_STATUS read ('by status id'). Required in practice by those two functions and meaningless to the rest; the evaluator refuses a STATUS_STACKS scale that names none rather than counting every status.",
+          "$ref": "#/$defs/statusId"
+        },
+        "faceKind": {
+          "description": "18 §4 — the 04 §1 face kind DIE_FACE_COUNT counts ('by face kind'). Same rule as statusId.",
+          "$ref": "#/$defs/dieFaceKind"
+        },
+        "category": {
+          "description": "18 §4 — the perk category PERK_COUNT restricts to ('optionally by category'). Genuinely optional, exactly as it is on a condition term: its absence counts every perk.",
+          "$ref": "#/$defs/perkCategory"
+        }
+      }
+    },
+
+    "duration": {
+      "description": "18 §6 — how long the effect lasts. seconds is optional because a scope alone can end an effect (18 §7.10's Bog Air is {\"scope\":\"PHASE\"}). 🔒 until fires whichever comes first, terminator or timer.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["scope"],
+      "properties": {
+        "scope": {
+          "description": "18 §6 — the six scopes. PHASE ends when the boss exits the phase the effect was applied in, and behaves as BATTLE outside a boss fight.",
+          "enum": ["INSTANT", "BATTLE", "PHASE", "STAGE", "RUN", "PERMANENT"]
+        },
+        "seconds": {
+          "description": "18 §6 — seconds of battle time.",
+          "type": "number",
+          "minimum": 0
+        },
+        "until": {
+          "description": "18 §6 — an early terminator. WARD_BROKEN is the only one 18 authors (Ossify's DR buff); a second takes 18 §10's route.",
+          "enum": ["WARD_BROKEN"]
+        }
+      }
+    },
+
+    "stacking": {
+      "description": "18 §6 — how a second application combines with the first. maxStacks absent or null is uncapped: the built-in enrage is multiplicative and uncapped, so the absence has to mean something other than one.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["ADDITIVE", "MULTIPLICATIVE", "REPLACE", "HIGHEST_WINS", "NONE"] },
+        "maxStacks": { "type": ["integer", "null"], "minimum": 1 },
+        "refreshOnReapply": { "type": "boolean" }
+      }
+    },
+
+    "conditionFunction": {
+      "description": "18 §4 — the 23 condition functions, which are also the domain of valueScale.fn (18 §1.1: 'any condition function from §4'). The three ATTACKER_IS_* are valid only in contexts with an attacker and read false elsewhere; that is an evaluation rule, not a vocabulary rule, so they are admitted everywhere a condition is.",
+      "enum": [
+        "SELF_HP_PCT",
+        "TARGET_HP_PCT",
+        "SELF_MISSING_HP_PCT",
+        "ENEMY_COUNT",
+        "TARGET_IS_ELITE",
+        "TARGET_IS_BOSS",
+        "BATTLE_TIME",
+        "BATTLE_TIME_REMAINING_EST",
+        "HAS_STATUS",
+        "STATUS_STACKS",
+        "PERK_COUNT",
+        "DISTINCT_PERK_CATEGORIES",
+        "PET_COUNT",
+        "DIE_FACE_COUNT",
+        "GOLD_HELD",
+        "BATTLES_WON_THIS_RUN",
+        "STAGE_INDEX",
+        "CHAPTER",
+        "TIER",
+        "IS_PVP",
+        "ATTACKER_IS_ELITE",
+        "ATTACKER_IS_BOSS",
+        "ATTACKER_IS_SUMMON"
+      ]
+    },
+
+    "comparator": {
+      "description": "18 §4 — the seven comparators. Lower-case, unlike every other token in the DSL, because that is how 18 §4 writes them.",
+      "enum": ["eq", "neq", "lt", "lte", "gt", "gte", "between"]
+    },
+
+    "condition": {
+      "description": "18 §4 — a condition tree: a comparison, or one of the three combinators all / any / not. Conditions gate an effect without changing when it is evaluated, and all are pure functions of current state. null is ungated.",
+      "oneOf": [
+        {
+          "title": "a comparison",
+          "description": "18 §4 — {\"fn\": …, \"op\": …, \"value\": …}. The three optional argument keys are what 18 §4's table means by 'optionally by category', 'by status id' and 'by face kind'; 18 writes no worked example carrying one, so the key NAMES are reused from the ones 18 §2 and §3 already authorise for the same three things rather than invented.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fn", "op", "value"],
+          "properties": {
+            "fn": { "$ref": "#/$defs/conditionFunction" },
+            "op": { "$ref": "#/$defs/comparator" },
+            "value": {
+              "description": "The number or boolean compared against; a two-element array is the 'between' form. 18 lists that comparator and never writes one, so the two-element encoding is an assumption about SHAPE, not a number anyone invented.",
+              "oneOf": [
+                { "type": "number" },
+                { "type": "boolean" },
+                { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } }
+              ]
+            },
+            "statusId": { "$ref": "#/$defs/statusId" },
+            "faceKind": { "$ref": "#/$defs/dieFaceKind" },
+            "category": { "$ref": "#/$defs/perkCategory" }
+          }
+        },
+        {
+          "title": "all",
+          "description": "18 §4 — every operand holds.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["all"],
+          "properties": {
+            "all": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/condition" } }
+          }
+        },
+        {
+          "title": "any",
+          "description": "18 §4 — at least one operand holds.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["any"],
+          "properties": {
+            "any": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/condition" } }
+          }
+        },
+        {
+          "title": "not",
+          "description": "18 §4 — the single operand does not hold.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["not"],
+          "properties": {
+            "not": { "$ref": "#/$defs/condition" }
+          }
+        },
+        {
+          "title": "ungated",
+          "description": "18 §1's canonical effect writes \"condition\": null explicitly.",
+          "type": "null"
+        }
+      ]
+    },
+
+    "perkCategory": {
+      "description": "A perk category. NOT a closed set here: the perks document names the six categories in prose and writes only one of them as a token, so the other five spellings would have to be invented. M3's perk schema closes it once the tokens are fixed.",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+
+    "trigger": {
+      "description": "18 §3 — when the effect fires. The 23 kinds are partitioned into fourteen closed parameter shapes, so a parameter on the wrong kind is a validation failure rather than a key that silently does nothing. null is admitted because 18 §9.1's CP_GLASS_HEART and 18 §7.7's pet active effects carry no trigger — the pet's ability cooldown is the wrapper's, not the effect's — and 18 states no default; supplying one here would be manufacturing a rule.",
+      "oneOf": [
+        {
+          "title": "18 §3 — no parameters",
+          "description": "ALWAYS is the passive form. The last three are run-layer boundaries the run controller fires; ON_HEAL, in the middle of the list, is a combat trigger.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "enum": [
+                "ALWAYS",
+                "ON_BATTLE_START",
+                "ON_DEATH",
+                "ON_REVIVE",
+                "ON_HEAL",
+                "ON_STAGE_GATE",
+                "ON_RUN_START",
+                "ON_RUN_END"
+              ]
+            }
+          }
+        },
+        {
+          "title": "18 §3 — ON_BATTLE_END",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_BATTLE_END" },
+            "onlyIfWon": { "type": "boolean" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_ATTACK",
+          "description": "18 §3 — everyNth counters live on the effect instance, and ON_ATTACK's reset at battle start. ⚠️ chance is a ruled EXTENSION (R11), applied by 18 §10's procedure: 18 §3 gave ON_ATTACK only everyNth while the perks document authors per-attack random perks, and ON_HIT and ON_CRIT already carry chance — so this is a uniformity fix rather than a new concept. ON_KILL deliberately does NOT gain it, which is why the two kinds no longer share this branch.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_ATTACK" },
+            "everyNth": { "type": "integer", "minimum": 1 },
+            "chance": { "$ref": "#/$defs/probability" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_KILL",
+          "description": "18 §3 — ON_KILL's everyNth counter persists across battles for the run, unlike ON_ATTACK's. It never fires in a duel, and a duel kill does not advance it either: the counter belongs to the run and a duel is not part of one.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_KILL" },
+            "everyNth": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "title": "18 §3 — ON_HIT / ON_CRIT",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["ON_HIT", "ON_CRIT"] },
+            "chance": { "$ref": "#/$defs/probability" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_HIT_TAKEN",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_HIT_TAKEN" },
+            "chance": { "$ref": "#/$defs/probability" },
+            "cooldown": { "$ref": "#/$defs/seconds" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_DODGE / ON_BLOCK",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["ON_DODGE", "ON_BLOCK"] },
+            "cooldown": { "$ref": "#/$defs/seconds" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_LOW_HP",
+          "description": "18 §3.1 — threshold is CONSTITUTIVE: an ON_LOW_HP with none names no crossing, so it is required here rather than defaulted at read time.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "threshold"],
+          "properties": {
+            "kind": { "const": "ON_LOW_HP" },
+            "threshold": { "$ref": "#/$defs/probability" },
+            "once": { "type": "boolean" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_LETHAL",
+          "description": "⚠️ once is a boolean, per 18 §7.4's \"once\": true. The combat document describes the same field as a count; that contradiction is recorded as errata and 18's spelling wins here because 18 owns the DSL.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_LETHAL" },
+            "once": { "type": "boolean" }
+          }
+        },
+        {
+          "title": "18 §3 — PERIODIC",
+          "description": "18 §3.1 — interval is CONSTITUTIVE: a PERIODIC with none has no period. R8 anchors the schedule when the owning effect becomes ACTIVE, and an absent startDelay is one interval. 18 §3 — every interval seconds of battle time, first firing after startDelay. The built-in enrage is {interval: 1.0, startDelay: 70.0}.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "interval"],
+          "properties": {
+            "kind": { "const": "PERIODIC" },
+            "interval": { "type": "number", "exclusiveMinimum": 0 },
+            "startDelay": { "$ref": "#/$defs/seconds" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_PHASE_ENTER",
+          "description": "18 §3.1 — phase is CONSTITUTIVE: an ON_PHASE_ENTER with none cannot say which entry it means, and firing on all three would triple a boss phase block.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "phase"],
+          "properties": {
+            "kind": { "const": "ON_PHASE_ENTER" },
+            "phase": {
+              "description": "The boss phase. Three phases, per the two phase thresholds the combat document fixes.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3
+            }
+          }
+        },
+        {
+          "title": "18 §3 — ON_TILE_RESOLVED",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_TILE_RESOLVED" },
+            "tileType": { "type": "string", "pattern": "^TILE_[A-Z0-9_]+$" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_ROLL",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_ROLL" },
+            "faceKind": { "$ref": "#/$defs/dieFaceKind" }
+          }
+        },
+        {
+          "title": "18 §3 — ON_PERK_TAKEN",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "ON_PERK_TAKEN" },
+            "category": { "$ref": "#/$defs/perkCategory" }
+          }
+        },
+        {
+          "title": "no trigger",
+          "description": "18 §9.1 and 18 §7.7 author effects with no trigger of their own.",
+          "type": "null"
+        }
+      ]
+    },
+
+    "probability": {
+      "description": "A 0..1 fraction, drawn from the deterministic RNG at fire time.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+
+    "seconds": {
+      "description": "Seconds of battle time.",
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

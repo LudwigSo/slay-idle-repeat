@@ -445,6 +445,112 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
+    /// 🔒 A record carrying a public <b>field</b> is refused — the same zero-byte defect as the two
+    /// tests above, reached by the door the property check cannot watch.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A field is neither a primary-constructor parameter nor a property, so it falls through both
+    /// halves of the shape check. Before this rule, <c>CombatEventAsDocumented</c> hashed
+    /// <b>only its constructor parameter</b> and its two fields contributed nothing.
+    /// </para>
+    /// <para>
+    /// ⚠️ The fixture is named after `05` §7's <c>CombatEvent</c> because that is where the shape
+    /// actually appears: the battle <c>LogHash</c> is defined over exactly such a record, and
+    /// M2-15 would have shipped a hash over one sixth of its own event had this stayed open.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void CanonicalBytes_refuses_a_record_carrying_a_public_field()
+    {
+        var act = () => CanonicalStateWriter.CanonicalBytes(
+            new UnsupportedSnapshots.CombatEventAsDocumented(3) { SourceId = 4, Value = 41.2536 });
+
+        var thrown = Should.Throw<NotSupportedException>(act);
+
+        thrown.Message.ShouldContain("16.6", Case.Sensitive);
+        thrown.Message.ShouldContain("ZERO BYTES", Case.Sensitive);
+
+        // S2 — the generic rule list names BOTH the property-shape and the field-shape reason, so a
+        // fragment of it cannot tell the two branches apart. This sentence is emitted only by the
+        // field branch, and it names the offending fields.
+        thrown.Message.ShouldContain(
+            "SPECIFICALLY: CombatEventAsDocumented declares the public instance field(s) [SourceId, Value]",
+            Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 And it is refused rather than silently hashed to a fraction of itself: two instances that
+    /// record equality calls different, differing <b>only</b> in their fields, must not both reach a
+    /// hash.
+    /// </summary>
+    /// <remarks>
+    /// This is the assertion that fails loudly if the field rule is ever removed. Without the rule
+    /// both calls succeed and return the <i>same</i> value — which is why the test is written as two
+    /// refusals over a demonstrated inequality rather than as a hash comparison: a hash comparison
+    /// would have to spell out the collision it is trying to prevent.
+    /// </remarks>
+    [Fact]
+    public void HashMetaCommandState_refuses_the_shape_whose_fields_it_cannot_see()
+    {
+        var quiet = new UnsupportedSnapshots.CombatEventAsDocumented(3) { SourceId = 0, Value = 0.0 };
+        var busy = new UnsupportedSnapshots.CombatEventAsDocumented(3) { SourceId = 99, Value = 41.2536 };
+
+        busy.ShouldNotBe(quiet, "record equality sees the fields — that is what makes a shared hash a defect");
+
+        Should.Throw<NotSupportedException>(() => CanonicalStateWriter.HashMetaCommandState(quiet));
+        Should.Throw<NotSupportedException>(() => CanonicalStateWriter.HashMetaCommandState(busy));
+    }
+
+    /// <summary>
+    /// A <c>readonly</c> public field is refused too — <c>readonly</c> changes nothing about
+    /// visibility to the encoding, and it is the only form a <c>readonly struct</c> could take.
+    /// </summary>
+    [Fact]
+    public void CanonicalBytes_refuses_a_record_carrying_a_readonly_public_field()
+    {
+        var act = () => CanonicalStateWriter.CanonicalBytes(
+            UnsupportedSnapshots.WithReadonlyPublicField.With(3, 4));
+
+        Should.Throw<NotSupportedException>(act).Message.ShouldContain(
+            "SPECIFICALLY: WithReadonlyPublicField declares the public instance field(s) [SourceId]",
+            Case.Sensitive);
+    }
+
+    /// <summary>
+    /// And the property-shape refusal does <b>not</b> claim a field problem — the two branches are
+    /// distinguishable in both directions (S2).
+    /// </summary>
+    [Fact]
+    public void The_property_shape_refusal_does_not_name_a_field()
+    {
+        var thrown = Should.Throw<NotSupportedException>(
+            () => CanonicalStateWriter.CanonicalBytes(
+                new UnsupportedSnapshots.WithPropertyOutsideTheConstructor(1, 3) { RevivesUsed = 99 }));
+
+        thrown.Message.ShouldNotContain("SPECIFICALLY", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// The field rule refuses the shape rather than the <i>type</i>: the same record with its fields
+    /// promoted into the primary constructor hashes normally.
+    /// </summary>
+    /// <remarks>
+    /// S2 — without this, the two tests above would pass just as well against a writer that had
+    /// started refusing every record for some unrelated reason.
+    /// </remarks>
+    [Fact]
+    public void A_record_whose_fields_are_constructor_parameters_still_hashes()
+    {
+        var promoted = new PromotedFieldsSnapshot(3, 4, 41.2536);
+
+        Should.NotThrow(() => CanonicalStateWriter.CanonicalBytes(promoted));
+
+        CanonicalStateWriter.HashMetaCommandState(promoted)
+            .ShouldNotBe(CanonicalStateWriter.HashMetaCommandState(promoted with { SourceId = 99 }));
+    }
+
+    /// <summary>
     /// A snapshot nested deeper than the writer's descent limit terminates with a diagnosable
     /// failure rather than a stack overflow. Snapshots are shallow trees by construction; runaway
     /// depth is a bug in the snapshot, and it must be sayable rather than fatal to the process.
@@ -476,4 +582,10 @@ public sealed class CanonicalStateWriterTests
 
     /// <summary>Payload sizes straddling the buffer boundaries an encoder is likely to pick.</summary>
     public static TheoryData<int> BufferBoundaryLengths() => new() { 1, 255, 256, 257, 65536 };
+
+    /// <summary>
+    /// <see cref="UnsupportedSnapshots.CombatEventAsDocumented"/> with its fields promoted into the
+    /// primary constructor — the shape the field rule is steering authors toward.
+    /// </summary>
+    private sealed record PromotedFieldsSnapshot(int Tick, byte SourceId, double Value);
 }

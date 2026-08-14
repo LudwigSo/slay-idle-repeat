@@ -206,8 +206,14 @@
       "properties": {
         "_doc": { "type": "string", "minLength": 1 },
         "eliteKillItems": { "type": "integer", "minimum": 0 },
-        "bossKillItemsMin": { "type": "integer", "minimum": 0 },
-        "bossKillItemsMax": { "type": "integer", "minimum": 0 },
+        "bossKillItemsMin": {
+          "description": "17 §10 — the Gear drops column of the boss reward table, at its floor: chapters 1-3 pay '2 items'. 📐 Authored once, here, rather than per boss — content/bosses/ carries a boss's identity and mechanics, and its payout is economy.",
+          "type": "integer", "minimum": 0
+        },
+        "bossKillItemsMax": {
+          "description": "17 §10 — the same column at its ceiling: chapters 4-8 pay '3 items'. The rarity cap that column also states (B-, A-, S-, SS-capped by chapter) is the drop table's rarity band, not a count, and is not authored on this pair.",
+          "type": "integer", "minimum": 0
+        },
         "normalEnemyChance": { "type": "number", "minimum": 0, "maximum": 1 },
         "treasureTileChance": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
       }
