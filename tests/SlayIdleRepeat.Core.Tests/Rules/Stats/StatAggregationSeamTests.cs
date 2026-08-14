@@ -216,7 +216,6 @@ public sealed class StatAggregationSeamTests
         result.Final[StatId.ATK].ShouldBe(32.0, "20 + 5 + 7 — both deltas applied by the pipeline");
     }
 
-    /// <summary>The cap-override seam really replaces step 9's table.</summary>
     [Fact]
     public void A_cap_override_double_replaces_the_step_9_table()
     {

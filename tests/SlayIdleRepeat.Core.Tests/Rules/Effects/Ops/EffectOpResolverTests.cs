@@ -184,7 +184,6 @@ public sealed class EffectOpResolverTests
         bench.Calls.ShouldAllBe(c => c.StartsWith($"{nameof(ITriggeredStatSink.Apply)}:"));
     }
 
-    /// <summary>Both arguments are required.</summary>
     [Fact]
     public void The_arguments_are_required()
     {

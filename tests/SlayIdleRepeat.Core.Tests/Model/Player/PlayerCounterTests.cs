@@ -40,7 +40,6 @@ public sealed class PlayerCounterTests
         player.DailyCounters.Keys.ShouldBe(new[] { "some_future_system" });
     }
 
-    /// <summary>Increments accumulate within a period.</summary>
     [Fact]
     public void Increments_accumulate_within_a_period()
     {
@@ -316,7 +315,6 @@ public sealed class PlayerCounterTests
         player.DailyCount("ad_caps").ShouldBe(1);
     }
 
-    /// <summary>A persisted counter map with a blank key or a negative count is a corrupt row.</summary>
     [Fact]
     public void A_persisted_counter_map_with_a_blank_key_or_a_negative_count_is_refused()
     {

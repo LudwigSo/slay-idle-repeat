@@ -210,7 +210,6 @@ public sealed class CombatLogTests
             .Message.ShouldContain("Complete", Case.Sensitive);
     }
 
-    /// <summary>A log with no <c>BattleStart</c> cannot be completed.</summary>
     [Fact]
     public void A_log_with_no_BattleStart_cannot_be_completed()
     {

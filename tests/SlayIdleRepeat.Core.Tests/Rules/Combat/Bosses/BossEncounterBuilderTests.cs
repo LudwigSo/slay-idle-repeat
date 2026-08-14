@@ -138,7 +138,6 @@ public sealed class BossEncounterBuilderTests
             "reach it, so nothing can re-anchor its R8 clock");
     }
 
-    /// <summary>The encounter carries the boundaries `17` §1 gives it, for the first-clear flag.</summary>
     [Theory]
     [InlineData(false, 0.66)]
     [InlineData(true, 0.5920)]

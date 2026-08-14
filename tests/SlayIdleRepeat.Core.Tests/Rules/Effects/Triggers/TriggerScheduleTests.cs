@@ -140,7 +140,6 @@ public sealed class TriggerScheduleTests
         TriggerSchedule.FirstFiringTick(absent, 400).ShouldBe(400 + TriggerTestBattle.At(14.0));
     }
 
-    /// <summary>An absent <c>cooldown</c> is no cooldown, and a written one is its span in ticks.</summary>
     [Fact]
     public void A_cooldown_is_its_span_in_ticks_and_absent_means_none()
     {

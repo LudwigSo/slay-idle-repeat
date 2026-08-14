@@ -130,7 +130,7 @@ public sealed class StatusOpTests
         bench.Calls.ShouldBeEmpty();
     }
 
-    /// <summary>`18` §2.3 — <c>EXTEND_STATUS</c> adds <c>value</c> seconds to a live status.</summary>
+    /// <summary>`18` §2.3.</summary>
     [Fact]
     public void EXTEND_STATUS_adds_its_value_in_seconds()
     {
@@ -170,7 +170,7 @@ public sealed class StatusOpTests
         bench.Calls.ShouldBeEmpty();
     }
 
-    /// <summary>`18` §2.3 — <c>IMMUNE_STATUS</c> grants immunity to the named status.</summary>
+    /// <summary>`18` §2.3.</summary>
     [Fact]
     public void IMMUNE_STATUS_grants_immunity_to_the_named_status()
     {

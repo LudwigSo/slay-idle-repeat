@@ -214,7 +214,6 @@ public sealed class DslDeterminismBaselineTests
             "stability is not correctness, and the file says which of the two it carries");
     }
 
-    /// <summary>The committed table is a table of the corpus this build actually generates.</summary>
     [Fact]
     public void The_committed_table_names_the_seed_and_the_shape_this_build_generates()
     {

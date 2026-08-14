@@ -102,7 +102,6 @@ public sealed class EffectOpSeamTests
         thrown.Message.ShouldNotContain("M2-03", Case.Sensitive, "the name in the title is half the claim");
     }
 
-    /// <summary>An effect with no value is refused rather than read as zero (steering S6).</summary>
     [Fact]
     public void An_effect_with_no_value_is_refused_rather_than_read_as_zero()
     {

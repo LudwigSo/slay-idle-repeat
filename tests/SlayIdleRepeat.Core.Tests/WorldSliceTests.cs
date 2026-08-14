@@ -11,7 +11,6 @@ namespace SlayIdleRepeat.Core.Tests;
 /// </summary>
 public sealed class WorldSliceTests
 {
-    /// <summary>A slice carries the aggregates it was handed.</summary>
     [Fact]
     public void A_slice_carries_the_aggregates_it_was_handed()
     {

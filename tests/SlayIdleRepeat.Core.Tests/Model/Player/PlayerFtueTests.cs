@@ -116,7 +116,6 @@ public sealed class PlayerFtueTests
         player.FtueBeat.ShouldBe(FtueBeat.B5);
     }
 
-    /// <summary>An undefined beat is refused outright.</summary>
     [Fact]
     public void An_undefined_beat_is_refused()
     {

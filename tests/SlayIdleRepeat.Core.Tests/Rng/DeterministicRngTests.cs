@@ -298,7 +298,6 @@ public sealed class DeterministicRngTests
         fromDice.SequenceEqual(fromBoard).ShouldBeFalse();
     }
 
-    /// <summary>The same stream over two seeds is likewise two sequences.</summary>
     [Fact]
     public void The_same_stream_over_different_seeds_produces_different_sequences()
     {

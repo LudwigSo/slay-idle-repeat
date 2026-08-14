@@ -156,7 +156,7 @@ public sealed class ConditionFunctionTests
             "18 §7.10's R10 reading: the boss's enemies are the hero side, and 05 §3.2 keeps pets out");
     }
 
-    /// <summary>`18` §4 — <c>TARGET_IS_ELITE</c> and <c>TARGET_IS_BOSS</c> read the current target.</summary>
+    /// <summary>`18` §4.</summary>
     [Fact]
     public void TARGET_IS_ELITE_and_TARGET_IS_BOSS_read_the_current_target()
     {

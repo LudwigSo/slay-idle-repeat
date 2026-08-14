@@ -475,7 +475,6 @@ public sealed class EnergyMathTests
 
     // ------------------------------------------------------------------ spending
 
-    /// <summary>`28` C2 — "a run draws from the main bar first".</summary>
     [Fact]
     public void A_run_draws_from_the_main_bar_first()
     {

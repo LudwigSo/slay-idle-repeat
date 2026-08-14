@@ -115,7 +115,6 @@ public sealed class CommandResultTests
             .Message.ShouldContain("A REFUSED result carries 1 event(s)", Case.Sensitive);
     }
 
-    /// <summary>An accepted result may carry events, or none.</summary>
     [Fact]
     public void An_accepted_result_may_carry_events_or_none()
     {

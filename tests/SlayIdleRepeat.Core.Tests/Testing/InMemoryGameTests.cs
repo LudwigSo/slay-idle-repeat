@@ -271,7 +271,6 @@ public sealed class InMemoryGameTests
             "is per slice, and a shared slice is what a dictionary keyed wrongly would produce.");
     }
 
-    /// <summary>A blank display name is refused; <c>null</c> means "generate one".</summary>
     [Fact]
     public void A_blank_display_name_is_refused_and_null_generates_one()
     {

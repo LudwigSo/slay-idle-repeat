@@ -207,7 +207,6 @@ public sealed class ConditionComparatorAndCombinatorTests
         ConditionEvaluator.IsSatisfied(condition, Battle(heroHp, enemies)).ShouldBe(expected);
     }
 
-    /// <summary><c>not</c> inverts its single operand.</summary>
     [Theory]
     [InlineData(100, false)]
     [InlineData(99, true)]

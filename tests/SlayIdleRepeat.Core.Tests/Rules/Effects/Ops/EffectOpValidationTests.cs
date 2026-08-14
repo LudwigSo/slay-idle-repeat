@@ -90,7 +90,6 @@ public sealed class EffectOpValidationTests
                           .ShouldBe(!admitted);
     }
 
-    /// <summary><c>HIGHEST_PCT_BONUS</c> is <c>STAT_COPY</c>'s alone (`18` §2.4).</summary>
     [Fact]
     public void HIGHEST_PCT_BONUS_is_admitted_only_by_STAT_COPY()
     {

@@ -9,38 +9,18 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
 /// 🔒 The <b>residue</b> of `05` §4 — the claims no <see cref="SimulationResult"/> can report and no
-/// public entry point can provoke.
+/// public entry point can provoke. <see cref="DamageResolutionTests"/> is where §4's ten steps are
+/// pinned.
 /// </summary>
 /// <remarks>
+/// Three groups: draw discipline (<c>DeterministicRng.Position</c> is <em>"the entire persistable
+/// state of this stream"</em> and appears in no <c>CombatEvent</c>, yet a spent or skipped draw
+/// desynchronises a client for the rest of the fight); `05` §4.2's non-attack damage routes, whose
+/// whole observable difference is the ward pool's balance; and two guards against a caller the
+/// public entry points cannot be.
 /// <para>
-/// 🔒 <b>Read <see cref="DamageResolutionTests"/> first.</b> That suite is where `05` §4's ten steps
-/// are pinned: every case runs through <see cref="CombatSimulator.SimulateDuel"/> and asserts on the
-/// combat log. This file holds only what is left over, in three groups, each here for a stated
-/// reason:
-/// </para>
-/// <list type="bullet">
-///   <item>
-///     <b>Draw discipline.</b> <c>DeterministicRng.Position</c> is <em>"the entire persistable state
-///     of this stream"</em>, and it appears in no <c>CombatEvent</c>. A spent or skipped draw
-///     desynchronises a client from the server for the rest of the fight, so the counts are
-///     load-bearing for `11` §6 — and only reachable through <c>BattleServices</c>.
-///   </item>
-///   <item>
-///     <b>`05` §4.2's non-attack damage routes.</b> <c>DealTrueDamage</c> and
-///     <c>DealMaxHpPctDamage</c> are pipeline methods; reaching them from outside would need an
-///     authored effect whose <em>whole</em> observable difference is the ward pool's balance, which
-///     the log does not carry either.
-///   </item>
-///   <item>
-///     <b>The S6 refusals.</b> Both guard against a caller the public entry points cannot be:
-///     a non-finite attack multiplier, and an <c>IEffectActorView</c> belonging to another battle.
-///   </item>
-/// </list>
-/// <para>
-/// ⚠️ These cases keep using <see cref="AttackPipelineBench"/>, which reaches through
-/// <c>BattlePlan.Seams</c> to drive the internal <c>AttackPipeline</c> inside a real fight. That is
-/// the sanctioned last resort, not the default — if one of these becomes observable from a log, it
-/// belongs in <see cref="DamageResolutionTests"/>.
+/// These use <see cref="AttackPipelineBench"/>, which reaches through <c>BattlePlan.Seams</c> to the
+/// internal pipeline inside a real fight — the sanctioned last resort, not the default.
 /// </para>
 /// </remarks>
 public sealed class AttackPipelineInternalTests
@@ -51,13 +31,9 @@ public sealed class AttackPipelineInternalTests
     // ══════════════════════════════════════════════════════ the draw discipline
 
     /// <summary>
-    /// 🔒 One resolved attack advances the combat stream by exactly <b>3</b>, and a dodged one by
-    /// exactly <b>1</b>.
+    /// 🔒 A resolved attack advances the stream by exactly <b>3</b>, a dodged one by <b>1</b>. Both
+    /// rows are needed: always-three passes the first, lazy-draw passes the second.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Both rows are needed: a pipeline that always drew three would pass the first and fail the
-    /// second, and one that drew lazily would pass the second and fail the first.
-    /// </remarks>
     [Theory]
     [InlineData(0.0, 3UL)]
     [InlineData(1.0, 1UL)]
@@ -77,16 +53,10 @@ public sealed class AttackPipelineInternalTests
             });
 
     /// <summary>
-    /// 🔒 `18` §2.4's <c>FORCE_CRIT_NEXT</c> decides the <b>outcome</b> of step 4 and never its
-    /// <b>draw</b>.
+    /// 🔒 `18` §2.4's <c>FORCE_CRIT_NEXT</c> decides step 4's <b>outcome</b> and never its
+    /// <b>draw</b>: a skipped draw would make the stream's position a function of the attacker's
+    /// flow state, diverging any client that had not observed the charge.
     /// </summary>
-    /// <remarks>
-    /// 🔒 If a forced crit skipped its draw, the stream's position would become a function of the
-    /// attacker's flow state, and a client that had not observed the charge would diverge from the
-    /// server on every draw thereafter. That the charge <em>crits</em> is
-    /// <c>DamageResolutionTests.A_FORCE_CRIT_NEXT_charge_crits_a_swing_the_attackers_own_CRIT_never_would</c>;
-    /// what is here is the half the log cannot show.
-    /// </remarks>
     [Fact]
     public void A_forced_crit_crits_without_skipping_step_4s_draw() =>
         Fight(
@@ -132,9 +102,8 @@ public sealed class AttackPipelineInternalTests
     /// otherwise.
     /// </summary>
     /// <remarks>
-    /// 🔒 R12 — the bypass flag is <c>EffectTagging.IsSelfInflictedCost</c>'s answer, read once at
-    /// the op and reported here, never re-derived. The two rows are the two answers, over the same
-    /// ward: <em>"wards must not silently delete perk drawbacks"</em> (<c>CP_BLOOD_PRICE</c>).
+    /// R12 — the two rows are the two answers over the same ward: <em>"wards must not silently
+    /// delete perk drawbacks"</em> (<c>CP_BLOOD_PRICE</c>).
     /// </remarks>
     [Theory]
     [InlineData(false, 5000.0, 950.0)]   // absorbed: the pool pays the 50, HP is untouched
@@ -158,14 +127,10 @@ public sealed class AttackPipelineInternalTests
     // ══════════════════════════════════════════════════════ the S6 refusals
 
     /// <summary>
-    /// 🔒 A non-finite number is refused by name rather than carried through the ten steps.
+    /// 🔒 A non-finite number is refused <b>by name</b> rather than carried through the ten steps: a
+    /// NaN compares <c>false</c> against every bound in `05` §4, so it would otherwise surface three
+    /// layers later naming the serialiser. Steering S2 — the message is the deliverable.
     /// </summary>
-    /// <remarks>
-    /// A NaN compares <c>false</c> against every bound in `05` §4 — the dodge test, the floor, the
-    /// ward cap — so it passes through all of them and is refused by <c>CombatLog</c> three layers
-    /// later, naming the serialiser rather than the effect. The message is the deliverable
-    /// (steering S2), so the effect id is asserted and not merely the type.
-    /// </remarks>
     [Fact]
     public void A_non_finite_number_is_refused_naming_the_effect_that_produced_it() =>
         Fight(body: p =>
@@ -181,10 +146,7 @@ public sealed class AttackPipelineInternalTests
                 .Message.ShouldContain("PK_TRANSFUSION", Case.Sensitive);
         });
 
-    /// <summary>
-    /// 🔒 A view that is not this battle's actor is refused — <c>BattleFlowSink</c>'s guard and its
-    /// reason: a battle has one roster and one view of it.
-    /// </summary>
+    /// <summary>🔒 A battle has one roster and one view of it — a foreign actor view is refused.</summary>
     [Fact]
     public void A_foreign_actor_view_is_refused() =>
         Fight(body: p =>
@@ -222,7 +184,6 @@ public sealed class AttackPipelineInternalTests
 
     // ══════════════════════════════════════════════════════ helpers
 
-    /// <summary>`05` §1's block — see <see cref="AttackPipelineBench.Stats"/> for the two defaults.</summary>
     private static ActorStats Block(double maxHp, params (StatId Stat, double Value)[] rest) =>
         AttackPipelineBench.Stats(maxHp, rest);
 

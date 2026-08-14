@@ -52,6 +52,30 @@ Follow: `<Method>_<expected outcome>_<condition>` in lower snake case after the 
 
 The name should make the failing test output self-explanatory without opening the file.
 
+## 🔒 Comments: short, or absent
+
+**A test with no comment at all is fine, and is the default.** The name says what the case is; the code says how; the Shouldly `because` string says why the number is what it is. A comment is worth writing only when it carries something none of those three can.
+
+Write one **only** for:
+
+- **A spec citation** — the section the case enforces (`` `05` §4 step 3 ``). One line.
+- **Why a literal is that literal** — the arithmetic behind `53.85`, or the sanity check it is transcribed from.
+- **What a wrong implementation would produce** — the counterfactual that makes the case discriminating (`899.8912 is 100 × 2.08³`). This is the highest-value kind; keep it.
+- **Why the case is shaped oddly** — a non-obvious fixture choice, a second tick, an authored ceiling. If a reader would otherwise ask "why not just…", answer it in one sentence.
+
+**Delete on sight:**
+
+- Anything restating the test name or the assertion. `/// <summary>Two contexts with the same values are equal.</summary>` above `Two_contexts_built_from_the_same_values_are_equal` is pure noise.
+- The same reasoning written twice — once in `<remarks>` and once in the Shouldly `because`. **The `because` string wins**: it is what appears in the failure output, where a reader actually needs it. Cut the prose copy.
+- Multi-paragraph `<remarks>` essays. If the reasoning genuinely needs more than about three lines, that is a signal the *test* is doing too much — split the case instead of explaining it.
+- Commentary defending the test's own existence ("this reads as trivially true — it is a tripwire, not noise"). If a case needs an argument that it isn't noise, delete the case.
+- Narration of project history — which task added it, which review found it, which branch it landed on. That is what `git log` and the decision log are for.
+- Section-divider banners made of box-drawing characters, unless the file is long enough that they genuinely aid navigation.
+
+Fixture and bench files follow the same rule and are usually worse offenders: document the *contract* of a helper in a sentence, not the reasoning that led to it.
+
+Prefer moving an explanation **into** the `because` string over leaving it above the method — same information, better placed.
+
 ## Use fakes over mocks
 
 - `SlayIdleRepeat.Application` tests exercise use cases against `SlayIdleRepeat.Adapters.InMemory`'s hand-written fake for the port under test (e.g. an in-memory `IPlayerRepository`, `IRunStateStore`, `IRewardedAdPort`). Do not introduce a mocking library — every port already has a fake built for exactly this purpose (23 §5, rule A5), so a mock would duplicate infrastructure that already exists and would drift from what the real adapters actually do.

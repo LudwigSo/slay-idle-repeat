@@ -209,7 +209,7 @@ public sealed class BossSummonTests
         addSwings[0].ShouldBe(80, "a FULL 1.0 / ASPD cooldown from the spawn tick, not a partial one");
     }
 
-    /// <summary>`17` §1's <c>OWNER</c> bookkeeping: every add names the boss that summoned it.</summary>
+    /// <summary>`17` §1.</summary>
     [Fact]
     public void Every_add_names_the_boss_that_summoned_it_and_the_mechanic_that_did()
     {

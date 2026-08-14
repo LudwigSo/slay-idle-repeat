@@ -158,7 +158,6 @@ public sealed class EnemyCatalogueTests
             .Parameter(parameter)
             .ShouldBe(expected);
 
-    /// <summary>Reading a parameter a modifier does not have fails rather than applying zero.</summary>
     [Fact]
     public void Reading_a_parameter_a_modifier_does_not_state_fails_rather_than_applying_zero()
     {

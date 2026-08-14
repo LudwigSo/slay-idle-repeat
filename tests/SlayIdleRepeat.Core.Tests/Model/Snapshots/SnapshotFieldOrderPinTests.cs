@@ -136,7 +136,7 @@ public sealed class SnapshotFieldOrderPinTests
         offenders.ShouldNotBeEmpty();
     }
 
-    /// <summary>🔒 `14` §16.6 — the pin bites on an <b>added</b> field.</summary>
+    /// <summary>`14` §16.6.</summary>
     [Fact]
     public void The_pin_catches_an_added_field()
     {
@@ -148,7 +148,7 @@ public sealed class SnapshotFieldOrderPinTests
         offenders.ShouldHaveSingleItem().ShouldContain("pinned <no field>", Case.Sensitive);
     }
 
-    /// <summary>🔒 `14` §16.6 — the pin bites on a <b>removed</b> field.</summary>
+    /// <summary>`14` §16.6.</summary>
     [Fact]
     public void The_pin_catches_a_removed_field()
     {

@@ -152,7 +152,6 @@ public sealed class TriggerCatalogueTests
         Should.NotThrow(() => TriggerCatalogue.Validate(riseAgain));
     }
 
-    /// <summary>🔒 R2 — <c>once</c> is a boolean, on the two kinds `18` §3 gives it.</summary>
     [Fact]
     public void R2_keeps_once_a_boolean_on_the_two_kinds_that_take_it()
     {

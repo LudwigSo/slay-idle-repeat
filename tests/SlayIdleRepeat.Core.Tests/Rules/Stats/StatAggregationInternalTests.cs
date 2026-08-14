@@ -8,43 +8,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// 🔒 The <b>residue</b> of `18` §8 — the handful of claims that no public entry point can express
-/// and no <see cref="SimulationResult"/> can report.
+/// 🔒 The <b>residue</b> of `18` §8 — what no public entry point can express and no
+/// <see cref="SimulationResult"/> can report. <see cref="StatAggregationTests"/> is where `18` §8 is
+/// actually pinned.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Read <see cref="StatAggregationTests"/> first.</b> That suite is where `18` §8 is actually
-/// pinned: every case there runs a real fight through <see cref="CombatSimulator.SimulateDuel"/> and
-/// reads the aggregated stat back out of the combat log. This file exists because four things are
-/// left over, and each one is here for a stated reason rather than for convenience:
-/// </para>
-/// <list type="bullet">
-///   <item>
-///     <b>The argument contract.</b> <c>Aggregate</c> refuses a null block, list, cap set or seam
-///     set. A fight cannot pass any of those — <see cref="CombatSimulator"/> builds all four itself
-///     — so the guard has no public caller to fail for.
-///   </item>
-///   <item>
-///     <b><c>SkippedNonCombatStatEffects</c>.</b> The list of effects the pipeline declined to apply
-///     is a field of the internal <c>AggregatedStats</c>, and no <c>CombatEvent</c> carries it.
-///     <see cref="StatAggregationTests.A_stat_op_on_a_non_combat_stat_leaves_the_combat_block_alone"/>
-///     pins the half a fight can see; this pins the report itself, which is the half that stops a
-///     "+X% Gold Gain" affix from vanishing silently.
-///   </item>
-///   <item>
-///     <b>The step-6 conversion rounding.</b> It needs a seam that returns a delta with a fifth
-///     decimal place, and <c>StatAggregationSeams</c> is internal by design — `30` §11.2 exports the
-///     simulator, not the DSL's seams.
-///   </item>
-///   <item>
-///     <b>"Every stat is rounded".</b> A fight observes one stat at a time; the claim is about all
-///     fourteen at once.
-///   </item>
-/// </list>
-/// <para>
-/// ⚠️ <b>Nothing in this file re-asserts arithmetic <see cref="StatAggregationTests"/> already
-/// covers.</b> If a case here starts to look like it could be read out of a log, it belongs there.
-/// </para>
+/// Four things are left over: the argument contract (a fight builds all four arguments itself, so
+/// the guard has no public caller to fail for), <c>SkippedNonCombatStatEffects</c> (no
+/// <c>CombatEvent</c> carries it), the step-6 conversion rounding (it needs an internal seam), and
+/// "every stat is rounded" (a fight observes one stat at a time).
 /// </remarks>
 public sealed class StatAggregationInternalTests
 {
@@ -56,12 +28,9 @@ public sealed class StatAggregationInternalTests
     /// place cannot be magnified by a later multiplier.
     /// </summary>
     /// <remarks>
-    /// Discriminating, unlike a step-6 case with nothing after it: a delta of <c>0.00005</c> onto a
-    /// base of 1.0 rounds to <c>1.0001</c> at step 6 and doubles to <c>2.0002</c>. Carried unrounded
-    /// into step 7 it is <c>2.0001</c>. The seam supplies the deltas, so this is the one step whose
-    /// input is not already 4-dp by construction — and the reason it cannot be written as a fight:
-    /// an authored <c>STAT_CONVERT</c> goes through the real conversion, which has no way to emit a
-    /// fifth decimal place on demand.
+    /// The seam supplies the deltas, so this is the one step whose input is not already 4-dp — and
+    /// the reason it cannot be a fight: a real <c>STAT_CONVERT</c> cannot emit a fifth decimal place
+    /// on demand.
     /// </remarks>
     [Fact]
     public void Step_6_rounds_the_conversion_deltas_before_step_7_multiplies()
@@ -79,9 +48,7 @@ public sealed class StatAggregationInternalTests
         result.Final[StatId.ATK].ShouldNotBe(2.0001, "2.0001 is 1.00005 x 2 rounded once afterwards");
     }
 
-    /// <summary>
-    /// 🔒 <b>Every</b> stat in the result is 4-dp, not merely the one a given fight happens to read.
-    /// </summary>
+    /// <summary>🔒 <b>Every</b> stat is 4-dp, not merely the one a given fight reads.</summary>
     [Fact]
     public void Every_stat_in_the_result_is_rounded_to_four_places()
     {
@@ -93,10 +60,7 @@ public sealed class StatAggregationInternalTests
         result.Final.Values.Count().ShouldBe(14, "ShouldAllBe passes on an empty collection");
     }
 
-    /// <summary>
-    /// 🔒 <c>ALL_COMBAT</c> reaches every one of the fourteen and nothing else — the whole block at
-    /// once, which is the part a single fight's single stat reading cannot show.
-    /// </summary>
+    /// <summary>🔒 <c>ALL_COMBAT</c> reaches all fourteen and nothing else — the whole block at once.</summary>
     [Fact]
     public void ALL_COMBAT_reaches_every_one_of_the_fourteen_and_nothing_else()
     {
@@ -110,14 +74,9 @@ public sealed class StatAggregationInternalTests
     }
 
     /// <summary>
-    /// 🔒 A stat op on one of `18` §2.1's 12 non-combat stats is <b>reported</b> rather than dropped.
+    /// 🔒 A non-combat stat op is <b>reported</b> rather than dropped: silently ignoring it would
+    /// lose every economy affix in the game with nothing going red.
     /// </summary>
-    /// <remarks>
-    /// Silently ignoring it is the failure mode: a resolver that hands the whole build to the
-    /// aggregator and never asks what was left behind would lose every economy affix in the game
-    /// with nothing going red. No <c>CombatEvent</c> carries this list, which is why the claim is
-    /// here rather than in <see cref="StatAggregationTests"/>.
-    /// </remarks>
     [Fact]
     public void A_stat_op_on_a_non_combat_stat_is_reported_rather_than_silently_dropped()
     {
@@ -132,16 +91,10 @@ public sealed class StatAggregationInternalTests
 
     /// <summary>🔒 A <c>null</c> <em>in</em> the effect list is refused by name rather than skipped.</summary>
     /// <remarks>
-    /// ⚠️ <b>This one is here because the public entry points do not yet reach it, and that is worth
-    /// recording rather than working around.</b> Handing
-    /// <c>CombatSimulator.SimulateDuel</c> an <c>attackerEffects</c> list with a <c>null</c> element
-    /// throws a bare <see cref="NullReferenceException"/> from the wrapping in <c>DuelFight</c>,
-    /// <em>before</em> this guard runs — so the named refusal below is real, but a caller outside
-    /// <c>Core</c> never sees it. Steering S2 makes the message the deliverable, so the entry points
-    /// arguably owe the same <see cref="ArgumentNullException"/> this method already produces. Until
-    /// that is decided, this test pins the guard where the guard actually is; asserting the
-    /// <see cref="NullReferenceException"/> at the public seam instead would encode the gap as
-    /// intended behaviour.
+    /// ⚠️ <b>Known gap.</b> <c>SimulateDuel</c> with a <c>null</c> element throws a bare
+    /// <see cref="NullReferenceException"/> from <c>DuelFight</c>'s wrapping, before this guard runs,
+    /// so a caller outside <c>Core</c> never sees the named refusal. Pinned here rather than at the
+    /// public seam, which would encode the gap as intended behaviour.
     /// </remarks>
     [Fact]
     public void A_null_effect_in_the_list_is_refused() =>

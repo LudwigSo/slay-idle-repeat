@@ -12,7 +12,7 @@ public sealed class EffectStackSetTests
 {
     // ───────────────────────────────────────────────────────────── the five modes
 
-    /// <summary>`18` §6's <c>ADDITIVE</c> — stacks sum.</summary>
+    /// <summary>`18` §6.</summary>
     [Fact]
     public void ADDITIVE_stacks_sum()
     {
