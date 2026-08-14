@@ -13,40 +13,16 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// observed <b>in a fight</b> rather than over the two halves that meet there.
 /// </summary>
 /// <remarks>
+/// 🔒 Both halves were built and both were tested — <c>CombatFlowOpTests</c> pins that the ops arm
+/// the save, <c>CombatFlowStateTests</c> that <c>ConsumeDeathSave</c> honours <c>once</c> and the id
+/// order. Nothing asked whether anything ever <em>called</em> it, and nothing did: every
+/// survive-a-lethal-hit perk was inert and <c>ON_REVIVE</c> unreachable by construction. The defect
+/// was the missing edge between the two things that were tested.
 /// <para>
-/// 🔒 <b>Why this file exists.</b> Both halves of these two ops were built, and both were tested.
-/// <c>CombatFlowOpTests</c> pins that the ops <em>arm</em> the right save
-/// (<c>bench.OnlyAmount("ArmSurviveLethal")</c>), and <c>CombatFlowStateTests</c> pins that
-/// <c>ConsumeDeathSave</c> honours the <c>once</c> count and the ascending effect-id order. Nothing
-/// asked whether anything ever <em>called</em> <c>ConsumeDeathSave</c> — and nothing did.
-/// Cross-task review found it with no production caller at all, which made every "survive a lethal
-/// hit" perk in the game inert, made <c>REVIVE</c> never return anyone, and left <c>ON_REVIVE</c>
-/// — one of `18` §11's 23 triggers — unreachable by construction.
-/// </para>
-/// <para>
-/// So every test here drives a <b>real fight</b> and reads the actor's HP and the log. A test
-/// written against <c>CombatFlowState</c> could not have caught the defect, because the defect was
-/// precisely the absence of the edge between the two things that were tested.
-/// </para>
-/// <para>
-/// 🔒 The first block of tests below arms its saves by an <c>ON_BATTLE_START</c> holding: the op
-/// runs once in the pre-tick and the save then sits on <c>CombatFlowState</c> waiting for a lethal
-/// blow that may never come. That route is unaffected by anything below.
-/// </para>
-/// <para>
-/// 🔴 <b>M2-R2 closed the gap the paragraph below used to describe — kept as the record of what was
-/// missing and why the second block of tests exists.</b> <c>ConsumeDeathSave</c> honours `05` §3.1's
-/// <c>once</c> bound and <c>CombatFlowStateTests</c> pinned that it does — but the count reaches the
-/// save from the holding's <c>once</c>, and `18` §3 admits <c>once</c> on <c>ON_LETHAL</c> and
-/// <c>ON_LOW_HP</c> only. <c>ON_BATTLE_START</c> is refused outright (<em>"it carries once, which
-/// `18` §3 does not give it"</em>), so a <c>once</c> death save can only be authored on
-/// <c>ON_LETHAL</c> — and until this fix <b><c>ON_LETHAL</c> was never fired by the engine</b>.
-/// <c>TriggerRegistry</c> listed it as a moment (<em>"inside `05` §4, when the hit would be fatal,
-/// before slot 6"</em>) with nothing in <c>BattleSimulation</c> or <c>AttackPipeline</c> raising it,
-/// which meant `18` §7.4's <c>PK_UNBREAKABLE</c> could not be authored in its documented shape at
-/// all. <c>AttackPipeline.ApplyToHp</c> now fires it — between ward absorption and the HP write, `05`
-/// §4 step 9's own sub-step boundary — through <c>BattleServices.FireLethal</c> /
-/// <c>BattleSimulation.FireLethal</c>.
+/// 🔴 <c>once</c> is admitted on <c>ON_LETHAL</c>/<c>ON_LOW_HP</c> only, and <c>ON_LETHAL</c> was
+/// never fired — so `18` §7.4's <c>PK_UNBREAKABLE</c> could not be authored in its documented shape.
+/// <c>AttackPipeline.ApplyToHp</c> now fires it between ward absorption and the HP write. The first
+/// block below arms via <c>ON_BATTLE_START</c> and is unaffected by that.
 /// </para>
 /// </remarks>
 public sealed class DeathSaveTests
@@ -57,15 +33,9 @@ public sealed class DeathSaveTests
     /// 🔴 `18` §2.4 — a <c>SURVIVE_LETHAL</c> leaves the actor at its authored HP instead of at 0.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Two shapes.</b> `18` §10.1 E4 gives the op two units and they disagree about what the
-    /// same number means: <c>FLAT 1</c> is `06`'s <em>"survive a lethal hit at 1 HP"</em>, while the
-    /// default reading of <c>0.25</c> is a quarter of Max HP. Running both is what stops the fix
-    /// passing on a hard-wired 1.
-    /// </para>
-    /// <para>
-    /// The blow is ten times the actor's whole bar, so nothing but a save can leave it standing.
-    /// </para>
+    /// Two shapes, because `18` §10.1 E4's two units disagree about the same number: <c>FLAT 1</c> is
+    /// `06`'s "survive at 1 HP", while the default reading of <c>0.25</c> is a quarter of Max HP.
+    /// Running both stops the fix passing on a hard-wired 1. The blow is ten times the whole bar.
     /// </remarks>
     [Theory]
     [InlineData(1.0, ValueMode.FLAT, 1.0)]
@@ -113,22 +83,15 @@ public sealed class DeathSaveTests
     }
 
     /// <summary>
-    /// 🔴 `18` §2.4 — a <c>REVIVE</c> returns the actor from 0 HP, and `18` §3 makes it fire
-    /// <c>ON_REVIVE</c>. <c>SURVIVE_LETHAL</c> does neither.
+    /// 🔴 `18` §2.4 — a <c>REVIVE</c> returns the actor from 0 HP and fires <c>ON_REVIVE</c>.
+    /// <c>SURVIVE_LETHAL</c> does neither.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 Consumed in <c>ResolveDeaths</c> and not in the pipeline, which is the whole difference
-    /// between the two ops: a <c>REVIVE</c> requires the actor to have <em>reached</em> 0, so it is
-    /// read after <c>ON_DEATH</c> has fired. The actor is therefore never logged as an
-    /// <c>ActorDeath</c> — it came back before the body was removed.
-    /// </para>
-    /// <para>
-    /// 🔒 The <c>ON_REVIVE</c> is observed through a second holding whose only job is to be fired by
-    /// it, rather than through a recording double: `18` §11 counts <c>ON_REVIVE</c> among the 23
-    /// triggers, and until this fix no fight could reach it, so a double would have been asserting
-    /// against an edge that did not exist.
-    /// </para>
+    /// Consumed in <c>ResolveDeaths</c>, not the pipeline: a <c>REVIVE</c> requires the actor to have
+    /// <em>reached</em> 0, so it is read after <c>ON_DEATH</c> — and the actor is never logged as an
+    /// <c>ActorDeath</c>, having come back before the body was removed. The <c>ON_REVIVE</c> is
+    /// observed through a second holding rather than a recording double, because until this fix no
+    /// fight could reach that edge.
     /// </remarks>
     [Fact]
     public void A_REVIVE_returns_the_actor_from_0_HP_and_fires_ON_REVIVE()
@@ -153,13 +116,12 @@ public sealed class DeathSaveTests
     }
 
     /// <summary>
-    /// 🔒 The negative control for the trigger half — a <c>SURVIVE_LETHAL</c> fires no
-    /// <c>ON_REVIVE</c>, because `18` §3 is explicit that the actor never died.
+    /// 🔒 The negative control: a <c>SURVIVE_LETHAL</c> fires no <c>ON_REVIVE</c>, because `18` §3 is
+    /// explicit that the actor never died.
     /// </summary>
     /// <remarks>
-    /// The same probe holding as the <c>REVIVE</c> case, over the same lethal blow, so the only
-    /// difference between the two tests is which op armed the save. A consumer that treated the two
-    /// arms as one would pass every other test in this file and fail this.
+    /// Same probe holding, same lethal blow — the only difference is which op armed the save, so a
+    /// consumer treating the two arms as one passes every other test here and fails this.
     /// </remarks>
     [Fact]
     public void A_SURVIVE_LETHAL_fires_no_ON_REVIVE()
@@ -179,15 +141,10 @@ public sealed class DeathSaveTests
     // ══════════════════════════════════════════ M2-R2: ON_LETHAL itself
 
     /// <summary>
-    /// 🔴 M2-R2 / `18` §7.4 — <c>PK_UNBREAKABLE</c>, authored in the doc's own worked shape:
-    /// <c>{"kind":"ON_LETHAL","once":true}</c> triggering <c>SURVIVE_LETHAL</c>, proved through the
-    /// real attack pipeline rather than the <c>ON_BATTLE_START</c> workaround above.
+    /// 🔴 `18` §7.4 — <c>PK_UNBREAKABLE</c> in the doc's own shape,
+    /// <c>{"kind":"ON_LETHAL","once":true}</c> triggering <c>SURVIVE_LETHAL</c>, through the real
+    /// attack pipeline rather than the <c>ON_BATTLE_START</c> workaround above.
     /// </summary>
-    /// <remarks>
-    /// Same two shapes as <see cref="A_SURVIVE_LETHAL_leaves_the_actor_at_its_authored_HP"/>, for the
-    /// same reason: R7's <c>FLAT 1</c> versus the <c>0.25</c>-of-Max-HP default, so the fix cannot
-    /// pass on a hard-wired 1.
-    /// </remarks>
     [Theory]
     [InlineData(1.0, ValueMode.FLAT, 1.0)]
     [InlineData(0.25, null, 250.0)]
@@ -234,26 +191,15 @@ public sealed class DeathSaveTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.1's anti-loop rule, half two, and the two halves composed: two actors, each holding
-    /// an <c>ON_LETHAL</c>-armed <c>SURVIVE_LETHAL</c> AND a live <c>THORN</c>, in a shape that would
-    /// otherwise ping-pong forever — attacker lands lethal on defender, defender's save fires and its
-    /// thorns reflect a lethal amount back at the attacker, the attacker's own save fires. Without
-    /// <c>once</c> bounding <em>and</em> the thorns-never-retriggers-thorns rule (<c>ReflectDamage</c>
-    /// is `05` §4's one non-recursive terminal call), a second identical exchange would resave both
-    /// forever and the fight would never resolve.
+    /// 🔒 `05` §3.1's anti-loop rule, both halves composed: two actors each holding an
+    /// <c>ON_LETHAL</c>-armed <c>SURVIVE_LETHAL</c> <b>and</b> lethal <c>THORNS</c>. Without
+    /// <c>once</c> bounding <em>and</em> thorns-never-retriggers-thorns, the exchange resaves both
+    /// forever and the fight never resolves.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Two direct swings, not two ticks.</b> `18` §10.1's own convention (see the file's other
-    /// tests) is to drive <c>IAttackPipeline</c> straight from the probe body rather than through
-    /// slot 4's timing, so the exchange is deterministic and the assertions are about the pipeline's
-    /// own termination rather than about turn order.
-    /// </para>
-    /// <para>
-    /// Stats are chosen so mitigation is exactly 0 (both actors carry <c>DEF 0</c>/<c>PEN 0</c>) and
-    /// the attacker's <c>ATK</c> and the defender's <c>THORNS</c> are each individually lethal against
-    /// the other side's 1 000 Max HP, so neither swing's outcome depends on rounding.
-    /// </para>
+    /// Two direct swings rather than two ticks, so the assertions are about the pipeline's own
+    /// termination rather than turn order. Mitigation is exactly 0 and each side's output is
+    /// individually lethal, so no outcome depends on rounding.
     /// </remarks>
     [Fact]
     public void Two_actors_with_ON_LETHAL_saves_and_thorns_terminate_instead_of_looping()

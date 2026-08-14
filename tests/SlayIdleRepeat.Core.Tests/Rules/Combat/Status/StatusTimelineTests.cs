@@ -11,24 +11,18 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 /// 🔒 `05` §3.1's DoT/HoT cadence and `05` §5's twelve, driven through a real fight.
 /// </summary>
 /// <remarks>
-/// Every case here goes through <c>BattleSimulation</c> rather than calling the timeline directly,
-/// because half of what `05` §3.1 fixes is <em>which slot</em> the work happens in — the
-/// "deals that tick first, then expires" rule is bought entirely by slot 1 running before slot 2, and
-/// a unit test of the timeline in isolation cannot see that.
+/// Through <c>BattleSimulation</c> rather than the timeline directly, because half of what §3.1
+/// fixes is <em>which slot</em> the work happens in — "deals that tick first, then expires" is bought
+/// entirely by slot 1 running before slot 2.
 /// </remarks>
 public sealed class StatusTimelineTests
 {
     /// <summary>
-    /// 🔴 `05` §3.1 — reapplication <em>"never re-anchors the cadence"</em>, probed at an anchor that
-    /// can tell the two readings apart.
+    /// 🔴 `05` §3.1 — reapplication <em>"never re-anchors the cadence"</em>.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The <c>BURN</c> is applied on tick 7 and reapplied on tick 17.</b> That is the whole
-    /// design of the case. Anchored at 7 the boundaries are 27, 47, 67; a re-anchoring implementation
-    /// would move them to 37, 57, 77 on the second application. Had the status been applied at tick 0
-    /// and reapplied at tick 20, both readings would give 20, 40, 60 and the test could not fail.
-    /// The reapplication is deliberately <em>not</em> on a boundary either, so the two answers share
-    /// no tick at all.
+    /// Applied tick 7, reapplied tick 17: anchored at 7 the boundaries are 27/47/67, re-anchoring
+    /// moves them to 37/57/77. At 0 and 20 both readings give 20/40/60 and the test could not fail.
     /// </remarks>
     [Fact]
     public void Reapplication_adds_a_stack_and_never_re_anchors_the_cadence()
@@ -53,12 +47,10 @@ public sealed class StatusTimelineTests
     /// moment the tick lands</b>"</em>.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The second stack lands between two boundaries, which is what makes the reading time
-    /// observable.</b> A <c>BURN</c> of 0.5 × 10 ATK is 5 per second per stack. Applied at tick 7 it
-    /// ticks 5 at tick 27; reapplied at tick 30 — after the first boundary and before the second — it
-    /// must tick 10 at tick 47. An implementation that resolved the amount at application time, or
-    /// cached it at the first boundary, deals 5 both times and is invisible in any fight where the
-    /// stacks never change between application and boundary, which is most of them.
+    /// The second stack lands at tick 30 — after the first boundary, before the second — so the tick
+    /// at 47 must be 10 rather than 5. Resolving the amount at application time, or caching it at the
+    /// first boundary, deals 5 both times and is invisible in any fight where stacks do not change
+    /// between application and boundary.
     /// </remarks>
     [Fact]
     public void The_stack_count_is_read_at_the_moment_the_tick_lands()
@@ -84,11 +76,9 @@ public sealed class StatusTimelineTests
     /// then expires"</em>.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The duration is chosen so the two events collide exactly.</b> Applied at tick 7 with
-    /// <c>D = 1.0 s</c>, the timer elapses at tick 27 and the first cadence boundary is tick 27. The
-    /// rule says one tick of damage, then the expiry. An engine that expired in slot 1, or ordered
-    /// expiry before the cadence, deals <b>zero</b> — a whole second of a one-second DoT, silently,
-    /// on every DoT whose duration is a whole number of seconds, which is all of them in `05` §6.1a.
+    /// The duration makes the two collide exactly at tick 27. Expiring in slot 1, or ordering expiry
+    /// before the cadence, deals <b>zero</b> — a whole second of a one-second DoT, on every DoT whose
+    /// duration is a whole number of seconds, which is all of them in `05` §6.1a.
     /// </remarks>
     [Fact]
     public void A_DoT_expiring_on_a_cadence_boundary_deals_that_tick_first_then_expires()
@@ -110,13 +100,12 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.1 — a DoT tick is <em>"a damage event, not an attack"</em>, so it goes down the
-    /// route `05` §4.2 gives that exemption list and never through <c>ResolveAttack</c>.
+    /// 🔒 `05` §3.1 — a DoT tick is <em>"a damage event, not an attack"</em>, so it takes `05` §4.2's
+    /// route and never <c>ResolveAttack</c>.
     /// </summary>
     /// <remarks>
-    /// Asserted on <em>which member of the pipeline was called</em> (steering S2 — the identity, not
-    /// the symptom). Checking only that the target lost HP would pass over an implementation that ran
-    /// the full attack pipeline, which would dodge, crit, block and floor the tick.
+    /// Asserted on <em>which</em> pipeline member was called: checking only that the target lost HP
+    /// would pass an implementation that dodged, crit, blocked and floored the tick.
     /// </remarks>
     [Fact]
     public void A_DoT_tick_routes_through_the_non_attack_damage_path_and_wards_absorb_it()
@@ -129,13 +118,12 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.1 — <em>"HoT ticks route through <c>Heal()</c> (§4.3), not §4"</em>, so
-    /// <c>HEAL%</c> applies and <c>ON_HEAL</c> fires.
+    /// 🔒 `05` §3.1 — HoT ticks route through <c>Heal()</c>, so <c>HEAL%</c> applies and
+    /// <c>ON_HEAL</c> fires.
     /// </summary>
     /// <remarks>
-    /// `05` §5's <c>REGEN</c> is <em>"heal X% Max HP per second"</em>, so a 0.1 <c>REGEN</c> on a
-    /// 200 Max HP hero is 20 a second. The amount is asserted as well as the route: a HoT that reached
-    /// <c>Heal</c> with the raw fraction would heal 0.1 HP a second and look like a routing success.
+    /// The amount is asserted as well as the route: a HoT reaching <c>Heal</c> with the raw fraction
+    /// would heal 0.1 HP a second and look like a routing success.
     /// </remarks>
     [Fact]
     public void A_HoT_tick_routes_through_Heal_and_never_through_the_damage_path()
@@ -152,14 +140,12 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 `05` §5's <c>POISON</c> is <em>"X% of <b>target</b> Max HP per second"</em> and
-    /// <c>BURN</c> is <em>"X% of <b>attacker</b> ATK"</em> — two different bases, and the difference
-    /// is observable.
+    /// 🔒 `05` §5 — <c>POISON</c> is X% of <b>target</b> Max HP, <c>BURN</c> X% of <b>attacker</b>
+    /// ATK. Two different bases, and the difference is observable.
     /// </summary>
     /// <remarks>
-    /// The same authored X, the same applier and the same target produce different numbers, which is
-    /// what makes this a test of the basis rather than of the arithmetic. An engine that used one
-    /// basis for both would agree with one of these two rows and disagree with the other.
+    /// Same authored X, same applier, same target, different numbers — so this tests the basis rather
+    /// than the arithmetic. One basis for both agrees with one row and fails the other.
     /// </remarks>
     [Fact]
     public void BURN_reads_the_appliers_ATK_and_POISON_reads_the_targets_Max_HP()
@@ -172,15 +158,12 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 📐 `05` §5 — <c>BLEED</c>'s tick is <em>"that amount × (1 + target's missing-HP
-    /// fraction)"</em>, and the scaling term is the one 📐 the section carries.
+    /// 📐 `05` §5 — <c>BLEED</c>'s tick is <em>"that amount × (1 + target's missing-HP fraction)"</em>.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Probed at two health levels, and the second is what discriminates.</b> At full health the
-    /// missing-HP fraction is 0 and the tick is the flat amount — which an implementation that
-    /// ignored the term entirely also produces. The wounded case is the one that separates them. The
-    /// coefficient is read from the catalogue rather than written as 1.0 here, so the test states
-    /// the rule and the data states the number.
+    /// At full health the fraction is 0 and the tick is the flat amount, which ignoring the term also
+    /// produces — the wounded row is the discriminating one. The coefficient is read from the
+    /// catalogue, so the test states the rule and the data states the number.
     /// </remarks>
     [Fact]
     public void A_BLEED_tick_scales_with_the_targets_missing_HP()
@@ -198,11 +181,8 @@ public sealed class StatusTimelineTests
     /// 🔒 `05` §5's stat debuffs reach `18` §8's aggregation — a <c>FREEZE</c> really is −50% ASPD.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The assertion is on the actor's aggregated ASPD, not on the timeline's own bookkeeping.</b>
-    /// A status recorded correctly and never collected by `18` §8 step 1 is a status that does
-    /// nothing, and every test of the timeline's internals would still pass. `05` §5 states
-    /// <c>FREEZE</c> as a literal −50%, so the number is the catalogue's and the effect's own value
-    /// is not consulted — which the second assertion pins.
+    /// Asserted on the actor's aggregated ASPD, not the timeline's bookkeeping: a status recorded
+    /// correctly and never collected by step 1 does nothing, and every internals test still passes.
     /// </remarks>
     [Fact]
     public void A_FREEZE_halves_the_targets_ASPD_through_the_18_section_8_aggregation()
@@ -215,12 +195,11 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 A stat debuff stops applying when it expires — the aggregation is not a one-way write.
+    /// 🔒 A stat debuff stops applying once it expires — the aggregation is not a one-way write.
     /// </summary>
     /// <remarks>
-    /// The negative control for the rule above, and the one an implementation writing into
-    /// <c>CombatFlowState</c>'s percent buckets would fail: those carry no duration, so a
-    /// <c>FREEZE</c> put there would halve the actor's ASPD for the rest of the fight.
+    /// The control an implementation writing into <c>CombatFlowState</c>'s percent buckets would fail:
+    /// those carry no duration, so a <c>FREEZE</c> there halves ASPD for the rest of the fight.
     /// </remarks>
     [Fact]
     public void A_stat_debuff_stops_applying_once_it_expires()
@@ -233,18 +212,14 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 A stat debuff that expires and is applied again debuffs again — the aggregation reaches it
-    /// the second time too.
+    /// 🔒 A stat debuff that expires and is applied again debuffs again.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The path the fast-out in <c>StatModifiers</c> could break, and the one neither of the two
-    /// tests above covers.</b> That early-out reads a per-actor count of live stat-modifying statuses
-    /// rather than walking the set, because <c>RefreshStats</c> asks for every actor on every one of
-    /// 1800 ticks. A count that failed to decrement on expiry would keep aggregating a dead
-    /// <c>FREEZE</c>; one that failed to increment on a re-application, or that went negative and
-    /// stuck, would silently stop aggregating a live one — and the apply case and the expiry case
-    /// each pass on their own either way. This is apply → expire → apply, asserted at all three
-    /// points.
+    /// 🔴 The path <c>StatModifiers</c>' fast-out could break, and which neither test above covers: it
+    /// reads a per-actor count rather than walking the set. A count that failed to decrement on expiry
+    /// keeps aggregating a dead <c>FREEZE</c>; one that failed to increment silently stops aggregating
+    /// a live one — and apply-only and expire-only cases each pass either way. Apply → expire → apply,
+    /// asserted at all three points.
     /// </remarks>
     [Fact]
     public void A_stat_debuff_reapplied_after_it_expired_debuffs_again()
@@ -280,10 +255,8 @@ public sealed class StatusTimelineTests
     /// 🔒 `05` §5 — <c>SUNDER</c> <em>"stacks to 5"</em>, and the aggregate is the sum of the stacks.
     /// </summary>
     /// <remarks>
-    /// Six applications, a ceiling of five: `18` §6 drops the surplus rather than evicting, so the
-    /// debuff is 5 × −5% and not 6 × −5%. Both the reached ceiling and the arithmetic are asserted,
-    /// because an implementation that ignored the ceiling produces −30% and one that never stacked
-    /// produces −5%, and only one number is right.
+    /// Six applications, ceiling of five: `18` §6 drops the surplus rather than evicting. Ignoring the
+    /// ceiling gives −30%, never stacking gives −5%, and only 5 × −5% is right.
     /// </remarks>
     [Fact]
     public void SUNDER_stacks_to_five_and_the_surplus_application_is_dropped()
@@ -319,13 +292,12 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.1 — <em>"one instance per <c>statusId</c> per target"</em>: two appliers of one
-    /// status share one instance and one cadence.
+    /// 🔒 `05` §3.1 — <em>"one instance per <c>statusId</c> per target"</em>: two appliers share one
+    /// instance and one cadence.
     /// </summary>
     /// <remarks>
-    /// Two distinct effect ids apply <c>BURN</c> ten ticks apart. If each opened its own instance
-    /// there would be two anchors and two boundary series; the section says there is one, anchored on
-    /// the first.
+    /// Two distinct effect ids apply <c>BURN</c> ten ticks apart. Separate instances would give two
+    /// anchors and two boundary series; the section says one, anchored on the first.
     /// </remarks>
     [Fact]
     public void Two_appliers_of_one_status_share_one_instance_and_one_anchor()
@@ -341,15 +313,12 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 The three obligations `IStatusTimeline` handed over: one phase check and one
-    /// <c>ON_LOW_HP</c> per DoT HP change, and no more.
+    /// 🔒 One phase check and one <c>ON_LOW_HP</c> per DoT HP change, and no more.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The assertion is <em>exactly one</em>, not <em>at least one</em>.</b> <c>ON_LOW_HP</c> is
-    /// a crossing, so a doubled observation is a doubled firing — and the obvious way to satisfy the
-    /// contract's literal wording ("M2-10 routes the phase check") is to call
-    /// <c>AfterHpDecrease</c> from the tick <em>as well as</em> letting `05` §4 step 9 do it, which
-    /// is exactly two. An "at least one" assertion would pass over that.
+    /// 🔴 <em>Exactly</em> one, not <em>at least</em> one: <c>ON_LOW_HP</c> is a crossing, so a doubled
+    /// observation is a doubled firing — and calling <c>AfterHpDecrease</c> from the tick as well as
+    /// letting `05` §4 step 9 do it is exactly two.
     /// </remarks>
     [Fact]
     public void Each_DoT_HP_change_runs_the_phase_check_and_ON_LOW_HP_exactly_once()
@@ -383,15 +352,12 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 `05` §5's <c>STUN</c>, through the tick loop: slot 4a's <em>"and not stunned"</em>.
+    /// 🔒 `05` §5's <c>STUN</c> through the tick loop: slot 4a's <em>"and not stunned"</em>.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The first version asserted only <c>CanAct</c> at the fight's last tick, which is a
-    /// statement that the stun ENDED — review showed that an engine which never consults the gate,
-    /// and one which never applies the status at all, both passed it.</b> The claim is about slot 4,
-    /// so the assertion is now on slot 4's output. A 1.0-ASPD enemy stunned at tick 0 for the capped
-    /// 1.5 s loses its tick-0 and tick-20 swings and resumes at tick 30; deleting
-    /// <c>&amp;&amp; _seams.Timeline.CanAct(attacker)</c> from <c>BattleSimulation</c> reddens this.
+    /// 🔴 Asserted on slot 4's output, not on <c>CanAct</c> at the last tick — that is a statement the
+    /// stun <em>ended</em>, and an engine never consulting the gate passed it. A 1.0-ASPD enemy
+    /// stunned at tick 0 for the capped 1.5 s loses its tick-0 and tick-20 swings and resumes at 30.
     /// </remarks>
     [Fact]
     public void A_stunned_actor_does_not_swing_while_the_stun_lasts()
@@ -423,14 +389,11 @@ public sealed class StatusTimelineTests
         int tick, string effectId, string statusId, double value, double applierAtk, double? seconds = null) =>
         new(tick, effectId, statusId, value, applierAtk, seconds);
 
-    /// <summary>
-    /// Runs a fight in which a scripted list of applications lands at named ticks.
-    /// </summary>
+    /// <summary>Runs a fight in which a scripted list of applications lands at named ticks.</summary>
     /// <remarks>
-    /// The applications are driven by a <see cref="ScriptedApplications"/> timeline decorator rather
-    /// than by authored <c>PERIODIC</c> effects, for the reason <c>BattleTestBench</c> states about
-    /// its own doubles: what is under test is the cadence, and routing every case through the trigger
-    /// engine would make a trigger defect look like a cadence defect.
+    /// Driven by a <see cref="ScriptedApplications"/> decorator rather than authored <c>PERIODIC</c>
+    /// effects: the subject is the cadence, and routing through the trigger engine would make a
+    /// trigger defect look like a cadence defect.
     /// </remarks>
     private static Bench Fight(
         Applied[] applications,
@@ -483,15 +446,11 @@ public sealed class StatusTimelineTests
         return new Bench(result, simulation, timeline!, pipeline!, phases!);
     }
 
-    /// <summary>
-    /// A timeline that is the real one, plus a script that applies statuses at named ticks.
-    /// </summary>
+    /// <summary>A timeline that is the real one, plus a script applying statuses at named ticks.</summary>
     /// <remarks>
-    /// 🔒 It <b>delegates every member</b> rather than reimplementing any: the subject under test is
-    /// <see cref="StatusTimeline"/>, and a decorator that answered <c>CanAct</c> or <c>StacksOn</c>
-    /// itself would be testing the decorator. The script runs before the delegated
-    /// <c>AdvanceTimers</c>, which is where an applying effect would land — slot 3 and slot 4 both sit
-    /// after slot 1, so applying earlier than the real engine can only make the cadence harder to get
+    /// 🔒 It <b>delegates every member</b>: the subject is <see cref="StatusTimeline"/>, and a
+    /// decorator answering <c>CanAct</c> or <c>StacksOn</c> itself would test the decorator. The script
+    /// runs before the delegated <c>AdvanceTimers</c>, which can only make the cadence harder to get
     /// right, never easier.
     /// </remarks>
     private sealed class ScriptedApplications : IStatusTimeline

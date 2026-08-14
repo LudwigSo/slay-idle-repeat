@@ -8,26 +8,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 `05` §4.1's ward pool cap — 📐 <c>wardCapPct</c> × the actor's Max HP <b>as it stood after
-/// `18` §8 step 7</b>, and M2-07's two stated obligations on M2-09.
+/// 🔒 `05` §4.1's ward pool cap — 📐 <c>wardCapPct</c> × the actor's Max HP <b>as it stood after `18`
+/// §8 step 7</b>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <c>AggregatedStats.PostMultiplierMaxHp</c>'s own remarks name them and say that nothing can
-/// enforce either from where they are written:
-/// </para>
-/// <list type="number">
-///   <item><b>Hold the whole <c>AggregatedStats</c> as actor state.</b> <em>"A consumer that keeps
-///   <c>Final</c> and discards the wrapper caps every <c>CP_GLASS_HEART</c> ward at 1 HP with
-///   nothing going red — the one loss in this record that is not reported."</em></item>
-///   <item><b>Re-read it on every re-aggregation</b> rather than caching it at battle start:
-///   <em>"`05` §3.1's <c>SYS_ENRAGE</c> adds a <c>STAT_MULT</c> every second from 70 s, so the
-///   post-step-7 Max HP of a boss is not a battle constant."</em></item>
-/// </list>
-/// <para>
-/// This file is the proof of both, and each is written so that the <em>wrong</em> implementation
-/// produces a specific, different number rather than an absence.
-/// </para>
+/// Two obligations nothing else can enforce: the actor must hold the whole <c>AggregatedStats</c>
+/// (keeping <c>Final</c> and discarding the wrapper caps every <c>CP_GLASS_HEART</c> ward at 1 HP
+/// with nothing going red), and it must be <b>re-read</b> on every re-aggregation, since
+/// <c>SYS_ENRAGE</c> makes a boss's post-step-7 Max HP not a battle constant. Each case is written so
+/// the wrong implementation produces a specific different number rather than an absence.
 /// </remarks>
 public sealed class WardCapTests
 {
@@ -36,22 +25,14 @@ public sealed class WardCapTests
     // ══════════════════════════════════ obligation 1 — the whole record, not Final
 
     /// <summary>
-    /// 🔒 `05` §4.1 / `18` §9.1 — <c>CP_GLASS_HEART</c>'s shields stay functional, which is the
-    /// reason the cap reads post-step-7 Max HP at all.
+    /// 🔒 `05` §4.1 / `18` §9.1 — <c>CP_GLASS_HEART</c>'s shields stay functional, which is why the
+    /// cap reads post-step-7 Max HP at all.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The perk is <c>STAT_MULT ALL_COMBAT ×2</c> plus <c>STAT_SET MAX_HP 1</c>, and `18` §9.1 is
-    /// explicit that <em>"<c>MAX_HP</c> is set after all multipliers (step 8), so ×2 never applies
-    /// to it"</em>. So the final block says <b>1</b> Max HP and the post-step-7 reading says
-    /// <b>2000</b> — a factor of two thousand between the right answer and the wrong one, which is
-    /// what makes this case discriminating rather than merely green.
-    /// </para>
-    /// <para>
-    /// The three rows are the three behaviours that must be told apart: <b>under</b> the cap (the
-    /// grant lands whole, which fails outright if <c>Final</c> is read), <b>over</b> it (the grant
-    /// is clipped, which fails if the cap is ignored altogether), and <b>at</b> it.
-    /// </para>
+    /// The final block says <b>1</b> Max HP and the post-step-7 reading says <b>2000</b> — a factor of
+    /// two thousand between right and wrong. The three rows are the three behaviours to tell apart:
+    /// <b>under</b> the cap (fails if <c>Final</c> is read), <b>over</b> it (fails if the cap is
+    /// ignored), and <b>at</b> it.
     /// </remarks>
     [Theory]
     [InlineData(1500.0, 1500.0)]
@@ -82,13 +63,13 @@ public sealed class WardCapTests
             });
 
     /// <summary>
-    /// 🔒 The obligation stated over the actor rather than over a ward — <c>BattleActor</c> holds the
-    /// whole <c>AggregatedStats</c>, so the reading survives at all.
+    /// 🔒 The obligation stated over the actor: <c>BattleActor</c> holds the whole
+    /// <c>AggregatedStats</c>, so the reading survives at all.
     /// </summary>
     /// <remarks>
-    /// The case above would also pass if some other route to 2000 existed; this asserts the identity
-    /// (steering S2). <c>PostMultiplierMaxHp</c> and <c>Final[MAX_HP]</c> are read off the same
-    /// actor and must differ, which is only possible if the wrapper was kept.
+    /// The case above would also pass if some other route to 2000 existed; this asserts the identity.
+    /// The two readings come off the same actor and must differ, which is only possible if the wrapper
+    /// was kept.
     /// </remarks>
     [Fact]
     public void A_battle_actor_holds_the_whole_aggregation_and_not_only_its_final_block() =>
@@ -118,19 +99,13 @@ public sealed class WardCapTests
     /// mid-fight has a ward pool that grows with it.
     /// </summary>
     /// <remarks>
+    /// ⚠️ Driven by a <c>BATTLE_TIME</c>-gated <c>STAT_MULT</c> rather than the literal
+    /// <c>SYS_ENRAGE</c> — see <see cref="AttackPipelineBench.EnrageShaped"/> for why a
+    /// <c>PERIODIC STAT_MULT</c> moves no stat on this branch.
     /// <para>
-    /// ⚠️ <b>Driven by a <c>BATTLE_TIME</c>-gated <c>STAT_MULT</c> rather than by the literal
-    /// <c>SYS_ENRAGE</c>.</b> <see cref="AttackPipelineBench.EnrageShaped"/> carries the full reason
-    /// — in short, `18` §8 step 1 as M2-08 wired it aggregates untriggered effects only, so a
-    /// <c>PERIODIC STAT_MULT</c> moves no stat on this branch and would prove nothing. The threshold
-    /// is the enrage's own <c>startDelay: 70.0</c>, and the stat is <c>MAX_HP</c> because that is
-    /// what the ward cap reads.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The discriminating shape.</b> A cap taken once at battle start would leave the pool
-    /// full at 1000 for the whole fight, so the second grant would return <b>0</b>. A cap that grew
-    /// returns the 1000 of new headroom. The <c>enraged: false</c> row is the negative control and
-    /// asserts exactly that 0, over the same fight with the multiplier's condition never satisfied.
+    /// 🔒 A cap taken once at battle start leaves the pool full for the whole fight, so the second
+    /// grant returns <b>0</b>; a cap that grew returns the 1000 of new headroom. The
+    /// <c>enraged: false</c> row is the negative control and asserts exactly that 0.
     /// </para>
     /// </remarks>
     [Theory]
@@ -187,13 +162,12 @@ public sealed class WardCapTests
     }
 
     /// <summary>
-    /// 🔒 The same re-read, stated over the reading itself rather than over a ward — the actor's
-    /// <c>PostMultiplierMaxHp</c> changes on the tick the condition flips, and not a tick later.
+    /// 🔒 The same re-read stated over the reading itself: <c>PostMultiplierMaxHp</c> changes on the
+    /// tick the condition flips, and not a tick later.
     /// </summary>
     /// <remarks>
-    /// The tick-precision half. A cap refreshed lazily — on the next grant, say — would still report
-    /// the new number eventually and pass the case above; this pins the boundary at
-    /// <c>BATTLE_TIME &gt;= 70</c>, which is tick 1400 exactly (<c>BattleClock.SecondsAt</c>).
+    /// A cap refreshed lazily — on the next grant, say — would report the new number eventually and
+    /// pass the case above. This pins the boundary at <c>BATTLE_TIME &gt;= 70</c>, tick 1400 exactly.
     /// </remarks>
     [Fact]
     public void The_post_step_7_reading_moves_on_the_exact_tick_the_multiplier_switches_on()
@@ -230,13 +204,11 @@ public sealed class WardCapTests
     }
 
     /// <summary>
-    /// 🔒 The 📐 <c>wardCapPct</c> is read from data too — the same fight at three different
-    /// ceilings.
+    /// 🔒 The 📐 <c>wardCapPct</c> is read from data too — the same fight at three ceilings.
     /// </summary>
     /// <remarks>
-    /// The <c>0.25</c> row is what separates "clips at <c>wardCapPct × Max HP</c>" from "clips at
-    /// Max HP": at the shipped 1.0 the two are numerically the same, which is exactly the shape
-    /// steering S1 warns about.
+    /// The <c>0.25</c> row separates "clips at <c>wardCapPct × Max HP</c>" from "clips at Max HP": at
+    /// the shipped 1.0 the two are numerically the same.
     /// </remarks>
     [Theory]
     [InlineData(1.0, 1000.0)]
@@ -260,40 +232,24 @@ public sealed class WardCapTests
     // ══════════════════════════════════ the expiry side, in a real fight
 
     /// <summary>
-    /// 🔒 `05` §4.1 — a segment's expiry emits <c>StatusExpired</c> carrying the remainder, and
-    /// <b>never</b> <c>WardBroken</c>; damage emptying the same pool emits <c>WardBroken</c> and no
-    /// <c>StatusExpired</c>.
-    /// </summary>
-    /// <summary>
     /// 🔴 `05` §3.1 slot 2 — <b>the tick loop</b> expires a due ward segment. Nothing else does.
     /// </summary>
     /// <remarks>
+    /// 🔒 The probe never calls <c>ExpireWards</c>, and that is the whole test:
+    /// <see cref="Expiry_emits_StatusExpired_and_damage_emits_WardBroken_over_the_same_end_state"/>
+    /// calls it by hand, which pins the mechanism and hid the routing's absence — every segment
+    /// carrying a timer lasted the whole fight while that test stayed green.
     /// <para>
-    /// 🔒 <b>The probe never calls <c>ExpireWards</c>.</b> That is the whole test.
-    /// <c>Expiry_emits_StatusExpired_and_damage_emits_WardBroken_over_the_same_end_state</c> below
-    /// calls it by hand, which pins the mechanism and says nothing about the routing — and the
-    /// routing was absent: <c>BattleServices.ExpireWards</c> had no production caller at all, so
-    /// every segment carrying a timer lasted the whole fight while that test stayed green.
+    /// 🔒 Two expiry ticks so a sweep hard-wired to one cannot pass both, plus a <c>null</c>-timer
+    /// control. The reading is <c>Wards.Total</c> <em>at</em> the tick rather than the log, because a
+    /// pool that never swept and one swept into an empty log look the same in the events. It sits one
+    /// tick behind the expiry by the bench's geometry: the probe fires from slot 1 and the sweep is
+    /// slot 2 of the same tick.
     /// </para>
     /// <para>
-    /// 🔒 <b>Two shapes plus a negative control.</b> The segment expires at tick 2 and at tick 4 —
-    /// two different ticks, so a sweep hard-wired to one cannot pass both — and the control grants
-    /// the identical segment with <c>expiresAtTick: null</c>, which must survive to the last tick.
-    /// The reading is <c>Wards.Total</c> <em>at</em> the expiry tick rather than the log, because a
-    /// pool that never swept and a pool swept into an empty log look the same in the events.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The reading is one tick behind the expiry, and that is the bench's geometry rather than
-    /// an off-by-one.</b> <c>AttackPipelineBench</c> fires the probe from `05` §3.1 <b>slot 1</b>,
-    /// and the sweep is slot 2 of the same tick — so tick <c>N</c> still reads the segment and tick
-    /// <c>N+1</c> is the first that cannot. Asserting both ends is what makes the row pin the sweep
-    /// to <em>its</em> tick instead of to "sometime later".
-    /// </para>
-    /// <para>
-    /// ⚠️ The fight wires <c>NoStatusTimeline</c> — <c>AttackPipelineBench</c> composes no statuses.
-    /// That is deliberate and is the case the first fix got wrong: a sweep living behind
+    /// ⚠️ The fight wires <c>NoStatusTimeline</c> deliberately — a sweep living behind
     /// <c>IStatusTimeline.ExpireDue</c> is a no-op here, and here is exactly where a `05` §4.2
-    /// <c>SHIELD</c> lives.
+    /// <c>SHIELD</c> lives. That is the case the first fix got wrong.
     /// </para>
     /// </remarks>
     [Theory]
@@ -327,9 +283,9 @@ public sealed class WardCapTests
     /// with no timer is never swept.
     /// </summary>
     /// <remarks>
-    /// Without this, a slot 2 that dropped <em>every</em> segment on every tick would pass the theory
-    /// above on both rows. `05` §4.1's <c>expiresAt?</c> is optional, and every production
-    /// <c>GrantWard</c> passes <c>null</c> today.
+    /// Without it, a slot 2 dropping <em>every</em> segment on every tick passes the theory above on
+    /// both rows. `05` §4.1's <c>expiresAt?</c> is optional and every production <c>GrantWard</c>
+    /// passes <c>null</c> today.
     /// </remarks>
     [Fact]
     public void A_ward_segment_with_no_timer_is_never_swept()
@@ -354,14 +310,12 @@ public sealed class WardCapTests
     }
 
     /// <remarks>
-    /// 🔒 The distinction `18` §6's <c>until: WARD_BROKEN</c> terminator is built on (`17` §4's
-    /// Ossify), asserted end to end over the fight's log rather than over the pool's return values —
-    /// which is where a caller could still get it wrong after <c>WardPoolTests</c> passes. The two
-    /// halves reach the <b>same end state</b> by the two routes, so the assertion is about the route.
+    /// 🔒 The distinction `18` §6's <c>until: WARD_BROKEN</c> terminator is built on, asserted end to
+    /// end over the fight's log rather than the pool's return values. Both halves reach the <b>same
+    /// end state</b> by the two routes, so the assertion is about the route.
     /// <para>
-    /// ⚠️ The first half calls <c>ExpireWards</c> by hand and so pins the <b>mechanism</b> only. The
-    /// <b>routing</b> is <see cref="The_tick_loop_expires_a_due_ward_segment"/>'s, added by
-    /// cross-task review after this test's manual call was found to be hiding its absence.
+    /// ⚠️ This calls <c>ExpireWards</c> by hand and so pins the <b>mechanism</b> only; the
+    /// <b>routing</b> is <see cref="The_tick_loop_expires_a_due_ward_segment"/>'s.
     /// </para>
     /// </remarks>
     [Fact]
