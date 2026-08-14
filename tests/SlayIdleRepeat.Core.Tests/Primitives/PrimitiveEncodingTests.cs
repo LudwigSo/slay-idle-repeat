@@ -6,22 +6,17 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
 /// <summary>
-/// `14` §16.6 — the primitives M1-04 and M1-05 will put in a snapshot must already have a
-/// canonical encoding.
+/// `14` §16.6 — the primitives a snapshot will carry must already have a canonical encoding.
 /// </summary>
 /// <remarks>
-/// <para>
 /// <see cref="CanonicalStateWriter"/> dispatches over a <b>closed allowlist</b> with no
-/// <c>IEnumerable</c> fallback, so "will this hash?" is a real question with a real answer, and
-/// the wrong answer is a <c>NotSupportedException</c> discovered by whoever declares
-/// <c>PlayerSnapshot</c> rather than by whoever chose the id's shape. These tests answer it here,
-/// in the task that chooses the shape.
-/// </para>
+/// <c>IEnumerable</c> fallback, so "will this hash?" is a real question whose wrong answer is a
+/// <c>NotSupportedException</c> discovered by whoever declares the snapshot rather than by whoever chose
+/// the id's shape.
 /// <para>
-/// They also pin <b>what</b> the encoding is, not merely that one exists: an id encodes as its
-/// string and an enum as its number, with the id type contributing no bytes of its own. That is
-/// what makes the id wrapper free at the wire, and it is the assumption M1-04's field-order pin
-/// will be written on top of.
+/// They also pin <b>what</b> the encoding is, not merely that one exists: an id encodes as its string and
+/// an enum as its number, with the id type contributing no bytes of its own. That is what makes the id
+/// wrapper free at the wire, and it is the assumption the field-order pin is written on top of.
 /// </para>
 /// </remarks>
 public sealed class PrimitiveEncodingTests

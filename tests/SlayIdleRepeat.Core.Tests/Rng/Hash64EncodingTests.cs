@@ -5,20 +5,17 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 The canonical byte encoding of `14` §8.0 — the half of <c>Hash64</c> that is
-/// SlayIdleRepeat's own, and the half a correct XXH64 cannot save.
+/// 🔒 The canonical byte encoding of `14` §8.0 — the half of <c>Hash64</c> that is this project's own,
+/// and the half a correct XXH64 cannot save.
 /// </summary>
 /// <remarks>
+/// Integrals and enums widen to 64 bits (ints sign-extended), 8 bytes little-endian; a string is a
+/// 4-byte little-endian UTF-8 <b>byte</b> count then the bytes.
 /// <para>
-/// | <c>ulong</c> / <c>long</c> / <c>int</c> / enum | widened to 64 bits (ints sign-extended), 8 bytes little-endian |<br/>
-/// | <c>string</c> | a 4-byte little-endian UTF-8 <b>byte</b> count, then the UTF-8 bytes |
-/// </para>
-/// <para>
-/// These tests assert the bytes, not just the hash. A hash-only assertion tells you a row
-/// moved; a byte-level assertion tells you why — and the two failure modes this encoding
-/// actually has (zero-extending a negative int, counting <c>char</c>s instead of UTF-8 bytes)
-/// are invisible until someone feeds it a negative number or a non-ASCII string in
-/// production.
+/// These assert the bytes, not just the hash: a hash-only assertion tells you a row moved, a byte-level
+/// one tells you why — and the two failure modes this encoding actually has (zero-extending a negative
+/// int, counting <c>char</c>s instead of UTF-8 bytes) are invisible until someone feeds it a negative
+/// number or a non-ASCII string in production.
 /// </para>
 /// </remarks>
 public sealed class Hash64EncodingTests

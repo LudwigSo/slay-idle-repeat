@@ -83,22 +83,18 @@ public sealed class EffectStackSetTests
     }
 
     /// <summary>
-    /// 🔒 <b>Every mode is handled, and each combines its own way.</b> S3 — this type's subject set
-    /// is the five <see cref="StackingMode"/>s, and one falling through would leave a status stacking
-    /// as whatever the last arm happened to do.
+    /// 🔒 <b>Every mode is handled, and each combines its own way.</b> S3 — one falling through would
+    /// leave a status stacking as whatever the last arm happened to do.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Why an expected value per mode rather than <c>Should.NotThrow</c>.</b> A
-    /// <c>Should.NotThrow</c> loop is satisfied by a single <c>default</c> arm answering all five —
-    /// proven by stubbing <c>Apply</c> and <c>CombinedValue</c> to constants, at which point the loop
-    /// went green while every per-mode fact above went red.
+    /// ⚠️ An expected value per mode rather than <c>Should.NotThrow</c>, which a single <c>default</c> arm
+    /// answering all five satisfies — proven by stubbing both members to constants, at which point the
+    /// loop went green while every per-mode fact went red.
     /// <para>
-    /// The sequence <c>0.25 → 0.5 → 0.125</c> is chosen because it is the shortest one that separates
-    /// all five: two applications cannot tell <c>REPLACE</c> from <c>HIGHEST_WINS</c> (second
-    /// stronger) or from <c>NONE</c> (second weaker), and a monotone three cannot tell
-    /// <c>HIGHEST_WINS</c> from <c>NONE</c>. Putting the strongest in the middle does. Every value is
-    /// a negative power of two, so the sums and products below are exact in binary and need no
-    /// tolerance.
+    /// The sequence <c>0.25 → 0.5 → 0.125</c> is the shortest that separates all five: two applications
+    /// cannot tell <c>REPLACE</c> from <c>HIGHEST_WINS</c> or <c>NONE</c>, and a monotone three cannot
+    /// tell <c>HIGHEST_WINS</c> from <c>NONE</c>. Every value is a negative power of two, so the sums and
+    /// products are exact in binary and need no tolerance.
     /// </para>
     /// </remarks>
     [Fact]

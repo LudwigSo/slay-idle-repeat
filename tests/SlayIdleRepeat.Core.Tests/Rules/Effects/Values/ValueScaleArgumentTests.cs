@@ -8,23 +8,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Values;
 
 /// <summary>
-/// 🔴 <b>The `18` §1.1 gap, closed.</b> §1.1 offers <c>valueScale</c> <em>"any condition function
-/// from §4"</em> and names <c>STATUS_STACKS</c> and <c>DIE_FACE_COUNT</c> in its own worked list —
-/// but both take an argument, and <see cref="ValueScale"/> carried only <c>fn</c>/<c>per</c>/
-/// <c>cap</c>. Scales driven by either were unexpressible.
+/// 🔴 <b>The `18` §1.1 gap, closed.</b> §1.1 offers <c>valueScale</c> <em>"any condition function from
+/// §4"</em> and names two that take an argument, while <see cref="ValueScale"/> carried only
+/// <c>fn</c>/<c>per</c>/<c>cap</c> — so scales driven by either were unexpressible.
 /// </summary>
 /// <remarks>
+/// Closed by giving <see cref="ValueScale"/> the <b>same three optional argument keys</b> a §4 condition
+/// term already carries. No new vocabulary: the names, types and meanings are §4's.
 /// <para>
-/// Closed by `18` §10's route — schema, code, document and test in one commit — by giving
-/// <see cref="ValueScale"/> the <b>same three optional argument keys</b> a `18` §4 condition term
-/// already carries. No new vocabulary: the key names, their types and their meanings are §4's.
-/// </para>
-/// <para>
-/// ⚠️ <see cref="ValueScale"/> cannot carry M2-05's <c>ConditionArguments</c> itself — it is
-/// <c>public</c> in <c>Core.Content.Effects</c> and `30` §11.4 forbids <c>Content</c> from naming
-/// <c>Rules</c>. The seam is reused rather than duplicated: the evaluator converts the scale into
-/// the <em>same</em> <c>ConditionArguments</c> the condition path uses, so there is one argument
-/// type in the codebase and one place that reads it.
+/// ⚠️ <see cref="ValueScale"/> cannot carry <c>ConditionArguments</c> itself — it is <c>public</c> in
+/// <c>Core.Content.Effects</c> and `30` §11.4 forbids <c>Content</c> naming <c>Rules</c>. The evaluator
+/// converts the scale into the <em>same</em> type the condition path uses, so there is one argument type
+/// in the codebase and one place that reads it.
 /// </para>
 /// </remarks>
 public sealed class ValueScaleArgumentTests

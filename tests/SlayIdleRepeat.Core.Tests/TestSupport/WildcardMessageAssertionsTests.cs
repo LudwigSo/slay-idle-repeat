@@ -6,24 +6,18 @@ namespace SlayIdleRepeat.Core.Tests.TestSupport;
 
 /// <summary>
 /// Pins <see cref="WildcardMessageAssertions.ShouldMatchWildcard"/> against the exception-message
-/// wildcard behaviour it replaced in M1-00.
+/// wildcard behaviour it replaced.
 /// </summary>
 /// <remarks>
+/// 🔒 The helper is the one part of the migration that is <b>new code</b> rather than a translation, and
+/// it carries 19 assertions that pin <i>which rule fired</i>. A helper that matched everything would take
+/// all 19 green with nothing going red.
 /// <para>
-/// 🔒 These exist because the helper is the one part of M1-00's migration that is <b>new code</b>
-/// rather than a translation, and it carries 19 assertions that pin <i>which rule fired</i>. A
-/// helper that matched everything would take all 19 green and nothing would go red — the
-/// cannot-fail defect class (steering S1) at its most expensive.
-/// </para>
-/// <para>
-/// So the negative cases below matter more than the positive ones. Each expected-row asserts a
-/// pattern that must <b>not</b> match, and every one of them is a way a sloppy implementation
-/// could have been written: a substring check (loses anchoring), a <c>ShouldContain</c> pair
-/// (loses order), a raw regex (metacharacters stop being literal).
-/// </para>
-/// <para>
-/// The expectations were measured by running the real <c>WithMessage(pattern)</c> assertion
-/// against crafted inputs before the library was removed, not inferred from its documentation.
+/// So the negative cases matter more than the positive ones: each asserts a pattern that must <b>not</b>
+/// match, and every one is a way a sloppy implementation could have been written — a substring check
+/// (loses anchoring), a <c>ShouldContain</c> pair (loses order), a raw regex (metacharacters stop being
+/// literal). The expectations were measured against the real assertion before the library was removed,
+/// not inferred from its documentation.
 /// </para>
 /// </remarks>
 public sealed class WildcardMessageAssertionsTests

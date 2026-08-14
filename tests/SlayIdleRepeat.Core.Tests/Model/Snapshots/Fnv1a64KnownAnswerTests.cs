@@ -6,20 +6,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
 /// <summary>
-/// 🔒 The <b>external</b> check on `14` §16.6's algorithm: Landon Curt Noll's published
-/// FNV-1a 64 test vectors, over raw bytes.
+/// 🔒 The <b>external</b> check on `14` §16.6's algorithm: Landon Curt Noll's published FNV-1a 64 test
+/// vectors, over raw bytes.
 /// </summary>
 /// <remarks>
+/// A hash that is merely self-consistent passes every test its own author writes and fails the day
+/// someone cross-checks it. These rows come from outside this repository, and an implementation that
+/// reproduces them <i>is</i> FNV-1a 64.
 /// <para>
-/// A hash that is merely self-consistent passes every test its own author writes and fails the
-/// day someone cross-checks it against another implementation. These rows come from outside this
-/// repository — <c>github.com/jakedouglas/fnv-java</c>'s <c>test_fnv1a_64()</c> and
-/// <c>github.com/littledan/Factor</c>'s <c>fnv1-tests.factor</c>, both transcribing Noll's
-/// <c>test_fnv.c</c> — and an implementation that reproduces them <i>is</i> FNV-1a 64.
-/// </para>
-/// <para>
-/// These are <b>not</b> canonical-encoding rows: the input is the raw UTF-8 bytes, with no length
-/// prefix and no presence byte. They pin the hash, not the encoding.
+/// <b>Not</b> canonical-encoding rows: the input is the raw UTF-8 bytes, with no length prefix and no
+/// presence byte. They pin the hash, not the encoding.
 /// </para>
 /// </remarks>
 public sealed class Fnv1a64KnownAnswerTests
