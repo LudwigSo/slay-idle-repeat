@@ -395,7 +395,7 @@ after it.
 | M8-01a | **Provenance tooling** — record + schema + validator + CLI (job ID, prompt, seed, `--sref`, tool, version, date per asset; `kind: procedural` variant for code-drawn output), keyed to M8-09's asset IDs; CI gate: no delivered asset without a provenance record | 15 §B0, §G, 20 §2.1 | 🔍 merged to `milestone/M8` · `feature-M8-01a-provenance` — 102 tests, own CI job. Gate reads **1080 register ids / 1048 uncut / 32 cut**, 0 delivered, **licences confirmed 0 of 1**. Coverage is a 3-state enum, so the empty state cannot be mistaken for a populated pass |
 | M8-01b | **Licence confirmations in writing** — Midjourney §G terms; audio tools not yet licensed | 15 §G, 20 §2.1 | ⛔ **product owner owns this** — a legal act, not an engineering task |
 | M8-06 | 7-step post-processing pipeline tooling (bg removal → trim → quantise → outline repair → resize → export → atlas) + the 11-item QA checklist + silhouette gate, each step independently testable | 15 §C–D, F | 🔍 merged to `milestone/M8` · `feature-M8-06-asset-pipeline` — 209 tests. All 7 steps independently runnable; **11 QA items classified 2 mechanical / 4 uncalibrated / 5 human**, with `Accepted` structurally unreachable by machinery. **17 thresholds ship `null`** (S6). Two documented deviations: no `pngquant`, no Lanczos |
-| M8-10 | **Placeholder generator** — renders a correctly-named, correctly-sized, correctly-pivoted, ID-stamped placeholder for every runtime slot in M8-09, drives them through M8-06's full pipeline into the §D2 atlases, and asserts the QA gate passes. Output is a **build artifact, never committed** (binary churn, and it must not enter the Godot checkout). Answers M7's open placeholder-asset-policy decision in advance | 15 §C–D, §D2, F | 🔄 wave 3 · `feature-M8-10-placeholders` — ⚠️ **"asserts the QA gate passes" was unachievable as written and is corrected in the dispatch**: with all 17 thresholds `null` (S6) and 5 items classified human, a full run tops out at `AwaitingHumanReview`. The assertion is *reaches that state with zero `Fail` on the two fully-mechanical items* (#7 size/pivot, #10 §D1 naming/atlas) |
+| M8-10 | **Placeholder generator** — renders a correctly-named, correctly-sized, correctly-pivoted, ID-stamped placeholder for every runtime slot in M8-09, drives them through M8-06's full pipeline into the §D2 atlases, and asserts the QA gate passes. Output is a **build artifact, never committed** (binary churn, and it must not enter the Godot checkout). Answers M7's open placeholder-asset-policy decision in advance | 15 §C–D, §D2, F | 🔄 wave 3 · `feature-M8-10-placeholders` — ⚠️ **"asserts the QA gate passes" was unachievable as written and is corrected in the dispatch**: with all 17 thresholds `null` (S6) and 5 items classified human, a full run tops out at `AwaitingHumanReview`. 🔍 merged to `milestone/M8` · `feature-M8-10-placeholders` — **641 generated · 32 cut · 144 no §C size · 157 no §C pivot = 974/974 reconciled**, 0 failures, 58 tests. **0 `Fail` on the two fully-mechanical Part F items** (#7 size/pivot, #10 §D1 naming/atlas), with no threshold calibrated to get there. Provenance gate still *AWAITING FIRST DELIVERY*. ⚠️ The dispatch's own correction was half wrong: the batch reaches **`BlockedByUncalibratedThreshold`**, which outranks `AwaitingHumanReview` — the latter is unreachable while any of the 8 mechanical cutoffs is `null` |
 | M8-02 | **Style Anchor Sheet** (6 characters in one image) + locked seed family — gates all other art | 15 §B2 | ⛔ **generation** — needs a human Midjourney session |
 | M8-03 | UI kit E17 (12 panels, 18 buttons, frames, bars, tabs, card backs — square corners) — unblocks all screen implementation | 15 §E17 | ⛔ **generation** — blocked behind M8-02 |
 | M8-04 | Hero body poses + one full gear family at all 5 rarities — validates rigging (O7) and the rarity language | 15 §E2 | ⛔ **generation** — blocked behind M8-02; carries the O7 ruling |
@@ -479,6 +479,38 @@ after it.
   consumers in flight). Owner: **M8 milestone-review**, which does exactly this cross-task pass.
 - **`RequireDeliverySize()` throws on 144 size-less and 284 pivot-less register rows** — by design
   (**S6**), not a defect. M8-10 must handle them explicitly rather than defaulting.
+
+**Carried forward from M8 wave 3** (recorded; the vendor gate was fixed, the rest were not)
+
+- 🔴 **`14` §1.1's scope needs ratifying — owner: the M8 milestone review, alongside X-07.** A9-LOCATION
+  had been **red since M8-06 merged** (SkiaSharp in `tools/AssetPipeline`; a vendor SDK outside an
+  adapter). Found by M8-10, the first agent to run that gate — the conductor's post-merge checks covered
+  unit, architecture and content validation but not this one, so it survived two merges. **Fixed at
+  `c3cacaa`** with a *location pin* (`build/ci/vendor-location-exceptions.json`) rather than an
+  allow-list entry: the package stays a **vendor** package so A9-UNIQUE still governs it in full, and
+  only its permitted location moves to one named project. Pins self-expire as `A9-STALE-PIN` (**S4**).
+  🔒 **This interprets `14` §1.1's scope — build-time tools that ship in no artifact — and the scope is
+  the product owner's to set.** Ratify the carve-out, or amend `14` §1.1 to state it directly.
+- 🔴 **`.github/workflows/README.md:290` is stale** — claims "34 projects, 12 with a PackageReference,
+  8 vendor SDKs"; the tree is now **41 / 16 / 10**. Not fixed (documentation owned by M0-02's CI work).
+- **`CON_ATLAS_PAGE_CAP` fires on 14 of 14 atlases**, so `15` §D2's "one atlas per category" is
+  unreachable in practice — `atlas_biome_*` needs **3 pages** for 24 assets, because four 1024² bosses
+  fill a 2048 page two to a shelf. Deterministic and declared, not a defect. Owner: **O30 at M11-01**,
+  with the atlas-gutter ruling.
+- **`CON_DELIVERY_ASPECT` fired 0 times in 641** — the §B0 aspect ruling works; step 5 is a genuine
+  uniform downscale for all 24 mounts it was declared about.
+- **Two native-memory leaks fixed in M8-06's just-merged pipeline**, both on throw paths that no
+  synthetic fixture reached: `AssetPipeline.Run` freed nothing when a later step threw, and
+  `PlaceholderBatch.Process` disposed only on the straight-line path. Both are **inspection-only** —
+  unobservable from outside, and wave 3 said so rather than claiming a test.
+- **`AssetNaming.CategoryOf` throws uncaught out of Part F item 1** for any prefix outside
+  `ManifestValidator.IdPrefixes` — would abort a batch rather than fail one asset. Harmless today
+  (all 641 conform). Owner: **M8 milestone review**.
+- **E8's 14 tile icons carry `atlas: null`** while `15` §D2 puts tiles in the biome atlas — a
+  register/doc gap. Owner: **O30 at M11-01**.
+- **`RepoLayout` cannot see a `ProjectReference` injected via `Directory.Build.props`** (latent), and
+  `RepoLayout.ToolsRoot`'s summary still names three tools where there are now six. M0-08 files;
+  **M1-12** is in flight on them (**S12**).
 
 ---
 
