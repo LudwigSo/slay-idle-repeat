@@ -38,6 +38,7 @@
 param(
     [string]$RepositoryRoot,
     [string]$AllowListPath,
+    [string]$LocationExceptionPath,
 
     # Projects allowed to hold vendor SDKs. Adapter projects, and nothing else.
     [string[]]$AdapterPathPrefix = @('src/adapters/')
@@ -49,12 +50,19 @@ $ErrorActionPreference = 'Stop'
 
 $root = Get-RepositoryRoot -Override $RepositoryRoot
 if (-not $AllowListPath) { $AllowListPath = Join-Path $PSScriptRoot 'non-vendor-packages.json' }
+if (-not $LocationExceptionPath) { $LocationExceptionPath = Join-Path $PSScriptRoot 'vendor-location-exceptions.json' }
 
 Write-Section 'Vendor package uniqueness (14 §1.1 / A9)'
 Write-Host "Repository root : $root"
 Write-Host "Allow-list      : $AllowListPath"
+Write-Host "Location pins   : $LocationExceptionPath"
 
 $allowList = (Get-Content -Raw -LiteralPath $AllowListPath | ConvertFrom-Json).packages
+
+# A9-LOCATION pins. Deliberately NOT part of $allowList: a pinned package stays a vendor package and
+# stays subject to A9-UNIQUE. See the $comment block in vendor-location-exceptions.json.
+$locationExceptions = @((Get-Content -Raw -LiteralPath $LocationExceptionPath | ConvertFrom-Json).exceptions)
+$usedLocationExceptions = [System.Collections.Generic.HashSet[string]]::new()
 
 function Test-IsAllowed {
     param([Parameter(Mandatory)][string]$PackageId)
@@ -169,11 +177,25 @@ foreach ($id in $usage.Keys) {
             foreach ($prefix in $AdapterPathPrefix) {
                 if ($projectPath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { $inAdapter = $true }
             }
-            if (-not $inAdapter) {
+
+            # A pinned location is NOT an allow-list entry: the package stays a vendor package, so
+            # A9-UNIQUE above still governs it in full. Only its permitted location moves.
+            $pinned = $false
+            foreach ($exception in $locationExceptions) {
+                if ($exception.id -eq $id -and
+                    $exception.project.Replace('\', '/').Equals($projectPath, [StringComparison]::OrdinalIgnoreCase)) {
+                    $pinned = $true
+                    $usedLocationExceptions.Add("$($exception.id)|$($exception.project.Replace('\', '/'))") | Out-Null
+                }
+            }
+
+            if (-not $inAdapter -and -not $pinned) {
                 $failures.Add(
                     "A9-LOCATION: vendor package '$id' is referenced by '$projectPath', which is not an " +
                     "adapter. 14 §1.1: no driver or vendor SDK anywhere outside an adapter. Move it behind " +
-                    "a port, or add it to build/ci/non-vendor-packages.json if it is test infrastructure.")
+                    "a port, add it to build/ci/non-vendor-packages.json if it is test infrastructure, or - " +
+                    "only for a build-time tool under tools/ that ships in no artifact - pin it in " +
+                    "build/ci/vendor-location-exceptions.json with a written reason.")
             }
         }
     }
@@ -186,10 +208,26 @@ foreach ($id in $usage.Keys) {
     })
 }
 
+# S4 - a declared exception must expire by itself. A pin whose (id, project) pair is no longer in the
+# scan is stale: the package moved, was dropped, or the project was renamed. Left unchecked it would
+# sit here pre-armed for whatever lands on that name next, which is the failure mode rule 5 in
+# build/ci/test-suites.json exists to prevent. Removing the package forces its pin to go with it.
+foreach ($exception in $locationExceptions) {
+    $key = "$($exception.id)|$($exception.project.Replace('\', '/'))"
+    if (-not $usedLocationExceptions.Contains($key)) {
+        $failures.Add(
+            "A9-STALE-PIN: build/ci/vendor-location-exceptions.json pins '$($exception.id)' to " +
+            "'$($exception.project)', and the scan found no such vendor PackageReference there. Either " +
+            "the package is gone, the project was renamed, or the package is now allow-listed as a " +
+            "non-vendor package - in every case delete this pin. An exception that outlives the thing " +
+            "it excepts is worse than no exception.")
+    }
+}
+
 Write-Section 'Package inventory'
 $report | Sort-Object Kind, Package | Format-Table -AutoSize | Out-String -Width 220 | Write-Host
 
 $vendorCount = @($report | Where-Object { $_.Kind -eq 'vendor' }).Count
-Write-Host "Vendor SDKs: $vendorCount   Allow-listed: $($report.Count - $vendorCount)"
+Write-Host "Vendor SDKs: $vendorCount   Allow-listed: $($report.Count - $vendorCount)   Location-pinned: $($usedLocationExceptions.Count)"
 
 Exit-WithFailures -Failures $failures.ToArray() -CheckName 'Vendor package uniqueness'
