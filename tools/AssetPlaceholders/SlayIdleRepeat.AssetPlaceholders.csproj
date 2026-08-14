@@ -26,9 +26,16 @@
 
     🔒 SkiaSharp is NOT PackageReference'd. It arrives transitively through the ProjectReference to
     tools/AssetPipeline, which keeps ProjectFileTests.Vendor_package_is_referenced_by_exactly_one_project
-    both green AND armed: that rule reads PackageReference Include attributes out of production
-    .csproj files, so naming SkiaSharp here would fire it and would spread a native-binary dependency
-    to a second project for no gain.
+    ARMED: that rule reads PackageReference Include attributes out of production .csproj files, so
+    naming SkiaSharp here would fire it and would spread a native-binary dependency to a second
+    project for no gain.
+
+    ⚠️ It does NOT follow that the vendor gate is green. build/ci/Test-VendorPackageUniqueness.ps1's
+    A9-LOCATION rule has been RED since M8-06 merged: it allows a vendor package only under
+    src/adapters/, and SkiaSharp lives in tools/AssetPipeline. That is M8-06's to answer and it is a
+    ruling about 14 §1.1 ("no driver or vendor SDK anywhere outside an adapter") rather than a code
+    fix — either $AdapterPathPrefix admits the one build-time asset tool, or 14 §1.1 is amended.
+    Carried forward by M8-10, which found it; not resolved here.
 
     🔒 No native binaries. Nothing shells out to ImageMagick, pngquant, oxipng or a font rasteriser.
     The id stamp is drawn from a 5×7 bitmap font declared in this project (StampFont), not from an

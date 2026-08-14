@@ -52,9 +52,32 @@ public sealed record PlaceholderFailure(
 /// <param name="FileName">The delivered `15` §D1 file name.</param>
 /// <param name="Atlas">The `15` §D2 atlas the row names, or null where §D2 assigns none.</param>
 /// <param name="EncodedBytes">The size of the PNG-32 `15` §B4 step 6 produced.</param>
+/// <param name="Stamped">
+/// Whether the asset id was legibly stamped on it. 🔒 False when the card was too small to carry
+/// the stamp at any whole scale — the point of a placeholder is that a missing asset is
+/// self-identifying on screen, so "every placeholder is stamped" must never be claimed on a run
+/// where some are not.
+/// </param>
 /// <param name="Qa">Every `15` Part F item's outcome for it.</param>
 public sealed record GeneratedPlaceholder(
-    string AssetId, string FileName, string? Atlas, int EncodedBytes, QaBatchResult Qa);
+    string AssetId, string FileName, string? Atlas, int EncodedBytes, bool Stamped, QaBatchResult Qa);
+
+/// <summary>
+/// A place where this generator knowingly does something `15` forbids, because the task it exists
+/// for requires it.
+/// </summary>
+/// <remarks>
+/// 🔒 <b>Data that travels with the report, not a comment in a source file</b> — the same shape, and
+/// for the same reason, as <c>DeclaredDeviation</c> on a `15` §B4 step. A departure nobody can see
+/// in a batch report is a departure the next reader will mistake for something the doc permits.
+/// </remarks>
+/// <param name="Id">A stable id, e.g. <c>DEP_A3_ID_STAMP</c>.</param>
+/// <param name="DocReference">What the doc says, by section.</param>
+/// <param name="Requirement">The requirement, in the doc's own words.</param>
+/// <param name="Taken">What this generator does instead.</param>
+/// <param name="Why">Why, and who authorised it.</param>
+public sealed record PlaceholderDeparture(
+    string Id, string DocReference, string Requirement, string Taken, string Why);
 
 /// <summary>
 /// One generated placeholder that failed a fully mechanical `15` Part F item.
@@ -97,6 +120,48 @@ public sealed record PlaceholderBatchReport
 
     /// <summary>Every atlas that was packed, with its page count and placement count.</summary>
     public required IReadOnlyList<AtlasPackResult> Atlases { get; init; }
+
+    /// <summary>
+    /// Every place this generator knowingly departs from `15`, empty when it drew nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 Exactly one departure exists and it is the id stamp. `15` §A3 says <em>"Never render text
+    /// inside a generated image"</em> and Part F item 8 says <em>"No text, watermark or signature
+    /// anywhere in the image"</em>; every placeholder carries its asset id in text. That is
+    /// authorised for placeholders specifically by the M8 kickoff — a placeholder exists so a
+    /// missing asset is identifiable on screen, and an unlabelled grey box tells nobody which of
+    /// hundreds of slots is empty.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It is reported here because nothing else reports it.</b> Part F item 8 is
+    /// <see cref="QaClassification.Human"/> and returns <see cref="QaVerdict.HumanGapOnly"/> on every
+    /// asset, so a batch report that carried only the pipeline's own deviations would say this run
+    /// departed from `15` nowhere.
+    /// </para>
+    /// <para>
+    /// 🔒 Empty on a run that generated nothing, because a departure nothing took is not one.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<PlaceholderDeparture> Departures => Generated.Count == 0
+        ? []
+        : [IdStampDeparture];
+
+    /// <summary>
+    /// The generated placeholders whose card was too small to carry a legible id stamp.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The counter <see cref="PlaceholderRenderer"/> defers to. An illegible smear would be worse
+    /// than no stamp, so the renderer draws nothing rather than something unreadable — and this is
+    /// what stops that silent choice being read as "every placeholder is stamped".
+    /// </remarks>
+    public IReadOnlyList<string> Unstamped =>
+    [
+        .. Generated
+            .Where(placeholder => !placeholder.Stamped)
+            .Select(placeholder => placeholder.AssetId)
+            .OrderBy(id => id, StringComparer.Ordinal),
+    ];
 
     /// <summary>How many rows were skipped for one reason.</summary>
     /// <param name="reason">The reason to count.</param>
@@ -195,4 +260,18 @@ public sealed record PlaceholderBatchReport
         new QaChecklist()
             .OfClassification(QaClassification.Mechanical)
             .Select(item => item.ItemNumber));
+
+    /// <summary>The one departure from `15` this generator takes. See <see cref="Departures"/>.</summary>
+    public static PlaceholderDeparture IdStampDeparture { get; } = new(
+        "DEP_A3_ID_STAMP",
+        "15 §A3, Part F item 8",
+        "Never render text inside a generated image. All text is engine-rendered. / No text, " +
+        "watermark or signature anywhere in the image.",
+        "Every placeholder carries its `15` §D1 asset id, the word \"placeholder\" and its §C " +
+        "delivery size, drawn from a 5×7 bitmap font declared in this tool.",
+        "Authorised for placeholders specifically by the M8 kickoff, 2026-08-12. A placeholder " +
+        "exists so that a missing asset is self-identifying on screen; an unlabelled box tells " +
+        "nobody which of hundreds of slots is empty. 🔒 It is authorised for THIS batch and for " +
+        "nothing else — every one of these files is scaffolding a real asset overwrites, and a " +
+        "delivered asset carrying text fails §A3 exactly as it always did.");
 }

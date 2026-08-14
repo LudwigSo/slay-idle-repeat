@@ -126,11 +126,17 @@ public sealed class ToolProjectAccountabilityTests
     /// running §B4 somewhere else.
     /// </para>
     /// <para>
-    /// Package references are deliberately not restricted here, for the same reason
-    /// <see cref="ManifestConsumerToolNames"/> does not restrict them:
-    /// <c>Vendor_package_is_referenced_by_exactly_one_project</c> already governs those, and two
-    /// rules for one decision is one rule too many. SkiaSharp reaches M8-10 transitively through
-    /// <c>SlayIdleRepeat.AssetPipeline</c>, which is what keeps that rule armed.
+    /// ⚠️ <b>Package references are not restricted here, and that is a gap rather than a
+    /// delegation.</b> <c>Vendor_package_is_referenced_by_exactly_one_project</c> fires only on the
+    /// SECOND project to take a package — this file already says so, in
+    /// <see cref="The_dependency_free_tools_reference_nothing_at_all"/>'s remarks: <em>"only fires
+    /// on the second project to take a package, so the first one is free"</em>. So a FIRST package
+    /// taken by a pipeline-consumer tool — a native-binary imaging library, a font rasteriser —
+    /// passes this whole suite. What actually governs it is
+    /// <c>build/ci/Test-VendorPackageUniqueness.ps1</c>'s A9-LOCATION rule, and only while that
+    /// script's <c>$AdapterPathPrefix</c> stays narrow. SkiaSharp reaches M8-10 transitively through
+    /// <c>SlayIdleRepeat.AssetPipeline</c>, which is what keeps the uniqueness rule armed against a
+    /// second <c>PackageReference</c> naming it.
     /// </para>
     /// </remarks>
     private static readonly string[] PipelineConsumerToolNames = ["SlayIdleRepeat.AssetPlaceholders"];

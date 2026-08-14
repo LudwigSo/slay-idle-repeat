@@ -1,4 +1,5 @@
 using SlayIdleRepeat.AssetManifest;
+using SlayIdleRepeat.AssetPipeline;
 
 namespace SlayIdleRepeat.AssetPlaceholders;
 
@@ -35,12 +36,18 @@ public static class GenerationCanvas
     /// <summary>
     /// `15` §C: <em>"Generation resolution 1024×1024"</em> — the baseline long edge.
     /// </summary>
-    public const int BaselineLongEdge = 1024;
+    /// <remarks>
+    /// 🔒 An alias of <see cref="Doc15Authorised.GenerationLongEdge"/>, not a second copy.
+    /// <c>Doc15Authorised</c> is declared as the one file every number `15` states lives in, and a
+    /// §C number retyped here would be the duplicate mechanism steering S12 exists to prevent.
+    /// </remarks>
+    public const int BaselineLongEdge = Doc15Authorised.GenerationLongEdge;
 
     /// <summary>
     /// `15` §C: <em>"(upscale to 2048 for bosses and backgrounds)"</em> — the upscaled long edge.
     /// </summary>
-    public const int UpscaledLongEdge = 2048;
+    /// <remarks>🔒 An alias of <see cref="Doc15Authorised.GenerationUpscaledLongEdge"/>.</remarks>
+    public const int UpscaledLongEdge = Doc15Authorised.GenerationUpscaledLongEdge;
 
     /// <summary>
     /// The delivery long edge at or above which §C's upscaled canvas is used.

@@ -11,9 +11,8 @@ namespace SlayIdleRepeat.AssetPlaceholders;
 /// <c>artifacts/</c>. See <see cref="PlaceholderOutput"/> for why that is a rule and not a habit.
 /// </param>
 /// <param name="RepoCommit">This repository's full 40-hex commit, for the provenance records.</param>
-/// <param name="QaThresholds">
-/// The register `15` Part F is graded against — the shipped file, verbatim. See
-/// <see cref="PlaceholderThresholds.ForQualityAssurance"/>.
+/// <param name="ThresholdRegisterJson">
+/// The contents of <c>assets/pipeline/thresholds.json</c>, verbatim.
 /// </param>
 /// <param name="Include">
 /// Which register rows to consider. Null means all of them. 🔒 A filter narrows what is
@@ -23,8 +22,24 @@ namespace SlayIdleRepeat.AssetPlaceholders;
 public sealed record PlaceholderBatchOptions(
     string OutputDirectory,
     string RepoCommit,
-    ThresholdSet QaThresholds,
-    Func<ArtAsset, bool>? Include = null);
+    string ThresholdRegisterJson,
+    Func<ArtAsset, bool>? Include = null)
+{
+    /// <summary>The register `15` Part F is graded against.</summary>
+    /// <remarks>
+    /// 🔒 <b>Built here and nowhere else, so no caller can hand the gate anything but the shipped
+    /// file.</b> Three of the nine processing values <see cref="PlaceholderThresholds.ForPipeline"/>
+    /// states — the outline colour tolerance, the palette match tolerance and the neutral list — are
+    /// read by `15` Part F items 3 and 5 as well as by §B4 steps 3 and 4. Passing the pipeline's set
+    /// here would flip both items from <see cref="AssetPipeline.Qa.QaVerdict.Uncalibrated"/> to
+    /// graded-against-the-generator's-own-numbers, which is exactly the S6 violation the split
+    /// exists to prevent — and while this was a constructor parameter, one line at one call site was
+    /// all it took. A key somebody calibrates in the shipped file is still honoured, because the
+    /// file is read rather than the keys enumerated.
+    /// </remarks>
+    public ThresholdSet QaThresholds { get; } =
+        PlaceholderThresholds.ForQualityAssurance(ThresholdRegisterJson);
+}
 
 /// <summary>
 /// Generates one placeholder per runtime art slot in M8-09's register and drives every one of them
@@ -77,7 +92,6 @@ public sealed class PlaceholderBatch
     public PlaceholderBatch(PlaceholderBatchOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(options.QaThresholds);
         PlaceholderOutput.RequireArtifactsPath(options.OutputDirectory);
 
         // 🔒 Checked once, here, rather than 641 times inside M8-01a's validator AFTER each asset
@@ -331,6 +345,7 @@ public sealed class PlaceholderBatch
                     entry.FileName,
                     entry.Asset.Atlas,
                     entry.EncodedBytes,
+                    entry.Stamped,
                     checklist.Evaluate(new QaSubject(
                         entry.Image,
                         entry.Spec,
@@ -361,7 +376,8 @@ public sealed class PlaceholderBatch
         var spec = AssetSpec.Resolve(asset);
         var canvas = GenerationCanvas.For(spec.TargetSize);
 
-        using var drawn = PlaceholderRenderer.Draw(spec, canvas);
+        var (rendered, stamped) = PlaceholderRenderer.Draw(spec, canvas);
+        using var drawn = rendered;
         var run = pipeline.Run(drawn, asset, pipelineThresholds);
         SKBitmap? kept = null;
 
@@ -409,7 +425,8 @@ public sealed class PlaceholderBatch
                 options.OutputDirectory, asset, spec, canvas, options.RepoCommit);
 
             kept = run.Output;
-            return new ProcessedPlaceholder(asset, spec, fileName, encoded.Length, run.Output);
+            return new ProcessedPlaceholder(
+                asset, spec, fileName, encoded.Length, stamped, run.Output);
         }
         finally
         {
@@ -450,7 +467,13 @@ public sealed class PlaceholderBatch
     /// <param name="Spec">Its manifest-derived spec.</param>
     /// <param name="FileName">The delivered `15` §D1 file name.</param>
     /// <param name="EncodedBytes">How many bytes step 6 wrote.</param>
+    /// <param name="Stamped">Whether the id stamp fitted on the card.</param>
     /// <param name="Image">Step 6's output. Owned by <see cref="RunGroup"/>, disposed by it.</param>
     private sealed record ProcessedPlaceholder(
-        ArtAsset Asset, AssetSpec Spec, string FileName, int EncodedBytes, SKBitmap Image);
+        ArtAsset Asset,
+        AssetSpec Spec,
+        string FileName,
+        int EncodedBytes,
+        bool Stamped,
+        SKBitmap Image);
 }

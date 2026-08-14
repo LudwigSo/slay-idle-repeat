@@ -66,11 +66,11 @@ public static class PlaceholderRenderer
     /// <param name="spec">The row's manifest-derived spec — the id, the pivot and the delivery size.</param>
     /// <param name="canvas">The `15` §C generation canvas from <see cref="GenerationCanvas"/>.</param>
     /// <returns>
-    /// An <see cref="SKColorType.Rgba8888"/> / <see cref="SKAlphaType.Unpremul"/> bitmap the caller
-    /// owns and must dispose. That surface is what `15` §C's straight-alpha delivery needs and what
-    /// the pipeline refuses to run without.
+    /// The bitmap, <see cref="SKColorType.Rgba8888"/> / <see cref="SKAlphaType.Unpremul"/> — the
+    /// caller owns it and must dispose it; that surface is what `15` §C's straight-alpha delivery
+    /// needs and what the pipeline refuses to run without — and whether the id stamp fitted on it.
     /// </returns>
-    public static SKBitmap Draw(AssetSpec spec, PixelSize canvas)
+    public static (SKBitmap Image, bool Stamped) Draw(AssetSpec spec, PixelSize canvas)
     {
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentNullException.ThrowIfNull(canvas);
@@ -103,10 +103,10 @@ public static class PlaceholderRenderer
 
         Fill(pixels, canvas, card, colours.Fill);
         DrawCross(pixels, canvas, card, colours.Cross, outline);
-        DrawStamp(pixels, canvas, card, colours.Stamp, spec, outline);
+        var stamped = DrawStamp(pixels, canvas, card, colours.Stamp, spec, outline);
         DrawOutline(pixels, canvas, card, colours.Outline, colours.Fill, outline);
 
-        return ToBitmap(pixels, canvas);
+        return (ToBitmap(pixels, canvas), stamped);
     }
 
     /// <summary>
@@ -134,7 +134,14 @@ public static class PlaceholderRenderer
         ArgumentNullException.ThrowIfNull(canvas);
 
         var (min, _) = Doc15Authorised.OutlineWidthBandFor(canvas.Width);
-        return Math.Max(2, (int)Math.Round(min, MidpointRounding.AwayFromZero));
+
+        // 🔒 A floor of one pixel, and it is not a calibration: `15` §A3's band scales
+        // proportionally with the canvas, so below roughly 170 px it rounds to zero, and a ring of
+        // no pixels is not an outline — the card would have none at all and `15` §B4 step 4 would
+        // have nothing to find. Every canvas GenerationCanvas produces is 1024 wide or more, where
+        // the band's own lower bound is 6, so this never fires on a real run; Draw is public and
+        // takes an arbitrary size, which is the only way to reach it.
+        return Math.Max(1, (int)Math.Round(min, MidpointRounding.AwayFromZero));
     }
 
     /// <summary>
@@ -245,7 +252,9 @@ public static class PlaceholderRenderer
         }
     }
 
-    private static void DrawStamp(
+    /// <summary>Stamps the id on the card, or reports that it did not fit.</summary>
+    /// <returns>False when the card is too small to carry the stamp at any whole scale.</returns>
+    private static bool DrawStamp(
         byte[] pixels, PixelSize canvas, SKRectI card, SKColor colour, AssetSpec spec, int outline)
     {
         var lines = StampLines(spec);
@@ -259,16 +268,17 @@ public static class PlaceholderRenderer
 
         if (textWidth <= 0 || textHeight <= 0 || availableWidth <= 0 || availableHeight <= 0)
         {
-            return;
+            return false;
         }
 
         var scale = Math.Min(availableWidth / textWidth, availableHeight / textHeight);
         if (scale < 1)
         {
             // The card is too small to carry a legible stamp at all. Drawing an illegible smear
-            // would be worse than leaving the card unstamped, and the batch report counts these so
-            // "every placeholder is stamped" is never claimed on a run where some are not.
-            return;
+            // would be worse than leaving the card unstamped — and the caller reports it, so
+            // PlaceholderBatchReport.Unstamped names every asset this happened to rather than the
+            // run silently claiming every placeholder is stamped.
+            return false;
         }
 
         var blockLeft = card.Left + ((card.Width - (textWidth * scale)) / 2);
@@ -293,6 +303,8 @@ public static class PlaceholderRenderer
                     scale);
             }
         }
+
+        return true;
     }
 
     private static void DrawGlyph(

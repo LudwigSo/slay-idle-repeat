@@ -77,7 +77,7 @@ public sealed class PlaceholderOutputTests
         var output = Path.Combine(PlaceholderFiles.RepositoryRoot, "assets", "placeholders");
 
         var thrown = Should.Throw<InvalidOperationException>(() => new PlaceholderBatch(
-            new PlaceholderBatchOptions(output, Commit, ThresholdSet.Uncalibrated())));
+            new PlaceholderBatchOptions(output, Commit, PlaceholderFiles.ThresholdsJson())));
 
         // 🔒 Steering S2. RequireArtifactsPath has three separate refusals and they all throw
         // InvalidOperationException, and so does WriteProvenance on a malformed record — pinning
@@ -105,7 +105,7 @@ public sealed class PlaceholderOutputTests
         using var scratch = PlaceholderFiles.Scratch("commit-guard");
 
         var thrown = Should.Throw<ArgumentException>(() => new PlaceholderBatch(
-            new PlaceholderBatchOptions(scratch.Path, commit, ThresholdSet.Uncalibrated())));
+            new PlaceholderBatchOptions(scratch.Path, commit, PlaceholderFiles.ThresholdsJson())));
 
         thrown.Message.ShouldContain("is not a full 40-hex repository commit", Case.Sensitive);
         Directory.Exists(scratch.Path).ShouldBeFalse($"refused for {why}, so nothing was written.");

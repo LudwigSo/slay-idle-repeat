@@ -40,6 +40,21 @@ public static class Doc15Authorised
     /// <summary>`15` §A3: the canvas width the 3-4 px band is stated against.</summary>
     public const int OutlineWidthReferenceCanvas = 512;
 
+    /// <summary>
+    /// `15` §C: <em>"Generation resolution 1024×1024"</em> — the baseline generation long edge.
+    /// </summary>
+    public const int GenerationLongEdge = 1024;
+
+    /// <summary>
+    /// `15` §C: <em>"(upscale to 2048 for bosses and backgrounds)"</em> — the upscaled long edge.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The same number as <see cref="MaxSingleTextureWidth"/> and a different statement: §C caps
+    /// a delivered <em>texture</em> at 2048 and generates bosses and backgrounds <em>at</em> 2048.
+    /// Kept apart so a day when one of the two sentences changes does not silently move the other.
+    /// </remarks>
+    public const int GenerationUpscaledLongEdge = 2048;
+
     /// <summary>`15` §C: "max single texture 2048x2048" — the width half.</summary>
     public const int MaxSingleTextureWidth = 2048;
 

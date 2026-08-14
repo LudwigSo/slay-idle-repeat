@@ -76,10 +76,18 @@ switch (command)
             return 1;
         }
 
+        var output = Path.Combine(root, PlaceholderOutput.ArtifactsDirectory, "placeholders");
+
+        // 🔒 Cleared first. A run that appended to a previous one's output leaves a directory that
+        // is not what this run's report describes — images from a filter that is no longer applied,
+        // or from a generator that has since changed. The guard runs before the delete, so a
+        // mistyped root cannot remove anything outside artifacts/.
+        PlaceholderOutput.Clear(output);
+
         var batch = new PlaceholderBatch(new PlaceholderBatchOptions(
-            Path.Combine(root, "artifacts", "placeholders"),
+            output,
             args[2],
-            PlaceholderThresholds.ForQualityAssurance(File.ReadAllText(thresholdsPath)),
+            File.ReadAllText(thresholdsPath),
             Include: section is null
                 ? null
                 : asset => string.Equals(asset.Section, section, StringComparison.Ordinal)));
@@ -172,6 +180,22 @@ static void Report(PlaceholderBatchReport report)
     foreach (var (id, count) in report.Contradictions.OrderBy(e => e.Key, StringComparer.Ordinal))
     {
         Console.WriteLine($"  contradiction  {id,-28} × {count}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("── knowing departures from `15` ────────────────────────");
+    foreach (var departure in report.Departures)
+    {
+        Console.WriteLine($"  {departure.Id} ({departure.DocReference})");
+        Console.WriteLine($"    required : {departure.Requirement}");
+        Console.WriteLine($"    taken    : {departure.Taken}");
+        Console.WriteLine($"    why      : {departure.Why}");
+    }
+
+    Console.WriteLine($"  unstamped placeholders       : {report.Unstamped.Count}");
+    foreach (var id in report.Unstamped)
+    {
+        Console.WriteLine($"    ✗ {id} — the card is too small to carry a legible id stamp");
     }
 
     Console.WriteLine();

@@ -23,8 +23,11 @@ namespace SlayIdleRepeat.AssetPlaceholders;
 /// generated image"</em> — and from Part F item 8. It is authorised for placeholders specifically,
 /// by the M8 kickoff: a placeholder exists so that a missing asset is identifiable on screen, and an
 /// unlabelled grey box on a battle screen tells nobody which of 641 slots is empty.
-/// <see cref="PlaceholderBatch"/> records the departure in every batch report so it can never be
-/// mistaken for something the doc permits in delivered art.
+/// <see cref="PlaceholderBatchReport.Departures"/> carries it as
+/// <see cref="PlaceholderBatchReport.IdStampDeparture"/> in every batch that drew anything, so it
+/// can never be mistaken for something the doc permits in delivered art — Part F item 8 will not
+/// report it, because it is a <see cref="AssetPipeline.Qa.QaClassification.Human"/> item and returns
+/// <see cref="AssetPipeline.Qa.QaVerdict.HumanGapOnly"/> on every asset.
 /// </para>
 /// </remarks>
 public static class StampFont

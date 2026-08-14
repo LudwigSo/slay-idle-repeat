@@ -16,7 +16,7 @@ public sealed class PlaceholderRendererTests
     public void A_placeholder_is_drawn_on_the_straight_alpha_surface_the_pipeline_requires()
     {
         var (spec, canvas) = Sample(SampleRows.CurrencyIcon);
-        using var drawn = PlaceholderRenderer.Draw(spec, canvas);
+        using var drawn = PlaceholderRenderer.Draw(spec, canvas).Image;
 
         // `15` §C's delivery format is straight alpha, and Raster.From REFUSES any other surface
         // rather than converting one — so a premultiplied bitmap here would fail every asset.
@@ -32,7 +32,7 @@ public sealed class PlaceholderRendererTests
         foreach (var id in SampleRows.Generatable)
         {
             var (spec, canvas) = Sample(id);
-            using var drawn = PlaceholderRenderer.Draw(spec, canvas);
+            using var drawn = PlaceholderRenderer.Draw(spec, canvas).Image;
 
             var all = Inspected(drawn, canvas, id);
             var partial = all.Count(pixel => pixel.Alpha is not (0 or byte.MaxValue));
@@ -51,7 +51,7 @@ public sealed class PlaceholderRendererTests
         foreach (var id in SampleRows.Generatable)
         {
             var (spec, canvas) = Sample(id);
-            using var drawn = PlaceholderRenderer.Draw(spec, canvas);
+            using var drawn = PlaceholderRenderer.Draw(spec, canvas).Image;
 
             // 🔒 BackgroundRemovalStep keys against the most common OPAQUE colour on the border. An
             // opaque border pixel would hand step 1 a key colour that also occurs in the subject,
@@ -77,7 +77,7 @@ public sealed class PlaceholderRendererTests
         foreach (var id in SampleRows.Generatable)
         {
             var (spec, canvas) = Sample(id);
-            using var drawn = PlaceholderRenderer.Draw(spec, canvas);
+            using var drawn = PlaceholderRenderer.Draw(spec, canvas).Image;
 
             var opaque = Inspected(drawn, canvas, id).Where(pixel => pixel.Alpha > 0).ToArray();
             opaque.Length.ShouldBeGreaterThan(0, $"'{id}' was drawn entirely transparent.");
@@ -119,7 +119,7 @@ public sealed class PlaceholderRendererTests
         asset.PaletteColours.ShouldNotBeNull("this case is about a biome-scoped row.");
 
         var (spec, canvas) = Sample(SampleRows.BiomeEnemy);
-        using var drawn = PlaceholderRenderer.Draw(spec, canvas);
+        using var drawn = PlaceholderRenderer.Draw(spec, canvas).Image;
 
         var authorised = asset.PaletteColours!.Hues
             .Select(hex => SKColor.Parse(hex))

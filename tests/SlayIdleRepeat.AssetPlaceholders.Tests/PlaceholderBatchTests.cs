@@ -172,6 +172,52 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     }
 
     [Fact]
+    public void The_run_declares_its_one_knowing_departure_from_doc_15()
+    {
+        // 🔒 `15` §A3 forbids text in a generated image and Part F item 8 forbids it again; every
+        // placeholder carries its id. Part F will not report that — item 8 is a Human item and
+        // returns HumanGapOnly on every asset — so the batch report is the only place it appears.
+        report.Departures.Select(departure => departure.Id).ShouldBe(["DEP_A3_ID_STAMP"]);
+        report.Departures[0].DocReference.ShouldBe("15 §A3, Part F item 8");
+
+        report.Generated
+            .SelectMany(placeholder => placeholder.Qa.Outcomes)
+            .Where(outcome => outcome.ItemNumber == 8)
+            .Select(outcome => outcome.Verdict)
+            .Distinct()
+            .ShouldBe(
+                [QaVerdict.HumanGapOnly],
+                "if item 8 ever graded the stamp mechanically, this departure would be reported " +
+                "twice — and this case is why the report carries it at all.");
+    }
+
+    [Fact]
+    public void Every_placeholder_in_the_sample_carries_its_id_stamp()
+    {
+        // Floored: Unstamped is empty over an empty batch too, and the renderer draws no stamp at
+        // all when the card is too small to carry one legibly.
+        report.Generated.Count.ShouldBe(SampleRows.Generatable.Count);
+        report.Unstamped.ShouldBeEmpty(
+            "a placeholder exists so a missing asset is self-identifying on screen, and an " +
+            $"unstamped one is a grey box: [{string.Join(", ", report.Unstamped)}].");
+    }
+
+    [Fact]
+    public void The_gate_is_handed_the_shipped_register_and_a_caller_cannot_substitute_another()
+    {
+        // 🔒 S6. Three of the nine processing values ForPipeline states — the outline colour
+        // tolerance, the palette match tolerance and the neutral list — are also read by Part F
+        // items 3 and 5. Handing the gate the pipeline's set would grade those two items against
+        // the generator's own working numbers, so PlaceholderBatchOptions takes the register's JSON
+        // and builds the set itself: there is no parameter to pass a different one through.
+        var options = new PlaceholderBatchOptions(
+            batch.Directory, "0123456789abcdef0123456789abcdef01234567", PlaceholderFiles.ThresholdsJson());
+
+        ThresholdSet.Keys.Count.ShouldBeGreaterThanOrEqualTo(17);
+        ThresholdSet.Keys.Where(options.QaThresholds.IsCalibrated).ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Doc_15_A4_silhouette_item_reports_uncalibrated_for_every_asset_and_never_passes()
     {
         var outcomes = report.Generated
@@ -313,7 +359,7 @@ public sealed class SampleBatch : IDisposable
         Report = new PlaceholderBatch(new PlaceholderBatchOptions(
                 scratch.Path,
                 "0123456789abcdef0123456789abcdef01234567",
-                PlaceholderThresholds.ForQualityAssurance(PlaceholderFiles.ThresholdsJson()),
+                PlaceholderFiles.ThresholdsJson(),
                 Include: asset => considered.Contains(asset.Id)))
             .Run(PlaceholderFiles.Shipped);
     }

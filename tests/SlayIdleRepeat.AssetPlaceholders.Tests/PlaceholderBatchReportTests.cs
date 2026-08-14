@@ -116,6 +116,7 @@ public sealed class PlaceholderBatchReportTests
                     $"icon_test_{index}.png",
                     "atlas_ui",
                     1,
+                    Stamped: true,
                     new QaBatchResult($"icon_test_{index}", [outcome]))),
             ],
             Skipped = [],

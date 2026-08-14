@@ -97,6 +97,25 @@ public static class PlaceholderOutput
                 "back out is refused too.");
     }
 
+    /// <summary>
+    /// Removes a run's output directory and everything in it, so a run's output is exactly what its
+    /// report describes.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <see cref="RequireArtifactsPath"/> runs first, so a mistyped root deletes nothing: the
+    /// only directories this can remove are ones under <c>artifacts/</c>, which is gitignored.
+    /// </remarks>
+    /// <param name="outputDirectory">The run's output directory.</param>
+    public static void Clear(string outputDirectory)
+    {
+        var root = RequireArtifactsPath(outputDirectory);
+
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     /// <summary>Writes one delivered PNG-32.</summary>
     /// <param name="outputDirectory">The run's output directory.</param>
     /// <param name="fileName">The `15` §D1 file name.</param>
