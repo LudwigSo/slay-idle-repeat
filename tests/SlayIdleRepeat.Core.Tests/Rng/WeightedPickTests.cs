@@ -42,16 +42,13 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// The walk is in table order, so the order is part of the outcome. Reversing a table
-    /// re-assigns the same unit interval to different items — that is the contract, and content
-    /// authors need it to be true and stated.
+    /// The walk is in table order, so the order is part of the outcome: reversing a table re-assigns
+    /// the same unit interval to different items.
     /// </summary>
     /// <remarks>
-    /// The two weights are <b>equal</b> on purpose. With equal weights the reversal flips the
-    /// answer for every value the draw can take, so the test states the property rather than
-    /// depending on where this one draw happens to land in the unit interval. A lopsided table
-    /// (1 against 99) would only differ for the outer 2% of the interval, and would report a
-    /// perfectly correct implementation as broken for the other 98%.
+    /// The two weights are <b>equal</b> on purpose — the reversal then flips the answer for every value
+    /// the draw can take. A lopsided table (1 against 99) would only differ for the outer 2% of the
+    /// interval, and would call a correct implementation broken for the other 98%.
     /// </remarks>
     [Fact]
     public void WeightedPick_walks_the_table_in_order_so_reordering_it_changes_the_outcome()
@@ -86,17 +83,13 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// The rule stated directly, on the pure walk rather than through a draw: <c>x</c> is the
-    /// unit interval <b>scaled by Σ weights</b>, and the first cumulative weight <b>strictly
-    /// greater</b> than <c>x</c> wins. At a unit interval of 0.25 item "a" (a quarter of the
-    /// table) does <i>not</i> win.
+    /// The rule on the pure walk: <c>x</c> is the unit interval <b>scaled by Σ weights</b>, and the
+    /// first cumulative weight <b>strictly greater</b> than <c>x</c> wins.
     /// </summary>
     /// <remarks>
-    /// The weights sum to 4, not to 1, and that is load-bearing: on a table summing to exactly 1
-    /// the scaling step is the identity, so every row below would pass just as happily against a
-    /// walk that compared cumulative weights against the raw unit interval and never scaled at
-    /// all. All the values are exact in binary, so the boundary rows are boundaries and not
-    /// floating-point luck.
+    /// The weights sum to 4, not 1, and that is load-bearing: on a table summing to exactly 1 the
+    /// scaling step is the identity, so every row would pass against a walk that never scaled at all.
+    /// All values are exact in binary, so the boundary rows are boundaries and not floating-point luck.
     /// </remarks>
     [Theory]
     [InlineData(0.0, "a")]
@@ -114,16 +107,13 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// 🔒 The top of the range must still land on the last weighted item — never on nothing, and
-    /// never on an exception.
+    /// 🔒 The top of the range must still land on the last weighted item — never on nothing, never on
+    /// an exception.
     /// </summary>
     /// <remarks>
-    /// The walk's terminating case is the one the arithmetic cannot guarantee for it. Whether
-    /// <c>x = (1 − 2^-53) × Σ</c> stays strictly below the final cumulative weight depends on the
-    /// order the implementation accumulates Σ in versus the order it walks: sum the table one way
-    /// and compare against a total summed another, and the last cumulative weight can come out
-    /// below <c>x</c>, at which point a naive walk runs off the end of the table. The contract is
-    /// that it returns the last weighted row regardless.
+    /// The terminating case is the one the arithmetic cannot guarantee: whether
+    /// <c>x = (1 − 2^-53) × Σ</c> stays strictly below the final cumulative weight depends on the order
+    /// Σ was accumulated in versus the order the walk goes, and a naive walk can run off the end.
     /// </remarks>
     [Fact]
     public void The_walk_does_not_fall_off_the_end_at_the_top_of_the_unit_interval()
@@ -181,17 +171,14 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// 🔒 The pick is taken at <b>this draw's</b> unit interval — the same value
-    /// <c>NextDouble</c> would have returned, not some other function of the draw.
+    /// 🔒 The pick is taken at <b>this draw's</b> unit interval — the value <c>NextDouble</c> would have
+    /// returned, not some other function of the draw.
     /// </summary>
     /// <remarks>
-    /// Nothing else in this file pins that link: an implementation deriving <c>x</c> from
-    /// <c>NextUInt</c>, or straight from <c>draw % Σ</c>, satisfies every other test here and
-    /// still moves every drop, draft and treasure table in the game. Both halves of the
-    /// composition are pinned independently — <c>NextDouble</c> bit for bit against the committed
-    /// table, the walk against the boundary theory above — so asserting the composition adds the
-    /// one fact neither of them carries. The table is ten equal rows so a pick taken at the wrong
-    /// unit interval lands on a different row rather than coincidentally agreeing.
+    /// Nothing else pins that link: deriving <c>x</c> from <c>NextUInt</c>, or from <c>draw % Σ</c>,
+    /// satisfies every other test here and still moves every drop, draft and treasure table in the
+    /// game. The table is ten equal rows so a pick at the wrong interval lands on a different row
+    /// rather than coincidentally agreeing.
     /// </remarks>
     [Theory]
     [MemberData(nameof(DrawIds))]

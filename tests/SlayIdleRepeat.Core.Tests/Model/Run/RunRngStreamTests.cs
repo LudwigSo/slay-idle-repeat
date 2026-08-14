@@ -12,16 +12,14 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// that writes them.
 /// </summary>
 /// <remarks>
+/// The counters are <em>authoritative run state</em> beside <c>runSeed</c>: a resumed run re-derives
+/// its next board, drop and draft draw from them, so a counter that reset, went backwards or went
+/// missing produces a run nobody can reproduce — including the player who is in it.
 /// <para>
-/// §8.1 makes the counters <em>authoritative run state</em> beside <c>runSeed</c>: a resumed run
-/// re-derives its next board, drop and draft draw from them, so a counter that reset, went backwards
-/// or went missing produces a run nobody can reproduce — including the player who is in it.
-/// </para>
-/// <para>
-/// The storage is an <b>open map validated by <c>RngStreams.IsRegistered</c></b>, because §8.1's
-/// ninth row is parameterised (<c>minigame:{index}</c>) and nine fixed slots could not hold
-/// <c>minigame:7</c> at all. The tests below pin the four properties that make the map safe: one
-/// seam, registry-validated keys, no partial commit, and monotone or throw.
+/// The storage is an <b>open map validated by <c>RngStreams.IsRegistered</c></b>, because §8.1's ninth
+/// row is parameterised (<c>minigame:{index}</c>) and nine fixed slots could not hold
+/// <c>minigame:7</c>. The tests pin the four properties that make it safe: one seam,
+/// registry-validated keys, no partial commit, and monotone or throw.
 /// </para>
 /// </remarks>
 public sealed class RunRngStreamTests
@@ -333,20 +331,15 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 The <c>combat</c> position is the <c>battleIndex</c> `14` §8.1 derives the <b>next</b>
-    /// battle's seed from — <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c> — so a run
-    /// standing at 3 opens battle 3, which is none of the three it has already fought.
+    /// 🔒 The <c>combat</c> position is the <c>battleIndex</c> the <b>next</b> battle's seed is derived
+    /// from, so a run standing at 3 opens battle 3 — none of the three it has already fought.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>What this case proves, and what it deliberately does not.</b> That the counter's
-    /// <em>unit</em> is battles-started rather than combat-draws is a <b>ruling</b>, and this
-    /// aggregate cannot enforce it: the position is a <c>ulong</c> and every monotone value is a
-    /// legal commit, by design (a handler is what folds a scope's final positions in). Naming the
-    /// case after the ruling would be a name promising what no assertion here can deliver (steering
-    /// S1). What <em>is</em> checkable is asserted: the value the run holds is the index
-    /// <see cref="SeedDerivation.BattleSeed"/> takes, and the battle it opens is not one already
-    /// fought. The ruling itself is recorded on <c>Run.RngStreamPositions</c>'s remarks, and the
-    /// case below pins its other checkable half — that a battle's own draws never reach the run.
+    /// ⚠️ That the counter's <em>unit</em> is battles-started rather than combat-draws is a <b>ruling</b>
+    /// this aggregate cannot enforce: the position is a <c>ulong</c> and every monotone value is a legal
+    /// commit by design. Naming the case after the ruling would promise what no assertion here can
+    /// deliver. What is checkable is asserted: the value is the index
+    /// <see cref="SeedDerivation.BattleSeed"/> takes, and the battle it opens is not one already fought.
     /// </remarks>
     [Fact]
     public void The_combat_position_is_the_battle_index_the_next_battle_seed_is_derived_from()

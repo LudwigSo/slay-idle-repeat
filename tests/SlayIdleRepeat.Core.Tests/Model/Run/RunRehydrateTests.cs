@@ -8,21 +8,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `30` §11.3 — <c>Run.Rehydrate</c> is <em>"one validated entry point for every persisted state
-/// in the game — a corrupt row fails loudly at the seam rather than silently three rules later."</em>
-/// This file is that sentence for the <c>Run</c> aggregate, one assertion per way a row can be wrong.
+/// 🔒 `30` §11.3 — <c>Run.Rehydrate</c> is <em>"one validated entry point for every persisted state in
+/// the game — a corrupt row fails loudly at the seam rather than silently three rules later."</em>
+/// One assertion per way a row can be wrong.
 /// </summary>
 /// <remarks>
+/// 🔒 Every failure assertion pins <b>which</b> validation fired. <c>Rehydrate</c> reports every fault
+/// it finds rather than the first, so a test that only checked <c>IsFailure</c> would pass for a row
+/// invalid in some entirely different way — which is how a validation gets deleted without anything
+/// going red.
 /// <para>
-/// 🔒 Every failure assertion pins <b>which</b> validation fired, not just that one did (steering
-/// <b>S2</b>). <c>Rehydrate</c> reports every fault it finds rather than the first, so a test that
-/// only checked <c>IsFailure</c> would pass for a row that is invalid in some entirely different
-/// way — which is exactly how a validation gets deleted without anything going red.
-/// </para>
-/// <para>
-/// 🔒 There is no <c>ContentSnapshot</c> parameter, unlike <c>Player.Rehydrate</c>, and that is a
-/// ruling rather than an omission: nothing <c>RunSnapshot</c> carries has a content-derived bound
-/// today. See <c>Run.Rehydrate</c>'s remarks. <c>Core.Tests</c> stays hermetic either way.
+/// 🔒 No <c>ContentSnapshot</c> parameter, unlike <c>Player.Rehydrate</c>: nothing <c>RunSnapshot</c>
+/// carries has a content-derived bound today.
 /// </para>
 /// </remarks>
 public sealed class RunRehydrateTests
@@ -181,16 +178,14 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// ⚠️ …and a chapter <b>above</b> the eight `02` §1 names is <b>accepted</b>, deliberately. That
-    /// is the assertion that keeps the chapter rule honest.
+    /// ⚠️ A chapter <b>above</b> the eight `02` §1 names is <b>accepted</b>, deliberately — the
+    /// assertion that keeps the chapter rule honest.
     /// </summary>
     /// <remarks>
-    /// <c>content/chapters/</c> is empty and <c>chapter.schema.json</c> sits on
-    /// <c>ContentLoader.SchemasAwaitingContent</c> for exactly that reason (M3-14). Hard-coding
-    /// <c>8</c> here would put a content bound in code (`21` §3.1) and would be a <em>partial</em>
-    /// invariant masquerading as the real one. The deferral already has a live, self-expiring
-    /// mechanism in <c>RealDataSetTests</c>; this case pins that <c>Core</c> did not grow a second
-    /// one (steering S4).
+    /// <c>content/chapters/</c> is empty and its schema sits on <c>SchemasAwaitingContent</c> (M3-14).
+    /// Hard-coding <c>8</c> would put a content bound in code and be a <em>partial</em> invariant
+    /// masquerading as the real one; the deferral already has a self-expiring mechanism in
+    /// <c>RealDataSetTests</c>, and this pins that <c>Core</c> did not grow a second one.
     /// </remarks>
     [Theory]
     [InlineData(1)]
@@ -382,12 +377,10 @@ public sealed class RunRehydrateTests
     /// predicate <c>DeterministicRng</c>'s constructor uses.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The cases are the ones <c>RngStreams.IsRegistered</c> is specified to separate, not
-    /// arbitrary junk: <c>minigame:03</c> is a <em>different string</em> from <c>minigame:3</c> and
-    /// would therefore be a different sequence for what every human reading it would call the same
-    /// minigame, and <c>DICE</c> pins that the comparison is ordinal and case-sensitive. A row
-    /// carrying one of these could never be drawn from, so persisting it would be storing a stream
-    /// the game cannot open.
+    /// ⚠️ The cases are the ones <c>RngStreams.IsRegistered</c> is specified to separate:
+    /// <c>minigame:03</c> is a <em>different string</em> from <c>minigame:3</c> and therefore a
+    /// different sequence for what a human reads as the same minigame, and <c>DICE</c> pins that the
+    /// comparison is ordinal. A row carrying one could never be drawn from.
     /// </remarks>
     [Theory]
     [InlineData("loot")]

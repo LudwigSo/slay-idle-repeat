@@ -37,16 +37,15 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 The identity the rest of the model is built on: draw <c>i</c> of stream <c>s</c> over
-    /// seed <c>r</c> <b>is</c> <c>Hash64(r, s, i)</c> — not some other function of the three, and
-    /// not a generator stepped <c>i</c> times.
+    /// 🔒 The identity the rest of the model rests on: draw <c>i</c> of stream <c>s</c> over seed
+    /// <c>r</c> <b>is</b> <c>Hash64(r, s, i)</c> — not another function of the three, and not a
+    /// generator stepped <c>i</c> times.
     /// </summary>
     /// <remarks>
-    /// Without this, nothing joins the two halves of the committed table: the accessor tests
-    /// below pin <c>NextUInt</c>/<c>NextDouble</c>/<c>Range</c> against the <i>accessor</i>
-    /// columns, and only the <c>draw</c> column records where those columns came from. The second
-    /// assertion closes that join by re-deriving one accessor column from the draw, so a row whose
-    /// columns drifted apart fails here rather than silently weakening every test below.
+    /// Without it nothing joins the two halves of the committed table: the accessor tests pin against
+    /// the <i>accessor</i> columns, and only the <c>draw</c> column records where those came from. The
+    /// second assertion re-derives one accessor column from the draw, so a row whose columns drifted
+    /// apart fails here rather than silently weakening everything below.
     /// </remarks>
     [Theory]
     [MemberData(nameof(DrawIds))]
@@ -140,18 +139,14 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 The widest range an <c>int</c> has: <c>max − min</c> is <c>2^32 − 1</c>, which does not
-    /// fit in an <c>int</c>, so the width must be computed in 64 bits.
+    /// 🔒 The widest range an <c>int</c> has: <c>max − min</c> is <c>2^32 − 1</c>, which does not fit in
+    /// an <c>int</c>, so the width must be computed in 64 bits.
     /// </summary>
     /// <remarks>
-    /// Pinned to the exact value, because bounds alone prove nothing here. An implementation that
-    /// evaluates the spec's expression in <c>int</c> arithmetic wraps <c>max − min</c> to −1,
-    /// takes the modulus against <c>ulong.MaxValue</c> — which is the draw itself — and returns
-    /// the draw's low 32 bits offset from <c>int.MinValue</c>. That answer is still an
-    /// <c>int</c>, and still inside <c>[int.MinValue, int.MaxValue)</c>; only the value tells the
-    /// two apart. For the committed <c>drops-99</c> draw <c>0xE966DC0F7EF1A21B</c> the correct
-    /// answer is <c>int.MinValue + (draw mod 4294967295)</c> = −396853717, and the overflowing
-    /// one is −17718757.
+    /// Pinned to the exact value, because bounds alone prove nothing: evaluating the expression in
+    /// <c>int</c> arithmetic wraps <c>max − min</c> to −1, takes the modulus against
+    /// <c>ulong.MaxValue</c> — the draw itself — and returns an answer that is still an <c>int</c> and
+    /// still in range. Only the value tells the two apart: −396853717 correct, −17718757 overflowing.
     /// </remarks>
     [Fact]
     public void Range_spans_the_full_int_range_without_overflowing_its_width()
@@ -329,19 +324,14 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 There is no PRNG state to persist, snapshot or restore — `14` §8 removed
-    /// <c>SaveState</c>/<c>RestoreState</c> with the xoshiro generator. The counter is the whole
-    /// persistable state, so nothing may set it but the constructor.
+    /// 🔒 There is no PRNG state to persist, snapshot or restore — the counter is the whole persistable
+    /// state, so nothing may set it but the constructor.
     /// </summary>
     /// <remarks>
-    /// A <b>closed set</b>, not a denylist of four names. Two reasons the denylist form could not
-    /// keep the promise this test's name makes. It named four methods, so a re-introduced
-    /// <c>Fork()</c>, <c>Advance(n)</c> or <c>SetPosition</c> — each of which makes the persisted
-    /// counter no longer the whole state — would sail past it. And <c>GetMethods()</c> with no
-    /// <see cref="BindingFlags"/> returns public members only, while <c>Core.Tests</c> holds
-    /// <c>InternalsVisibleTo</c>: an <c>internal Rewind(ulong)</c> was invisible to it. The
-    /// <c>DeclaredOnly</c> flag keeps <c>object</c>'s members out; <c>!IsPrivate</c> keeps the
-    /// implementation's own helpers out while still seeing anything <c>internal</c> or above.
+    /// A <b>closed set</b>, not a denylist of four names: a re-introduced <c>Fork()</c>,
+    /// <c>Advance(n)</c> or <c>SetPosition</c> would sail past a denylist, and <c>GetMethods()</c> with
+    /// no <see cref="BindingFlags"/> returns public members only — so an <c>internal Rewind(ulong)</c>
+    /// was invisible to it while <c>Core.Tests</c> holds <c>InternalsVisibleTo</c>.
     /// </remarks>
     [Fact]
     public void The_type_exposes_no_state_beyond_a_read_only_position()
@@ -359,18 +349,14 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// The counter is unbounded in practice but not in type. Wrapping silently past
-    /// <c>ulong.MaxValue</c> would restart a stream at draw 0 while the wire still reported a
-    /// huge position — the one way a counter-based model can lie.
+    /// 🔒 The final index is <b>reserved</b>: a stream at <c>ulong.MaxValue</c> refuses to draw rather
+    /// than drawing once with nowhere to put the next position.
     /// </summary>
     /// <remarks>
-    /// 🔒 The final index is <b>reserved</b>: a stream sitting at <c>ulong.MaxValue</c> refuses
-    /// to draw at all, rather than drawing once and then having nowhere to put the next
-    /// position. The alternative — allow that last draw and remember that it happened — would
-    /// mean state beyond the counter, and the counter being the entire persistable state is the
-    /// whole design (`14` §8). One forfeited index out of 2^64 is the cheaper side of that
-    /// trade by an unimaginable margin: a stream consuming a draw every nanosecond since the
-    /// Big Bang would be four orders of magnitude short.
+    /// Wrapping silently would restart a stream at draw 0 while the wire still reported a huge
+    /// position — the one way a counter-based model can lie. Allowing that last draw and remembering it
+    /// would mean state beyond the counter, and the counter being the entire persistable state is the
+    /// whole design. One forfeited index out of 2^64 is unimaginably the cheaper side of the trade.
     /// </remarks>
     [Fact]
     public void A_stream_at_the_reserved_final_index_refuses_to_draw_rather_than_wrapping()

@@ -11,19 +11,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// 🔒 `05` §4.3 — <c>Heal()</c>, its <c>HEAL%</c>, its overheal, and the <c>ON_HEAL</c> it fires.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The two readings are observed through the effect `18` §2.2 wrote them for.</b>
-/// <c>PK_TRANSFUSION</c> is a <c>SHIELD</c> with <c>valueMode: OVERHEAL_AMOUNT</c>, and
-/// <c>OpValueRules.Shield</c> admits both heal readings — so an <c>ON_HEAL</c> holding of that exact
-/// shape converts each reading into a ward whose <c>Shield</c> event carries it.
-/// </para>
-/// <para>
-/// 🔒 That is a stronger channel than a recording double, because of how the readings <em>fail</em>:
-/// <c>OpValue</c> throws for <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> when the context does not
-/// carry one (`18` §2.2's <em>"exist only inside <c>ON_HEAL</c> contexts"</em>, steering S6). A
-/// pipeline that fired <c>ON_HEAL</c> without threading the readings would make these cases throw
-/// rather than record a zero.
-/// </para>
+/// 🔒 The two readings are observed through <c>PK_TRANSFUSION</c>'s shape — a <c>SHIELD</c> with
+/// <c>valueMode: OVERHEAL_AMOUNT</c> — so each reading becomes a ward whose <c>Shield</c> event carries
+/// it. That is a stronger channel than a recording double because of how the readings <em>fail</em>:
+/// <c>OpValue</c> throws when the context carries no heal, so a pipeline that fired <c>ON_HEAL</c>
+/// without threading the readings would throw rather than record a zero.
 /// </remarks>
 public sealed class HealingTests
 {
@@ -135,16 +127,13 @@ public sealed class HealingTests
     }
 
     /// <summary>
-    /// ⚠️ <b>Errata against `05` §4.3</b> — a negative <c>HEAL%</c> heals nothing rather than
-    /// dealing damage.
+    /// ⚠️ Errata against `05` §4.3 — a negative <c>HEAL%</c> heals nothing rather than dealing damage.
     /// </summary>
     /// <remarks>
-    /// `05` §4.3 as written is <c>healed = min(amount × HEALPct, MaxHP − HP)</c> with no floor, and
-    /// `05` §5's <c>SPORE</c> is <em>"−X% healing received, stacks to 4"</em> — four stacks past
-    /// −25% each take the multiplier below zero, at which point the formula turns a heal into an HP
-    /// <b>decrease</b> that emits no <c>Hit</c>, runs no phase check and is observed by nothing. The
-    /// clamp is at the scaling, so the overheal a <c>PK_TRANSFUSION</c> reads is 0 rather than
-    /// negative. Recorded rather than hidden.
+    /// §4.3 as written has no floor, and four <c>SPORE</c> stacks at −25% take the multiplier below
+    /// zero — at which point the formula turns a heal into an HP <b>decrease</b> that emits no
+    /// <c>Hit</c>, runs no phase check and is observed by nothing. The clamp is at the scaling, so a
+    /// <c>PK_TRANSFUSION</c> reads 0 rather than a negative overheal.
     /// </remarks>
     [Fact]
     public void A_negative_HEAL_PCT_heals_nothing_rather_than_dealing_damage()
@@ -208,24 +197,18 @@ public sealed class HealingTests
     }
 
     /// <summary>
-    /// 🔴 `18` §7.6's <c>HEAL_CEILING</c> — <em>"you can no longer be healed above X% Max HP"</em>
-    /// (<c>Avatar of War</c>, `09` §4) bounds <c>Heal()</c> in place of Max HP.
+    /// 🔴 `18` §7.6's <c>HEAL_CEILING</c> — <em>"you can no longer be healed above X% Max HP"</em> —
+    /// bounds <c>Heal()</c> in place of Max HP.
     /// </summary>
     /// <remarks>
+    /// 🔒 The fix is a wiring, not an arithmetic: <c>HealCeilingFraction</c> computed the answer all
+    /// along and nothing carried it to §4.3, so a test exercising only the seam member stayed green
+    /// while the ceiling did nothing in any fight. The two ceilings differ in whether the recipient
+    /// starts <b>below</b> the bar (heals to it and stops) or <b>above</b> it (must heal <em>nothing</em>
+    /// rather than damage down to it); the control holds no override and must reach full Max HP.
     /// <para>
-    /// 🔒 <b>Two shapes plus a negative control</b>, because the fix this pins is a wiring rather
-    /// than an arithmetic: <c>IStatOpBehaviour.HealCeilingFraction</c> computed the answer correctly
-    /// all along and nothing carried it to `05` §4.3, so a test that only exercised the seam member
-    /// stayed green while the ceiling did nothing in any fight. The two ceilings differ in whether
-    /// the recipient starts <b>below</b> the bar (0.8, which heals to it and stops) or <b>above</b>
-    /// it (0.5 against 900 HP, which must heal <em>nothing</em> rather than damage the actor down to
-    /// it). The control holds no override at all and must still reach full Max HP.
-    /// </para>
-    /// <para>
-    /// The overheal is the discriminating reading. `05` §4.3's <c>overheal</c> is
-    /// <c>scaled − healed</c>, so a ceiling that clipped the heal without the overheal following it
-    /// would silently shrink <c>PK_TRANSFUSION</c>'s input, and the <c>Shield</c> event is what shows
-    /// it.
+    /// The overheal is the discriminating reading: a ceiling that clipped the heal without the overheal
+    /// following would silently shrink <c>PK_TRANSFUSION</c>'s input.
     /// </para>
     /// </remarks>
     [Theory]
@@ -327,22 +310,17 @@ public sealed class HealingTests
     /// <summary>One probe fight whose enemy is the heal recipient.</summary>
     /// <param name="body">The probe.</param>
     /// <param name="recipientHealPct">`05` §4.3's <c>target.HEALPct</c>.</param>
-    /// <param name="healerHealPct">The healer's, which `05` §4.3 never reads.</param>
+    /// <param name="healerHealPct">The healer's, which §4.3 never reads.</param>
     /// <param name="readings">
-    /// Whether the recipient holds the two <c>ON_HEAL</c> probes that convert `05` §4.3's
-    /// <c>healed</c> and <c>overheal</c> into <c>Shield</c> events.
+    /// Whether the recipient holds the two <c>ON_HEAL</c> probes that convert <c>healed</c> and
+    /// <c>overheal</c> into <c>Shield</c> events.
     /// </param>
     /// <param name="missingHpProbe">
-    /// Whether it holds the single <c>TARGET_MISSING_HP_PCT</c> probe instead, which reads the
-    /// recipient's HP <em>at the moment the trigger fired</em>.
+    /// Whether it holds the single <c>TARGET_MISSING_HP_PCT</c> probe instead, read at the moment the
+    /// trigger fired.
     /// </param>
-    /// <param name="healCeiling">
-    /// `18` §7.6's <c>HEAL_CEILING</c> fraction the recipient holds as a standing
-    /// <c>STAT_CAP_OVERRIDE</c>, or <c>null</c> for the majority case that holds none.
-    /// </param>
-    /// <param name="recipientMaxHp">
-    /// The recipient's <c>MAX_HP</c>, which the ceiling is a fraction <em>of</em>.
-    /// </param>
+    /// <param name="healCeiling">`18` §7.6's fraction, or <c>null</c> for the majority case.</param>
+    /// <param name="recipientMaxHp">The <c>MAX_HP</c> the ceiling is a fraction <em>of</em>.</param>
     private static AttackProbe Fight(
         Action<AttackProbe> body,
         double recipientHealPct = 1.0,
