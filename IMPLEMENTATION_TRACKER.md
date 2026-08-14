@@ -19,14 +19,14 @@ This is the single tracking document for turning the design set in [`game-design
 | M1 | Core domain skeleton & `InMemoryGame` | 1 | ✅ **done — merged to `main` 2026-08-13** (100 commits). Both exit criteria met; ⚠️ *"commands"* is carrying **one** command — `BEGIN_SESSION` is the only `Handled` row. 🔒 **`30`'s claim that the whole game is playable in memory is NOT yet true:** its own §6 sketch sends `StartRun → RollDice → PickPerk`, and one of forty-nine commands does anything. §2.1's **P5** is out of scope by design; **P3 is an accepted exception** — 19 run rows throw rather than rejecting, and `START_RUN` is unreachable through any caller. **M3-15 makes the claim true, not M1.** Retro: `.claude/retros/M1.md` |
 | M2 | Effect DSL & combat simulation | 1 | ✅ **done — merged to `main` 2026-08-14.** 17/17 tasks merged, milestone-reviewed, retro'd, and all four post-review carry-forwards (R1–R4 below) implemented and merged to `review/M2` before this merge. Post-merge, full suite on `main`: Core **3764** · Application **582** · Contract **24** · Architecture **108/108** · content validation OK · 📐 baseline unchanged **38**. **Exit criteria: ① met (see M2-R2 — `ON_LETHAL` now fires), ② met, ③ met for the engine given a hero that can act (see M2-R3 — one new, separate Cogitator Prime fault found under real hero construction, tracked as a fresh open item, not one of R1–R4), ④ met.** `05` §9's guardrails 1/5/6 still fail and 3/4 are still largely unmeasurable at par — tuning decisions on `game-data/`, not code; R1 makes bosses genuinely harder (fired stat ops, incl. `SYS_ENRAGE`, now apply) so these numbers will move again once tuned. 🔴 **The M1↔M2 merge itself surfaced two real gaps**, both fixed in the merge commit rather than deferred: (1) `DeterministicRng_is_constructed_only_inside_Core_Rng` — M1's RNG-purity rule had never run against M2's combat code before; `BattleSimulation`/`EncounterFight` constructed the combat stream directly, closed by a new third sanctioned site, `Core/Rng/BattleRngScope`. (2) `Every_namespace_under_Rules_has_a_declared_place_in_R17` — M1's `Core/Rules/Economy/` (energy accrual/spend) had no R17 edge; pinned as a fourth, independent leaf outside the Combat/Stats/Effects ordering (zero coupling either direction, verified by inspection). ⚠️ **A second, independent session worked this same handover in parallel** on worktree `kickoff-milestone-m8-669804`, branch `fix/M2-carry-forwards` — it took the *other* defensible option for R3's `CURRENT_TARGET` ambiguity (data retarget vs this track's engine change) and its R4 attempt non-compliantly widened `Domain.PublicRuleTypes` from 6 to 11. That branch was **not** merged and needs human reconciliation/disposal |
 | M3 | Board, dice & the run loop | 1 | ⬜ |
-| M4 | Meta systems in Core (LuckService, gear, talents, beasts, economy, FTUE) | 1, 8 (Core half) | ⬜ |
-| M5 | Application layer, server backbone & inbox | 2, 3, 4 | ⬜ |
-| M6 | Power model & economy simulator | 5 (∥ from end of M4) | ⬜ |
-| M7 | Godot client vertical slice | 6 | ⬜ |
+| M4 | Luck, gear & the hero (Core) | 1, 8 (Core half) | ⬜ |
+| M7 | Application seam & the local playable client | 6 | ⬜ |
+| M5 | Server backbone, persistence & inbox | 2, 3, 4 | ⬜ |
+| M9 | Meta systems, screens & **First Playable** (Ch 1–2) | 8 | ⬜ |
+| M6 | Power model & economy simulator | 5 (∥ from end of M9) | ⬜ |
 | M8 | Art & audio pipeline + Chapter 1 assets | 7 (∥ workstream) | 🔄 **pipeline half merged to `main` 2026-08-14** (kicked off 2026-08-12, 3 waves, 4 tasks). Post-merge on `main`, every gate green: build 0/0 · unit **4947** · architecture **113/113** · content validation, vendor uniqueness, no-cloud-credentials and the provenance gate all pass. ⚠️ **Not ✅ — no `milestone-review` has run on M8, and 6 generation tasks remain ⛔ capability-blocked** (no agent can run Midjourney/Suno). **M8-02, the style anchor sheet, is the critical path and unblocks four of them.** M8-01b (licence confirmation in writing) is the product owner's |
-| M9 | Meta screens & **First Playable** (Ch 1–3) | 8 | ⬜ |
 | M10 | Resource Dungeons | 9 | ⬜ |
-| M11 | Content fill: chapters 4–8, full catalogues & asset batches | 10 | ⬜ |
+| M11 | Content fill: chapters 3–8, full catalogues & asset batches | 10 | ⬜ |
 | M12 | PvP — Ghost Duel | 11 | ⬜ |
 | M13 | Live-ops & events framework | 12 | ⬜ |
 | M14 | Guilds *(designated schedule-relief valve)* | 13 | ⬜ |
@@ -36,7 +36,7 @@ This is the single tracking document for turning the design set in [`game-design
 | M18 | Hardening, joint economy tuning & soft launch | 17 | ⬜ |
 
 **Hard gates on the way:**
-- 🔒 **First Playable** = end of M9: chapters 1–3 playable online, excluding PvP, dungeons, live-ops, guilds, ads/subscription and live-service extras.
+- 🔒 **First Playable** = end of M9: chapters 1–2 playable online, excluding PvP, dungeons, live-ops, guilds, ads/subscription and live-service extras. Chapters 3–8 land with M11.
 - 🔒 **D31:** the economy simulator must pass (16 named + 23 inherited assertions) before the live service opens (M18).
 - 🔒 **E19 ordering rule:** dungeons + events + guilds + Reforge/Retune sinks are tuned **together** in the simulator (M18), never individually.
 
@@ -208,7 +208,7 @@ These live across the whole project; they start in M0 and grow with every milest
 1. **The four `17` combat rulings are confirmed exactly as written.** (a) `targetPriority`: an int on enemy definitions, default `0`; the hero targets the **highest**, ties by **lowest current HP**; sporelings `−1`, `+1` forces focus (`05` §3.2, op `SET_TARGET_PRIORITY`). (b) Rimehold's Core is a **state flag, not a second actor** — `DAMAGE_TAKEN_MULT` ×1.6 at `05` §4 step 6, no targeting change. (c) Dicelord phase 2 becomes **`1–4: boss buff · 5–6: both buff`** — the hero-favourable outcome is removed. (d) **Enrage is `05` §3.1's form, authoritative over `17` §1's prose**: one built-in `SYS_ENRAGE` on every boss, `PERIODIC {interval 1.0, startDelay 70.0}` → `STAT_MULT ATK ×1.08`, multiplicative, uncapped, `BATTLE` scope, **tick slot 3**, bosses only.
 2. **Sporequeen's Rot drain × the 70 s enrage: keep `SYS_ENRAGE` universal and unmodified; the drain is the effective timer.** `17` §11 requires the enrage "implemented once, applied to all bosses", and a per-boss opt-out used by one of eight is exactly the bespoke boss code `18` exists to prevent. At par power the fight ends in 35–60 s, so neither timer is reached — the interaction is only reachable by a build that is already failing. The verification `17` §8 asks for becomes a **harness assertion in M2-16a** (Sporequeen's median duration stays in the 35–60 s band), not an engine change. 🔴 The "**O13**" label on this item was a **mis-reference** — O13 in `16` Part B is *curse chapter gating*, an M3 item — corrected here.
 3. **`CP_GLASS_HEART` stays ×2, with the ×1.6 downgrade pre-agreed as the automatic response** to a >12 pp clear-rate swing (`05` §9 guardrail 2) — no second conversation needed, it is a data edit. ⚠️ The trigger **cannot fire in M2**: measuring a per-perk swing needs the 98-perk catalogue (M3-07). Recorded for **M2-16b**.
-4. **M2-16 is split.** **M2-16a** (in M2) ships the harness, CLI, nightly CI job (X-08) and **five** live guardrails (1, 3, 4, 5, 6) driven by `calibration_builds.json`'s archetype **statlines** — `par_power.json` and `calibration_builds.json` are already fully populated. **M2-16b** ⛔ defers guardrail 2 to **M3-07**. ⚠️ The archetypes' `frozenPerks`/`pets` reference ids that do not exist until M3-07/M4-07; M2-16a reads only `stats` and must not stub the rest.
+4. **M2-16 is split.** **M2-16a** (in M2) ships the harness, CLI, nightly CI job (X-08) and **five** live guardrails (1, 3, 4, 5, 6) driven by `calibration_builds.json`'s archetype **statlines** — `par_power.json` and `calibration_builds.json` are already fully populated. **M2-16b** ⛔ defers guardrail 2 to **M3-07b**. ⚠️ The archetypes' `frozenPerks`/`pets` reference ids that do not exist until M3-07/M4-07; M2-16a reads only `stats` and must not stub the rest.
 5. **M2-17 is reinterpreted as a committed-baseline determinism test** — 10 000 seeded random build permutations through `EffectResolver`, hashed with `CanonicalStateWriter`, checked against a committed reference table. There is one resolver in one assembly and no client build until M7, so there is no second implementation to compare against; real two-runtime parity stays with **M5-12**. ⚠️ The baseline is necessarily **self-generated** — S5 does not apply and must not be implied. It proves *stability*, not correctness; correctness comes from M2-02..M2-06's unit tests.
 
 **Assumptions recorded after the interactive window** (full reasoning in the kickoff record)
@@ -239,7 +239,7 @@ These live across the whole project; they start in M0 and grow with every milest
 | M2-14 | PvP duel mode in the same code path: `IS_PVP` semantics, attacker-first initiative, no `ON_KILL`, 60 s cap, tie rules | 05 §3.3, 11 §6 | 🔍 merged · `feature-M2-14-pvp-duel` — 🔴 **M2-08's handover claim that "only initiative remains" was wrong in both directions**, established by writing the suite first and running it against untouched simulator code: **5 red, 11 green**. Missing: `11` §4.3's **exact-tie underdog rule was unimplemented *and* inexpressible** (`Outcome()` used a strict `>` and `CombatRules` had no way to be told who the underdog was, so a tied duel silently went to the Ghost — the opposite of the spec); slot **5** needed the same side ordering as slot 4. 🔴 **And the claimed fix was a no-op whose obvious test could not have failed:** `CombatActor` indexes the attacker 0–3 and the Ghost 4–7, and `05` §3.2 keeps pets out of slot 4 — so a duel's slot 4 is **already attacker-first under plain index sorting**. Overriding `InitiativeOrder()` and testing it on a well-formed roster passes identically with and without the change. The suite now probes a deliberately inverted roster (M2-05's technique), and `The_override_is_invisible_on_a_conventionally_indexed_duel` pins the coincidence so nobody re-derives it. **Every duel assertion in the repo had been against a hand-built context or an isolated `CombatRules` record — nothing had ever run a duel through `CombatSimulator`.** 🔒 **Its own new architecture rule caught its own design**: it shipped "is this a duel is one fact", then added `BattleSide? ExactTieWinner` beside `bool IsPvp` — two spellings of one bit. `IsPvp` is now **derived**, so a duel with the tie rule silently off is not a representable value. Also caught a latent `NullReferenceException` it had introduced (`RunPetAbilities` bounded on a field `AdmitSummon` nulls) and an S1 failure in its own pet-cooldown probe, which read `0.0` at a 20-tick cycle boundary whether or not the pet had been walked. `LogHash` is asserted to **differ** between PvE and duel initiative — `11` §6's actual comparison |
 | M2-15 | Combat log format (`CombatEvent`, `SimulationResult`) + `LogHash`; compute-then-animate contract; `RunEffectQueued` combat→run bridge | 05 §7, 18 §2.5 | 🔍 merged · `feature-M2-15-combat-log` — 🔴 **`05` §7's `CombatEvent` as declared hashes one field out of six, and every test over that hash passes**: it uses public *fields* and `CanonicalProperties` counts *properties*. Proven by execution (`CanonicalBytes` = 8 bytes for a 3-member record; two different events, identical hash). Fixed at the source — `CanonicalStateWriter` now refuses public instance fields. ⚠️ **This is M1-04's assigned carry-forward and M1-04 is in flight** — expect a real conflict in `CanonicalStateWriter.cs` at the M1+M2 merge (S12 has no cross-session form). 🔒 **`float Value` widened to `double`** — `14` §16.6 has no float row and lists `float` among the types the one serialiser must *refuse*, narrowing un-rounds past the 4-dp guard, and above 2²³ a float collapses `…0001` and `…0002` into one number, erasing exactly the divergence the determinism gate exists to find. Costs nothing on the wire (§16.6 widens every scalar to 8 bytes). **`Telegraph` added as ordinal 17, appended never inserted** (the ordinal is hashed) — `17` §1/§11 require a 1.0–1.5 s wind-up that `05` §7's enum could not express. `RunEffectQueued` carries **at most one** runtime scalar and its effect index does not travel with the result — **M3 must rebuild it from the same inputs**. Ten further guards each proven by deletion |
 | M2-16a | Balance harness v1: 10 000 fights per (chapter, tier, archetype) over `calibration_builds.json`'s 5 archetype **statlines**; CLI + the nightly CI job (X-08); **guardrails 1, 3, 4, 5, 6** live. Plus the kickoff §2 assertion: Sporequeen's median duration stays in the 35–60 s band | 05 §9 | 🔍 merged · `feature-M2-16a-balance-harness` — **1 200 000 real boss fights in 28.9 min** (nightly); PR-tier subset 24 000 fights in **32 s**. 🔴 **Three guardrails FAIL and two are unmeasurable on the shipped data. Nothing was retuned to make them green.** **G1 clear rate: 0.00 % in all 120 cells.** **G5 mitigation: 54 210/121 200 pairs breach, max 0.9988** (only C1/C2 NORMAL clean). **G6: 9 of 14 stats top-3 in no archetype** — and `29` §2.3 contains **no term for `HEAL_PCT` or `THORNS`**, while under `√(EffHP × DPS)` seven further stats are capped below the 0.5 that `MAX_HP`/`ATK`/`ASPD` reach by construction, so **`05` §9.6 is unsatisfiable as written**. **G3/G4 INCONCLUSIVE** — 0 cleared fights anywhere, reported as inconclusive rather than a vacuous pass. 🔴 **The headline: highest boss phase reached anywhere in 1.2 M fights is 1.** No build at par ever took a boss below 66 % HP, so **every authored phase-2 and phase-3 mechanic is unreachable at par** and none of `17` §2–§9's 27 phase blocks has been exercised at its intended difficulty. Bisected shortfall: C1 needs **2.38–2.88 × par**, C7 **20–45 ×**, median 32 × over 40 probes. Scaling is not the cause — achieved/target held 0.9991–1.0009 across all 120 cells. ✅ **`< 5 ms` settled on real content: median 2.881 ms, p90 3.681, max 5.911** (M2-08's 5.437 was a synthetic standoff). **`RAGE`'s unauthored decay curve is worth 23–32 pp of clear rate** and ≤ 4.4 s of duration — it kills heroes, it does not lengthen fights. **`addsPowerFraction` 0.30 sits on a knee**: 0.25→0.30 costs 2–18 pp, 0.30→0.35 a further 23–39 pp. Landed `BossCatalogue.Read` and deleted `AuthoredBossScripts`. **Three engine defects surfaced** — one fixed (pre-tick 0c mutated `_actors` while iterating, so *every* Chapter 3 boss fight threw on tick 0), two reported |
-| M2-16b | **Guardrail 2** — no single perk raises clear rate by more than 12 pp in isolation — and the `CP_GLASS_HEART` ×2→×1.6 trigger it gates | 05 §9, 18 §9.1 | ⛔ **deferred by kickoff decision 4 — owner M3-07.** Not blocked by a defect: measuring a per-perk swing needs the 98-perk catalogue, which M3-07 authors |
+| M2-16b | **Guardrail 2** — no single perk raises clear rate by more than 12 pp in isolation — and the `CP_GLASS_HEART` ×2→×1.6 trigger it gates | 05 §9, 18 §9.1 | ⛔ **deferred by kickoff decision 4 — owner M3-07b.** Not blocked by a defect: measuring a per-perk swing needs the 98-perk catalogue, which M3-07 authors |
 *(Handover for all four: **`.claude/handovers/M2-carry-forwards.md`** — self-contained, with the exact effect ids, file/line anchors, the two options for R3a, the 21 rulings in force, and the acceptance proofs. Suggested order **R3 → R2 → R1 → R4**; R3 is the only one blocking an exit criterion.)*
 
 | M2-R1 | 🔴 **`SYS_ENRAGE` raises the boss's ATK by nothing.** It is a *triggered* `PERIODIC STAT_MULT`, and `RefreshStats` aggregates **untriggered standing effects only**, so a fired stat op changes nothing that outlives the call. The enrage fires on schedule and anchors correctly (R8, proved) and has **no effect**. This is `18` §8 step 1's other half — explicitly marked unwired in `RefreshStats` — and spans M2-02's resolver and M2-06's stack set. **Three seam documents justify their design around behaviour the assembled code does not produce**, including R1, whose worked example was `SYS_ENRAGE` reaching 125.9712 | 18 §8, 05 §3.1 | 🔍 merged · `feature-M2-R1-fired-stat-ops` → `review/M2` — new `ITriggeredStatSink`/`BattleActor.TriggeredStatFirings` (`EffectStackSet`-backed) lets `RefreshStats` read a fired triggered stat op's result alongside the untriggered standing set, without re-invoking the op (no reapply from tick 0, no double-apply — proved by mutation). **3 s of `SYS_ENRAGE` = 125.9712 through the real loop** (R1's worked example, now true). `PHASE`-scoped fired ops still correctly expire on phase exit. Perf re-measured: harness median 5.710→5.440 ms, p90 8.077→8.777 ms — no material regression, still inside the 10× budget check. Bosses genuinely harder now (fired stat ops apply); `05` §9 guardrail numbers will move again, not retuned here |
@@ -253,69 +253,53 @@ These live across the whole project; they start in M0 and grow with every milest
 ## M3 — Board, dice & the run loop
 
 **Goal:** a complete run — roll, move, resolve, fight, draft, die or win — playable through `InMemoryGame`.
-**Exit:** full Chapter-1 run completes headless through commands only; board generator satisfies C1–C7 across seeds; FTUE authored board validates.
+**Exit:** full Chapter-1 **and Chapter-2** runs complete headless through commands only; board generator satisfies C1–C7 across seeds.
 
 **Kickoff decisions**
-1. **O35** — redesign `PK_DICELORD_GIFT` (current row is void under free fork choice; do not build against it).
-2. **O21** — `PK_SINGULARITY` needs a mid-run perk-removal choice flow: specify or cut.
-3. **O22** — `PK_CARTOGRAPHER` teleport vs traversal rules: movement ruling.
-4. Dice Forge offer pool (faces/tiers, interaction with upgraded faces) — no table exists.
-5. **O13 (decision log)** — curse chapter gating (suggested split in `19` E). *(This is the real O13; M2's kickoff block mis-cited the same number for an unrelated `17` §8 item — corrected there.)*
-6. **Inherited from M2 (kickoff decision 4): M2-16b.** Once M3-07 lands the 98-perk catalogue, run guardrail 2 — no single perk raises clear rate by more than 12 pp in isolation (`05` §9) — on the M2-16a harness. The `CP_GLASS_HEART` ×2→×1.6 downgrade is **pre-agreed** as the automatic response if it breaches; no further decision needed.
+1. **Treasure-tile drops** — `08` §6 gives a 25 % treasure-tile gear chance; `03` §7a.3 says treasure never drops gear. Transcribed as `null` in M0-10; the ruling is due here because M3-13 authors the payout profiles. *(Carried from the M0 review.)*
+2. **Confirm the chapter-1/2 tile vocabulary.** Chapters 1–2 draw battle, elite, boss, treasure, cache, shop, campfire, shrine and fork/junction tiles. The remaining `03` §2 kinds (event, minigame, curse, dice forge) are declared in the tile vocabulary, weighted **0** in `chapters_01`/`chapters_02`, and carry `GapRegister` entries naming M11 — so the build fails the moment their resolver types appear. Confirm nothing else must be drawable at this stage.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
+| M3-15 | `runSeed` derivation inside `Apply` on `START_RUN`; lifetime `runCounter`; stream-counter echo in every outcome. 🔒 **Runs alone and first — it is the head of every lane.** Until it lands, `START_RUN` is unreachable through any caller (M1 carry-forward 22: `Execute` refuses a `CommandKind.Run` command on a run-less slice *before* the `IsHandled` branch, so all nineteen run rows throw and only `START_RUN` can create the `Run` its own guard demands). Either reclassify the row or give the table a state for a `Run`-kind row that *opens* a run with its scope built after the handler; `InMemoryGame` moves either way — `(player, null)` is already right, and an injection door on the harness is the wrong answer | 02 §2, 14 §8.1, 30 §2.1 | ⬜ |
 | M3-01 | Board graph model (DAG, 3 stages, forks) + `GenerateBoard(chapter, tier, seed)` + constraint solver C1–C7 with redraw/injection fallbacks | 03 §1–3 | ⬜ |
 | M3-02 | Movement engine: virtual trailhead, stepwise traversal, junction pause + `CHOOSE_FORK`, stage clamp, boss-exact rule, chain hops (cap 3→5), portal draws with campfire clamp | 03 §1.1 | ⬜ |
-| M3-03 | The 14 tile resolvers + linear node index feeding `EnemyPower(i)` | 03 §2, 02 §4.3 | ⬜ |
+| M3-03 | Tile resolvers for the chapter-1/2 vocabulary (battle, elite, boss, treasure, cache, shop, campfire, shrine incl. its pool + cleanse rule, fork/junction) + linear node index feeding `EnemyPower(i)`; every other `03` §2 kind is declared in the vocabulary and carries a `GapRegister` entry against M11 | 03 §2, §7a, 02 §4.3 | ⬜ |
 | M3-04 | Dice system: `DieFace`/`DieFaceKind` + tiers, face effect resolvers (Pip/Star/Surge/Fortune/Void/Chain), run-start die composition pipeline, Fair-Dice weighted bag (server-side, stage-gate reset), reroll charge economy + Nudge | 04 | ⬜ |
 | M3-05 | Run state machine (RUN_SETUP → … → RUN_RESULTS), stage gates (heal, refresh, rarity shift, power step, checkpoint, interstitial hook), timing/tunables | 02 §1–3 | ⬜ |
 | M3-06 | Perk draft: post-battle trigger, 3 options, rarity weight tables by stage/elite/boss, tier upgrades (I/II/III + removal at III), composition rules, skip/reroll economy (LuckService hooks stubbed until M4-01) | 06 §1–2, §4 | ⬜ |
-| M3-07 | The 98-perk catalogue (90 + 8 cursed) authored as DSL data — zero per-perk code | 06 §3, 18 | ⬜ |
-| M3-08 | Shop tile (4 slots, refresh economy), pricing engine (`chapterPriceScalar`), run buffs, consumables incl. Escape Rope arming/skip semantics + `USE_CONSUMABLE` legality | 03 §7 | ⬜ |
-| M3-09 | Event-card system (schema, weighted outcomes, costs/requirements) + the 30 authored cards in 3 chapter bands | 03 §5, 19 A | ⬜ |
-| M3-10 | 4 minigames + reward tables + the server-authority split (2 server-rolled, 2 client-asserted legality-validated) | 03 §6 | ⬜ |
-| M3-11 | Shrine (pool + cleanse rule), campfire, dice forge, curse tiles; the 12-curse catalogue + curse rules engine (no stacking, paired rewards, `AD_SKIP_CURSE` hook, mount immunity) | 03 §7a, 19 E | ⬜ |
-| M3-12 | Chapter signatures: Ch3 revive, Ch4 burning tiles, Ch6 clockwork pressure, Ch8 die scramble | 03 §4 | ⬜ |
+| M3-07 | Starter perk catalogue authored as DSL data — zero per-perk code. 🔒 **Selection rule, not a hand-picked list:** the smallest set that exercises **every `18` construct at least twice** and **every `06` §1–2 draft trigger and composition rule at least once**, spread across all rarities and all three tiers, drawn only from the `06` §3 catalogue — target ≈ 32 rows, cursed perks excluded (they arrive with the curse system). Rows the rule does not reach are M3-07b's; the register records which `06` §3 ids are unauthored so the count is checkable in both directions | 06 §3, 18 | ⬜ |
+| M3-08 | Shop tile (4 slots, refresh economy), pricing engine (`chapterPriceScalar`), run buffs | 03 §7 | ⬜ |
 | M3-13 | Reward banking, in-run income tables, run-end payout (completion multipliers, ad-double), first-clear bonuses, death/revive (battle restarts; works on bosses), Legend XP income | 02 §5–6 | ⬜ |
-| M3-14 | 8 chapter data files (weights, pools, targets, unlock conditions) + treasure/cache payout profiles | 14 §6, 03 §7a | ⬜ |
-| M3-15 | `runSeed` derivation inside `Apply` on `START_RUN`; lifetime `runCounter`; stream-counter echo in every outcome | 02 §2, 14 §8.1 | ⬜ |
+| M3-14 | Chapter data files for **chapters 1–2** (weights, pools, targets, unlock conditions) + treasure/cache payout profiles; the file set and schema are authored for all eight so M11-02 adds rows, not structure | 14 §6, 03 §7a | ⬜ |
 
 ---
 
-## M4 — Meta systems in Core
+## M4 — Luck, gear & the hero (Core)
 
-**Goal:** everything between runs — loot, forge, talents, beasts, wallet, dailies, FTUE — as pure Core rules. 🔒 `LuckService` lands **here**, before any later grant path exists.
-**Exit:** a simulated 30-day player earns/spends/merges/drafts entirely in memory; every grant path routes through `LuckService` (architecture test).
+**Goal:** the between-run loop that a run actually feeds — loot, forge, inventory and the hero — as pure Core rules. 🔒 `LuckService` lands **here**, before any grant path exists.
+**Exit:** a simulated player runs, banks gear, merges and enhances it, levels the hero and carries the loadout into the next run entirely in memory; every grant path routes through `LuckService` (architecture test).
 
 **Kickoff decisions**
 1. Rarity-floor renormalisation semantics per source (📐, flagged under-specified in 24 §4.0a).
-2. **O36** — name the FTUE beat-7 mini-boss (default: Thornmaw phase 1).
-3. Confirm draft-protection rule set for the `DRAFT` source class (doc count mismatch: "five rules" vs six listed — 06 §4 vs 24 §4.7).
-4. Hoard-lever telemetry thresholds (shelf dwell, opens-after-Focus-change) — initial values.
+2. Confirm draft-protection rule set for the `DRAFT` source class (doc count mismatch: "five rules" vs six listed — 06 §4 vs 24 §4.7).
+3. 🔒 **Binding ruling on `30` §11.4, due before M4-03 authors `GearGranted`** (M1 carry-forward 8). §11.4's internal-dependency chain omits `Commands` and `Events` entirely, while `30` §7 requires `GearGranted` to carry `GearInstance` — a `Model/` aggregate. So "events reference `Primitives` and nothing else" contradicts `30` §7's own sketch, and an `Events → Model` prohibition would block M4-03 outright. The deliverable is a `30` §11.4 **amendment**, not just a table edit.
+4. **Inventory capacity ruling** (M4-05): `08` §5 caps inventory at 400; `10` §4's expansion ladder reaches 320. Both are transcribed; one is authoritative.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| M4-01 | **`LuckService`** — the single guarantee point: 3 primitives (hard pity, soft pity, mercy accrual), source-class registry (`data/luck.json`, 10 classes), counter rules (server-owned, visible, never reset), routing architecture test + 100 000-seed property tests | 24 §1–3, §11 | ⬜ |
-| M4-02 | Container shelf + `OPEN_CHEST/EGG/CRATE` (+ OPEN ALL): contents/pity/Focus read at open from command seed; chest ladders (Standard 10/40/160, Premium 5/25, Apex 3), soft-pity slopes, egg P1–P3, crate protection, `DROP_RUN` D1–D3 | 24 §4 | ⬜ |
-| M4-03 | Gear instance schema (`quality`, `chapterOrigin`, mercy counter, affixes, lock) + generation: `ItemPower`, slot coefficients, 14 affixes, chapter-banded drop shares, 4 SS set bonus engines; derived stats never stored | 08 §2–3 | ⬜ |
-| M4-04 | Forge: merge (dust substitution, max-q/max-origin, crown costs), enhance (+0→+15, mercy inheritance, ad/Plus luck stacking), salvage (+Set Tokens), auto-salvage filters; Reforge (keep-best q) + Retune (locks + wishlist); Focus (×2.5, 12 h cooldown); Set Token redemption | 08 §4, 24 §5–6 | ⬜ |
-| M4-05 | Inventory: capacity + expansion curve, sorting/compare/lock model, hold-not-lose on overflow | 08 §5 | ⬜ |
-| M4-06 | Talent tree: 60-node catalogue as DSL data, tier gating, rank costs, spend/respec (free, instant), presets (3 free / Plus unlimited), die-face rewrites | 09 | ⬜ |
-| M4-07 | Pets: 24 defs, levelling (dual cost), ascension ★1–5, aura aggregation, active-ability runtime, duplicates → Beast Marks, exchange tiers; `PET_DICEBEAST` + `PET_ARCHIVIST` special cases | 07 §2 | ⬜ |
-| M4-08 | Mounts: 12 defs, levelling (Feed only), run-perk effect layer (board-side), crate odds, duplicate disposal | 07 §3 | ⬜ |
-| M4-09 | Wallet + shop model (Daily draw rule + staples, Materials caps, Honor, Plus tab stub), daily quests (20-pool, draw + reroll rules, rewards, 3-of-3 chest), Lucky Wheel (`SPIN_WHEEL`, segment weights, W1/W2 pity), 28-day login calendar (`CLAIM_CALENDAR`, pause-not-skip) | 10 §1–5, 19 B/F/G | ⬜ |
+| M4-01 | **`LuckService`** — the single guarantee point: 3 primitives (hard pity, soft pity, mercy accrual), source-class registry (`data/luck.json`, 10 classes), counter rules (server-owned, visible, never reset), routing architecture test + 100 000-seed property tests. 🔒 **Head of every lane in this milestone** — no grant path may exist before it | 24 §1–3, §11 | ⬜ |
+| M4-03 | Gear instance schema (`quality`, `chapterOrigin`, mercy counter, affixes, lock) + generation: `ItemPower`, slot coefficients, 14 affixes, chapter-banded drop shares, 4 SS set bonus engines; derived stats never stored. ⚠️ Declaring `GearSlot` here while the commands keep `string` leaves two vocabularies for one concept with every architecture rule green (M1 carry-forward 15) — retype the nine gear-slot command payloads in the same commit | 08 §2–3 | ⬜ |
+| M4-04 | Forge: merge (dust substitution, max-q/max-origin, crown costs), enhance (+0→+15, mercy inheritance, ad/Plus luck stacking), salvage (+Set Tokens), auto-salvage filters. ⚠️ `08` §4.1's merge takes *three* inputs with dust for one while `14` §2.3's command sketch names *two* ids plus the flag — M1-02 transcribed the sketch exactly rather than inventing `inputItemIdC`; the deliverable includes the `14` §2.3 amendment (M1 carry-forward 14) | 08 §4, 24 §5 | ⬜ |
+| M4-05 | Inventory: capacity + expansion curve, sorting/compare/lock model, hold-not-lose on overflow. ⚠️ 400 slots cloned per command is `InMemoryGame`'s perf slope, not its level (M1 carry-forward 12) — the answer `30` §4.1 already sanctions is a narrower slice | 08 §5 | ⬜ |
 | M4-10 | Hero: name entry + profanity filter, Legend Level curve + unlock-gate table, level-up grants, loadout snapshot-at-run-start, presets (`SAVE_PRESET`/`APPLY_PRESET`) | 07 §1, §4 | ⬜ |
-| M4-11 | Codex model: 5 sections, per-entry stat bonuses (active at L100), TP milestones | 06 §6 | ⬜ |
-| M4-12 | FTUE data package `ftue.json`: authored board, rigged die stream, tutorial-only defs and flags (7), fixed drafts/shop, scripted payout, per-beat resume, `SKIP_FTUE`; structural validator + T1–T5 harness acceptance tests | 19 D | ⬜ |
 | M4-13 | Feat lifetime counters incremented inside `Apply` from now on (infrastructure only — Feats feature ships M16 but retroactivity requires counters to exist early) | 28 D, 30 §12.7 | ⬜ |
-| M4-14 | Cross-system stacking rules: die-face rewrite resolution order (talents/mounts/set bonus/pet), reroll-charge stacking (5 sources), pet-cooldown reduction stacking (4 sources) | 07/08/09 | ⬜ |
 
 ---
 
-## M5 — Application layer, server backbone & inbox
+## M5 — Server backbone, persistence & inbox
 
-**Goal:** the ports, the ASP.NET Core host, persistence, auth and the wire contract — the game becomes a service. 🔒 The **inbox is built here** (step 4), not with the other live-service features.
+**Goal:** the ASP.NET Core host, persistence, auth and the wire contract — the game becomes a service, and the client's ports move from the in-process host to HTTPS. 🔒 The **inbox is built here** (step 4), not with the other live-service features.
 **Exit:** a device plays a full run over HTTPS against the compose stack; reconnect chaos test passes; cross-platform determinism CI live.
 
 **Kickoff decisions**
@@ -323,11 +307,10 @@ These live across the whole project; they start in M0 and grow with every milest
 2. **O33** — simultaneous sessions on two devices (expected: newest wins) — confirm.
 3. **O34** — player display-name lifecycle (uniqueness, rename, sanction path).
 4. **O6** — managed vs self-hosted Postgres can stay open (deploy-time), confirm.
+5. **`runSeed` on the wire** (M1 carry-forward 10): `02` §2 says `runSeed` never leaves the server, while `14` §16.6 makes the client-mirror check hash `RunSnapshot` — which carries `RunSeed`. Both cannot be literally true, and M5-03 authors the envelope while M5-12 authors the parity test.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| M5-01 | Full port catalogue in `Application/Ports/{Client,Server,Shared}` + in-memory fake for every port + shared contract-test suites | 23 §4–5 | ⬜ |
-| M5-02 | Use-case orchestration: load slice → `Apply` → persist → dispatch events; no game rules in Application | 30 §11.1 | ⬜ |
 | M5-03 | Command endpoints (`/run/{id}/command`, `/player/command`) with the normative envelope: protocol version + skew rule, rejection contract (200-rejections, full enum, HTTP mapping), sequencing + idempotency scopes, retry rules | 14 §16.1–16.3 | ⬜ |
 | M5-04 | The commit rule: one accepted command = one Postgres transaction (snapshots + idempotency outcome + domain events); Redis strictly rebuildable cache | 14 §16.4 | ⬜ |
 | M5-05 | Postgres adapter + schema + migrations (profiles JSONB/typed split, run snapshots, idempotency, economy event log, messages); Redis run-state/session/idempotency hot-cache; S3 battle-log store. ⚠️ The S3 adapter must expose **no S3-specific concept** through the port (no bucket/key/presign leakage into `Application`) — an `AzureBlob` sibling lands at M18-06a, and this is the cheap moment to get the port shape right | 14 §7 | ⬜ |
@@ -340,12 +323,14 @@ These live across the whole project; they start in M0 and grow with every milest
 | M5-12 | Determinism CI cross-platform `LogHash` test (10 000 triples on x64/ARM64×2) + client/server parity test (1 000 command sequences) | 14 §8.2, §13 | ⬜ 🔒 **Also inherits M2-17's `tests/…/Rules/Effects/Determinism/DslDeterminismBaseline.json`** — the 10 000-permutation DSL table whose header states its cross-platform claim *"becomes true when that job does"*. ⚠️ **`ci.yml`'s determinism job is `if: false`**, so nothing obliges this row to pick either table up until it is enabled. ⚠️ **Platforms are Linux x64 + Android ARM64**; the iOS ARM64 leg is authored but gated off under `16` D34 — the "x64/ARM64×2" phrasing above predates that ruling |
 | M5-13 | Reconnect chaos test: kill the connection at every command boundary of a full run; no lost or duplicated outcomes | 14 §13 | ⬜ |
 | M5-14 | Rate limiting (per-player, per-IP), plausibility-monitoring job skeleton + review queue + sanctions data model | 14 §9 | ⬜ |
+| M7-02 | `Api.Http` adapter + `StateMirror` + `CommandQueue` + `ReconnectManager`; the 5 connection states exactly as specified (pill, read-only offline, resync flash, resume card; never a blocking error mid-run). ⚠️ **Touches the Godot client checkout** — main checkout only, never a worktree, never concurrent with another client task | 14 §3, 13 §11 | ⬜ |
+| M5-15 | Composition-root swap: the client resolves its ports to `Api.Http` instead of the in-process host (M7-09), with auth + content-hash download wired into boot (M7-03); local state becomes the read-only cache `14` §7.2 describes, never a second source of truth. Verified by the same run playing identically through both hosts. ⚠️ **Touches the Godot client checkout** — same rule as M7-02 | 23 §7.2, 14 §7.2 | ⬜ |
 
 ---
 
 ## M6 — Power model & economy simulator ∥
 
-**Goal:** the product owner's dial (`29`) and the tool that grades the game against it (`21`). Starts the moment `InMemoryGame` + meta systems exist (end of M4) — does **not** wait for M5.
+**Goal:** the product owner's dial (`29`) and the tool that grades the game against it (`21`). Starts the moment `InMemoryGame` + the meta systems it models exist (end of M9) — it runs against `Core` alone and waits on no client or server work.
 **Exit:** `EconomySim assert` runs in CI on every `Data` change; first full 180-day × 14-profile run produced (expected to fail — that is its job); frontier curve derived.
 
 **Kickoff decisions**
@@ -368,33 +353,38 @@ These live across the whole project; they start in M0 and grow with every milest
 
 ---
 
-## M7 — Godot client vertical slice
+## M7 — Application seam & the local playable client
 
-**Goal:** the game on a phone — one chapter, online, reconnectable, with placeholder art where M8 hasn't delivered yet.
-**Exit:** full Chapter-1 run on an Android device against the compose stack: roll → move → fight (predicted locally from `battleSeed`) → draft → results; mid-run reconnect works; CI builds the APK through the custom export path.
+**Goal:** the game on a phone — chapters 1–2, with placeholder art where M8 hasn't delivered yet. The client is composed against the **ports**, and this milestone provides the ports, the use-case layer and an in-process host behind them; M5 later swaps that host for HTTPS without touching a call site.
+**Exit:** full Chapter-1 and Chapter-2 runs on an Android device: roll → move → fight → draft → results, gear banked and equipped between runs; CI builds the APK through the custom export path.
+
+🔒 **M5-01/M5-02/M7-09 depend only on M3** and may run alongside M4; nothing in this milestone waits on the rest of M5.
 
 **Kickoff decisions**
-1. **O15** — confirm hand-rolled composition root + presenter pattern (recommendation in 23 §9) vs a DI container.
-2. Placeholder-asset policy until M8 delivers (grey-box vs anchor-sheet drafts).
+1. **O15 — ✅ RULED 2026-08-14: hand-rolled composition root + presenter pattern**, per `23` §9's recommendation. No DI container. → fold into `16` Part B as **O15 closed**. A scheduled review re-opens the question once the client has real surface area; until it fires, this is settled and no task may introduce a container.
+2. **Placeholder-asset policy — ✅ answered by M8-10.** Every runtime slot has a correctly-named, correctly-sized, correctly-pivoted, ID-stamped placeholder driven through M8-06's full pipeline into the §D2 atlases. Output is a **build artifact under `artifacts/`, never committed** — the Godot checkout consumes the generated set, and every real asset overwrites its placeholder by id.
+3. Confirm the local host's persistence scope: **one local profile, disposable pre-launch data, no migration code** (M1 kickoff decision 2 — `Rehydrate` hard-fails loudly on an unknown `SchemaVersion`; written migrations become mandatory at M18).
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
+| M5-01 | Full port catalogue in `Application/Ports/{Client,Server,Shared}` + in-memory fake for every port + shared contract-test suites (**X-06**). 🔒 **Head of every lane** — no client code may reach past a port, or M5-15 becomes a rewrite rather than a swap | 23 §4–5 | ⬜ |
+| M5-02 | Use-case orchestration: load slice → `Apply` → persist → dispatch events; no game rules in Application | 30 §11.1 | ⬜ |
+| M7-09 | In-process game host: a composition root over `{Core, Application}` that satisfies the client-facing ports without a network, persisting through the `Cache.LocalFile` adapter (`14` §7.2) as the local profile store. Ships the `Cache.LocalFile` adapter itself | 23 §7.2, 14 §7.2, 30 §6 | ⬜ |
 | M7-01 | Godot project + composition root (platform-/entitlement-conditional wiring), `Platform.Godot` adapter (audio, haptics, locale, device info); scenes as driving adapters, presenters as plain C# | 14 §5, 23 §7.2 | ⬜ |
-| M7-02 | `Api.Http` adapter + `StateMirror` + `CommandQueue` + `ReconnectManager`; the 5 connection states exactly as specified (pill, read-only offline, resync flash, resume card; never a blocking error mid-run) | 14 §3, 13 §11 | ⬜ |
-| M7-03 | Boot S01: splash, auth, session, profile fetch, content-hash check + download; < 4 s cold-start budget | 02 §7, 13 | ⬜ |
-| M7-04 | Home S03 (minimal: header, energy, CONTINUE) + Chapter Select S04 with par-power soft warning | 13 §3 | ⬜ |
-| M7-05 | Board S05: tile track, roll button, reroll prompt (4 s ring), fork choice, consumable pouch, curse icons; Die Panel S12 | 13 §3, 04 §6 | ⬜ |
-| M7-06 | Battle replay renderer S06: animates the pre-computed log; local prediction from server-issued `battleSeed`; speed ×1/×2/×3 + always-available skip; boss phase band | 05 §8, 14 §2.4 | ⬜ |
-| M7-07 | Run decision screens: draft S07 (never auto-picked), shop S08, event S09, 4 minigames S10, campfire/shrine S11 | 13 §4 | ⬜ |
+| M7-03 | Boot S01: splash, session, profile load, placeholder-atlas load; < 4 s cold-start budget. Auth and the content-hash check + download arrive with M5-15 | 02 §7, 13 | ⬜ |
+| M7-04 | Home S03 (minimal: header, energy, CONTINUE) + Chapter Select S04. The par-power soft warning arrives with M6-04, which owns `ExpectedPower(L)` | 13 §3 | ⬜ |
+| M7-05 | Board S05: tile track, roll button, reroll prompt (4 s ring), fork choice; Die Panel S12 | 13 §3, 04 §6 | ⬜ |
+| M7-06 | Battle replay renderer S06: animates the pre-computed log; local prediction from the issued `battleSeed`; speed ×1/×2/×3 + always-available skip; boss phase band | 05 §8, 14 §2.4 | ⬜ |
+| M7-07 | Run decision screens: draft S07 (never auto-picked), shop S08, campfire/shrine S11 | 13 §4 | ⬜ |
 | M7-08 | Death/revive S13 + run results S14 (reward tally, mercy counters, session-floor line) | 13 §4 | ⬜ |
-| M7-09 | `Cache.LocalFile` adapter: read-only mirror for cold start + offline browsing | 14 §7.2 | ⬜ |
+| M7-11 | Gear on device: the inventory grid and equip/compare path needed to carry M4-03's loot into the next run (filters, sorting, lock, auto-salvage rules and the Forge tabs are M9-01's) | 13 §5 | ⬜ |
 | M7-10 | Client CI: Android debug APK through the custom export template (with the MAX plugin present but stubbed). ⚠️ **iOS export smoke build removed — iOS descoped to post-launch (`16` D34)**; the `ios-export` job stays authored and gated off | 14 §14 | ⬜ 🔒 The job **must assert managed assemblies are present in the APK**, not merely that an APK appeared — a missing/incomplete `.sln` makes the export exit 0 with a valid ~80 MB APK containing **zero .NET** (M0-05a finding 5). Recipe: `docs/spikes/O23-godot-android-export.md` |
 
 ---
 
 ## M8 — Art & audio pipeline + Chapter 1 assets ∥
 
-**Goal:** the generation pipeline proven end-to-end and the assets that unblock screens and the vertical slice. Runs as a parallel workstream from M5 onward.
+**Goal:** the generation pipeline proven end-to-end and the assets that unblock screens and the vertical slice. Runs as a parallel workstream alongside the mainline; nothing in the mainline waits on it, because M8-10 keeps every runtime slot filled with a placeholder.
 **Exit (as authored):** anchor sheet locked; UI kit + Ch1 biome + core SFX shipped through the full post-processing/QA pipeline.
 
 🔒 **Split at the 2026-08-12 kickoff into a *pipeline* half and a *generation* half.** Six of the eight
@@ -562,23 +552,36 @@ after it.
 
 ---
 
-## M9 — Meta screens & **First Playable**
+## M9 — Meta systems, screens & **First Playable**
 
-**Goal:** the complete out-of-run game on device; chapters 1–3; the FTUE. 🔒 End of this milestone is the **First Playable** gate.
-**Exit:** a new player installs, plays the FTUE, progresses through chapters 1–3 across sessions with gear/talents/pets/quests — no PvP, dungeons, live-ops, guilds, ads or live-service extras.
+**Goal:** the complete out-of-run game on device — talents, beasts, containers, dailies, the codex and the FTUE, each with the screen that presents it; chapters 1–2 tuned. 🔒 End of this milestone is the **First Playable** gate.
+**Exit:** a new player installs, plays the FTUE, progresses through chapters 1–2 across sessions with gear/talents/pets/quests — no PvP, dungeons, live-ops, guilds, ads or live-service extras.
+
+🔒 **Lane-shaped, not wave-shaped.** Each system and the screen that presents it form one lane (M4-06 → M9-02, M4-02 → M9-01, M4-09 → M9-03, M4-12 → M9-05, …); the lanes are independent of one another and all of them are independent of M9-06/07/08.
 
 **Kickoff decisions**
 1. Review first-playable scope line-by-line (16 Part D step 8) — confirm nothing extra creeps in.
-2. **O11** — preset slot count (3 free is a guess; raise, never gate further) — confirm for launch.
+2. **O11** — preset slot count (3 free is a guess; raise, never gate further) — confirm for launch. M1-02 deliberately left `presetSlot` unbounded rather than invent the count.
+3. **O36** — name the FTUE beat-7 mini-boss (default: Thornmaw phase 1).
+4. Hoard-lever telemetry thresholds (shelf dwell, opens-after-Focus-change) — initial values.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
+| M4-02 | Container shelf + `OPEN_CHEST/EGG/CRATE` (+ OPEN ALL): contents/pity/Focus read at open from command seed; chest ladders (Standard 10/40/160, Premium 5/25, Apex 3), soft-pity slopes, egg P1–P3, crate protection, `DROP_RUN` D1–D3 | 24 §4 | ⬜ |
+| M4-06 | Talent tree: 60-node catalogue as DSL data, tier gating, rank costs, spend/respec (free, instant), presets (3 free / Plus unlimited), die-face rewrites | 09 | ⬜ |
+| M4-07 | Pets: 24 defs, levelling (dual cost), ascension ★1–5, aura aggregation, active-ability runtime, duplicates → Beast Marks, exchange tiers; `PET_DICEBEAST` + `PET_ARCHIVIST` special cases | 07 §2 | ⬜ |
+| M4-08 | Mounts: 12 defs, levelling (Feed only), run-perk effect layer (board-side), crate odds, duplicate disposal | 07 §3 | ⬜ |
+| M4-09 | Wallet + shop model (Daily draw rule + staples, Materials caps, Honor, Plus tab stub), daily quests (20-pool, draw + reroll rules, rewards, 3-of-3 chest), Lucky Wheel (`SPIN_WHEEL`, segment weights, W1/W2 pity), 28-day login calendar (`CLAIM_CALENDAR`, pause-not-skip). 🔒 Also amends `14` §8.1 with `RngStreams` rows for both daily draws — they share one seed, so they are taken together (M1 carry-forward 21) — and settles the 05:00-UTC duplication between `GameCalendar` and the tuning keys it is the first reader of (carry-forward 17) | 10 §1–5, 19 B/F/G, 14 §8.1 | ⬜ |
+| M4-11 | Codex model: 5 sections, per-entry stat bonuses (active at L100), TP milestones | 06 §6 | ⬜ |
+| M4-12 | FTUE data package `ftue.json`: authored board, rigged die stream, tutorial-only defs and flags (7), fixed drafts/shop, scripted payout, per-beat resume, `SKIP_FTUE`; structural validator + T1–T5 harness acceptance tests | 19 D | ⬜ |
+| M4-14 | Cross-system stacking rules: die-face rewrite resolution order (talents/mounts/set bonus/pet), reroll-charge stacking (5 sources), pet-cooldown reduction stacking (4 sources) | 07/08/09 | ⬜ |
+| M4-04b | Reforge (keep-best q) + Retune (locks + wishlist); Focus (×2.5, 12 h cooldown); Set Token redemption | 08 §4, 24 §6 | ⬜ |
 | M9-01 | Hero S15, Inventory S16 (grid, filters, compare, lock, auto-salvage rules, Focus selector, container shelf with live counters), Forge S17 (Merge/Enhance/Salvage/Reforge/Retune tabs, Set Token counter, merge celebration) | 13 §5 | ⬜ |
 | M9-02 | Talents S18 (3 branch tabs, rank deltas in real numbers, respec, preview) + Menagerie S19 (grids, detail views, Beast Mark exchange, egg/crate shelf) | 13 §6 | ⬜ |
 | M9-03 | Shop S23 (4 tabs; every chest listing shows class + counter) + Dailies S25 (quests, 28-day calendar, Lucky Wheel spin presentation) + Codex S24 | 13 §7 | ⬜ |
 | M9-04 | Settings S26 (audio, accessibility, account, privacy, **Odds & Guarantees page**) + Profile S27 | 13 §8 | ⬜ |
 | M9-05 | FTUE playable end-to-end on device: 11 beats, per-beat resume, skip flow, scripted payout; T1–T5 harness assertions green | 19 D | ⬜ |
-| M9-06 | Chapters 1–3 fully tuned first pass (harness clear-rates in band) + chapters 2–3 art batches | 17, 15 | ⬜ |
+| M9-06 | Chapters 1–2 fully tuned first pass (harness clear-rates in band) + the chapter-2 art batch | 17, 15 | ⬜ |
 | M9-07 | Accessibility core set: reduced motion, text sizes with reflow, left-handed mode, colourblind palettes + shape-coded rarity | 13 §8 | ⬜ |
 | M9-08 | **First Playable review**: full-loop playtest, perf pass on target devices (60 FPS / < 400 MB), punch-list | 16 Part D | ⬜ |
 
@@ -601,21 +604,33 @@ after it.
 
 ---
 
-## M11 — Content fill: chapters 4–8, full catalogues & assets
+## M11 — Content fill: chapters 3–8, full catalogues & assets
 
-**Goal:** all remaining game content. **O30 is resolved first** — reconcile the art/audio manifests with docs 24–28 + A7 before batch generation.
+**Goal:** all remaining game content — the run systems chapters 1–2 do not draw, the rest of the catalogues, and the remaining chapters. **O30 is resolved first** — reconcile the art/audio manifests with docs 24–28 + A7 before batch generation.
 
 **Kickoff decisions**
 1. **O30** — manifest reconciliation (stale 975/106 totals, screen count).
 2. Confirm biome batch order and which showcase pieces are hand-driven.
+3. **O13** — curse chapter gating (suggested split in `19` E). *(This is the real O13; M2's kickoff block mis-cited the same number for an unrelated `17` §8 item — corrected there.)*
+4. **O35** — redesign `PK_DICELORD_GIFT` (current row is void under free fork choice; do not build against it).
+5. **O21** — `PK_SINGULARITY` needs a mid-run perk-removal choice flow: specify or cut.
+6. **O22** — `PK_CARTOGRAPHER` teleport vs traversal rules: movement ruling.
+7. Dice Forge offer pool (faces/tiers, interaction with upgraded faces) — no table exists.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | M11-01 | O30: reconcile asset manifests against the final feature set; regenerate counts | 15, 20 | ⬜ |
-| M11-02 | Chapters 4–8: data files, signature mechanics live, elites + bosses tuned through the harness (per-boss clear-rate/duration bands; Cindermaw and Cogitator special checks) | 03 §4, 17 | ⬜ |
+| M11-02 | Chapters 3–8: data files, elites + bosses tuned through the harness (per-boss clear-rate/duration bands; Cindermaw and Cogitator special checks) | 03 §4, 17 | ⬜ |
+| M3-09 | Event-card system (schema, weighted outcomes, costs/requirements) + the 30 authored cards in 3 chapter bands; retires its `GapRegister` entry and lifts the tile weight in the chapter files that draw it | 03 §5, 19 A | ⬜ |
+| M3-10 | 4 minigames + reward tables + the server-authority split (2 server-rolled, 2 client-asserted legality-validated) | 03 §6, 14 §9 | ⬜ |
+| M3-11 | Dice forge + curse tiles; the 12-curse catalogue + curse rules engine (no stacking, paired rewards, `AD_SKIP_CURSE` hook, mount immunity) + the 8 cursed perks | 03 §7a, 19 E, 06 §3 | ⬜ |
+| M3-12 | Chapter signatures: Ch3 revive, Ch4 burning tiles, Ch6 clockwork pressure, Ch8 die scramble | 03 §4 | ⬜ |
+| M3-07b | The remaining `06` §3 perks, authored as DSL data against M3-07's register of unauthored ids — zero per-perk code. 🔒 **Carries M2-16b:** with the catalogue complete, run guardrail 2 — no single perk raises clear rate by more than 12 pp in isolation (`05` §9) — on the M2-16a harness. The `CP_GLASS_HEART` ×2→×1.6 downgrade is **pre-agreed** as the automatic response if it breaches; no further decision needed | 06 §3, 18, 05 §9 | ⬜ |
+| M3-08b | Consumables incl. Escape Rope arming/skip semantics + `USE_CONSUMABLE` legality; shop consumable stock | 03 §7 | ⬜ |
+| M7-07b | Event S09 + the 4 minigame screens S10 | 13 §4 | ⬜ |
 | M11-03 | Biome art batches 2–8, batched by biome (enemies → elites → boss → board → backdrop per session) | 15 Part H | ⬜ |
 | M11-04 | Gear icons (120, one session), perk + talent icons (158, **after** the `22` symbol tables; neutral-disc + programmatic recolour; 48 px silhouette grid), pets + mounts art, dice faces, VFX per O8 decision | 15, 22 | ⬜ |
-| M11-05 | Remaining content data entry: full gear/pet/mount catalogues, event weights first-pass, curse gating per M3 kickoff ruling; Codex completeness check | 07, 08, 19 | ⬜ |
+| M11-05 | Remaining content data entry: full gear/pet/mount catalogues, event weights first-pass, curse gating per this milestone's O13 ruling; Codex completeness check | 07, 08, 19 | ⬜ |
 | M11-06 | Biome music tracks (one session) + remaining SFX families; `mus_boss_final`, `mus_arena` | 20 §7 | ⬜ |
 
 ---
@@ -786,10 +801,11 @@ Quick index of every open item from `16_DECISION_LOG.md` Part B to the kickoff t
 | O8 | VFX method | ✅ **CLOSED at the M8 kickoff (2026-08-12): procedural in-engine.** Doc `15` §G's recommendation formally accepted; **all 32 E19 sprite sheets cut (975 → 943)**, retiring a High risk outright. VFX becomes Godot particle/shader work — **carry into the M7 and M9 kickoffs** |
 | O10 | 8 → 7 currencies? | Post-playtest review (scheduled in M18) |
 | O11 | Preset slot count | M9 kickoff; re-review M18 |
+| O15b | Client DI approach, re-review | Scheduled 2026-11-16 — re-evaluate the O15 ruling against the client's real size |
 | O12 | Revenue validation | M15 kickoff (store-page test) |
-| O13 | Curse chapter gating | M3 kickoff |
+| O13 | Curse chapter gating | M11 kickoff |
 | O14 | MAX S2S callbacks | ✅ **Answered by the M0-04 spike** (proceed via `custom_data`, no plugin patch). ⚠️ **The vendor choice itself is deferred** — M0-review ruling: build to `IRewardedAdPort` only, choose at the M15 kickoff. A monthly scheduled reminder watches plugin health |
-| O15 | Client DI approach | M7 kickoff |
+| O15 | Client DI approach | ✅ **CLOSED at the M7 kickoff (2026-08-14): hand-rolled composition root + presenter pattern**, per `23` §9. No DI container; no task may introduce one. A scheduled review re-opens the question once the client has real surface area |
 | O16 | Subscription display name | M15 kickoff (blocks store assets) |
 | O17 | "Idle" title vs store copy | M18 kickoff |
 | O18 | Bundle ID prefix | ✅ **Closed at M0 kickoff (2026-08-11): `de.ludwigso.slayidlerepeat`** |
@@ -805,5 +821,5 @@ Quick index of every open item from `16_DECISION_LOG.md` Part B to the kickoff t
 | O32 | Boot-failure/maintenance flows | M18 kickoff |
 | O33 | Two-device sessions | M5 kickoff |
 | O34 | Display-name lifecycle | M5 kickoff (final by M12) |
-| O35 | `PK_DICELORD_GIFT` redesign | M3 kickoff |
-| O36 | FTUE mini-boss identity | M4 kickoff |
+| O35 | `PK_DICELORD_GIFT` redesign | M11 kickoff |
+| O36 | FTUE mini-boss identity | M9 kickoff |
