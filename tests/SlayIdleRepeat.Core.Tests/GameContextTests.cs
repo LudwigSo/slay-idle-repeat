@@ -59,16 +59,13 @@ public sealed class GameContextTests
 
     /// <summary>
     /// 🔒 `14` §8.1 / `30` §3 — <c>CommandSeed</c> is <c>ulong?</c>, and the nullability is
-    /// load-bearing: it is <b>null on every run command</b>. In-run draws come from the
-    /// <c>Run</c> aggregate's committed <c>runSeed</c> and its persisted per-stream counters —
-    /// state, not ambience — so a non-nullable <c>ulong</c> here would force the host to invent a
-    /// seed for the 19 run commands that must not have one.
+    /// load-bearing: it is <b>null on every run command</b>, whose draws come from the <c>Run</c>
+    /// aggregate's committed seed and persisted counters. A non-nullable <c>ulong</c> would force the
+    /// host to invent a seed for the 19 rows that must not have one.
     /// </summary>
     /// <remarks>
-    /// The pairing rule itself — which commands carry a seed — is pinned by
-    /// <see cref="CommandSeedPinTests"/> over all 49 rows of `14` §2.3 since M1-02. This is the half
-    /// that is about the <em>type</em> rather than the vocabulary, and it is the one that would still
-    /// fail if the nullability were ever collapsed to a sentinel.
+    /// Which commands carry a seed is <see cref="CommandSeedPinTests"/>'; this is the half about the
+    /// <em>type</em>, and the one that would still fail if the nullability were collapsed to a sentinel.
     /// </remarks>
     [Fact]
     public void The_CommandSeed_is_nullable_because_run_commands_carry_none()

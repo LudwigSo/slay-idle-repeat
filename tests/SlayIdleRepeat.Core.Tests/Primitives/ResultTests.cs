@@ -6,21 +6,17 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
 /// <summary>
-/// `30` §11.3 — <see cref="Result{T}"/>, the return of <c>Rehydrate</c>: <i>"one validated entry
-/// point for every persisted state in the game — a corrupt row fails loudly at the seam rather
-/// than silently three rules later."</i>
+/// `30` §11.3 — <see cref="Result{T}"/>, the return of <c>Rehydrate</c>: <i>"a corrupt row fails loudly
+/// at the seam rather than silently three rules later."</i>
 /// </summary>
 /// <remarks>
-/// <para>
-/// Every test here is about <b>loudness</b>. A <c>Result</c> that answered a failed read with
+/// Every test here is about <b>loudness</b>: a <c>Result</c> that answered a failed read with
 /// <c>default</c> would carry the corrupt row three rules deeper and produce a
-/// <c>NullReferenceException</c> in a calculator, which is the failure mode §11.3 exists to
-/// prevent — the seam is where a corrupt row is supposed to stop.
-/// </para>
+/// <c>NullReferenceException</c> in a calculator.
 /// <para>
-/// 🔒 <see cref="Result{T}"/> is deliberately <b>not</b> the command-rejection channel. That is
-/// <c>CommandResult</c> + <see cref="RejectionReason"/> (M1-06). Conflating them would let a
-/// corrupt database row masquerade as a legal-move refusal.
+/// 🔒 It is deliberately <b>not</b> the command-rejection channel — that is <c>CommandResult</c> +
+/// <see cref="RejectionReason"/>. Conflating them would let a corrupt database row masquerade as a
+/// legal-move refusal.
 /// </para>
 /// </remarks>
 public sealed class ResultTests

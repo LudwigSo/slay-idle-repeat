@@ -51,15 +51,13 @@ public sealed class GameCommandTests
 
     /// <summary>
     /// 🔒 It declares <b>no</b> members, and the emptiness is the decision: the wire name and the
-    /// <c>CommandKind</c> are declared on the dispatch row, and a command carries only the
-    /// parameters `14` §2.3 lists for it.
+    /// <c>CommandKind</c> are declared on the dispatch row, and a command carries only the parameters
+    /// `14` §2.3 lists for it.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>What this rule protects.</b> The registration is the single declared source of the
-    /// type↔wire-name mapping (carried-forward item 4). A <c>WireName</c> property here as well
-    /// would be two declarations of one fact, and nothing could keep them agreeing without an
-    /// instance of every command. The <c>EqualityContract</c> below is the record hierarchy's own
-    /// plumbing, not an authored member.
+    /// ⚠️ A <c>WireName</c> property here as well would be two declarations of one fact, and nothing
+    /// could keep them agreeing without an instance of every command. <c>EqualityContract</c> is the
+    /// record hierarchy's own plumbing, not an authored member.
     /// </remarks>
     [Fact]
     public void The_command_base_declares_no_members_of_its_own()
@@ -77,23 +75,18 @@ public sealed class GameCommandTests
     }
 
     /// <summary>
-    /// 🔒 `14` §2.3 — the subject set of <c>Every_command_type_is_handled_by_Apply</c> is the
-    /// <b>49</b> concrete commands, and every one of them derives from this base.
+    /// 🔒 `14` §2.3 — the subject set of <c>Every_command_type_is_handled_by_Apply</c> is the <b>49</b>
+    /// concrete commands, and every one derives from this base.
     /// </summary>
     /// <remarks>
+    /// What is worth pinning is the thing the architecture rule cannot say from IL alone: the hierarchy
+    /// is <b>closed at the base</b>. A fiftieth concrete subtype is either in `14` §2.3 and registered,
+    /// or it is a command the wire has no name for.
     /// <para>
-    /// This replaces the M1-06 tripwire that asserted the set was <em>empty</em> — deleted on the
-    /// commit that made it false, which is what a tripwire is for. What remains worth pinning is the
-    /// thing the architecture rule cannot say from IL alone: the hierarchy is <b>closed at the
-    /// base</b>. A fiftieth concrete subtype is either in `14` §2.3 and registered, or it is a
-    /// command the wire has no name for.
-    /// </para>
-    /// <para>
-    /// 🔒 The count is asserted over <em>the assembly</em>, not over the namespace or the dispatch
-    /// table, and that is deliberate: it is the one subject set that would still see a command
-    /// declared in the wrong place. <c>CommandVocabularyTests</c> pins the registry, and
-    /// <c>CommandSeedPin.CommandTypes</c> pins the namespace; between the three, a command cannot be
-    /// added anywhere in <c>Core</c> without exactly one of them going red.
+    /// 🔒 The count is asserted over <em>the assembly</em>, not the namespace or the dispatch table — the
+    /// one subject set that would still see a command declared in the wrong place. Between this,
+    /// <c>CommandVocabularyTests</c> and <c>CommandSeedPin.CommandTypes</c>, a command cannot be added
+    /// anywhere in <c>Core</c> without exactly one going red.
     /// </para>
     /// </remarks>
     [Fact]

@@ -6,17 +6,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `30` §3 — the entitlement is <em>"a read-only value … <c>{ HasPlus, ExpiresAtUtc }</c>"</em>,
-/// and <em>"the domain may read <c>HasPlus</c> only to resolve ad-reward auto-grant caps — never to
-/// alter a stat, a rate or a drop."</em>
+/// 🔒 `30` §3 — the entitlement is <em>"a read-only value … <c>{ HasPlus, ExpiresAtUtc }</c>"</em>, and
+/// <em>"the domain may read <c>HasPlus</c> only to resolve ad-reward auto-grant caps — never to alter
+/// a stat, a rate or a drop."</em>
 /// </summary>
 /// <remarks>
-/// The "never alters a rate" half is enforced structurally by the architecture suite
-/// (<c>IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation</c> and
-/// <c>No_entitlement_branch_outside_a_composition_root</c>). What is pinned here is the shape those
-/// rules key on, and — see
-/// <see cref="Entitlements_declares_no_equality_because_an_equality_would_branch_on_HasPlus"/> —
-/// the one non-obvious consequence of them.
+/// The "never alters a rate" half is enforced structurally by the architecture suite. What is pinned
+/// here is the shape those rules key on, and the one non-obvious consequence of them.
 /// </remarks>
 public sealed class EntitlementsTests
 {
@@ -67,21 +63,16 @@ public sealed class EntitlementsTests
     }
 
     /// <summary>
-    /// 🔒 The whole public surface, pinned. <c>Entitlements</c> is a plain sealed class and
-    /// deliberately <b>not</b> a <c>record</c>: a record's synthesized
-    /// <c>Equals(Entitlements?)</c> loads <c>&lt;HasPlus&gt;k__BackingField</c> and then branches,
-    /// which is precisely the shape
-    /// <c>IsolationTests.No_entitlement_branch_outside_a_composition_root</c>'s IL backstop is
-    /// written to catch ("reads the flag AND contains a conditional branch"). Making this a record
-    /// turns the architecture suite red, and the only ways to make it green again are to widen that
-    /// rule's single licensed exemption — `30` §3 licenses exactly one, the ad-grant cap rule — or
-    /// to stop the domain reading the entitlement at all.
+    /// 🔒 The whole public surface, pinned. <c>Entitlements</c> is a plain sealed class and deliberately
+    /// <b>not</b> a <c>record</c>: a record's synthesized <c>Equals</c> loads
+    /// <c>&lt;HasPlus&gt;k__BackingField</c> and then branches, which is exactly the shape
+    /// <c>IsolationTests.No_entitlement_branch_outside_a_composition_root</c> is written to catch.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Nothing in the domain compares two <c>Entitlements</c>, so reference equality is
-    /// sufficient. If something ever needs to, the comparison belongs at the composition root,
-    /// where the branch is allowed — not on this type. This test is what stops "let's make it a
-    /// record for consistency" from reopening the question silently.
+    /// Making it a record turns the architecture suite red, and the only ways back to green are widening
+    /// that rule's single licensed exemption or stopping the domain reading the entitlement at all.
+    /// ⚠️ Nothing compares two <c>Entitlements</c>, so reference equality suffices; if something ever
+    /// needs to, the comparison belongs at the composition root where the branch is allowed.
     /// </remarks>
     [Fact]
     public void Entitlements_declares_no_equality_because_an_equality_would_branch_on_HasPlus()

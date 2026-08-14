@@ -178,27 +178,18 @@ public sealed class CommandResultTests
     // ------------------------------------------------------- rendering
 
     /// <summary>
-    /// 🔒 The result renders through <b>its own</b> <c>PrintMembers</c> and not the compiler's — it
-    /// names the two absent-capable components rather than dereferencing them.
+    /// 🔒 The result renders through <b>its own</b> <c>PrintMembers</c> and not the compiler's — it names
+    /// the two absent-capable components rather than dereferencing them.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>The exact text is the load-bearing assertion, and the culture pair is not.</b>
-    /// <c>CurrencyChangedTests.ToString_renders_identically_under_any_culture</c> can state the
-    /// `14` §8.2 claim honestly because a <c>CurrencyChanged</c> carries a <c>long</c> that
-    /// <c>sv-SE</c> renders with U+2212. <b>A <c>CommandResult</c> carries no such member</b>: a
-    /// <c>bool</c>, an enum name, a literal word and a non-negative count read identically under
-    /// every culture, so a "renders the same under de-DE" comparison here would hold for the
-    /// synthesized <c>PrintMembers</c> too — an assertion true of every possible implementation
-    /// (steering <b>S1</b>). The exact string is not: the compiler's would dump the whole
-    /// <c>WorldSlice</c> and the event list's type name, and would raise out of
-    /// <c>default(CommandResult)</c> (pinned by
-    /// <see cref="The_default_struct_still_renders"/>).
-    /// </para>
+    /// 🔒 The exact text is the load-bearing assertion, and the culture pair is not: a
+    /// <c>CommandResult</c> carries a <c>bool</c>, an enum name, a literal word and a non-negative count,
+    /// all of which read identically under every culture — so a "renders the same under de-DE"
+    /// comparison would hold for the synthesized <c>PrintMembers</c> too. The exact string does not: the
+    /// compiler's would dump the whole <c>WorldSlice</c> and raise out of <c>default</c>.
     /// <para>
     /// The culture round trip is kept as the guard for the <em>next</em> member — the day one that
-    /// formats culture-sensitively is appended, it starts carrying the `14` §8.2 claim — and is
-    /// stated as that rather than as today's proof.
+    /// formats culture-sensitively is appended, it starts carrying the `14` §8.2 claim.
     /// </para>
     /// </remarks>
     [Fact]

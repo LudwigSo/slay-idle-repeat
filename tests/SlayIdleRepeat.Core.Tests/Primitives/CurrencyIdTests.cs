@@ -5,18 +5,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
 /// <summary>
-/// `10` §1 — the eight wallet currencies, and the counters that are deliberately not among them.
+/// `10` §1 — the eight wallet currencies, and the counters deliberately not among them.
 /// </summary>
 /// <remarks>
+/// Pinned against the 🔒 design decision as literal names. Its sibling in <c>Application.Tests</c> pins
+/// the same enum against <c>tuning/currencies.json</c> — independent on purpose: this one runs without
+/// a checkout, that one catches the data and the code drifting apart.
 /// <para>
-/// This suite pins the enum against the 🔒 design decision, written out as literal names. Its
-/// sibling in <c>SlayIdleRepeat.Application.Tests</c> pins the same enum against
-/// <c>game-data/tuning/currencies.json</c>; the two are independent on purpose — this one can run
-/// without a checkout, that one catches the data and the code drifting apart.
-/// </para>
-/// <para>
-/// ⚠️ `16` O10 asks whether Merge Dust and Enhance Stones merge into one currency, taking the list
-/// from 8 to 7. It is scheduled for a post-playtest review in M18. Until it is ruled on, eight.
+/// ⚠️ `16` O10 asks whether Merge Dust and Enhance Stones merge into one currency, taking the list from
+/// 8 to 7. Scheduled for M18. Until ruled on, eight.
 /// </para>
 /// </remarks>
 public sealed class CurrencyIdTests

@@ -7,25 +7,17 @@ namespace SlayIdleRepeat.Core.Tests;
 /// <summary>
 /// 🔒 `14` §14 — <em>"Kill switches: remote config flags for PvP, each ad placement, the Plus offer,
 /// and each chapter — so a bad content change is a config edit, not a client patch."</em> That
-/// sentence is the entire authored content of this record, and `30` §3 says only that the flags are
-/// <em>"resolved at the composition root into a plain record"</em>.
+/// sentence is the entire authored content of this record.
 /// </summary>
 /// <remarks>
+/// 🔒 The record is deliberately <b>closed</b>: four switches and nothing else, with no general
+/// string-keyed bag — a bag would let any later task introduce an ungoverned flag without a decision,
+/// which is what an enumerated kill-switch list exists to prevent. M5-10 is the task that extends it.
 /// <para>
-/// 🔒 <b>The record is deliberately closed.</b> Four switches, named by `14` §14, and nothing else.
-/// M5-10 ("Remote config endpoint + feature flags resolved into <c>GameContext.Flags</c>") is the
-/// task that extends it. There is deliberately no general string-keyed bag: a bag would let any
-/// later task introduce an ungoverned flag without a decision, which is exactly what an enumerated
-/// kill-switch list exists to prevent.
-/// </para>
-/// <para>
-/// ⚠️ <b>Recorded gap for M5-10.</b> No flag-key naming scheme is authored anywhere in the design
-/// set, and no <c>AdPlacementId</c> or <c>ChapterId</c> type exists in the repository yet — `12`
-/// §5's port signature names <c>AdPlacementId</c>, but nothing declares it. The two set-valued
-/// switches therefore hold plain strings compared <b>ordinally</b>, and the identifiers used in
-/// these tests are ones the design set already writes down (<c>AD_ELITE_GUARANTEE</c> and
-/// <c>AD_ENHANCE_LUCK</c> from `12` §4, <c>CH_01_EMBERFALL</c> from <c>game-data/README.md</c>) —
-/// not a scheme invented here.
+/// ⚠️ No flag-key naming scheme is authored anywhere, and no <c>AdPlacementId</c> or <c>ChapterId</c>
+/// type exists yet, so the two set-valued switches hold plain strings compared <b>ordinally</b>. The
+/// identifiers used in these tests are ones the design set already writes down, not a scheme invented
+/// here.
 /// </para>
 /// </remarks>
 public sealed class FeatureFlagsTests
