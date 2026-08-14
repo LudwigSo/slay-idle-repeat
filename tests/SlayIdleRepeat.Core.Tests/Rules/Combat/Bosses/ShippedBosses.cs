@@ -27,8 +27,19 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 /// </remarks>
 internal static class ShippedBosses
 {
+    private static readonly Lazy<SlayIdleRepeat.Core.Content.ContentSnapshot> LazyContent =
+        new(GameDataLoader.Load);
+
     private static readonly Lazy<BossCatalogue> LazyCatalogue =
-        new(() => BossCatalogue.Read(GameDataLoader.Load()));
+        new(() => BossCatalogue.Read(LazyContent.Value));
+
+    /// <summary>
+    /// 🔒 M2-R3 — the raw <c>game-data</c> snapshot the catalogue above was read from, cached
+    /// alongside it for the real-engine boss-fight bench (<see cref="RealBossFight"/>), which needs
+    /// more of the snapshot than just <c>content/bosses/bosses.json</c> (also
+    /// <c>content/combat_caps.json</c>, <c>content/statuses.json</c> and the enemy catalogue).
+    /// </summary>
+    internal static SlayIdleRepeat.Core.Content.ContentSnapshot Content => LazyContent.Value;
 
     /// <summary>`17` §1.2's nine rows and `17` §2-9's mechanics, as shipped.</summary>
     internal static BossCatalogue Catalogue => LazyCatalogue.Value;
