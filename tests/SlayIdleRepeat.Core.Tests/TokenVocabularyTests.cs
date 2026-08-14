@@ -6,40 +6,23 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 The two <b>open string vocabularies</b> the domain has grown — `30` §2.3's daily-counter keys
-/// and `30` §7's <c>CurrencyChanged.Reason</c> tokens — kept distinct, well formed, and visible.
+/// 🔒 The two <b>open string vocabularies</b> the domain has grown — `30` §2.3's daily-counter keys and
+/// `30` §7's <c>CurrencyChanged.Reason</c> tokens — kept distinct, well formed, and visible.
 /// </summary>
 /// <remarks>
+/// 🔴 Both had their first two occupants and no registry, uniqueness rule or floor, and both fail
+/// <em>silently</em>: a daily-counter collision breaks "once per game day" (<c>Player.CountDaily</c>
+/// takes any string, so a later handler reusing the token makes the day look already-run), and a
+/// <c>Reason</c> collision merges two income sources in `21` §8.3's <c>income_attribution.csv</c>,
+/// which cannot be told apart afterwards.
 /// <para>
-/// 🔴 <b>Why this file exists.</b> M1-09's architecture review found that both vocabularies had their
-/// first two occupants and no registry, no uniqueness rule and no floor. Both fail <em>silently</em>
-/// and both failures are expensive:
-/// </para>
-/// <list type="bullet">
-///   <item>A <b>daily-counter key</b> collision breaks "once per game day". <c>BEGIN_SESSION</c>'s
-///   <c>begin_session</c> marker <em>is</em> the idempotence key of the whole daily block, and
-///   <c>Player.CountDaily</c> takes any string — so a later handler (ad caps, the wheel's free spin,
-///   dungeon entries, all `30` §2.3 daily counters) that reused the token would make the day look
-///   already-run and the free refill would stop paying, or the reverse.</item>
-///   <item>A <b>Reason</b> collision merges two income sources in `21` §8.3's
-///   <c>income_attribution.csv</c>, which is the report that answers risk <b>R10</b>. Two sources
-///   under one token cannot be told apart afterwards — `30` §12.7 forbids rebuilding the counter
-///   after the fact.</item>
-/// </list>
-/// <para>
-/// 🔒 <b>It is a check over the tokens IN USE, not a closed enum, and that distinction is what makes
-/// it compatible with steering S6.</b> <c>Player.CountDaily</c>'s own remarks refuse a closed
-/// vocabulary because `30` §2.3's five daily-reset systems do not exist yet and freezing their
-/// keys would invent them. Reflecting over the constants that <em>have been declared</em> invents
-/// nothing: it adds no token, forbids no future one, and only says that two declarations must not
-/// collide. <c>Core/Rng/RngStreams</c> is the repo's precedent for the closed form; this is the open
-/// one, for a vocabulary that is genuinely still being written.
+/// 🔒 A check over the tokens <b>in use</b>, not a closed enum: `30` §2.3's five daily-reset systems do
+/// not exist yet and freezing their keys would invent them. Reflecting over declared constants adds no
+/// token and forbids no future one — it only says two declarations must not collide.
 /// </para>
 /// <para>
-/// ⚠️ <b>The subject set is floored by identity</b> (steering <b>S3</b>). A reflection filter over
-/// field names can be emptied by a rename — call the constant <c>DailyRunKey</c> instead of
-/// <c>DailyRunCounter</c> and this file would quantify over nothing and report success forever, over
-/// a domain where every token had collided. The three that exist today are named.
+/// ⚠️ The subject set is floored by identity: a reflection filter over field names can be emptied by a
+/// rename, and would then report success forever over a domain where every token had collided.
 /// </para>
 /// </remarks>
 public sealed class TokenVocabularyTests
@@ -68,19 +51,11 @@ public sealed class TokenVocabularyTests
     /// 🔒 No two declared tokens are the same string, whatever they are declared for.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The two vocabularies are checked <b>together</b> rather than separately, and that is
-    /// deliberate. They are different namespaces conceptually — a counter key is not a
-    /// <c>Reason</c> — but nothing in the domain enforces that, both reach `21` §8.3's reporting in
-    /// some form, and a reader debugging <c>income_attribution.csv</c> against a daily counter of the
-    /// same name would have no way to know which one they were looking at. One vocabulary is the
-    /// conservative reading and it costs nothing while the two sets are disjoint anyway.
-    /// </para>
-    /// <para>
-    /// ⚠️ If a future task genuinely needs one string in both roles, this is the rule to come and
-    /// argue with — which is the point of it failing rather than the collision being discovered in a
-    /// dashboard.
-    /// </para>
+    /// The two vocabularies are checked <b>together</b> deliberately: they are different namespaces
+    /// conceptually, but nothing in the domain enforces that, both reach `21` §8.3's reporting, and a
+    /// reader debugging <c>income_attribution.csv</c> against a daily counter of the same name could not
+    /// tell which they were looking at. ⚠️ If a future task genuinely needs one string in both roles,
+    /// this is the rule to come and argue with.
     /// </remarks>
     [Fact]
     public void No_two_declared_tokens_collide()

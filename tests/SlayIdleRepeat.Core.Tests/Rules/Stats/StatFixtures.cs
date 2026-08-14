@@ -50,12 +50,9 @@ internal static class StatFixtures
     /// `05` §2's hero base curve as the shipped <c>content/combat_caps.json</c> authors it.
     /// </summary>
     /// <remarks>
-    /// ⚠️ These are the numbers <c>game-data/content/combat_caps.json</c> holds, restated here
-    /// because <c>SlayIdleRepeat.Core.Tests</c> references <c>SlayIdleRepeat.Core</c> and nothing
-    /// else — it has no JSON reader and no content loader. The copy cannot be allowed to drift, so
-    /// the shipped file is asserted against `05` §2 <em>separately</em>, by
-    /// <c>SlayIdleRepeat.Application.Tests.Content.CombatCapsDataTests</c>, which reads the real
-    /// document. What is tested here is the curve's arithmetic and its rules; what is tested there is
+    /// ⚠️ Restated here because <c>Core.Tests</c> has no JSON reader. The copy cannot drift: the shipped
+    /// file is asserted against `05` §2 separately by <c>CombatCapsDataTests</c> in the
+    /// <c>Application</c> suite. What is tested here is the curve's arithmetic; what is tested there is
     /// the transcription.
     /// </remarks>
     internal static HeroBaseCurve HeroCurve() =>
@@ -93,17 +90,12 @@ internal static class StatFixtures
         });
 
     /// <summary>
-    /// 🔒 `05` §4's two 📐 dials as the shipped <c>content/combat_caps.json</c> authors them —
-    /// <c>120</c> and <c>20</c>.
+    /// 🔒 `05` §4's two 📐 dials as the shipped document authors them — <c>120</c> and <c>20</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ A restatement, for <see cref="HeroCurve"/>'s reason and with its safeguard:
-    /// <c>SlayIdleRepeat.Core.Tests</c> references <c>SlayIdleRepeat.Core</c> and nothing else, so it
-    /// has no JSON reader. The copy cannot be allowed to drift, and it cannot: the shipped document
-    /// is asserted against `05` §4 by
-    /// <c>SlayIdleRepeat.Application.Tests.Content.CombatCapsDataTests</c>, which reads the real
-    /// file, and a content build rule mirrors it against <c>tuning/power_model.json</c>. What is
-    /// tested here is `05` §4's arithmetic; what is tested there is the transcription.
+    /// ⚠️ A restatement for <see cref="HeroCurve"/>'s reason and with its safeguard: the shipped document
+    /// is asserted against `05` §4 by <c>CombatCapsDataTests</c>, and a content build rule mirrors it
+    /// against <c>tuning/power_model.json</c>.
     /// </remarks>
     internal static MitigationConstants Mitigation() => new(Flat: 120, PerLevel: 20);
 
@@ -112,27 +104,21 @@ internal static class StatFixtures
     internal const double WardCapPct = 1.0;
 
     /// <summary>
-    /// A <see cref="ContentSnapshot"/> holding a <c>content/combat_caps.json</c> of the shipped
-    /// shape, with an optional single-pointer mutation.
+    /// A <see cref="ContentSnapshot"/> holding a <c>content/combat_caps.json</c> of the shipped shape,
+    /// with optional mutations.
     /// </summary>
     /// <param name="drop">A pointer segment path to remove, for a negative case.</param>
-    /// <param name="capOverrides">
-    /// `05` §1 ceilings to author differently, by <see cref="StatId"/> name.
-    /// </param>
+    /// <param name="capOverrides">`05` §1 ceilings to author differently, by <see cref="StatId"/>.</param>
     /// <param name="mitigation">`05` §4's two dials, if not the shipped <c>(120, 20)</c> pair.</param>
     /// <remarks>
-    /// 🔒 <b><paramref name="capOverrides"/> and <paramref name="mitigation"/> are how a fight's
-    /// constants are varied from <em>outside</em> <c>Core.Rules</c>.</b> Both are 📐 data — `05` §1.1
-    /// puts the six ceilings in this document and `05` §4 says of the mitigation pair <em>"expose them
-    /// in data"</em> — so a test that needs a different game asks for a different document rather than
+    /// 🔒 Both overrides are how a fight's constants are varied from <em>outside</em> <c>Core.Rules</c>:
+    /// they are 📐 data, so a test needing a different game asks for a different document rather than
     /// reaching for the internal <c>StatCaps</c>/<c>MitigationConstants</c> the public entry points
     /// deliberately do not accept.
     /// <para>
-    /// ⚠️ The <c>DODGE</c>/<c>BLOCK</c>/<c>CRIT</c> ceilings are what make a draw's outcome forceable:
-    /// <c>NextDouble()</c> is in <c>[0,1)</c>, so a stat of <c>1.0</c> always fires and <c>0.0</c>
-    /// never does — but only if the ceiling lets the <c>1.0</c> survive `18` §8 step 9. Against the
-    /// shipped 0.50 <c>DODGE</c> cap an "always dodges" case is unreachable, which is why those cases
-    /// author a 1.0 ceiling instead of an uncapped fight.
+    /// ⚠️ The ceilings are what make a draw forceable: a stat of <c>1.0</c> always fires only if the
+    /// ceiling lets it survive `18` §8 step 9, and against the shipped 0.50 <c>DODGE</c> cap an "always
+    /// dodges" case is unreachable.
     /// </para>
     /// </remarks>
     internal static ContentSnapshot CombatCapsSnapshot(

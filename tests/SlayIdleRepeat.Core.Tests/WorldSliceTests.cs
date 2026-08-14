@@ -96,21 +96,14 @@ public sealed class WorldSliceTests
     }
 
     /// <summary>
-    /// 🔒 Milestone assumption <b>A4</b> — the M1 slice is <c>(Player, Run?)</c> and nothing else.
-    /// `30` §4.1's <c>GuildView?</c> and <c>GhostSnapshot?</c> are M14's and M12's.
+    /// 🔒 Assumption <b>A4</b> — the M1 slice is <c>(Player, Run?)</c> and nothing else. `30` §4.1's
+    /// <c>GuildView?</c> and <c>GhostSnapshot?</c> are M14's and M12's.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The pin is by <b>identity</b>, not by count: a slice that grew a third member of some other
-    /// name would satisfy a count of two after one of these was renamed away.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>When a third member lands, this test is the reminder — not the obstacle.</b> A
-    /// <c>WorldSlice</c> is not a persisted snapshot, so adding a nullable member costs no
-    /// <c>SchemaVersion</c> bump; the two absent names are registered in
-    /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, which is what fails the build on the
-    /// day each becomes writable.
-    /// </para>
+    /// Pinned by <b>identity</b>, not count: a slice that grew a third member of another name would
+    /// satisfy a count of two after one of these was renamed away. ⚠️ When a third member lands this is
+    /// the reminder, not the obstacle — the two absent names are registered in the architecture suite's
+    /// <c>GapRegister</c>, which fails the build the day each becomes writable.
     /// </remarks>
     [Fact]
     public void The_M1_slice_is_the_player_and_the_run_and_nothing_else()
@@ -126,13 +119,11 @@ public sealed class WorldSliceTests
     /// player's run.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Until the M1 review this was described in <c>WorldSlice</c>'s doc comment and enforced
-    /// nowhere, so <c>Apply(new WorldSlice(playerA, runOfPlayerB), …)</c> was a legal public call
-    /// that moved Gold, wrote HP, folded RNG positions and stamped a run belonging to somebody else.
-    /// No architecture rule of any shape could have caught it —
-    /// <c>Apply_is_the_only_public_mutation</c> quantifies over <c>Core/Model/</c> and
-    /// <c>WorldSlice</c> is deliberately in the root — which is why it is a domain invariant here
-    /// rather than a rule over there.
+    /// ⚠️ This was described in <c>WorldSlice</c>'s doc comment and enforced nowhere, so
+    /// <c>Apply(new WorldSlice(playerA, runOfPlayerB), …)</c> was a legal public call that moved Gold,
+    /// wrote HP and stamped a run belonging to somebody else. No architecture rule could have caught it —
+    /// <c>Apply_is_the_only_public_mutation</c> quantifies over <c>Core/Model/</c> and <c>WorldSlice</c>
+    /// is deliberately in the root.
     /// </remarks>
     [Fact]
     public void A_slice_refuses_a_run_belonging_to_another_player()

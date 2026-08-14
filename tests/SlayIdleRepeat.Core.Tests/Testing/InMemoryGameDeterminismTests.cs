@@ -7,27 +7,16 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>
-/// 🔒 `30` §6 — <em>"A fixed seed. Reproducible byte-for-byte."</em>
-/// </summary>
+/// <summary>🔒 `30` §6 — <em>"A fixed seed. Reproducible byte-for-byte."</em></summary>
 /// <remarks>
+/// 🔒 Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not record equality:
+/// <c>PlayerSnapshot</c> carries three dictionaries and a record compares those by <b>reference</b>, so
+/// two snapshots describing the identical player are <em>never</em> equal and such a test would fail
+/// for a reason unrelated to determinism.
 /// <para>
-/// 🔒 <b>Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not through record
-/// equality.</b> <c>PlayerSnapshot</c> carries three dictionaries, and a record's synthesized
-/// equality compares a dictionary by <b>reference</b> — so two snapshots describing the identical
-/// player from two harnesses are <em>never</em> equal, and a test written that way would fail for a
-/// reason unrelated to determinism. The <c>stateHash</c> is `14` §16.6's own answer to "are these
-/// two states the same", it is what the client recomputes on every command, and it is the surface
-/// M5-12 re-asserts on ARM64. "Byte-for-byte" is its phrase.
-/// </para>
-/// <para>
-/// ⚠️ <b>What determinism can and cannot mean in M1, said plainly rather than implied.</b> Nothing
-/// in the milestone <em>draws</em>: `30` §2.3's two daily draws — the quest slate and the Daily shop
-/// block — are <c>GapRegister</c> entries owned by M4-09, and <c>BeginSession</c> takes the day's
-/// seed through <c>HandlerInput.MetaDraws</c> and reads nothing from it. So the seed's effect on
-/// state is <b>zero</b> today, and the test that says so is the honest one — it is also the tripwire
-/// that goes red on the commit M4-09 takes the draw, which is exactly when someone needs to re-read
-/// this file.
+/// ⚠️ Nothing in M1 <em>draws</em> — the two daily draws are M4-09's — so the seed's effect on state is
+/// <b>zero</b> today. The test that says so is the honest one, and it is the tripwire that goes red on
+/// the commit M4-09 takes the draw.
 /// </para>
 /// </remarks>
 public sealed class InMemoryGameDeterminismTests
@@ -88,23 +77,14 @@ public sealed class InMemoryGameDeterminismTests
     /// 🔒 Two harnesses in flight <b>at once</b>, interleaved, do not contaminate each other.
     /// </summary>
     /// <remarks>
+    /// The sequential test runs each simulation to completion and cannot see this; `21` §9's sweep is a
+    /// loop over profiles, and a harness holding shared mutable state would produce a result that
+    /// depended on the interleaving.
     /// <para>
-    /// The sequential test above cannot see this: it runs each simulation to completion. `21` §9's
-    /// sweep is a loop over profiles, and the day one of them is run concurrently — or simply
-    /// constructed before the previous one has finished — a harness holding shared mutable state
-    /// would produce a result that depended on the interleaving.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>What this test does NOT pin, corrected on M1-11's review because the first draft claimed
-    /// it.</b> It does not pin that the per-command seed counter is <em>per player</em> rather than
-    /// global, and it structurally cannot, for two independent reasons: the two harnesses hold one
-    /// player each, so a harness-global counter would produce byte-identical sequences anyway; and
-    /// <see cref="A_different_seed_changes_nothing_yet_and_this_test_expires_at_M4_09"/> establishes
-    /// that <b>nothing in M1 reads <c>CommandSeed</c> at all</b>, so no seed derivation is observable
-    /// in state or events. Measured: changing <c>InMemoryGame.Send</c> to derive from the global
-    /// <c>CommandsIssued</c> leaves every determinism test green. The per-player counter becomes
-    /// testable on the same commit that makes the sibling test above go red — M4-09's first draw —
-    /// and no assertion is invented here in the meantime.
+    /// 🔴 It does <b>not</b> pin that the per-command seed counter is per player rather than global, and
+    /// structurally cannot: each harness holds one player, so a global counter produces byte-identical
+    /// sequences anyway, and nothing in M1 reads <c>CommandSeed</c> at all. Measured — deriving from the
+    /// global counter leaves every determinism test green. That becomes testable on M4-09's first draw.
     /// </para>
     /// </remarks>
     [Fact]
@@ -140,24 +120,18 @@ public sealed class InMemoryGameDeterminismTests
     }
 
     /// <summary>
-    /// 🔒 Two <b>different</b> seeds produce the same state today — and that is a statement with an
-    /// expiry rather than a weak assertion.
+    /// 🔒 Two <b>different</b> seeds produce the same state today — a statement with an expiry rather
+    /// than a weak assertion.
     /// </summary>
     /// <remarks>
+    /// ⚠️ Not a claim that the seed does not matter: a claim that <b>nothing in M1 draws</b>. The two
+    /// things that draw from the day's seed are M4-09's, and <c>BeginSession</c> deliberately takes the
+    /// seam and draws nothing.
     /// <para>
-    /// ⚠️ <b>Read this before "fixing" it.</b> It is not a claim that the seed does not matter. It is
-    /// a claim that <b>nothing in M1 draws</b>: `14` §2.3 marks <c>BEGIN_SESSION</c> ⚄ and `30` §2.3
-    /// calls its <c>CommandSeed</c> "the day's draw seed", but the two things that draw from it —
-    /// `19` B's quest slate and `10` §5.1's Daily shop block — are <c>GapRegister</c> entries owned
-    /// by <b>M4-09</b>, and <c>BeginSession</c> deliberately takes the seam and draws nothing.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It is the tripwire on that deferral.</b> The commit that takes the first draw turns this
-    /// test red, which is the moment someone has to come back here and replace it with the
-    /// assertion the milestone after M1 actually wants: <em>different seeds produce different
-    /// draws, the same seed reproduces them</em>. Without it the deferral is invisible from the
-    /// determinism suite — every test above would keep passing over a seed nobody could tell was
-    /// being ignored (steering <b>S4</b>).
+    /// 🔒 It is the tripwire on that deferral: the commit taking the first draw turns this red, which is
+    /// when someone must replace it with <em>different seeds produce different draws, the same seed
+    /// reproduces them</em>. Without it every test above keeps passing over a seed nobody could tell was
+    /// being ignored.
     /// </para>
     /// </remarks>
     [Fact]
