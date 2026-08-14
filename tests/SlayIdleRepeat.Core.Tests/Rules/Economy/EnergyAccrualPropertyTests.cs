@@ -9,28 +9,22 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
 
 /// <summary>
-/// 🔒 <b>Recorded assumption A1</b> — the accrual rule `10` §3 does not state, and the bug it
-/// prevents.
+/// 🔒 <b>Assumption A1</b> — the accrual rule `10` §3 does not state, and the bug it prevents.
 /// </summary>
 /// <remarks>
+/// §3 gives "1 per 4 minutes" and specifies no rounding. The obvious implementation floors
+/// <c>elapsed / 4 min</c> on every call and then moves the anchor to <em>now</em>, discarding the
+/// remainder once per call — so a player sending a hundred commands in an hour accrues far <b>less</b>
+/// than one sending a single command. A frequency-dependent economy bug that punishes the most engaged
+/// players, and one no test advancing the clock once can see.
 /// <para>
-/// `10` §3 gives "1 per 4 minutes" and specifies no rounding. The obvious implementation floors
-/// <c>elapsed / 4 min</c> on every call and then moves the accrual anchor to <em>now</em>. That
-/// discards the remainder once per call, so a player who sends a hundred commands in an hour
-/// accrues far <b>less</b> Energy than one who sends a single command — a frequency-dependent
-/// economy bug that silently punishes the most engaged players, and one that no test advancing the
-/// clock a single time can see.
+/// The rule: accrue <b>whole units only</b>, advance the anchor by <c>wholeUnits × interval</c>, never
+/// to now. The property pins it — for randomised splits of one interval into N sub-intervals, N
+/// successive accruals must equal one accrual over the whole, exactly, for every split.
 /// </para>
 /// <para>
-/// The rule: accrue <b>whole units only</b>, and advance the anchor by <c>wholeUnits × interval</c>,
-/// <b>never</b> to now. The remainder stays banked in the gap between the anchor and now. The
-/// property below is what pins it — for randomised splits of one interval into N sub-intervals, N
-/// successive accruals must equal one accrual over the whole interval, exactly, for every split.
-/// </para>
-/// <para>
-/// <c>System.Random</c> is banned in <c>Core</c> and <c>Application</c> (`14` §8.1) and is scanned
-/// for in those two assemblies only. Here it is seeded with a constant, so the case is reproducible
-/// and is the same case on every machine and every run.
+/// <c>System.Random</c> is banned in <c>Core</c>/<c>Application</c> and scanned for there only; seeded
+/// with a constant here, so a failure is the same case on every machine.
 /// </para>
 /// </remarks>
 public sealed class EnergyAccrualPropertyTests
@@ -194,18 +188,17 @@ public sealed class EnergyAccrualPropertyTests
     }
 
     /// <summary>
-    /// 🔒 The anchor is only ever advanced by whole regeneration intervals, and never past the
-    /// instant it was asked about. Both halves matter: the first is A1, the second stops the anchor
-    /// running into the future and freezing regeneration.
+    /// 🔒 The anchor advances only by whole intervals and never past the instant asked about. Both
+    /// halves matter: the first is A1, the second stops the anchor running into the future and freezing
+    /// regeneration.
     /// </summary>
     /// <remarks>
-    /// ⚠️ This one samples <c>elapsed</c> uniformly over forty days — the very sampling its sibling
-    /// was fixed <em>away</em> from, because at 7,200+ units against banks holding 400 the accrual
-    /// saturates and both implementations agree (M1-10 measured 21 failures where there were 1,487).
-    /// That is sound <b>here</b>, because all three offender branches are about the <b>anchor</b>,
-    /// which advances regardless of saturation — but a reader comparing this against the two floored
-    /// properties in this file cannot tell that from the code, so the claim is asserted rather than
-    /// inferred: nearly every case must actually move the anchor, or the sampling has drifted.
+    /// ⚠️ This samples <c>elapsed</c> uniformly over forty days — the sampling its sibling was fixed
+    /// <em>away</em> from, because at that scale the accrual saturates and both implementations agree.
+    /// Sound <b>here</b>, because all three offender branches are about the <b>anchor</b>, which advances
+    /// regardless of saturation — but a reader comparing this against the floored properties cannot tell
+    /// that from the code, so it is asserted: nearly every case must actually move the anchor, or the
+    /// sampling has drifted.
     /// </remarks>
     [Fact]
     public void The_anchor_advances_by_whole_intervals_and_never_past_now()

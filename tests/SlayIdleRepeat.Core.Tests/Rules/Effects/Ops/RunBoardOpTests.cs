@@ -7,22 +7,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary>
-/// 🔒 `18` §2.5's thirteen run and board ops, tested at the <b>boundary</b>: declared, well-formed,
-/// and queued rather than resolved.
+/// 🔒 `18` §2.5's thirteen run and board ops, tested at the <b>boundary</b>: declared, well-formed, and
+/// queued rather than resolved.
 /// </summary>
 /// <remarks>
+/// A4 — <em>"a declared op with no resolver is the correct end state"</em>, and §2.5 says so itself:
+/// these are resolved by the run controller, never the simulator. So there is nothing to assert about
+/// what <c>GRANT_CURRENCY</c> <em>does</em>; what there is to assert is that reaching one from a combat
+/// trigger produces exactly one queue entry and touches nothing else.
 /// <para>
-/// A4 — <em>"a declared op with no resolver is the correct end state"</em>. §2.5 says so itself:
-/// <em>"these are resolved by the run controller, never by the combat simulator"</em>, and that
-/// controller is M3's over M1-05's <c>Run</c> aggregate. So there is nothing here to assert about
-/// what <c>GRANT_CURRENCY</c> <em>does</em>; what there is to assert is that reaching one from a
-/// combat trigger produces exactly one queue entry and touches nothing else.
-/// </para>
-/// <para>
-/// 🔒 <b>The count is 13.</b> §2.5's table has twelve rows because <c>APPLY_CURSE</c> /
-/// <c>CLEANSE_CURSE</c> share one; the M2 kickoff record's "12 run/board ops" is a row count.
-/// <see cref="Every_run_and_board_op_is_queued_and_never_resolved"/> enumerates the family rather
-/// than listing the ops, so a fourteenth would be covered the day it is declared.
+/// 🔒 The count is 13: §2.5's table has twelve rows because <c>APPLY_CURSE</c>/<c>CLEANSE_CURSE</c> share
+/// one. The sweep enumerates the <em>family</em> rather than listing the ops, so a fourteenth is covered
+/// the day it is declared.
 /// </para>
 /// </remarks>
 public sealed class RunBoardOpTests
@@ -119,16 +115,15 @@ public sealed class RunBoardOpTests
     }
 
     /// <summary>
-    /// Every §2.5 op with only the eight-part shape is <b>well-formed</b> — which is the whole of
-    /// what M2 can assert about them, because their arguments are unauthored.
+    /// Every §2.5 op with only the eight-part shape is <b>well-formed</b> — the whole of what can be
+    /// asserted about them while their arguments are unauthored.
     /// </summary>
     /// <remarks>
-    /// ⚠️ `18` §2.5 writes no JSON example for any op but <c>MODIFY_DIE_FACE</c> and promises keys
-    /// the shape does not carry: which currency <c>GRANT_CURRENCY</c> grants, which perk
-    /// <c>GRANT_PERK</c> picks, <c>MODIFY_SHOP</c>'s three numbers against one <c>value</c>. Those
-    /// are M3's to author <b>with</b> the resolvers that need them — inventing them here would be
-    /// five vocabularies nobody agreed (steering S6). This test is what says the ops are authorable
-    /// today, not that they are complete.
+    /// ⚠️ §2.5 writes no JSON example for any op but <c>MODIFY_DIE_FACE</c> and promises keys the shape
+    /// does not carry — which currency <c>GRANT_CURRENCY</c> grants, which perk <c>GRANT_PERK</c> picks.
+    /// Those are M3's to author <b>with</b> the resolvers that need them; inventing them here would be
+    /// five vocabularies nobody agreed. This says the ops are authorable today, not that they are
+    /// complete.
     /// </remarks>
     [Fact]
     public void Every_run_and_board_op_is_authorable_with_the_eight_part_shape_alone()

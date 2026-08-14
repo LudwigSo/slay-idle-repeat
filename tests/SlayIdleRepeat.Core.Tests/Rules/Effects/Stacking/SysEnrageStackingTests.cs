@@ -9,17 +9,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Stacking;
 
 /// <summary>
-/// 🔒 <b>The acceptance test for M2-06.</b> `05` §3.1 fixes <c>SYS_ENRAGE</c> as
-/// <c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> → <c>STAT_MULT ATK ×1.08</c>,
-/// <b>multiplicative stacking, uncapped, <c>BATTLE</c> scope</b>. Under R1 —
-/// <c>STAT_MULT</c>'s value <em>is</em> the multiplier — three seconds of enrage against a 100 ATK
-/// boss is <c>100 × 1.08³ = 125.9712</c>.
+/// 🔒 `05` §3.1 fixes <c>SYS_ENRAGE</c> as <c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> →
+/// <c>STAT_MULT ATK ×1.08</c>, <b>multiplicative stacking, uncapped, <c>BATTLE</c> scope</b>. Under R1
+/// three seconds against a 100 ATK boss is <c>100 × 1.08³ = 125.9712</c>.
 /// </summary>
 /// <remarks>
-/// M2-07 already pins the same number for three <em>separately authored</em> <c>STAT_MULT</c>
-/// effects. What is pinned here is the stacking path: <b>one</b> effect id with three
-/// <c>MULTIPLICATIVE</c> stacks has to reach the same answer, because `05` §3.1 authors
-/// <c>SYS_ENRAGE</c> as one effect that stacks — not as N effects.
+/// <c>StatAggregationTests</c> pins the same number for three <em>separately authored</em> effects. What
+/// is pinned here is the stacking path: <b>one</b> effect id with three <c>MULTIPLICATIVE</c> stacks has
+/// to reach the same answer, because §3.1 authors <c>SYS_ENRAGE</c> as one effect that stacks.
 /// </remarks>
 public sealed class SysEnrageStackingTests
 {

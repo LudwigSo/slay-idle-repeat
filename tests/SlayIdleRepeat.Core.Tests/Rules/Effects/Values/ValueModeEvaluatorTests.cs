@@ -62,13 +62,11 @@ public sealed class ValueModeEvaluatorTests
     /// <c>SELF_MISSING_HP_PCT</c> are the same quantity and §4 types that <c>0..1</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Found by the Phase 4 code review: nothing pinned the floor in either direction.</b>
-    /// <c>CurrentHp &gt; MaxHp</c> is reachable — a Max HP <em>decrease</em> from a buff expiring, or
-    /// `18` §9.1's <c>CP_GLASS_HEART</c> re-base — and unfloored the mode returns a negative amount,
-    /// so an execute effect would <b>heal</b> the target it was meant to finish. The DSL states
-    /// "missing HP" in two places and they must not disagree about one actor in one tick:
-    /// <c>ConditionEvaluator.HpFraction</c> clamps for exactly this reason, and this is the same
-    /// clamp on the other statement.
+    /// ⚠️ Nothing pinned the floor in either direction. <c>CurrentHp &gt; MaxHp</c> is reachable — a Max
+    /// HP <em>decrease</em> from a buff expiring, or <c>CP_GLASS_HEART</c>'s re-base — and unfloored the
+    /// mode returns a negative amount, so an execute effect would <b>heal</b> the target it was meant to
+    /// finish. The DSL states "missing HP" in two places and they must not disagree about one actor in
+    /// one tick.
     /// </remarks>
     [Fact]
     public void TARGET_MISSING_HP_PCT_floors_at_zero_when_the_target_is_over_its_Max_HP()
@@ -112,19 +110,15 @@ public sealed class ValueModeEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 <b>Every mode is handled, and each answers with its own subject.</b> S3 — the subject set
-    /// of this evaluator is the eight <see cref="ValueMode"/>s, and a mode reaching an unhandled arm
-    /// must fail rather than fall through.
+    /// 🔒 <b>Every mode is handled, and each answers with its own subject.</b> S3 — a mode reaching an
+    /// unhandled arm must fail rather than fall through.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Why an expected value per mode rather than <c>Should.NotThrow</c>.</b> A
-    /// <c>Should.NotThrow</c> loop is satisfied by a single <c>default</c> arm answering all eight —
-    /// proven by stubbing <c>Resolve</c> as <c>=&gt; 0.0</c>, at which point the loop went green while
-    /// every per-mode fact above went red. The loop's whole claim is that no mode falls through, so
-    /// it has to read each mode's own subject. At <c>value = 1.0</c> over <see cref="Full"/> the
-    /// eight answers are just the eight subjects — 300 ATK, a flat 1, 800 source Max HP, 500 target
-    /// Max HP, 200 missing, 120 dealt, 80 healed, 30 overhealed — each already pinned individually
-    /// above, and all eight distinct, so no <c>default</c> arm of any shape survives.
+    /// ⚠️ An expected value per mode rather than <c>Should.NotThrow</c>, which a single <c>default</c> arm
+    /// answering all eight satisfies — proven by stubbing <c>Resolve</c> as <c>=&gt; 0.0</c>, at which
+    /// point the loop went green while every per-mode fact went red. At <c>value = 1.0</c> the eight
+    /// answers are just the eight subjects, each pinned individually above and all distinct, so no
+    /// <c>default</c> arm of any shape survives.
     /// </remarks>
     [Fact]
     public void Every_18_2_2_value_mode_is_handled()
