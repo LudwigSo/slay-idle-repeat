@@ -27,7 +27,23 @@ internal static class ChapterDocuments
     /// <summary>A content set holding chapter 1's board-relevant document.</summary>
     internal static ContentSnapshot ChapterOne { get; } = new(
         ContentVersion.FromHex(new string('b', ContentVersion.HexLength)),
-        [Document(chapterId: 1, ChapterOnePath)]);
+        [Document(chapterId: 1, ChapterOnePath), ForkBiasDocument()]);
+
+    /// <summary>
+    /// `03` §3.1's fork-bias multipliers, global rather than chapter-scoped —
+    /// <see cref="Rules.Board.ChapterBoardTuning.Read"/> reads them out of
+    /// <c>tuning/currencies.json#/boardGeneration</c> alongside the chapter document. Mirrors
+    /// <see cref="TuningDocuments.ShippedForkBiasPlusMultiplier"/>/<c>MinusMultiplier</c>.
+    /// </summary>
+    private static ContentDocument ForkBiasDocument() =>
+        new("tuning/currencies.json", ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["boardGeneration"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["forkBiasPlusMultiplier"] = ContentValue.Number((decimal)TuningDocuments.ShippedForkBiasPlusMultiplier),
+                ["forkBiasMinusMultiplier"] = ContentValue.Number((decimal)TuningDocuments.ShippedForkBiasMinusMultiplier),
+            }),
+        }));
 
     /// <summary>
     /// A small, evenly-weighted chapter document for <c>Handlers</c> tests that need to reason

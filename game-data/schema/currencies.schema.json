@@ -5,7 +5,7 @@
   "description": "03 §7a (in-run income, the single source of truth), 03 §6.1 (minigame rewards), 03 §7 (shop tile prices), 10 §2-§6 (Soul Shards, Crowns, the Shop, daily quests), 19 Part G (the 28-day login calendar). 10 §1: no currency in this game can be bought with money.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "wallet", "nonWalletCounters", "chapterScalars", "inRunIncome", "minigameRewards", "shopTile", "soulShards", "crowns", "shop", "dailyQuests", "draftEconomy", "loginCalendar"],
+  "required": ["$schema", "_doc", "_status", "wallet", "nonWalletCounters", "chapterScalars", "inRunIncome", "minigameRewards", "shopTile", "soulShards", "crowns", "shop", "dailyQuests", "draftEconomy", "boardGeneration", "loginCalendar"],
   "$defs": {
     "currencyId": { "enum": ["GOLD", "CROWNS", "SOUL_SHARDS", "ENERGY", "ENHANCE_STONES", "MERGE_DUST", "BEAST_FEED", "HONOR"] },
     "locKey": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" }
@@ -427,6 +427,17 @@
         "_doc": { "type": "string", "minLength": 1 },
         "skipGoldReward": { "type": "integer", "exclusiveMinimum": 0 },
         "rerollGoldCost": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "boardGeneration": {
+      "description": "M3-01, 03 §3.1 — the fork-label bias multipliers. The document names which tile kinds each label boosts/suppresses but states no magnitude; both figures are M3-01's judgment call, flagged for balance-simulator retuning.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "forkBiasPlusMultiplier", "forkBiasMinusMultiplier"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "forkBiasPlusMultiplier": { "type": "number", "exclusiveMinimum": 1 },
+        "forkBiasMinusMultiplier": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 }
       }
     },
     "loginCalendar": {

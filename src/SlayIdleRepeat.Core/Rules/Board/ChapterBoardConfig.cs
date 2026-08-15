@@ -15,13 +15,17 @@ internal sealed class ChapterBoardConfig
         IReadOnlyList<int> stageLengths,
         IReadOnlyList<int> eliteCount,
         IReadOnlyList<IReadOnlyDictionary<TileKind, double>> tileWeights,
-        string bossId)
+        string bossId,
+        double forkBiasPlusMultiplier,
+        double forkBiasMinusMultiplier)
     {
         ChapterId = chapterId;
         StageLengths = stageLengths;
         EliteCount = eliteCount;
         TileWeights = tileWeights;
         BossId = bossId;
+        ForkBiasPlusMultiplier = forkBiasPlusMultiplier;
+        ForkBiasMinusMultiplier = forkBiasMinusMultiplier;
     }
 
     /// <summary>The chapter number, `14` §6.</summary>
@@ -44,6 +48,17 @@ internal sealed class ChapterBoardConfig
     /// <summary>The chapter's boss identity — carried through onto the boss <see cref="BoardNode"/> but not otherwise interpreted here.</summary>
     public string BossId { get; }
 
+    /// <summary>
+    /// `03` §3.1 — the multiplier <see cref="BoardGenerator"/> applies to a fork branch's boosted
+    /// tile kinds. Read from <c>tuning/currencies.json#/boardGeneration/forkBiasPlusMultiplier</c>
+    /// (`ChapterBoardTuning`) — the document names which kinds a label boosts but not by how much,
+    /// so the magnitude is authored content, not a Core constant.
+    /// </summary>
+    public double ForkBiasPlusMultiplier { get; }
+
+    /// <summary>`03` §3.1 — the same, for the one suppressed tile kind a label may name.</summary>
+    public double ForkBiasMinusMultiplier { get; }
+
     /// <summary>Builds a config, validating the shape `03` §3's generator needs.</summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
@@ -52,19 +67,42 @@ internal sealed class ChapterBoardConfig
     /// positive; an elite count is negative or exceeds its stage length; a stage's weight table is
     /// empty, states <see cref="TileKind.Boss"/> (never drawable — the boss is placed once, by
     /// <see cref="BoardGenerator"/> itself, never by weighted draw), or has no positive weight;
-    /// or <paramref name="bossId"/> is empty.
+    /// <paramref name="bossId"/> is empty; <paramref name="forkBiasPlusMultiplier"/> is not greater
+    /// than 1; or <paramref name="forkBiasMinusMultiplier"/> is not in (0, 1).
     /// </exception>
+    /// <param name="forkBiasPlusMultiplier">
+    /// `03` §3.1's boost magnitude. Defaults to the shipped 2.5x so callers that do not care about
+    /// fork bias (most fixture/negative-path tests) need not restate it; the one production caller,
+    /// <see cref="ChapterBoardTuning.Read"/>, always passes an explicit, content-read value.
+    /// </param>
+    /// <param name="forkBiasMinusMultiplier">The same, for the shipped 0.2x suppression.</param>
     public static ChapterBoardConfig From(
         int chapterId,
         IReadOnlyList<int> stageLengths,
         IReadOnlyList<int> eliteCount,
         IReadOnlyList<IReadOnlyDictionary<TileKind, double>> tileWeights,
-        string bossId)
+        string bossId,
+        double forkBiasPlusMultiplier = 2.5,
+        double forkBiasMinusMultiplier = 0.2)
     {
         ArgumentNullException.ThrowIfNull(stageLengths);
         ArgumentNullException.ThrowIfNull(eliteCount);
         ArgumentNullException.ThrowIfNull(tileWeights);
         ArgumentNullException.ThrowIfNull(bossId);
+
+        if (!double.IsFinite(forkBiasPlusMultiplier) || forkBiasPlusMultiplier <= 1.0)
+        {
+            throw new ArgumentException(
+                "A boost multiplier must exceed 1 — 03 §3.1's bias is a boost, not a flat pass-through.",
+                nameof(forkBiasPlusMultiplier));
+        }
+
+        if (!double.IsFinite(forkBiasMinusMultiplier) || forkBiasMinusMultiplier is <= 0.0 or >= 1.0)
+        {
+            throw new ArgumentException(
+                "A suppression multiplier must lie strictly between 0 and 1.",
+                nameof(forkBiasMinusMultiplier));
+        }
 
         if (stageLengths.Count != 3)
         {
@@ -132,6 +170,8 @@ internal sealed class ChapterBoardConfig
             .Select(w => (IReadOnlyDictionary<TileKind, double>)new Dictionary<TileKind, double>(w))
             .ToArray();
 
-        return new ChapterBoardConfig(chapterId, stageLengths.ToArray(), eliteCount.ToArray(), frozenWeights, bossId);
+        return new ChapterBoardConfig(
+            chapterId, stageLengths.ToArray(), eliteCount.ToArray(), frozenWeights, bossId,
+            forkBiasPlusMultiplier, forkBiasMinusMultiplier);
     }
 }

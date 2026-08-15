@@ -75,6 +75,12 @@ internal static class TuningDocuments
     /// <summary>`03` §7a — `03` §6.1's chapter-scaling factor, shared with ad bundles and the shop.</summary>
     internal const double ShippedAdBundleScalar = 0.35;
 
+    /// <summary>`03` §3.1 — the fork-bias boost multiplier, as shipped. M3-01's judgment call.</summary>
+    internal const double ShippedForkBiasPlusMultiplier = 2.5;
+
+    /// <summary>`03` §3.1 — the fork-bias suppression multiplier, as shipped. M3-01's judgment call.</summary>
+    internal const double ShippedForkBiasMinusMultiplier = 0.2;
+
     private static ContentDocument Currencies(ContentValue? cycleDays)
     {
         var calendar = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
@@ -90,6 +96,11 @@ internal static class TuningDocuments
                 ["chapterScalars"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
                 {
                     ["adBundleScalar"] = ContentValue.Number((decimal)ShippedAdBundleScalar),
+                }),
+                ["boardGeneration"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["forkBiasPlusMultiplier"] = ContentValue.Number((decimal)ShippedForkBiasPlusMultiplier),
+                    ["forkBiasMinusMultiplier"] = ContentValue.Number((decimal)ShippedForkBiasMinusMultiplier),
                 }),
                 ["minigameRewards"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
                 {

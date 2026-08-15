@@ -25,6 +25,13 @@ internal static class ChapterBoardTuning
     private const int StageCount = 3;
 
     /// <summary>
+    /// `03` §3.1 — the fork-bias multipliers, global rather than per-chapter (the document's table
+    /// is one table, not one per chapter). M3-01's judgment-call magnitude, authored as content per
+    /// the milestone-review architecture pass rather than a Core constant.
+    /// </summary>
+    private const string BoardGenerationPointer = "tuning/currencies.json#/boardGeneration";
+
+    /// <summary>
     /// Reads chapter <paramref name="chapterId"/>'s board-relevant content.
     /// </summary>
     /// <param name="content">The loaded content set.</param>
@@ -43,8 +50,11 @@ internal static class ChapterBoardTuning
         var eliteCount = ReadIntArray(content, documentPath, "eliteCount");
         var tileWeights = ReadTileWeights(content, documentPath);
         var bossId = content.ReadText($"{documentPath}#/bossId");
+        var forkBiasPlus = content.ReadDouble($"{BoardGenerationPointer}/forkBiasPlusMultiplier");
+        var forkBiasMinus = content.ReadDouble($"{BoardGenerationPointer}/forkBiasMinusMultiplier");
 
-        return ChapterBoardConfig.From(chapterId, stageLengths, eliteCount, tileWeights, bossId);
+        return ChapterBoardConfig.From(
+            chapterId, stageLengths, eliteCount, tileWeights, bossId, forkBiasPlus, forkBiasMinus);
     }
 
     /// <summary>

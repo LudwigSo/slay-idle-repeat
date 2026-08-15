@@ -59,8 +59,6 @@ internal static class BoardGenerator
     private const int HealingWindowSize = 8;
     private const int MinTreasureAcrossRun = 2;
     private const int MinCacheAcrossRun = 1;
-    private const double ForkBiasPlusMultiplier = 2.5;
-    private const double ForkBiasMinusMultiplier = 0.2;
 
     private static readonly ForkLabel[] AllForkLabels =
     {
@@ -478,7 +476,7 @@ internal static class BoardGenerator
             usedSpan.Add((junctionLocal, junctionLocal + branchLen + 1));
 
             var label = AllForkLabels[rng.Range(0, AllForkLabels.Length)];
-            var branchTable = ToWeightTable(BuildBranchWeights(config.TileWeights[stageIndex], label));
+            var branchTable = ToWeightTable(BuildBranchWeights(config.TileWeights[stageIndex], label, config));
 
             var branchTiles = new TileKind?[branchLen];
             for (var k = 0; k < branchLen; k++)
@@ -512,7 +510,7 @@ internal static class BoardGenerator
     }
 
     private static IReadOnlyDictionary<TileKind, double> BuildBranchWeights(
-        IReadOnlyDictionary<TileKind, double> baseWeights, ForkLabel label)
+        IReadOnlyDictionary<TileKind, double> baseWeights, ForkLabel label, ChapterBoardConfig config)
     {
         var (plus, minus) = ForkBiasTable[label];
         var biased = new Dictionary<TileKind, double>(baseWeights);
@@ -521,13 +519,13 @@ internal static class BoardGenerator
         {
             if (biased.TryGetValue(kind, out var w))
             {
-                biased[kind] = w * ForkBiasPlusMultiplier;
+                biased[kind] = w * config.ForkBiasPlusMultiplier;
             }
         }
 
         if (minus is { } minusKind && biased.TryGetValue(minusKind, out var mw))
         {
-            biased[minusKind] = mw * ForkBiasMinusMultiplier;
+            biased[minusKind] = mw * config.ForkBiasMinusMultiplier;
         }
 
         return biased;
