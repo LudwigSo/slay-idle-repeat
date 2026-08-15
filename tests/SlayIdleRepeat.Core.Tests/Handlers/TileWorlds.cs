@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
@@ -64,7 +65,8 @@ internal static class TileWorlds
         string? eventCardId = null,
         ulong runSeed = Seed,
         int linearIndex = 7,
-        int stage = 1) =>
+        int stage = 1,
+        RunPhase phase = RunPhase.InProgress) =>
         new(
             Worlds.NewPlayer(),
             Rehydrated(RunSnapshots.With(
@@ -76,13 +78,14 @@ internal static class TileWorlds
                 pendingTileKind: (int)kind,
                 pendingTileLinearIndex: linearIndex,
                 pendingTileStage: stage,
-                pendingEventCardId: eventCardId ?? RunSnapshots.NoPendingEventCard)));
+                pendingEventCardId: eventCardId ?? RunSnapshots.NoPendingEventCard,
+                phase: phase)));
 
     /// <summary>A slice whose run is standing on no tile at all — every handler's first refusal.</summary>
-    internal static WorldSlice OnNoTile(long gold = 0L) =>
+    internal static WorldSlice OnNoTile(long gold = 0L, RunPhase phase = RunPhase.InProgress) =>
         new(
             Worlds.NewPlayer(),
-            Rehydrated(RunSnapshots.With(gold: gold, lastAppliedAtUtc: NowUtc)));
+            Rehydrated(RunSnapshots.With(gold: gold, lastAppliedAtUtc: NowUtc, phase: phase)));
 
     private static RunAggregate Rehydrated(RunSnapshot snapshot)
     {

@@ -111,7 +111,11 @@ internal static class RunSnapshots
         int? pendingTileKind = null,
         int? pendingTileLinearIndex = null,
         int? pendingTileStage = null,
-        string? pendingEventCardId = null) =>
+        string? pendingEventCardId = null,
+        RunPhase? phase = null,
+        bool? draftPending = null,
+        int? rerollChargesSpentThisStage = null,
+        ulong? stageGateDiceAnchor = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -132,7 +136,11 @@ internal static class RunSnapshots
             pendingTileKind ?? NoPendingTile,
             pendingTileLinearIndex ?? 0,
             pendingTileStage ?? 0,
-            pendingEventCardId ?? NoPendingEventCard);
+            pendingEventCardId ?? NoPendingEventCard,
+            phase ?? RunPhase.InProgress,
+            draftPending ?? false,
+            rerollChargesSpentThisStage ?? 0,
+            stageGateDiceAnchor ?? 0);
 
     /// <summary>
     /// M3-03 — <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here for

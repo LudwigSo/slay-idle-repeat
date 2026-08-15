@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
@@ -63,5 +64,59 @@ public sealed class UseRerollTests
     {
         Should.Throw<InvalidOperationException>(() => SlayIdleRepeat.Core.GameRules.Apply(
             Worlds.OutsideARun(), new UseRerollCommand(), Worlds.Context));
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // 🔒 M3-05 closed the charge-cap gap UseReroll's own remarks used to name: `04` §3's base
+    // allotment (1/stage, no bonus sources yet — talents/Campfire/perks/Reroll Token are all still
+    // GapRegister entries) is now enforced against Run.RerollChargesSpentThisStage.
+    // ------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void The_first_reroll_of_a_stage_is_affordable_and_advances_the_spent_count()
+    {
+        var state = Worlds.InARun(RunSnapshots.With(rerollChargesSpentThisStage: 0));
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(state, new UseRerollCommand(), Worlds.Context);
+
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Run!.ToSnapshot().RerollChargesSpentThisStage.ShouldBe(1);
+    }
+
+    [Fact]
+    public void A_second_reroll_in_the_same_stage_is_refused_as_CAP_REACHED()
+    {
+        // 04 §3's base allotment is 1/stage and no bonus source exists yet (all GapRegister
+        // entries), so RerollEconomy.TotalCharges(0, false, 0, 0) is 1 — a run that has already
+        // spent its one charge this stage cannot afford a second.
+        var state = Worlds.InARun(RunSnapshots.With(rerollChargesSpentThisStage: 1));
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(state, new UseRerollCommand(), Worlds.Context);
+
+        result.Accepted.ShouldBeFalse();
+        result.Rejection.ShouldBe(RejectionReason.CAP_REACHED);
+    }
+
+    [Fact]
+    public void A_refused_reroll_moves_no_stream_position()
+    {
+        var state = Worlds.InARun(RunSnapshots.With(
+            rerollChargesSpentThisStage: 1,
+            rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, 3UL))));
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(state, new UseRerollCommand(), Worlds.Context);
+
+        result.Accepted.ShouldBeFalse();
+        result.NewState.Run!.StreamPosition(RngStreams.Dice).ShouldBe(3UL);
+    }
+
+    [Fact]
+    public void A_reroll_at_a_fresh_Stage_Gate_anchor_is_affordable_again()
+    {
+        // ApplyStageGate resets the spent count to 0 — the same effect as this fixture's zero.
+        var state = Worlds.InARun(RunSnapshots.With(rerollChargesSpentThisStage: 0));
+
+        SlayIdleRepeat.Core.GameRules.Apply(state, new UseRerollCommand(), Worlds.Context)
+            .Accepted.ShouldBeTrue();
     }
 }

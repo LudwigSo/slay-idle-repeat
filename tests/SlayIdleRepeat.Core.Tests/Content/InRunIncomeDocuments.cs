@@ -54,6 +54,9 @@ internal static class InRunIncomeDocuments
     /// <summary>`03` §2 — the campfire rest's healed share of Max HP, as shipped.</summary>
     internal const decimal ShippedCampfireHeal = 0.4m;
 
+    /// <summary>🔒 M3-05, `03` §1.1 — the Stage Gate's healed share of Max HP, as shipped.</summary>
+    internal const decimal ShippedStageGateHeal = 0.15m;
+
     /// <summary>`03` §7a.3's three profiles, in the document's own order.</summary>
     internal static readonly (string Id, decimal Weight, long Crowns, long Stones, long Dust)[]
         ShippedTreasureProfiles =
@@ -143,6 +146,7 @@ internal static class InRunIncomeDocuments
         ContentValue? shrineBuffs = null,
         ContentValue? optionsOffered = null,
         ContentValue? campfireHeal = null,
+        ContentValue? stageGateHeal = null,
         ContentValue? curses = null,
         ContentValue? cards = null) =>
         new(
@@ -156,7 +160,7 @@ internal static class InRunIncomeDocuments
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
                 new ContentDocument(CurrenciesPath, Currencies(
                     eggChance, metaGrowth, goldGrowth, roundingMode, treasureProfiles, shrineBuffs,
-                    optionsOffered, campfireHeal)),
+                    optionsOffered, campfireHeal, stageGateHeal)),
                 new ContentDocument(CursesPath, Curses(curses)),
                 new ContentDocument(BoardEventsPath, BoardEvents(cards)),
             ]);
@@ -189,7 +193,8 @@ internal static class InRunIncomeDocuments
         ContentValue? treasureProfiles,
         ContentValue? shrineBuffs,
         ContentValue? optionsOffered,
-        ContentValue? campfireHeal) =>
+        ContentValue? campfireHeal,
+        ContentValue? stageGateHeal) =>
         Obj(
             ("chapterScalars", Obj(
                 ("goldGrowth", goldGrowth ?? ContentValue.Number(ShippedGoldGrowth)),
@@ -209,6 +214,8 @@ internal static class InRunIncomeDocuments
                     ("eggChance", eggChance ?? ContentValue.Number(ShippedEggChance)))),
                 ("campfire", Obj(
                     ("healPctMaxHp", campfireHeal ?? ContentValue.Number(ShippedCampfireHeal)))),
+                ("stageGate", Obj(
+                    ("healPctMaxHp", stageGateHeal ?? ContentValue.Number(ShippedStageGateHeal)))),
                 ("shrineBuffPool", Obj(
                     ("optionsOffered", optionsOffered ?? ContentValue.Number(ShippedOptionsOffered)),
                     ("buffs", shrineBuffs ?? ContentValue.Array(

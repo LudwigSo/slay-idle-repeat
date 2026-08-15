@@ -2,6 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
@@ -277,8 +278,24 @@ public sealed class ChooseForkTests
         afterFirstRoll.Accepted.ShouldBeTrue();
         var boardDrawsAfterFirstRoll = afterFirstRoll.NewState.Run!.StreamPosition(RngStreams.Board);
 
+        // 🔒 M3-05 — ROLL_DICE now arrives at whatever tile the first roll landed on
+        // (Run.ArriveAtTile) and a second roll is refused while it is pending. This test is about
+        // board-stream replay stability, not tile-resolution legality, so the pending tile is
+        // cleared directly on the snapshot rather than through whichever RESOLVE_TILE branch the
+        // landed tile kind happens to take — some kinds (Enemy/Shop/Minigame/...) stay pending past
+        // RESOLVE_TILE by design (Handlers.ResolveTile's remarks), which would leave this test
+        // coupled to what the generator happened to draw.
+        var clearedSnapshot = afterFirstRoll.NewState.Run!.ToSnapshot() with
+        {
+            PendingTileKind = RunSnapshots.NoPendingTile,
+            PendingTileLinearIndex = 0,
+            PendingTileStage = 0,
+            PendingEventCardId = RunSnapshots.NoPendingEventCard,
+        };
+        var clearedRun = Run.Rehydrate(clearedSnapshot).Value;
+
         var afterSecondRoll = SlayIdleRepeat.Core.GameRules.Apply(
-            afterFirstRoll.NewState, new RollDiceCommand(), TinyContext());
+            afterFirstRoll.NewState with { Run = clearedRun }, new RollDiceCommand(), TinyContext());
 
         afterSecondRoll.Accepted.ShouldBeTrue();
         afterSecondRoll.NewState.Run!.StreamPosition(RngStreams.Board).ShouldBe(
