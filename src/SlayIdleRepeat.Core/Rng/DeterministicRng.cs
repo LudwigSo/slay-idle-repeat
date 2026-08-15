@@ -63,6 +63,22 @@ public sealed class DeterministicRng
     }
 
     /// <summary>
+    /// 🔒 Opens a stream at an arbitrary, already-known position — <b>added by M3-04</b> so
+    /// <c>Rules.Dice.FairDiceBag.Replay</c> can reopen the <c>dice</c> stream at a past Stage-Gate
+    /// reset point without a <c>newobj DeterministicRng</c> appearing outside <c>Core/Rng/</c>.
+    /// </summary>
+    /// <remarks>
+    /// Identical to the public constructor in every way but where its IL lives:
+    /// <c>DomainPurityTests.DeterministicRng_is_constructed_only_inside_Core_Rng</c> scans for the
+    /// <b>declaring type of the method containing the <c>newobj</c></b>, not the constructor's own
+    /// declaring type — so a caller outside this namespace invoking the constructor directly would
+    /// still fail that scan even though the constructor is public. This factory's body is the one
+    /// construction site; every caller outside <c>Core/Rng/</c> goes through it instead.
+    /// </remarks>
+    public static DeterministicRng OpenAt(ulong seed, string streamName, ulong position) =>
+        new(seed, streamName, position);
+
+    /// <summary>
     /// The <b>next</b> draw index, and the entire persistable state of this stream. Equal to the
     /// number of calls ever made on it when the stream started at zero.
     /// </summary>

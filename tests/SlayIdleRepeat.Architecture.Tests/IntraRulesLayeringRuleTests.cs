@@ -50,6 +50,9 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M1's energy accrual/spend math — outside the Combat/Stats/Effects ordering entirely.</summary>
     internal const string EconomyNamespace = "SlayIdleRepeat.Core.Rules.Economy";
 
+    /// <summary>M3-04's die math — outside the Combat/Stats/Effects ordering entirely, like <see cref="EconomyNamespace"/>.</summary>
+    internal const string DiceNamespace = "SlayIdleRepeat.Core.Rules.Dice";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -93,6 +96,23 @@ public sealed class IntraRulesLayeringRuleTests
         (EconomyNamespace, CombatNamespace,
             "Economy is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — energy accrual/spend math has no current reason to read the combat simulator."),
+
+        // 🔒 M3-04's Dice namespace, pinned OUTSIDE the ordering the same way Economy is, and for
+        // the same reason: FairDiceBag/FaceEffectResolver/DieComposer/RerollEconomy are pure die
+        // arithmetic with ZERO current coupling to Combat/Stats/Effects in either direction. The
+        // MODIFY_DIE_FACE resolver a future ResolveTileCommand handler calls
+        // (DiceForgeUpgradeResolver) reads Content.Dice only, not the effect DSL's resolver layer —
+        // 18's interpreter calls INTO the dice system when M3-03 wires TILE_DICE_FORGE, which is the
+        // direction these edges leave open by forbidding only the reverse.
+        (DiceNamespace, EffectsNamespace,
+            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — die-face arithmetic has no current reason to read the effect DSL's resolver."),
+        (DiceNamespace, StatsNamespace,
+            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — die-face arithmetic has no current reason to read stat aggregation."),
+        (DiceNamespace, CombatNamespace,
+            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — die-face arithmetic has no current reason to read the combat simulator."),
     };
 
     /// <summary>

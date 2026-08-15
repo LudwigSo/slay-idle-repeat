@@ -370,25 +370,26 @@ public sealed class CommandVocabularyTests
         }
 
         // 🔒 M1-09 lowered this from 49 to 48 by exactly the one row that became Handled —
-        // BEGIN_SESSION — M3-15 lowered it again to 47 by START_RUN, and M3-03c lowered it again to
-        // 46 by MINIGAME_SUBMIT. It is stated as "the registry minus the handled rows" rather than
-        // as the literal 46 so the next task to land a handler lowers it by construction, and so the
+        // BEGIN_SESSION — M3-15 lowered it again to 47 by START_RUN, M3-03c lowered it again to 46
+        // by MINIGAME_SUBMIT, and M3-04 lowers it again to 44 by ROLL_DICE and USE_REROLL. It is
+        // stated as "the registry minus the handled rows" rather than as the literal 44 so the next
+        // task to land a handler lowers it by construction, and so the
         // number can never drift below what the loop can reach: an equality against a computed total
         // fails in BOTH directions, where a hand-lowered literal only fails when the count goes up.
         deferred.ShouldBe(
             Registry.Count(row => !RegistrationFor(row.Key).IsHandled),
-            "every DEFERRED row of 14 §2.3 is driven here — 46 of the 49 since M3-03c landed the " +
-            "MINIGAME_SUBMIT handler. A mismatch means the loop skipped a deferred row rather than " +
-            "that the count moved.");
+            "every DEFERRED row of 14 §2.3 is driven here — 44 of the 49 since M3-04 landed the " +
+            "ROLL_DICE and USE_REROLL handlers. A mismatch means the loop skipped a deferred row " +
+            "rather than that the count moved.");
 
         deferred.ShouldBe(
-            46,
+            44,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly three of them — BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
-            "(02 §2's runSeed commit) and MINIGAME_SUBMIT (03 §6's minigame resolution) — have a " +
-            "handler. Lower this by exactly the number of rows that become Handled, and never to a " +
-            "number the loop cannot reach.");
+            "is 49 rows and exactly five of them — BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
+            "(02 §2's runSeed commit), MINIGAME_SUBMIT (03 §6's minigame resolution), ROLL_DICE and " +
+            "USE_REROLL (04 §§1,3-4) — have a handler. Lower this by exactly the number of rows that " +
+            "become Handled, and never to a number the loop cannot reach.");
     }
 
     /// <summary>

@@ -154,8 +154,8 @@ public static class GameRules
 
         // ------------------------------------------------ `14` §2.3 — the 19 RUN commands
         .Handled<StartRunCommand>("START_RUN", CommandKind.Run, StartRun.Handle, opensRun: true)
-        .Deferred<RollDiceCommand>("ROLL_DICE", CommandKind.Run, "M3-04")
-        .Deferred<UseRerollCommand>("USE_REROLL", CommandKind.Run, "M3-04")
+        .Handled<RollDiceCommand>("ROLL_DICE", CommandKind.Run, RollDice.Handle)
+        .Handled<UseRerollCommand>("USE_REROLL", CommandKind.Run, UseReroll.Handle)
         .Deferred<ChooseForkCommand>("CHOOSE_FORK", CommandKind.Run, "M3-02")
         .Deferred<ResolveTileCommand>("RESOLVE_TILE", CommandKind.Run, "M3-03")
         .Deferred<PickPerkCommand>("PICK_PERK", CommandKind.Run, "M3-06")
