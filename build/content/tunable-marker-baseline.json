@@ -88,9 +88,6 @@
       "reason": "Chapter enemy-pool weights. Authored per chapter under content/chapters/; M3-14 authors the 8 chapter data files and the pool/weight keys.",
       "closedBy": "M3-14" },
 
-    { "doc": "06", "section": "2", "kind": "specDebt",
-      "reason": "The perk count (90 standard). Content identity; the perks themselves are content/perks/, authored as DSL data by M3-07. (Was M3-01, which is board generation.)",
-      "closedBy": "M3-07" },
     { "doc": "06", "section": "6.1", "kind": "specDebt",
       "reason": "Codex mastery bonuses (+17.2% all stats). 06 §6 is M4-11's spec (Codex model: per-entry stat bonuses, TP milestones).",
       "closedBy": "M4-11" },

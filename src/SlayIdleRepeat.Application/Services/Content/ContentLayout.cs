@@ -93,6 +93,13 @@ public static class ContentLayout
             // named after its own directory would resolve correctly under the stem rule with no
             // entry at all, which is exactly what made those two easy to forget.
             [ContentDirectory + "curses/"] = SchemaDirectory + "curses" + SchemaSuffix,
+
+            // 06 §3/§5 — the standard drafted perk catalogue, one aggregated file. Named explicitly
+            // (schema/perk.schema.json, SINGULAR) rather than left to the stem rule, on the same
+            // liveops_events precedent above: the stem of content/perks/perks.json is "perks"
+            // (plural), and a bare fallback would demand schema/perks.schema.json — a one-letter
+            // difference the stem rule cannot bridge on its own. Authored by M3-07.
+            [ContentDirectory + "perks/"] = SchemaDirectory + "perk" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>
