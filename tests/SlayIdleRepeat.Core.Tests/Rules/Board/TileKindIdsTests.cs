@@ -6,25 +6,29 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
 public sealed class TileKindIdsTests
 {
+    // TileKind is internal, so a [Theory]/[InlineData] cannot take it directly as a public test
+    // method parameter (CS0051) — every case is driven by its string id instead, resolved to the
+    // enum value inside the (internal-type-touching but public-signature) test body.
     [Theory]
-    [InlineData(TileKind.Enemy, "TILE_ENEMY")]
-    [InlineData(TileKind.Elite, "TILE_ELITE")]
-    [InlineData(TileKind.Boss, "TILE_BOSS")]
-    [InlineData(TileKind.Shrine, "TILE_SHRINE")]
-    [InlineData(TileKind.Curse, "TILE_CURSE")]
-    [InlineData(TileKind.Treasure, "TILE_TREASURE")]
-    [InlineData(TileKind.Shop, "TILE_SHOP")]
-    [InlineData(TileKind.Campfire, "TILE_CAMPFIRE")]
-    [InlineData(TileKind.Minigame, "TILE_MINIGAME")]
-    [InlineData(TileKind.Event, "TILE_EVENT")]
-    [InlineData(TileKind.Portal, "TILE_PORTAL")]
-    [InlineData(TileKind.Cache, "TILE_CACHE")]
-    [InlineData(TileKind.DiceForge, "TILE_DICE_FORGE")]
-    [InlineData(TileKind.Empty, "TILE_EMPTY")]
-    public void Every_tile_kind_round_trips_through_its_id(TileKind kind, string id)
+    [InlineData("TILE_ENEMY")]
+    [InlineData("TILE_ELITE")]
+    [InlineData("TILE_BOSS")]
+    [InlineData("TILE_SHRINE")]
+    [InlineData("TILE_CURSE")]
+    [InlineData("TILE_TREASURE")]
+    [InlineData("TILE_SHOP")]
+    [InlineData("TILE_CAMPFIRE")]
+    [InlineData("TILE_MINIGAME")]
+    [InlineData("TILE_EVENT")]
+    [InlineData("TILE_PORTAL")]
+    [InlineData("TILE_CACHE")]
+    [InlineData("TILE_DICE_FORGE")]
+    [InlineData("TILE_EMPTY")]
+    public void Every_tile_kind_round_trips_through_its_id(string id)
     {
+        var kind = TileKindIds.Parse(id);
         TileKindIds.ToId(kind).ShouldBe(id);
-        TileKindIds.Parse(id).ShouldBe(kind);
+        TileKindIds.Parse(TileKindIds.ToId(kind)).ShouldBe(kind);
     }
 
     [Fact]

@@ -4,7 +4,7 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// Which of a junction's two outgoing edges this is. Every non-junction node has exactly one
 /// outgoing edge, always <see cref="Continue"/>.
 /// </summary>
-public enum EdgeKind
+internal enum EdgeKind
 {
     /// <summary>The spine's own next node, or a branch's internal chain, or a branch's rejoin.</summary>
     Continue,

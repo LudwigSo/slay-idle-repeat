@@ -3,7 +3,7 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// <summary>
 /// 🔒 `03` §2 — the closed set of 14 tile kinds a board node can hold, including the boss.
 /// </summary>
-public enum TileKind
+internal enum TileKind
 {
     Enemy,
     Elite,
@@ -26,7 +26,7 @@ public enum TileKind
 /// <c>game-data/schema/chapter.schema.json</c>'s <c>tileWeights</c> pattern use in content JSON
 /// and on the wire.
 /// </summary>
-public static class TileKindIds
+internal static class TileKindIds
 {
     /// <summary>The <c>TILE_*</c> id for a <see cref="TileKind"/>.</summary>
     public static string ToId(TileKind kind) => kind switch

@@ -8,7 +8,7 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// document: <c>Core</c> has zero dependencies, so nothing here does JSON parsing. A caller (the
 /// Application-layer content loader) reads the chapter file and builds one of these.
 /// </summary>
-public sealed class ChapterBoardConfig
+internal sealed class ChapterBoardConfig
 {
     private ChapterBoardConfig(
         int chapterId,

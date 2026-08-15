@@ -4,7 +4,7 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>
 /// 🔒 `03` §3 — <c>GenerateBoard(chapter, tier, seed)</c>: the procedural producer of a run's
-/// <see cref="Board"/>, applying the mandatory-tile placements, the weighted draw and constraints
+/// <see cref="BoardGraph"/>, applying the mandatory-tile placements, the weighted draw and constraints
 /// C1-C7 (with their redraw/injection fallbacks), and the 1-2 forks per stage.
 /// </summary>
 /// <remarks>
@@ -53,7 +53,7 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// </item>
 /// </list>
 /// </remarks>
-public static class BoardGenerator
+internal static class BoardGenerator
 {
     private const int RedrawCap = 8;
     private const int HealingWindowSize = 8;
@@ -78,18 +78,24 @@ public static class BoardGenerator
 
     /// <summary>`03` §3 — generates a full 3-stage board plus boss node from a chapter's config and a run seed.</summary>
     /// <param name="config">The chapter's board-relevant content.</param>
-    /// <param name="seed">The run seed; the <c>board</c> stream (`14` §8.1) is opened over it.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="config"/> is null.</exception>
+    /// <param name="rng">
+    /// The run's <c>board</c> stream (`14` §8.1), already opened. 🔒 `30` §11's
+    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c> architecture rule forbids
+    /// constructing one here: the caller opens it via <c>RunRngScope.Stream(RngStreams.Board)</c>
+    /// so the run's committed positions and <c>GameRules.Apply</c>'s write-back stay the one path
+    /// a stream's counter ever moves through (M1 kickoff decision 5) — the same reason
+    /// <c>ChapterEnemyPool.Draw</c> takes a <see cref="DeterministicRng"/> rather than a seed.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="config"/> or <paramref name="rng"/> is null.</exception>
     /// <exception cref="InvalidOperationException">
     /// The chapter data cannot be laid out at all (e.g. more elites demanded than the stage has
     /// room for under C5's adjacency rule) — a content-authoring defect, not a runtime draw
     /// failure, so it is never swallowed into a fallback tile.
     /// </exception>
-    public static Board GenerateBoard(ChapterBoardConfig config, ulong seed)
+    internal static BoardGraph GenerateBoard(ChapterBoardConfig config, DeterministicRng rng)
     {
         ArgumentNullException.ThrowIfNull(config);
-
-        var rng = new DeterministicRng(seed, RngStreams.Board);
+        ArgumentNullException.ThrowIfNull(rng);
 
         var stageTiles = new TileKind[3][];
         for (var stageIndex = 0; stageIndex < 3; stageIndex++)
@@ -122,7 +128,7 @@ public static class BoardGenerator
         }
 
         var bossLinearIndex = runningBase;
-        spineIds[bossLinearIndex] = builder.AddNode(TileKind.Boss, bossLinearIndex, Board.BossStage);
+        spineIds[bossLinearIndex] = builder.AddNode(TileKind.Boss, bossLinearIndex, BoardGraph.BossStage);
 
         for (var i = 0; i < bossLinearIndex; i++)
         {
@@ -553,7 +559,7 @@ public static class BoardGenerator
 
         public void MarkJunction(NodeId id) => _junctions.Add(id);
 
-        public Board Build(NodeId[] spineIds) =>
-            Board.FromLayout(_nodes, _edges, spineIds, _junctions);
+        public BoardGraph Build(NodeId[] spineIds) =>
+            BoardGraph.FromLayout(_nodes, _edges, spineIds, _junctions);
     }
 }

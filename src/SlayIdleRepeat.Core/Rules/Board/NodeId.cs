@@ -8,7 +8,7 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// node at the same forward distance from its junction (`03` §1.1), so the linear index alone
 /// cannot address a single node — <see cref="NodeId"/> can.
 /// </summary>
-public readonly record struct NodeId(int Value)
+internal readonly record struct NodeId(int Value)
 {
     public override string ToString() => "N" + Value.ToString(CultureInfo.InvariantCulture);
 }

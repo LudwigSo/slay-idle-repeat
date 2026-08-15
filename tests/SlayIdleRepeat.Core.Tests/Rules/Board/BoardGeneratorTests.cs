@@ -1,7 +1,8 @@
+using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
 using Shouldly;
 using Xunit;
-using CoreBoard = SlayIdleRepeat.Core.Rules.Board.Board;
+using CoreBoard = SlayIdleRepeat.Core.Rules.Board.BoardGraph;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
@@ -28,8 +29,8 @@ public sealed class BoardGeneratorTests
     {
         var config = BoardFixtures.ChapterOneConfig();
 
-        var first = Describe(BoardGenerator.GenerateBoard(config, 555UL));
-        var second = Describe(BoardGenerator.GenerateBoard(config, 555UL));
+        var first = Describe(Generate(config, 555UL));
+        var second = Describe(Generate(config, 555UL));
 
         second.ShouldBe(first);
     }
@@ -39,8 +40,8 @@ public sealed class BoardGeneratorTests
     {
         var config = BoardFixtures.ChapterOneConfig();
 
-        var a = Describe(BoardGenerator.GenerateBoard(config, 1UL));
-        var b = Describe(BoardGenerator.GenerateBoard(config, 2UL));
+        var a = Describe(Generate(config, 1UL));
+        var b = Describe(Generate(config, 2UL));
 
         a.ShouldNotBe(b);
     }
@@ -48,7 +49,14 @@ public sealed class BoardGeneratorTests
     [Fact]
     public void A_null_config_is_rejected()
     {
-        Should.Throw<ArgumentNullException>(() => BoardGenerator.GenerateBoard(null!, 1UL));
+        Should.Throw<ArgumentNullException>(() => Generate(null!, 1UL));
+    }
+
+    [Fact]
+    public void A_null_rng_is_rejected()
+    {
+        var config = BoardFixtures.ChapterOneConfig();
+        Should.Throw<ArgumentNullException>(() => BoardGenerator.GenerateBoard(config, null!));
     }
 
     // ------------------------------------------------------------------------------------
@@ -59,7 +67,7 @@ public sealed class BoardGeneratorTests
     public void Chapter_ones_stage_lengths_produce_linear_indices_0_to_41_and_boss_at_42()
     {
         var config = BoardFixtures.ChapterOneConfig(); // 12 + 14 + 16 = 42
-        var board = BoardGenerator.GenerateBoard(config, 42UL);
+        var board = Generate(config, 42UL);
 
         board.Node(board.SpineNode(0)).LinearIndex.ShouldBe(0);
         board.Node(board.SpineNode(41)).LinearIndex.ShouldBe(41);
@@ -78,7 +86,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
 
             foreach (var linearIndex in Enumerable.Range(0, 42))
             {
@@ -136,7 +144,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             board.Node(board.SpineNode(0)).Tile.ShouldBe(TileKind.Enemy, $"seed {seed}");
         }
     }
@@ -152,7 +160,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             foreach (var stage in SpineTilesByStage(board, config))
             {
                 for (var i = 2; i < stage.Length; i++)
@@ -180,7 +188,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             foreach (var stage in SpineTilesByStage(board, config))
             {
                 for (var i = 3; i < stage.Length; i++)
@@ -204,7 +212,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             foreach (var stage in SpineTilesByStage(board, config))
             {
                 for (var start = 0; start < stage.Length; start += 8)
@@ -232,7 +240,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             foreach (var stage in SpineTilesByStage(board, config))
             {
                 for (var i = stage.Length - 4; i < stage.Length; i++)
@@ -264,7 +272,7 @@ public sealed class BoardGeneratorTests
             },
             bossId: "BOSS_TEST");
 
-        var board = BoardGenerator.GenerateBoard(onlyPortal, 1UL);
+        var board = Generate(onlyPortal, 1UL);
 
         foreach (var stage in SpineTilesByStage(board, onlyPortal))
         {
@@ -286,7 +294,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             var stages = SpineTilesByStage(board, config);
 
             for (var s = 0; s < stages.Length; s++)
@@ -319,7 +327,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             var stages = SpineTilesByStage(board, config);
 
             var treasureCount = stages.Sum(s => s.Count(t => t == TileKind.Treasure));
@@ -348,7 +356,7 @@ public sealed class BoardGeneratorTests
             },
             bossId: "BOSS_TEST");
 
-        var board = BoardGenerator.GenerateBoard(noTreasureNoCache, 1UL);
+        var board = Generate(noTreasureNoCache, 1UL);
         var stages = SpineTilesByStage(board, noTreasureNoCache);
 
         stages.Sum(s => s.Count(t => t == TileKind.Treasure)).ShouldBe(2);
@@ -382,7 +390,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
             var stages = SpineTilesByStage(board, config);
 
             var linear = 0;
@@ -411,7 +419,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
 
             for (var linearIndex = 0; linearIndex < 42; linearIndex++)
             {
@@ -435,7 +443,7 @@ public sealed class BoardGeneratorTests
 
         foreach (var seed in Seeds)
         {
-            var board = BoardGenerator.GenerateBoard(config, seed);
+            var board = Generate(config, seed);
 
             for (var linearIndex = 0; linearIndex < 42; linearIndex++)
             {
@@ -479,6 +487,13 @@ public sealed class BoardGeneratorTests
     // ------------------------------------------------------------------------------------
     // Helpers.
     // ------------------------------------------------------------------------------------
+
+    // GenerateBoard takes an already-opened DeterministicRng, not a seed (30 §11's
+    // DeterministicRng_is_constructed_only_inside_Core_Rng architecture rule forbids
+    // constructing one inside Rules/Board — the sanctioned caller is RunRngScope). Tests
+    // construct the stream directly, exactly like ChapterEnemyPoolTests does for RngStreams.Combat.
+    private static CoreBoard Generate(ChapterBoardConfig config, ulong seed) =>
+        BoardGenerator.GenerateBoard(config, new DeterministicRng(seed, RngStreams.Board));
 
     private static TileKind[][] SpineTilesByStage(CoreBoard board, ChapterBoardConfig config)
     {

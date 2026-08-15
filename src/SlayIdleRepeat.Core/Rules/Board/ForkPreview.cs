@@ -7,4 +7,4 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// </summary>
 /// <param name="Label">The branch's drawn bias label.</param>
 /// <param name="Icons">The first <c>min(3, branch length)</c> tiles of the branch, in walk order.</param>
-public sealed record ForkPreview(ForkLabel Label, IReadOnlyList<TileKind> Icons);
+internal sealed record ForkPreview(ForkLabel Label, IReadOnlyList<TileKind> Icons);

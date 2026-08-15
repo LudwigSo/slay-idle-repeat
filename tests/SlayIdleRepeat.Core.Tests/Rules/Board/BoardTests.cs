@@ -1,7 +1,7 @@
 using SlayIdleRepeat.Core.Rules.Board;
 using Shouldly;
 using Xunit;
-using CoreBoard = SlayIdleRepeat.Core.Rules.Board.Board;
+using CoreBoard = SlayIdleRepeat.Core.Rules.Board.BoardGraph;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 

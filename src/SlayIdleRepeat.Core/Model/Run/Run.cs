@@ -258,14 +258,18 @@ public sealed class Run
     /// <summary>The linear node index the run stands on (`14` §2.3's <c>newPosition</c>).</summary>
     /// <remarks>
     /// <para>
-    /// ⚠️ <b>Stored, and checked only against `03` §1.1's trailhead floor.</b> `30` §11.5 names
-    /// <em>"a run's position is a valid node"</em> as an invariant of this aggregate and it
-    /// <b>cannot be implemented today</b>: there is no board and no node identity until M3-01.
-    /// Inventing a range check — "0..42", say — would be a partial invariant that reads like the real
-    /// one and would be trusted as such by everything downstream, which is worse than an absent one.
-    /// The real validation is registered as the <c>Board</c> entry in
-    /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, keyed on <c>NodeId</c>, so the build
-    /// fails on the day node identity arrives.
+    /// ⚠️ <b>Stored, and still checked only against `03` §1.1's trailhead floor.</b> `30` §11.5 names
+    /// <em>"a run's position is a valid node"</em> as an invariant of this aggregate. M3-01 authored
+    /// node identity (<c>SlayIdleRepeat.Core.Rules.Board.NodeId</c>/<c>Board</c>/
+    /// <c>BoardGenerator.GenerateBoard</c>), which is what this remark used to wait on — but
+    /// validating a specific run's position against a specific node still needs <em>this run's</em>
+    /// generated board, which needs <c>GenerateBoard</c> called over this run's chapter/tier/seed via
+    /// <c>RunRngScope</c> — the movement engine's job, M3-02, not this aggregate's. Inventing a range
+    /// check — "0..42", say — would be a partial invariant that reads like the real one and would be
+    /// trusted as such by everything downstream, which is worse than an absent one. The real
+    /// validation is registered as the <c>Board</c> entry in
+    /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, now keyed on <c>RollDice</c> (M3-02's
+    /// handler), so the build fails on the day it arrives.
     /// </para>
     /// <para>
     /// 🔒 The one bound that <b>is</b> checked is not invented either: see
@@ -602,7 +606,9 @@ public sealed class Run
     /// <remarks>
     /// <para>
     /// ⚠️ The trailhead floor is the <b>whole</b> check, and see <see cref="Position"/> for why: `30`
-    /// §11.5's <em>"a run's position is a valid node"</em> needs node identity, which is M3-01's.
+    /// §11.5's <em>"a run's position is a valid node"</em> needs the specific board a specific run
+    /// stands on, which is M3-02's to compute and check before calling <see cref="MoveTo"/> — node
+    /// identity itself (M3-01's half) already exists.
     /// </para>
     /// <para>
     /// ⚠️ <b>There is no monotonicity guard either — and the reason is that same deferral, not a
@@ -629,9 +635,10 @@ public sealed class Run
                 "The lowest position a run can stand at is " + Text(TrailheadPosition) + " — 03 " +
                 "§1.1's virtual trailhead, one step before node 0, where every run stands before " +
                 "its first roll — and " + Text(position) + " is below it. That floor is the WHOLE " +
-                "position check: 30 §11.5's 'a run's position is a valid node' needs node identity, " +
-                "which is M3-01's and is registered as the Board entry in the gap register. A range " +
-                "check invented here would be a partial invariant wearing the real one's name.");
+                "position check: 30 §11.5's 'a run's position is a valid node' needs the specific " +
+                "board a specific run stands on (M3-02's, over the graph M3-01 already authored) " +
+                "and is registered as the Board entry in the gap register. A range check invented " +
+                "here would be a partial invariant wearing the real one's name.");
         }
 
         _position = position;

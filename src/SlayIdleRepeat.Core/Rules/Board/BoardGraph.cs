@@ -9,7 +9,7 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// loader (`03` §3's bypass path, FTUE / Resource Dungeons — out of this task's scope) would call
 /// instead of the generator, so that path never needs a parallel graph type.
 /// </summary>
-public sealed class Board
+internal sealed class BoardGraph
 {
     /// <summary><see cref="BoardNode.Stage"/> for the boss node — it belongs to no stage.</summary>
     public const int BossStage = 0;
@@ -21,7 +21,7 @@ public sealed class Board
     private readonly IReadOnlyList<NodeId> _spineByLinearIndex;
     private readonly IReadOnlySet<NodeId> _junctions;
 
-    private Board(
+    private BoardGraph(
         IReadOnlyDictionary<NodeId, BoardNode> nodes,
         IReadOnlyDictionary<NodeId, IReadOnlyList<BoardEdge>> outgoing,
         IReadOnlyList<NodeId> spineByLinearIndex,
@@ -101,7 +101,7 @@ public sealed class Board
     /// The spine index is empty, a node referenced by an edge or by <paramref name="spineByLinearIndex"/>
     /// is not in <paramref name="nodes"/>, or a junction id is not a node with exactly two outgoing edges.
     /// </exception>
-    public static Board FromLayout(
+    public static BoardGraph FromLayout(
         IReadOnlyList<BoardNode> nodes,
         IReadOnlyList<BoardEdge> edges,
         IReadOnlyList<NodeId> spineByLinearIndex,
@@ -165,6 +165,6 @@ public sealed class Board
         var outgoingReadOnly = outgoing.ToDictionary(
             kv => kv.Key, IReadOnlyList<BoardEdge> (kv) => kv.Value);
 
-        return new Board(nodeMap, outgoingReadOnly, spineByLinearIndex.ToArray(), junctionSet);
+        return new BoardGraph(nodeMap, outgoingReadOnly, spineByLinearIndex.ToArray(), junctionSet);
     }
 }

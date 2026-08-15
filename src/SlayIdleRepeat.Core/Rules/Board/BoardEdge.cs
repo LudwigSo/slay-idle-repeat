@@ -11,4 +11,4 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// Populated only on a <see cref="EdgeKind.Branch"/> edge — the branch's honest preview
 /// (`03` §3.1). Null on every <see cref="EdgeKind.Continue"/> edge.
 /// </param>
-public sealed record BoardEdge(NodeId From, NodeId To, EdgeKind Kind, ForkPreview? Preview = null);
+internal sealed record BoardEdge(NodeId From, NodeId To, EdgeKind Kind, ForkPreview? Preview = null);

@@ -16,4 +16,4 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// belongs to the stage its junction belongs to); <see cref="Board.BossStage"/> (<c>0</c>) for the
 /// boss node, which is not part of any stage.
 /// </param>
-public sealed record BoardNode(NodeId Id, TileKind Tile, int LinearIndex, int Stage);
+internal sealed record BoardNode(NodeId Id, TileKind Tile, int LinearIndex, int Stage);
