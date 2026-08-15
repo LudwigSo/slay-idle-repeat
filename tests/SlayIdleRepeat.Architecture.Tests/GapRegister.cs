@@ -132,10 +132,11 @@ internal static class GapRegister
     /// </summary>
     internal static readonly Gap[] Deferred =
     {
-        new("DiceRolled", "M3-04", "DieFace",
-            "30 §7 writes it as (int Sequence, DieFace Face). DieFace is the die-face vocabulary of 04, " +
-            "authored by M3-04. Inventing one here would put a guessed type under the dice, board and " +
-            "combat milestones that all read it (S6)."),
+        // 🔒 M3-04 discharged the DiceRolled entry that used to sit here: DieFace is authored
+        // (Core.Content.Dice) and Events.DiceRolled is written, so the deferral is satisfied rather
+        // than merely expired. The Surfaces transcription below still lists "DiceRolled" under
+        // 30 §7 — Undeclared() now finds it authored under Domain.EventsNamespace directly, with no
+        // entry needed to carry it.
 
         new("TileResolved", "M3-03", "TileType",
             "30 §7 writes it as (int Sequence, TileType Type, NodeId Node). Both payload types are the " +
