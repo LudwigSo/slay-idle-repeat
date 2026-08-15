@@ -536,4 +536,53 @@ public sealed class RunRehydrateTests
         run.AdUseCount("AD_REVIVE").ShouldBe(1);
         run.AdUseCount("AD_DOUBLE_CHEST").ShouldBe(0);
     }
+
+    // ---------------------------------------------------------------- M3-03c, ResolvedMinigames
+
+    /// <summary>A null resolved-minigames map is refused; an absent map is not an empty one.</summary>
+    [Fact]
+    public void A_null_ResolvedMinigames_map_is_refused()
+    {
+        var result = Run.Rehydrate(RunSnapshots.WithNull(resolvedMinigames: true));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("ResolvedMinigames is null", Case.Sensitive);
+    }
+
+    /// <summary>A blank minigame id at a position is refused: an entry names which MG_* id resolved.</summary>
+    [Fact]
+    public void A_blank_minigame_id_is_refused()
+    {
+        var result = Run.Rehydrate(
+            RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((3, ""))));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("ResolvedMinigames", Case.Sensitive);
+        result.Error.ShouldContain("blank", Case.Sensitive);
+    }
+
+    /// <summary>A position below the trailhead is refused — nothing could have resolved there.</summary>
+    [Fact]
+    public void A_resolved_minigame_below_the_trailhead_position_is_refused()
+    {
+        var result = Run.Rehydrate(
+            RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((-2, "MG_CHEST_PICK"))));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("ResolvedMinigames", Case.Sensitive);
+    }
+
+    /// <summary>A well-formed row round-trips: the position and the id both arrive as persisted.</summary>
+    [Fact]
+    public void A_well_formed_ResolvedMinigames_row_rehydrates()
+    {
+        var run = Run.Rehydrate(
+            RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames(
+                (3, "MG_CHEST_PICK"), (7, "MG_TIMING_BAR")))).Value;
+
+        run.ResolvedMinigames[3].ShouldBe("MG_CHEST_PICK");
+        run.ResolvedMinigames[7].ShouldBe("MG_TIMING_BAR");
+        run.HasResolvedMinigameAt(3).ShouldBeTrue();
+        run.HasResolvedMinigameAt(4).ShouldBeFalse();
+    }
 }

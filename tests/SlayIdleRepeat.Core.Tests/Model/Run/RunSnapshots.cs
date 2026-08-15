@@ -48,6 +48,11 @@ internal static class RunSnapshots
         new ReadOnlyDictionary<string, long>(
             entries.ToDictionary(e => e.Placement, e => e.Uses, StringComparer.Ordinal));
 
+    /// <summary>A <c>position → MG_* id</c> map of the shape M3-03c's field carries.</summary>
+    internal static IReadOnlyDictionary<int, string> ResolvedMinigames(
+        params (int Position, string MinigameId)[] entries) =>
+        new ReadOnlyDictionary<int, string>(entries.ToDictionary(e => e.Position, e => e.MinigameId));
+
     /// <summary>
     /// A valid row: chapter 1 on <see cref="DifficultyTier.NORMAL"/>, at position 0, unhurt, with no
     /// Gold, no stream ever drawn from and no ad watched.
@@ -62,7 +67,7 @@ internal static class RunSnapshots
     /// shipped value", which is what makes it readable — so the null cases get their own door rather
     /// than a sentinel every other call site would have to understand.
     /// </remarks>
-    internal static RunSnapshot WithNull(bool streams = false, bool adUses = false) =>
+    internal static RunSnapshot WithNull(bool streams = false, bool adUses = false, bool resolvedMinigames = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -76,7 +81,8 @@ internal static class RunSnapshots
             100,
             0L,
             streams ? null! : Streams(),
-            adUses ? null! : AdUses());
+            adUses ? null! : AdUses(),
+            resolvedMinigames ? null! : ResolvedMinigames());
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static RunSnapshot With(
@@ -92,7 +98,8 @@ internal static class RunSnapshots
         int? maxHp = null,
         long? gold = null,
         IReadOnlyDictionary<string, ulong>? rngStreamPositions = null,
-        IReadOnlyDictionary<string, long>? adUses = null) =>
+        IReadOnlyDictionary<string, long>? adUses = null,
+        IReadOnlyDictionary<int, string>? resolvedMinigames = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -106,5 +113,6 @@ internal static class RunSnapshots
             maxHp ?? 100,
             gold ?? 0L,
             rngStreamPositions ?? Streams(),
-            adUses ?? AdUses());
+            adUses ?? AdUses(),
+            resolvedMinigames ?? ResolvedMinigames());
 }

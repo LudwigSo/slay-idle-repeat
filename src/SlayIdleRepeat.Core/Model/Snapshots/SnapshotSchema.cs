@@ -35,8 +35,10 @@ public static class SnapshotSchema
     /// <c>PlayerSnapshot</c>. No migration is written for either: the M1 kickoff ruled that no
     /// migration code exists before soft launch and that written migrations become mandatory at M18,
     /// so a row stamped 1 is refused loudly by <c>Player.Rehydrate</c> rather than read against the
-    /// wrong layout.
+    /// wrong layout. <b>3</b> — M3-03c added <c>RunSnapshot.ResolvedMinigames</c>, `03` §6.2's
+    /// per-tile minigame legality gate (position → the <c>MG_*</c> id resolved there). Same ruling,
+    /// no migration.
     /// </para>
     /// </remarks>
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
 }
