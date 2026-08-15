@@ -182,10 +182,12 @@ public sealed class RunRehydrateTests
     /// assertion that keeps the chapter rule honest.
     /// </summary>
     /// <remarks>
-    /// <c>content/chapters/</c> is empty and its schema sits on <c>SchemasAwaitingContent</c> (M3-14).
-    /// Hard-coding <c>8</c> would put a content bound in code and be a <em>partial</em> invariant
-    /// masquerading as the real one; the deferral already has a self-expiring mechanism in
-    /// <c>RealDataSetTests</c>, and this pins that <c>Core</c> did not grow a second one.
+    /// <c>content/chapters/</c> holds only chapters 1-2 (M3-14); chapters 3-8 are M11-02's
+    /// unauthored rows, so the content set still does not span the full range and no ceiling is
+    /// derivable from it. Hard-coding <c>8</c> would put a content bound in code and be a
+    /// <em>partial</em> invariant masquerading as the real one; the deferral already has a
+    /// self-expiring mechanism in <c>RealDataSetTests</c>, and this pins that <c>Core</c> did not
+    /// grow a second one.
     /// </remarks>
     [Theory]
     [InlineData(1)]
@@ -533,5 +535,96 @@ public sealed class RunRehydrateTests
         run.StreamPosition(RngStreams.Board).ShouldBe(0UL);
         run.AdUseCount("AD_REVIVE").ShouldBe(1);
         run.AdUseCount("AD_DOUBLE_CHEST").ShouldBe(0);
+    }
+
+    // ---------------------------------------------------------------- M3-03c, ResolvedMinigames
+
+    /// <summary>A null resolved-minigames map is refused; an absent map is not an empty one.</summary>
+    [Fact]
+    public void A_null_ResolvedMinigames_map_is_refused()
+    {
+        var result = Run.Rehydrate(RunSnapshots.WithNull(resolvedMinigames: true));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("ResolvedMinigames is null", Case.Sensitive);
+    }
+
+    /// <summary>A blank minigame id at a position is refused: an entry names which MG_* id resolved.</summary>
+    [Fact]
+    public void A_blank_minigame_id_is_refused()
+    {
+        var result = Run.Rehydrate(
+            RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((3, ""))));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("ResolvedMinigames", Case.Sensitive);
+        result.Error.ShouldContain("blank", Case.Sensitive);
+    }
+
+    /// <summary>A position below the trailhead is refused — nothing could have resolved there.</summary>
+    [Fact]
+    public void A_resolved_minigame_below_the_trailhead_position_is_refused()
+    {
+        var result = Run.Rehydrate(
+            RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((-2, "MG_CHEST_PICK"))));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain("ResolvedMinigames", Case.Sensitive);
+    }
+
+    /// <summary>A well-formed row round-trips: the position and the id both arrive as persisted.</summary>
+    [Fact]
+    public void A_well_formed_ResolvedMinigames_row_rehydrates()
+    {
+        var run = Run.Rehydrate(
+            RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames(
+                (3, "MG_CHEST_PICK"), (7, "MG_TIMING_BAR")))).Value;
+
+        run.ResolvedMinigames[3].ShouldBe("MG_CHEST_PICK");
+        run.ResolvedMinigames[7].ShouldBe("MG_TIMING_BAR");
+        run.HasResolvedMinigameAt(3).ShouldBeTrue();
+        run.HasResolvedMinigameAt(4).ShouldBeFalse();
+    }
+
+    // ------------------------------------------------------------------ RequireBankedRewards faults (M3-13)
+
+    /// <summary>Banked Legend XP is a pending grant — it never goes negative.</summary>
+    [Fact]
+    public void A_negative_BankedLegendXp_is_refused()
+    {
+        var result = Run.Rehydrate(RunSnapshots.With(bankedLegendXp: -1));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedLegendXp), Case.Sensitive);
+    }
+
+    /// <summary>Banked Soul Shards are a pending grant — they never go negative.</summary>
+    [Fact]
+    public void A_negative_BankedSoulShards_is_refused()
+    {
+        var result = Run.Rehydrate(RunSnapshots.With(bankedSoulShards: -1));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedSoulShards), Case.Sensitive);
+    }
+
+    /// <summary>🔒 Faults accumulate: both pools negative reports both problems, not just the first.</summary>
+    [Fact]
+    public void Negative_banked_rewards_in_both_pools_accumulate()
+    {
+        var result = Run.Rehydrate(RunSnapshots.With(bankedLegendXp: -5, bankedSoulShards: -3));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedLegendXp), Case.Sensitive);
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedSoulShards), Case.Sensitive);
+    }
+
+    /// <summary>…and the negative control: non-negative banked rewards rehydrate and read back.</summary>
+    [Fact]
+    public void A_well_formed_banked_rewards_row_rehydrates()
+    {
+        var run = Run.Rehydrate(RunSnapshots.With(bankedLegendXp: 40, bankedSoulShards: 15)).Value;
+
+        run.BankedLegendXp.ShouldBe(40);
     }
 }

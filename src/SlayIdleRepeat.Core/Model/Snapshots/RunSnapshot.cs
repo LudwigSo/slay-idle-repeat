@@ -103,6 +103,115 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <c>AD_REVIVE</c> is what carries `02` §6's once-per-run revive, so there is no separate revive
 /// flag.
 /// </param>
+/// <param name="ResolvedMinigames">
+/// 🔒 M3-03c, SchemaVersion 3 — `03` §6.2's per-tile legality gate: linear node index → the `03` §6
+/// <c>MG_*</c> id resolved there. Sparse; a position absent from here has not had a minigame
+/// resolved at it. See <c>Run</c>'s private field of the same name for why the position stands in
+/// for a tile instance no board/pending-tile state exists to name yet.
+/// </param>
+/// <param name="PendingForkJunctionPosition">
+/// 🔒 M3-02, SchemaVersion 4, `03` §1.1 — the paused junction's identity (<see cref="Position"/>'s
+/// own units), or <c>null</c> when this run is not, right now, mid-move at a junction. One fact
+/// stored as a pair with <paramref name="PendingForkRemainingSteps"/>: both null, or both present —
+/// see <c>Run.PendingFork</c>.
+/// </param>
+/// <param name="PendingForkRemainingSteps">
+/// 🔒 M3-02, SchemaVersion 4 — how many steps of the interrupted movement remain unspent once the
+/// chosen edge is taken. <c>null</c> exactly when <paramref name="PendingForkJunctionPosition"/> is.
+/// </param>
+/// <param name="PendingTileKind">
+/// 🔒 M3-03, SchemaVersion 5 — the <c>(int)TileKind</c> of the tile the run has arrived at and not
+/// yet resolved, or <b>−1</b> for "no tile is pending".
+/// <para>
+/// ⚠️ <b>−1 is a safe sentinel rather than a guess:</b> <c>TileKind</c>'s fourteen members run
+/// <c>0..13</c> with no explicit values and therefore no negative member, so no legal kind can
+/// collide with it. A nullable <c>int?</c> would have been the other option and is deliberately not
+/// used — <c>CanonicalStateWriter</c> would gain a nullable slot in the field-order pin for a field
+/// that already has an unambiguous absent value.
+/// </para>
+/// <para>
+/// This is the seam between <em>landing</em> on a tile (M3-02's movement engine) and
+/// <em>resolving</em> it (<c>RESOLVE_TILE</c> / <c>EVENT_CHOOSE</c> / <c>CAMPFIRE_CHOOSE</c>). It is
+/// deliberately <b>not</b> `30` §4's "pending fork choice", which is a different pause at a junction
+/// and is <paramref name="PendingForkJunctionPosition"/>/<paramref name="PendingForkRemainingSteps"/>
+/// above, not this field.
+/// </para>
+/// </param>
+/// <param name="PendingTileLinearIndex">
+/// `03` §1.1's linear node index of the pending tile. Meaningless — and stored as <c>0</c> for
+/// determinism — when <paramref name="PendingTileKind"/> is −1.
+/// <para>
+/// ⚠️ Validated only against a floor of 0, for the same reason <paramref name="Position"/> is
+/// validated only against its trailhead floor: the real upper bound is a property of this run's
+/// generated board, and a range check invented here would be a partial invariant wearing the real
+/// one's name.
+/// </para>
+/// </param>
+/// <param name="PendingTileStage">
+/// `03` §1's stage the pending tile belongs to — <c>1</c>, <c>2</c>, <c>3</c>, or
+/// <c>BoardGraph.BossStage</c> for the boss node, which belongs to none. <c>0</c> when no tile is
+/// pending, which is also <c>BossStage</c>'s value and is unambiguous because
+/// <paramref name="PendingTileKind"/> is what says whether a tile is pending at all.
+/// </param>
+/// <param name="PendingEventCardId">
+/// 🔒 The `19` Part A card a pending <c>TILE_EVENT</c> has already drawn, or <c>""</c> when none has
+/// been drawn — <b>never <c>null</c></b>.
+/// <para>
+/// 🔒 <b>It exists so the card cannot be re-drawn.</b> An event resolves across two commands:
+/// <c>RESOLVE_TILE</c> draws the card and <c>EVENT_CHOOSE</c> resolves the chosen option. Without a
+/// stored id, a client that disliked its card could resubmit <c>RESOLVE_TILE</c> and draw again —
+/// a reroll `14` §8.1's whole determinism model exists to make impossible.
+/// </para>
+/// </param>
+/// <param name="Phase">
+/// 🔒 M3-05, SchemaVersion 6, `02` §1.1 — the genuine server-side subset of the run's state machine.
+/// See <see cref="Primitives.RunPhase"/> for the full ruling. Defaulted to
+/// <see cref="Primitives.RunPhase.InProgress"/> so every pre-M3-05 positional construction still
+/// compiles as the phase a run already implicitly stood at.
+/// </param>
+/// <param name="DraftPending">
+/// 🔒 M3-05, SchemaVersion 6 — the documented hook for M3-06's perk draft: true once
+/// <c>CONFIRM_BATTLE_RESULT</c> has closed a won battle and no draft command has resolved it yet.
+/// Defaulted to <c>false</c>.
+/// </param>
+/// <param name="RerollChargesSpentThisStage">
+/// 🔒 M3-05, SchemaVersion 6, `04` §3 — reroll charges spent since the run's current stage began.
+/// Reset to 0 at every Stage Gate. Defaulted to 0.
+/// </param>
+/// <param name="StageGateDiceAnchor">
+/// 🔒 M3-05, SchemaVersion 6 — the <c>dice</c> stream draw index the run's current stage began at;
+/// <see cref="SlayIdleRepeat.Core.Rules.Dice.FairDiceBag.Replay"/>'s <c>resetAtDraw</c>. Defaulted to 0, the anchor every
+/// run implicitly held before a real Stage Gate existed.
+/// </param>
+/// <param name="DraftBattleKind">
+/// 🔒 M3-06, SchemaVersion 7 — the <c>(int)TileKind</c> of the battle that set
+/// <paramref name="DraftPending"/> (Enemy, Elite or Boss), captured before
+/// <c>Handlers.ConfirmBattleResult</c> clears the pending tile it came from — `06` §4's
+/// <c>RarityWeights(stage, isElite, isBoss)</c> needs to know which battle a draft opened for after
+/// that tile is gone. <b>−1</b> ("no draft pending") when <paramref name="DraftPending"/> is false.
+/// </param>
+/// <param name="DraftBattleStage">
+/// 🔒 M3-06, SchemaVersion 7 — the stage (1, 2, 3, or <c>BoardGraph.BossStage</c>) the battle named
+/// by <paramref name="DraftBattleKind"/> belonged to. <c>0</c> when no draft is pending, which is
+/// also <c>BossStage</c>'s value and unambiguous for the same reason <paramref name="PendingTileStage"/>'s is.
+/// </param>
+/// <param name="OwnedPerkTiers">
+/// 🔒 M3-06, SchemaVersion 7, `30` §4 — the perks this run has drafted: perk id → owned internal
+/// tier (1-3). Sparse; a perk absent from here has not been drafted. Discharges
+/// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>'s <c>DraftedPerks</c> entry.
+/// </param>
+/// <param name="BankedLegendXp">
+/// 🔒 M3-13, SchemaVersion 7, `02` §5.1a — Legend XP banked so far this run, pending the run-end
+/// <c>CompletionMultiplier</c>/<c>AdDoubleMultiplier</c> payout. Never negative. Defaulted to 0.
+/// </param>
+/// <param name="BankedSoulShards">
+/// 🔒 M3-13, SchemaVersion 7, `02` §5.3 / `10` §2 — Soul Shards banked so far this run (Boss kills
+/// and the one-time first-clear grant), pending the same run-end payout. Never negative. Defaulted to 0.
+/// </param>
+/// <param name="BossDefeated">
+/// 🔒 M3-13, SchemaVersion 7, `02` §5.2 — whether this run's Boss has been killed, the Victory/Death
+/// split <c>Handlers.EndRun</c> reads. Defaulted to <c>false</c>.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -121,15 +230,20 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// </para>
 /// <para>
 /// ⚠️ <b>What `30` §4 lists on <c>Run</c> and this record does not carry.</b> §4's Run row
-/// enumerates ten things; five are here (position, HP, run Gold, RNG stream positions, per-run ad
-/// uses) and five are not: the <b>board</b>, the <b>drafted perks</b>, the <b>held consumables and
-/// armed Escape Rope flag</b>, the <b>pending fork choice</b> and the <b>curses</b>. Each is
+/// enumerates ten things; seven are here (position, HP, run Gold, RNG stream positions, per-run ad
+/// uses, and — as of SchemaVersion 4 — the pending fork choice) and three are not: the <b>drafted
+/// perks</b>, the <b>held consumables and armed Escape Rope flag</b> and the <b>curses</b>. As of
+/// SchemaVersion 5, the pending-tile fields (M3-03) also carry the landing/resolving seam a run
+/// passes through between arriving at a tile and resolving it. Each of the three still-missing items
+/// is
 /// deferred with an entry in <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c> keyed on a type
 /// that must not yet exist, so the build fails on the day each becomes writable rather than the hole
-/// waiting to be noticed. The run's <b>phase</b> (`02` §1.1's state machine) is deferred too, for a
-/// sharper reason: §1.1's diagram is a <em>client presentation</em> machine while `14` §2.3's
-/// <c>ROLL_DICE</c> answers face, movement and landing in one command, so which of its states are
-/// server-side aggregate state is M3-05's ruling.
+/// waiting to be noticed. The <b>board</b> is never stored at all — M3-02 regenerates it
+/// deterministically from <see cref="RunSeed"/> and <see cref="RngStreamPositions"/>'s <c>board</c>
+/// entry on every command, so there is nothing for a snapshot field to hold. The run's <b>phase</b>
+/// (`02` §1.1's state machine) is deferred too, for a sharper reason: §1.1's diagram is a <em>client
+/// presentation</em> machine while `14` §2.3's <c>ROLL_DICE</c> answers face, movement and landing
+/// in one command, so which of its states are server-side aggregate state is M3-05's ruling.
 /// </para>
 /// <para>
 /// ⚠️ <b>Two deliberate omissions with their costs named.</b> There is no <c>sequence</c>: `14`
@@ -160,4 +274,21 @@ public sealed record RunSnapshot(
     int MaxHp,
     long Gold,
     IReadOnlyDictionary<string, ulong> RngStreamPositions,
-    IReadOnlyDictionary<string, long> AdUses);
+    IReadOnlyDictionary<string, long> AdUses,
+    IReadOnlyDictionary<int, string> ResolvedMinigames,
+    int? PendingForkJunctionPosition,
+    int? PendingForkRemainingSteps,
+    int PendingTileKind,
+    int PendingTileLinearIndex,
+    int PendingTileStage,
+    string PendingEventCardId,
+    RunPhase Phase = RunPhase.InProgress,
+    bool DraftPending = false,
+    int RerollChargesSpentThisStage = 0,
+    ulong StageGateDiceAnchor = 0,
+    int DraftBattleKind = -1,
+    int DraftBattleStage = 0,
+    IReadOnlyDictionary<string, int>? OwnedPerkTiers = null,
+    long BankedLegendXp = 0,
+    long BankedSoulShards = 0,
+    bool BossDefeated = false);

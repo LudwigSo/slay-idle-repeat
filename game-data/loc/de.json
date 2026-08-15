@@ -113,6 +113,22 @@
     "loc.elite_modifier.shielded.name": "##TODO_DE## Shielded",
     "loc.elite_modifier.swift.name": "##TODO_DE## Swift",
     "loc.elite_modifier.cursed.name": "##TODO_DE## Cursed",
-    "loc.elite_modifier.reflective.name": "##TODO_DE## Reflective"
+    "loc.elite_modifier.reflective.name": "##TODO_DE## Reflective",
+
+    "loc.chapter.1.name": "##TODO_DE## Greenwood Vale",
+    "loc.chapter.2.name": "##TODO_DE## Ashen Mire",
+
+    "loc.curse.slippery.name": "##TODO_DE## Slippery",
+    "loc.curse.marked.name": "##TODO_DE## Marked",
+    "loc.curse.dizzy.name": "##TODO_DE## Dizzy",
+    "loc.curse.fractured.name": "##TODO_DE## Fractured",
+    "loc.curse.hunted.name": "##TODO_DE## Hunted",
+    "loc.curse.untimely.name": "##TODO_DE## Untimely",
+    "loc.curse.famished.name": "##TODO_DE## Famished",
+    "loc.curse.brittle_bones.name": "##TODO_DE## Brittle Bones",
+    "loc.curse.miserly.name": "##TODO_DE## Miserly",
+    "loc.curse.blind.name": "##TODO_DE## Blind",
+    "loc.curse.leadfoot.name": "##TODO_DE## Leadfoot",
+    "loc.curse.tithe.name": "##TODO_DE## Tithe"
   }
 }

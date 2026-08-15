@@ -171,6 +171,10 @@ public sealed class PlayerSnapshotTests
             (nameof(PlayerSnapshot.LoginCalendarDay), v, PlayerSnapshots.With(loginCalendarDay: 2)),
             (nameof(PlayerSnapshot.LoginCalendarDayClaimed), v,
                 PlayerSnapshots.With(loginCalendarDayClaimed: true)),
+
+            // 🔒 M3-13's first-clear gate.
+            (nameof(PlayerSnapshot.ClearedChapterTiers), v,
+                PlayerSnapshots.With(clearedChapterTiers: PlayerSnapshots.Counters(("1:NORMAL", 1)))),
         };
 
         var invisible = probes

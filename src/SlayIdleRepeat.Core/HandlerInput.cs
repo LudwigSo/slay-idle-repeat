@@ -53,6 +53,9 @@ internal sealed class HandlerInput
     /// </summary>
     private MetaDrawScope? _metaDraws;
 
+    /// <summary>The run <see cref="OpenRun"/> attached, or <c>null</c> until it is called.</summary>
+    private Run? _openedRun;
+
     internal HandlerInput(WorldSlice state, GameContext context, RunRngScope? rng)
     {
         State = state;
@@ -71,6 +74,70 @@ internal sealed class HandlerInput
 
     /// <summary>The player. Always present — `30` §4 makes <c>Run</c> a child of <c>Player</c>.</summary>
     internal Player Player => State.Player;
+
+    /// <summary>
+    /// 🔒 M3-15's narrow door: the run <see cref="OpenRun"/> attached, for
+    /// <see cref="GameRules.Execute"/> to fold into the slice it returns — or <c>null</c> on every
+    /// command but <c>START_RUN</c>, which never calls it.
+    /// </summary>
+    internal Run? OpenedRun => _openedRun;
+
+    /// <summary>
+    /// 🔒 The <b>one</b> seam that lets a handler attach the <c>Run</c> it just created onto this
+    /// command's result. Exists solely for <c>START_RUN</c> (M3-15).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="WorldSlice.Run"/> is <c>init</c>-only — `30` §4.1 makes the slice a pair of
+    /// references a handler mutates the <em>aggregates</em> of, never the slice's own shape — so a
+    /// handler cannot write <see cref="State"/>'s <c>Run</c> directly, and <c>State</c> itself has no
+    /// setter for the same reason. Every one of the other 18 <c>CommandKind.Run</c> rows never needs
+    /// this: <see cref="GameRules.Execute"/> refuses them a run-less slice before a handler is ever
+    /// called (`30` §4.1's loading defect), so their <c>Run</c> already exists by the time they run.
+    /// <c>START_RUN</c> is the one row whose whole job is to create the <c>Run</c> that guard would
+    /// otherwise demand, and its dispatch row is the one row marked
+    /// <see cref="CommandRegistration.OpensRun"/> — see <c>Execute</c>, which is the only reader of
+    /// <see cref="OpenedRun"/> and folds it into the slice it returns exactly where every other run
+    /// command's <c>RunRngScope</c> is folded back.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Refused twice over</b>, and both refusals are defects rather than rejections: a handler
+    /// that reaches this seam with a slice that already carries a <c>Run</c>, or that calls it twice,
+    /// has miswired the one command that may call it at all. <c>StartRun.Handle</c> rejects an
+    /// <em>already-active</em> run itself, as a domain-tier <c>RejectionReason</c>, before ever
+    /// reaching here — the player's request is illegal, not the caller's wiring — so a defect surfacing
+    /// here means the handler skipped that check.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// This command's slice already carries a <c>Run</c>, or this seam has already been called once.
+    /// </exception>
+    internal void OpenRun(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+
+        if (State.Run is not null)
+        {
+            throw new InvalidOperationException(
+                "HandlerInput.OpenRun was called on a command whose slice ALREADY carries a Run. " +
+                "This seam exists for START_RUN (M3-15) to attach the Run it just created onto a " +
+                "run-less slice; a slice that already has one means either a handler other than " +
+                "START_RUN's reached this seam, or START_RUN's own already-active-run check " +
+                "(a RejectionReason, not this exception) was skipped.");
+        }
+
+        if (_openedRun is not null)
+        {
+            throw new InvalidOperationException(
+                "HandlerInput.OpenRun was called twice by the same handler. A command opens at most " +
+                "one Run; calling this seam a second time would silently discard the first Run it " +
+                "attached, which is the same shape as a handler hand-writing an RNG counter — a " +
+                "determinism defect Apply's fold exists to make unreachable, not to paper over.");
+        }
+
+        _openedRun = run;
+    }
 
     /// <summary>
     /// The run this command acts inside.

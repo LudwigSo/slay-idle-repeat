@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.TestSupport;
 using Xunit;
 
@@ -25,7 +26,10 @@ public sealed class RunSnapshotTests
         gold: 1_450,
         rngStreamPositions: RunSnapshots.Streams(
             (RngStreams.Dice, 12UL), (RngStreams.Board, 8UL), (RngStreams.Combat, 3UL)),
-        adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)));
+        adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)),
+        resolvedMinigames: RunSnapshots.ResolvedMinigames((3, "MG_CHEST_PICK"), (11, "MG_TIMING_BAR")),
+        pendingForkJunctionPosition: 19,
+        pendingForkRemainingSteps: 2);
 
     /// <summary>
     /// 🔒 The <c>stateHash</c> of a <b>run</b> command (`14` §16.6): the player snapshot then the
@@ -73,6 +77,9 @@ public sealed class RunSnapshotTests
         round.Gold.ShouldBe(Populated.Gold);
         round.RngStreamPositions.ShouldBe(Populated.RngStreamPositions, ignoreOrder: true);
         round.AdUses.ShouldBe(Populated.AdUses, ignoreOrder: true);
+        round.ResolvedMinigames.ShouldBe(Populated.ResolvedMinigames, ignoreOrder: true);
+        round.PendingForkJunctionPosition.ShouldBe(Populated.PendingForkJunctionPosition);
+        round.PendingForkRemainingSteps.ShouldBe(Populated.PendingForkRemainingSteps);
     }
 
     /// <summary>
@@ -153,6 +160,55 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.Gold), v, RunSnapshots.With(gold: 1)),
             (nameof(RunSnapshot.RngStreamPositions), v, RunSnapshots.With(rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, 1UL)))),
             (nameof(RunSnapshot.AdUses), v, RunSnapshots.With(adUses: RunSnapshots.AdUses(("AD_REVIVE", 1)))),
+            (nameof(RunSnapshot.ResolvedMinigames), v,
+                RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((0, "MG_CHEST_PICK")))),
+            (nameof(RunSnapshot.PendingForkJunctionPosition), v,
+                RunSnapshots.With(pendingForkJunctionPosition: 3)),
+            (nameof(RunSnapshot.PendingForkRemainingSteps), v,
+                RunSnapshots.With(pendingForkRemainingSteps: 1)),
+
+            // 🔒 M3-03's four pending-tile fields. The three that describe the tile are probed
+            // TOGETHER WITH a pending kind rather than in isolation, because Run.Rehydrate refuses a
+            // row that carries an index or a stage with nothing pending — a probe of the index alone
+            // would move the hash of a row no run could ever be in, which proves nothing about the
+            // rows runs actually persist.
+            (nameof(RunSnapshot.PendingTileKind), v,
+                RunSnapshots.OnPendingTile((int)TileKind.Empty)),
+            (nameof(RunSnapshot.PendingTileLinearIndex),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, linearIndex: 7),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, linearIndex: 8)),
+            (nameof(RunSnapshot.PendingTileStage),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, stage: 1),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, stage: 2)),
+            (nameof(RunSnapshot.PendingEventCardId),
+                RunSnapshots.OnPendingTile((int)TileKind.Event),
+                RunSnapshots.OnPendingTile((int)TileKind.Event, eventCardId: "EVT_WELL")),
+
+            // 🔒 M3-05's four fields.
+            (nameof(RunSnapshot.Phase), v, RunSnapshots.With(phase: RunPhase.BattlePending)),
+            (nameof(RunSnapshot.DraftPending), v, RunSnapshots.With(draftPending: true)),
+            (nameof(RunSnapshot.RerollChargesSpentThisStage), v,
+                RunSnapshots.With(rerollChargesSpentThisStage: 1)),
+            (nameof(RunSnapshot.StageGateDiceAnchor), v, RunSnapshots.With(stageGateDiceAnchor: 5UL)),
+
+            // 🔒 M3-06's DraftBattleKind/DraftBattleStage, on the pending-tile probes' own precedent
+            // above: Run.Rehydrate's RequireDraftBattle refuses a row that carries a kind or stage
+            // with no draft pending, so each is probed TOGETHER WITH DraftPending true rather than
+            // in isolation against `v` — a probe that varied the field alone would move the hash of
+            // a row no run could ever be in.
+            (nameof(RunSnapshot.DraftBattleKind),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 1),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Elite, draftBattleStage: 1)),
+            (nameof(RunSnapshot.DraftBattleStage),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 1),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 2)),
+            (nameof(RunSnapshot.OwnedPerkTiers), v,
+                RunSnapshots.With(ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("PK_SHARP_EDGE", 1)))),
+
+            // 🔒 M3-13's three fields.
+            (nameof(RunSnapshot.BankedLegendXp), v, RunSnapshots.With(bankedLegendXp: 5L)),
+            (nameof(RunSnapshot.BankedSoulShards), v, RunSnapshots.With(bankedSoulShards: 5L)),
+            (nameof(RunSnapshot.BossDefeated), v, RunSnapshots.With(bossDefeated: true)),
         };
 
         var invisible = probes

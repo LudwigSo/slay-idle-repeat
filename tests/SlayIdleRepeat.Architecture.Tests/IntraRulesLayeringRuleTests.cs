@@ -50,6 +50,15 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M1's energy accrual/spend math — outside the Combat/Stats/Effects ordering entirely.</summary>
     internal const string EconomyNamespace = "SlayIdleRepeat.Core.Rules.Economy";
 
+    /// <summary>M3-04's die math — outside the Combat/Stats/Effects ordering entirely, like <see cref="EconomyNamespace"/>.</summary>
+    internal const string DiceNamespace = "SlayIdleRepeat.Core.Rules.Dice";
+
+    /// <summary>M3-01's board DAG + generator — outside the Combat/Stats/Effects ordering entirely.</summary>
+    internal const string BoardNamespace = "SlayIdleRepeat.Core.Rules.Board";
+
+    /// <summary>M3-06's draft rarity weights/composition seams — outside the ordering entirely, like <see cref="BoardNamespace"/>.</summary>
+    internal const string PerksNamespace = "SlayIdleRepeat.Core.Rules.Perks";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -93,6 +102,58 @@ public sealed class IntraRulesLayeringRuleTests
         (EconomyNamespace, CombatNamespace,
             "Economy is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — energy accrual/spend math has no current reason to read the combat simulator."),
+
+        // 🔒 M3-04's Dice namespace, pinned OUTSIDE the ordering the same way Economy is, and for
+        // the same reason: FairDiceBag/FaceEffectResolver/DieComposer/RerollEconomy are pure die
+        // arithmetic with ZERO current coupling to Combat/Stats/Effects in either direction. The
+        // MODIFY_DIE_FACE resolver a future ResolveTileCommand handler calls
+        // (DiceForgeUpgradeResolver) reads Content.Dice only, not the effect DSL's resolver layer —
+        // 18's interpreter calls INTO the dice system when M3-03 wires TILE_DICE_FORGE, which is the
+        // direction these edges leave open by forbidding only the reverse.
+        (DiceNamespace, EffectsNamespace,
+            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — die-face arithmetic has no current reason to read the effect DSL's resolver."),
+        (DiceNamespace, StatsNamespace,
+            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — die-face arithmetic has no current reason to read stat aggregation."),
+        (DiceNamespace, CombatNamespace,
+            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — die-face arithmetic has no current reason to read the combat simulator."),
+
+        // 🔒 M3-01 added Rules/Board/ (the board DAG + GenerateBoard). Verified by inspection, same
+        // as Economy above: BoardGenerator's only Core dependency outside its own namespace is
+        // Rules.Board itself plus Rng (DeterministicRng, RngStreams) — zero current coupling to
+        // Combat/Stats/Effects in either direction. Board is a graph-shape/content-placement
+        // concern; it has no business reading combat stats or the effect DSL, and EnemyPower(i)
+        // reads Board's linear index as a plain int rather than Board naming Rules.Combat, so the
+        // dependency (when M3-03's tile resolvers need it) runs the other way. Pinned as a fourth
+        // independent leaf rather than guessed into the Combat/Stats/Effects ordering, for the same
+        // reason Economy was.
+        (BoardNamespace, EffectsNamespace,
+            "Board is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — board generation has no current reason to read the effect DSL."),
+        (BoardNamespace, StatsNamespace,
+            "Board is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — board generation has no current reason to read stat aggregation."),
+        (BoardNamespace, CombatNamespace,
+            "Board is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — board generation has no current reason to read the combat simulator."),
+
+        // 🔒 M3-06's Rules/Perks/ (DraftRarityWeights, DraftCompositionRules, PerkDraftEngine),
+        // pinned OUTSIDE the ordering the same way Board is, for the same reason: the draft engine's
+        // only Core dependencies outside its own namespace are Content.Perks, Model and Rng — zero
+        // current coupling to Combat/Stats/Effects in either direction. Drafting a perk chooses an
+        // id and a tier; it never evaluates what a tier's effects do (see PerkCatalogueEntry's own
+        // remarks for why the DSL is deliberately not read here).
+        (PerksNamespace, EffectsNamespace,
+            "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the draft engine has no current reason to read the effect DSL's resolver."),
+        (PerksNamespace, StatsNamespace,
+            "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the draft engine has no current reason to read stat aggregation."),
+        (PerksNamespace, CombatNamespace,
+            "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the draft engine has no current reason to read the combat simulator."),
     };
 
     /// <summary>

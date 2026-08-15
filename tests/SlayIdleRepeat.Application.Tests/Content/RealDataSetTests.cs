@@ -48,14 +48,14 @@ public sealed partial class RealDataSetTests
     }
 
     [Fact]
-    public void The_only_schemas_governing_nothing_are_the_two_whose_content_has_an_owner_and_a_milestone()
+    public void The_only_schema_governing_nothing_is_the_one_whose_content_has_an_owner_and_a_milestone()
     {
+        // schema/chapter.schema.json left this list on the commit that landed
+        // content/chapters/CH_01_GREENWOOD_VALE.json and CH_02_ASHEN_MIRE.json (M3-14); chapters
+        // 3-8 remain unauthored and are M11-02's rows, not a second exemption here.
         ContentLoader.SchemasAwaitingContent.ShouldBe(
         [
-            // 14 §6 (the schema example) / 19 — content/chapters/*.json is authored by M2.
-            "schema/chapter.schema.json",
-
-            // 26 §2 — one live-ops event package. content/liveops_events/*.json is authored by M11.
+            // 26 §2 — one live-ops event package. content/liveops_events/*.json is authored by M13-06.
             "schema/event.schema.json",
         ]);
     }
@@ -97,39 +97,43 @@ public sealed partial class RealDataSetTests
     }
 
     /// <summary>
-    /// 🔒 The self-expiry, stated over the path <c>chapter.schema.json</c>'s own <c>title</c> claims
-    /// (<c>content/chapters/*.json</c>) and <c>game-data/README.md</c> declares — not over
-    /// a singular <c>content/chapter.json</c> that contradicts both and exists only because it was
-    /// the one shape a stem-based pairing could reach.
+    /// 🔒 The self-expiry, stated over the path <c>event.schema.json</c>'s own <c>title</c> claims
+    /// (<c>content/liveops_events/*.json</c>) and <c>game-data/README.md</c> declares. Exercised
+    /// against <c>event.schema.json</c> rather than <c>chapter.schema.json</c> now that the latter's
+    /// exemption has itself expired for real — M3-14 landed content/chapters/CH_01_GREENWOOD_VALE.json
+    /// and CH_02_ASHEN_MIRE.json, so <c>ContentLoader.SchemasAwaitingContent</c> no longer names it —
+    /// but the mechanism this case pins is general, not specific to either schema.
     /// </summary>
     [Fact]
     public void An_exemption_that_outlived_its_milestone_fails_the_build()
     {
-        var source = RepoData.Source().Set("content/chapters/CH_01_EMBERFALL.json", """
-        { "$schema": "../../schema/chapter.schema.json" }
+        var source = RepoData.Source().Set("content/liveops_events/EVT_FIRST.json", """
+        { "$schema": "../../schema/event.schema.json" }
         """);
 
         ContentLoader.Load(source).Issues.ShouldContain(i =>
-            i.Code == ContentIssueCode.OrphanSchema && i.Location == "schema/chapter.schema.json");
+            i.Code == ContentIssueCode.OrphanSchema && i.Location == "schema/event.schema.json");
     }
 
     /// <summary>
     /// 🔒 Many files, one type schema. Under the stem rule each of these would demand
-    /// <c>schema/CH_0n_….schema.json</c> — a <c>MissingSchema</c> per chapter the day M3-14 lands.
+    /// <c>schema/CH_0n_….schema.json</c> — a <c>MissingSchema</c> per chapter, and the real content
+    /// set (M3-14's <c>CH_01_GREENWOOD_VALE.json</c> / <c>CH_02_ASHEN_MIRE.json</c>) proves the
+    /// directory-pairing rule holds for more than one file per type alongside a malformed sibling.
     /// </summary>
     [Fact]
     public void Every_file_in_a_content_directory_pairs_with_the_one_schema_for_that_content_type()
     {
         var source = RepoData.Source()
-            .Set("content/chapters/CH_01_EMBERFALL.json", """{ "id": 1 }""")
-            .Set("content/chapters/CH_02_DUSKMIRE.json", """{ "id": 2 }""");
+            .Set("content/chapters/CH_03_EMBERFALL.json", """{ "id": 3 }""")
+            .Set("content/chapters/CH_04_DUSKMIRE.json", """{ "id": 4 }""");
 
         var issues = ContentLoader.Load(source).Issues;
 
         issues.ShouldNotContain(i => i.Code == ContentIssueCode.MissingSchema);
         issues.ShouldContain(i =>
             i.Code == ContentIssueCode.SchemaViolation &&
-            i.Location.StartsWith("content/chapters/CH_02_DUSKMIRE.json#", StringComparison.Ordinal),
+            i.Location.StartsWith("content/chapters/CH_04_DUSKMIRE.json#", StringComparison.Ordinal),
             "both files were validated against schema/chapter.schema.json, whose required keys they lack");
     }
 

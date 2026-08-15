@@ -48,6 +48,20 @@ internal static class RunSnapshots
         new ReadOnlyDictionary<string, long>(
             entries.ToDictionary(e => e.Placement, e => e.Uses, StringComparer.Ordinal));
 
+    /// <summary>A <c>position → MG_* id</c> map of the shape M3-03c's field carries.</summary>
+    internal static IReadOnlyDictionary<int, string> ResolvedMinigames(
+        params (int Position, string MinigameId)[] entries) =>
+        new ReadOnlyDictionary<int, string>(entries.ToDictionary(e => e.Position, e => e.MinigameId));
+
+    /// <summary>A <c>perk id → owned tier</c> map of the shape M3-06's field carries.</summary>
+    internal static IReadOnlyDictionary<string, int> OwnedPerkTiers(
+        params (string PerkId, int Tier)[] entries) =>
+        new ReadOnlyDictionary<string, int>(
+            entries.ToDictionary(e => e.PerkId, e => e.Tier, StringComparer.Ordinal));
+
+    /// <summary>M3-06 — <c>RunSnapshot.DraftBattleKind</c>'s "no draft pending" sentinel.</summary>
+    internal const int NoDraftBattleKind = -1;
+
     /// <summary>
     /// A valid row: chapter 1 on <see cref="DifficultyTier.NORMAL"/>, at position 0, unhurt, with no
     /// Gold, no stream ever drawn from and no ad watched.
@@ -62,7 +76,7 @@ internal static class RunSnapshots
     /// shipped value", which is what makes it readable — so the null cases get their own door rather
     /// than a sentinel every other call site would have to understand.
     /// </remarks>
-    internal static RunSnapshot WithNull(bool streams = false, bool adUses = false) =>
+    internal static RunSnapshot WithNull(bool streams = false, bool adUses = false, bool resolvedMinigames = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -76,7 +90,14 @@ internal static class RunSnapshots
             100,
             0L,
             streams ? null! : Streams(),
-            adUses ? null! : AdUses());
+            adUses ? null! : AdUses(),
+            resolvedMinigames ? null! : ResolvedMinigames(),
+            PendingForkJunctionPosition: null,
+            PendingForkRemainingSteps: null,
+            NoPendingTile,
+            0,
+            0,
+            NoPendingEventCard);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static RunSnapshot With(
@@ -92,7 +113,24 @@ internal static class RunSnapshots
         int? maxHp = null,
         long? gold = null,
         IReadOnlyDictionary<string, ulong>? rngStreamPositions = null,
-        IReadOnlyDictionary<string, long>? adUses = null) =>
+        IReadOnlyDictionary<string, long>? adUses = null,
+        IReadOnlyDictionary<int, string>? resolvedMinigames = null,
+        int? pendingForkJunctionPosition = null,
+        int? pendingForkRemainingSteps = null,
+        int? pendingTileKind = null,
+        int? pendingTileLinearIndex = null,
+        int? pendingTileStage = null,
+        string? pendingEventCardId = null,
+        RunPhase? phase = null,
+        bool? draftPending = null,
+        int? rerollChargesSpentThisStage = null,
+        ulong? stageGateDiceAnchor = null,
+        int? draftBattleKind = null,
+        int? draftBattleStage = null,
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
+        long? bankedLegendXp = null,
+        long? bankedSoulShards = null,
+        bool? bossDefeated = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -106,5 +144,49 @@ internal static class RunSnapshots
             maxHp ?? 100,
             gold ?? 0L,
             rngStreamPositions ?? Streams(),
-            adUses ?? AdUses());
+            adUses ?? AdUses(),
+            resolvedMinigames ?? ResolvedMinigames(),
+            pendingForkJunctionPosition,
+            pendingForkRemainingSteps,
+            pendingTileKind ?? NoPendingTile,
+            pendingTileLinearIndex ?? 0,
+            pendingTileStage ?? 0,
+            pendingEventCardId ?? NoPendingEventCard,
+            phase ?? RunPhase.InProgress,
+            draftPending ?? false,
+            rerollChargesSpentThisStage ?? 0,
+            stageGateDiceAnchor ?? 0,
+            draftBattleKind ?? NoDraftBattleKind,
+            draftBattleStage ?? 0,
+            ownedPerkTiers ?? OwnedPerkTiers(),
+            bankedLegendXp ?? 0,
+            bankedSoulShards ?? 0,
+            bossDefeated ?? false);
+
+    /// <summary>
+    /// M3-03 — <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here for
+    /// the reason <c>StartRun</c> restates it: <c>Run</c>'s own constant is private, and this is a
+    /// fixture writing a snapshot.
+    /// </summary>
+    internal const int NoPendingTile = -1;
+
+    /// <summary>M3-03 — <c>RunSnapshot.PendingEventCardId</c>'s "no card drawn" value.</summary>
+    internal const string NoPendingEventCard = "";
+
+    /// <summary>
+    /// The valid row standing on an unresolved tile of <paramref name="tileKind"/>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Takes the tile kind as an <c>int</c> rather than a <c>TileKind</c>, because
+    /// <c>Rules.Board.TileKind</c> is <c>internal</c> to <c>Core</c> and reachable from the test
+    /// assembly only through the `30` §11.3 <c>InternalsVisibleTo</c> grant — the snapshot itself
+    /// stores an <c>int</c> for the same accessibility reason, so the fixture mirrors the row.
+    /// </remarks>
+    internal static RunSnapshot OnPendingTile(
+        int tileKind, int linearIndex = 7, int stage = 1, string? eventCardId = null) =>
+        With(
+            pendingTileKind: tileKind,
+            pendingTileLinearIndex: linearIndex,
+            pendingTileStage: stage,
+            pendingEventCardId: eventCardId ?? NoPendingEventCard);
 }

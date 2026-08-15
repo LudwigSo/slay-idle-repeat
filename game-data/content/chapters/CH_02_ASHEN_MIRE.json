@@ -1,0 +1,20 @@
+{
+  "id": 2,
+  "displayName": "loc.chapter.2.name",
+  "biomeArtSet": "biome_mire",
+  "paletteId": "pal_mire",
+  "musicId": "mus_ch2_mire",
+  "powerTarget": 2000,
+  "stageLengths": [12, 14, 16],
+  "eliteCount": [1, 2, 2],
+  "tileWeights": [
+    { "TILE_ENEMY": 34, "TILE_EMPTY": 6, "TILE_SHRINE": 9, "TILE_TREASURE": 8, "TILE_EVENT": 8, "TILE_MINIGAME": 7, "TILE_CURSE": 9, "TILE_SHOP": 5, "TILE_ELITE": 7, "TILE_CACHE": 3, "TILE_PORTAL": 2, "TILE_DICE_FORGE": 2 },
+    { "TILE_ENEMY": 34, "TILE_EMPTY": 4, "TILE_SHRINE": 9, "TILE_TREASURE": 8, "TILE_EVENT": 8, "TILE_MINIGAME": 7, "TILE_CURSE": 10, "TILE_SHOP": 5, "TILE_ELITE": 8, "TILE_CACHE": 3, "TILE_PORTAL": 2, "TILE_DICE_FORGE": 2 },
+    { "TILE_ENEMY": 34, "TILE_EMPTY": 2, "TILE_SHRINE": 9, "TILE_TREASURE": 8, "TILE_EVENT": 8, "TILE_MINIGAME": 7, "TILE_CURSE": 11, "TILE_SHOP": 5, "TILE_ELITE": 9, "TILE_CACHE": 3, "TILE_PORTAL": 2, "TILE_DICE_FORGE": 2 }
+  ],
+  "enemyPool": { "GRUNT": 25, "SWARM": 15, "BRUTE": 10, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 20, "LEECH": 15, "REAVER": 0 },
+  "elitePool": ["EL_BOGFATHER", "EL_MIRESTALKER"],
+  "bossId": "BOSS_GULGROT",
+  "lootTable": "LT_CH2",
+  "unlockCondition": { "clearChapter": 1, "tier": "NORMAL" }
+}

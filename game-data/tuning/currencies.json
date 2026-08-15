@@ -48,6 +48,14 @@
       "beastFeedBase": 25,
       "eggChance": 0.06
     },
+    "campfire": {
+      "_doc": "03 §2 — the campfire's rest option heals healPctMaxHp of Max HP. Flat across chapters: it is a share of a run-scoped maximum, so it takes no M(c) or G(c) scalar. The campfire's other two options (upgrade a perk tier, +2 Reroll Charges) move no currency and are authored where those systems are.",
+      "healPctMaxHp": 0.4
+    },
+    "stageGate": {
+      "_doc": "03 §1.1 — landing on a stage's last node heals healPctMaxHp of Max HP, refreshes reroll charges to the stage's base allotment and resets the Fair-Dice bag's reset anchor. Flat across chapters, for the same reason campfire is: a share of a run-scoped maximum takes no M(c) or G(c) scalar.",
+      "healPctMaxHp": 0.15
+    },
     "shrineBuffPool": {
       "_doc": "03 §7a.5 — a shrine offers 2 distinct options drawn seeded (stream 'shrine', equal weights) from this pool of 10. Buffs are permanent for the run and stack additively. Cleanse rule: with at least one active cleansable curse, option slot 2 is always a Cleanse.",
       "seedStream": "shrine",
@@ -195,6 +203,16 @@
       { "soulShards": 20 }
     ],
     "allThreeBonusChest": true
+  },
+  "draftEconomy": {
+    "_doc": "M3-06, 06 §1 — the perk draft's skip/reroll economy. No tuning data existed for this before M3-06: SkipDraftCommand's own XML doc comment cited '60 Gold skip + free reroll' as prose, not authored data. skipGoldReward (60) is that one number, transcribed rather than re-guessed. rerollGoldCost has no authored number anywhere in the repo; M3-06 picked the smallest defensible extension -- reusing the one known magnitude (60) rather than inventing a second, unrelated figure -- and flags it explicitly as a placeholder for the balance team to retune against the economy simulator once it exists, not a ruling.",
+    "skipGoldReward": 60,
+    "rerollGoldCost": 60
+  },
+  "boardGeneration": {
+    "_doc": "M3-01, 03 §3.1 — the fork-label bias table names which tile kinds each of the four labels (Perilous/Sheltered/Arcane/Feral) boost or suppress on the branch they govern, but the document states no magnitude for either direction. M3-01 picked 2.5x/0.2x as the smallest defensible pair that reads as a real bias without flattening the branch's other weights, and flagged it as a placeholder for the balance team to retune against the economy simulator, not a ruling. Milestone-review architecture pass (M3): moved out of a Core constant into this file so the same judgment-call-magnitude pattern as draftEconomy's rerollGoldCost applies here too.",
+    "forkBiasPlusMultiplier": 2.5,
+    "forkBiasMinusMultiplier": 0.2
   },
   "loginCalendar": {
     "_doc": "19 Part G — the 28-day cycle. Advances at BEGIN_SESSION, not by date; it advances at most once per game day and only when the currently open day has been claimed. Crown and Merge Dust values are Chapter-1 base and scale by the adBundleScalar. Pet Eggs are EGG_PET; day-14/28 S-tier chests are CHEST_PREMIUM.",

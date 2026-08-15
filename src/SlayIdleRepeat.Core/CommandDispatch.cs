@@ -55,7 +55,17 @@ internal sealed class CommandDispatch
     /// <param name="wireName">🔒 `14` §2.3's <c>SCREAMING_SNAKE</c> id. The one place it is declared.</param>
     /// <param name="kind">Whether the command runs inside a run — see <see cref="CommandKind"/>.</param>
     /// <param name="handler">The handler. Receives the cloned, time-advanced slice.</param>
-    internal CommandDispatch Handled<TCommand>(string wireName, CommandKind kind, CommandHandler<TCommand> handler)
+    /// <param name="opensRun">
+    /// 🔒 M3-15's exemption, and it defaults <c>false</c> for every row but one. <see cref="GameRules.Execute"/>
+    /// refuses a <c>CommandKind.Run</c> command on a run-less slice as a loading defect (`30` §4.1) —
+    /// correctly for 18 of the 19 run rows, whose slice must already carry the <c>Run</c> they act on.
+    /// <c>START_RUN</c> is the one row that <b>creates</b> the run its own kind would otherwise demand,
+    /// so it is the one row that passes <c>true</c> here: the guard is narrowed for this row alone, not
+    /// weakened generally, and <see cref="HandlerInput.OpenRun"/> is the only seam a handler this flag
+    /// admits may reach.
+    /// </param>
+    internal CommandDispatch Handled<TCommand>(
+        string wireName, CommandKind kind, CommandHandler<TCommand> handler, bool opensRun = false)
         where TCommand : GameCommand
     {
         ArgumentNullException.ThrowIfNull(handler);
@@ -65,7 +75,8 @@ internal sealed class CommandDispatch
             wireName,
             kind,
             (command, input) => handler((TCommand)command, input),
-            DeferredTo: null));
+            DeferredTo: null,
+            OpensRun: opensRun));
     }
 
     /// <summary>
@@ -129,7 +140,8 @@ internal sealed class CommandDispatch
             wireName,
             kind,
             Handler: null,
-            DeferredTo: owner));
+            DeferredTo: owner,
+            OpensRun: false));
     }
 
     /// <summary>The registration for a command type, or <c>null</c> when nothing registered it.</summary>
@@ -299,12 +311,22 @@ internal delegate HandlerResult CommandHandler<in TCommand>(TCommand command, Ha
 /// The milestone task that will implement it, or <c>null</c> when it is handled today. Exactly one
 /// of this and <paramref name="Handler"/> is non-null.
 /// </param>
+/// <param name="OpensRun">
+/// 🔒 M3-15 — <c>true</c> for exactly one row, <c>START_RUN</c>. <see cref="GameRules.Execute"/>'s
+/// run-less-slice guard is <c>CommandKind.Run &amp;&amp; state.Run is null</c>, and it is a loading
+/// defect for every row except this one: <c>START_RUN</c>'s whole job is to create the <c>Run</c> its
+/// own kind would otherwise demand before it exists. Declared on the row rather than tested by command
+/// type in <c>Execute</c>, for the same reason <c>WireName</c> and <c>Kind</c> are: it keeps the fact
+/// where the other two facts about a row already live, and it is what lets <c>Execute</c> stay generic
+/// over every row rather than naming <c>StartRunCommand</c> by hand.
+/// </param>
 internal sealed record CommandRegistration(
     Type CommandType,
     string WireName,
     CommandKind Kind,
     Func<GameCommand, HandlerInput, HandlerResult>? Handler,
-    string? DeferredTo)
+    string? DeferredTo,
+    bool OpensRun = false)
 {
     /// <summary>Whether this command's system exists yet.</summary>
     internal bool IsHandled => Handler is not null;

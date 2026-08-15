@@ -187,15 +187,33 @@ public sealed record EventChooseCommand(int ChoiceIndex) : GameCommand
 /// limits.
 /// </summary>
 /// <remarks>
-/// ⚠️ <b><paramref name="Result"/> is the thinnest field in the whole registry and is typed to say
-/// so.</b> `03` §6.1's four reward tables are each an <em>ordered tier</em> — Bronze/Silver/Gold,
-/// 0–3 hits, loss/2–1/2–0, fail/round-1/both — and `03` §6.2 says what the server checks is
-/// <em>"a valid outcome tier"</em>. So an integer tier is the shape the document gives. Which
-/// integer means which tier, and which of the four minigames the tier is read against, is
-/// <b>M3-10's</b> encoding and is deliberately not decided here (steering <b>S6</b>).
+/// <para>
+/// ⚠️ <b><paramref name="Result"/> was the thinnest field in the whole registry, and M3-03c is what
+/// settled it — the field stays an untyped <see cref="int"/>.</b> `03` §6.1's four reward tables are
+/// each an <em>ordered, zero-based tier</em> — Bronze/Silver/Gold (3), 0–3 hits (4), loss/2–1/2–0
+/// (3), fail/round-1/both (3) — read positionally against <c>tuning/currencies.json</c>'s
+/// <c>#/minigameRewards/{minigameId}</c> array via
+/// <see cref="Content.MinigameRewardTuning"/>, so the tier count is data's to declare, not a second,
+/// drifting statement in code. `03` §6.2 says what the server checks is <em>"a valid outcome
+/// tier"</em>, and <see cref="Handlers.MinigameSubmit"/> is the one reader: a shared <see cref="int"/>
+/// rather than four per-minigame enums, because a shared field the four tables' row counts already
+/// disambiguate does not need four types to say the same thing four times.
+/// </para>
+/// <para>
+/// ⚠️ <b>Which half of the field is trusted differs by minigame</b> (`03` §6.2's server-rolled vs.
+/// client-asserted split, <see cref="Content.MinigameCatalogue"/>). For
+/// <see cref="Content.MinigameCatalogue.ChestPick"/> and <see cref="Content.MinigameCatalogue.DiceDuel"/>
+/// this field is <b>ignored</b> — the server rolls its own tier from the run's committed
+/// `14` §8.1 <c>minigame:{index}</c> stream. For <see cref="Content.MinigameCatalogue.TimingBar"/> and
+/// <see cref="Content.MinigameCatalogue.MemoryRune"/> it <b>is</b> the outcome, once
+/// <see cref="Handlers.MinigameSubmit"/>'s legality check accepts it.
+/// </para>
 /// </remarks>
-/// <param name="MinigameId">`03` §6's <c>MG_*</c> identifier. Typed by M3-10.</param>
-/// <param name="Result">The claimed outcome tier of `03` §6.1's table for that minigame.</param>
+/// <param name="MinigameId">`03` §6's <c>MG_*</c> identifier. Validated against <see cref="Content.MinigameCatalogue.IsKnown"/>.</param>
+/// <param name="Result">
+/// The claimed outcome tier of `03` §6.1's table for that minigame — read only for a client-asserted
+/// minigame; ignored for a server-rolled one. See this type's remarks.
+/// </param>
 public sealed record MinigameSubmitCommand(string MinigameId, int Result) : GameCommand
 {
     /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
@@ -254,7 +272,19 @@ public sealed record StartBattleCommand : GameCommand;
 /// `05` §7 / `14` §16.6's combat-log hash, as text. Typed by <b>M2-15</b>, which authors
 /// <c>LogHash</c> together with the log format it is taken over.
 /// </param>
-public sealed record ConfirmBattleResultCommand(string LogHash) : GameCommand;
+/// <param name="Won">
+/// 🔒 M3-13 — whether the hero won the fight. Added by M3-13, which is explicitly the task that
+/// "adds a way for a battle loss to reduce HP toward 0 and trigger the death/revive flow" (`02` §6):
+/// before this task, <c>REVIVE</c>/<c>END_RUN</c>/<c>ABANDON_RUN</c> were all <c>Deferred</c>, so no
+/// rule ever reduced a run's HP, and this field had nothing to carry. See
+/// <c>Handlers.ConfirmBattleResult</c>'s remarks for why the payload had to widen rather than reading
+/// a loss off some other existing signal — there was none: <c>LogHash</c> is an opaque hash and
+/// nothing else in the command family names an outcome.
+/// ⚠️ <b>No default.</b> A parameter default of <c>true</c> would make an omitted/mis-bound field on
+/// the wire silently read as a WIN — the wrong fail direction for a field that gates a reward payout.
+/// Every construction site, production or test, states its intent.
+/// </param>
+public sealed record ConfirmBattleResultCommand(string LogHash, bool Won) : GameCommand;
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>REVIVE</c> — once per run (`02` §6). The battle restarts, and `14` §8.1 makes

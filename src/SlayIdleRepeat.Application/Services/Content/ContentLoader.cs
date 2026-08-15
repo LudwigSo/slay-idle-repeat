@@ -52,13 +52,6 @@ public static class ContentLoader
     /// </remarks>
     public static IReadOnlyList<string> SchemasAwaitingContent { get; } =
     [
-        // 14 §6 (whose worked example IS a chapter definition) / 19 — the 8 chapter data
-        // files are authored by tracker task M3-14 ("8 chapter data files: weights, pools,
-        // targets, unlock conditions"), not by M2, which authors bosses.json and enemies.json.
-        // The exemption expires the moment content/chapters/ holds its first file, because
-        // ContentLayout.ContentTypeSchemas pairs the whole directory to this schema.
-        "schema/chapter.schema.json",
-
         // 26 §2 — one live-ops event package. The first authored package is EVT_EMBERFALL,
         // tracker task M13-06. M11-05 does an event *weights* first pass, which is tuning
         // data (tuning/events.json, governed by events.schema.json) and not this schema.

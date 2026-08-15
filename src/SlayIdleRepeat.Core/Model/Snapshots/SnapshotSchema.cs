@@ -35,8 +35,35 @@ public static class SnapshotSchema
     /// <c>PlayerSnapshot</c>. No migration is written for either: the M1 kickoff ruled that no
     /// migration code exists before soft launch and that written migrations become mandatory at M18,
     /// so a row stamped 1 is refused loudly by <c>Player.Rehydrate</c> rather than read against the
-    /// wrong layout.
+    /// wrong layout. <b>3</b> — M3-03c added <c>RunSnapshot.ResolvedMinigames</c>, `03` §6.2's
+    /// per-tile minigame legality gate (position → the <c>MG_*</c> id resolved there). <b>4</b> —
+    /// M3-02 added <c>RunSnapshot.PendingForkJunctionPosition</c> and
+    /// <c>PendingForkRemainingSteps</c>, `03` §1.1's junction pause (<c>Run.PendingFork</c>). Same
+    /// ruling, no migration. <b>5</b> — M3-03 added <c>RunSnapshot</c>'s four pending-tile fields
+    /// (<c>PendingTileKind</c>, <c>PendingTileLinearIndex</c>, <c>PendingTileStage</c>,
+    /// <c>PendingEventCardId</c>), the seam between arriving at a tile and resolving it — cut from a
+    /// parallel lane based on SchemaVersion 3, reconciled after both landed. Same ruling, no
+    /// migration. <b>6</b> — M3-05 added four fields: <c>Phase</c> (`02` §1.1's run state machine,
+    /// <see cref="SlayIdleRepeat.Core.Primitives.RunPhase"/>), <c>DraftPending</c> (M3-06's documented hook),
+    /// <c>RerollChargesSpentThisStage</c> and <c>StageGateDiceAnchor</c> (`03` §1.1's Stage Gate:
+    /// reroll-charge refresh and the Fair-Dice bag's reset anchor). Same ruling, no migration; all
+    /// four are defaulted on the record so every pre-existing positional construction still compiles
+    /// against the value a run implicitly held before this task.
+    /// </para>
+    /// <para>
+    /// <b>7</b> — M3-06 added three fields to <c>RunSnapshot</c>: <c>DraftBattleKind</c> and
+    /// <c>DraftBattleStage</c> (the battle a pending draft was opened by, captured before
+    /// <c>Handlers.ConfirmBattleResult</c> clears the pending tile it came from — `06` §4's
+    /// <c>RarityWeights(stage, isElite, isBoss)</c> needs it) and <c>OwnedPerkTiers</c> (`30` §4's
+    /// drafted perks: perk id → owned tier). Same ruling, no migration; all three are defaulted on
+    /// the record so every pre-existing positional construction still compiles.
+    /// <b>8</b> — M3-13 added <c>RunSnapshot.BankedLegendXp</c>, <c>BankedSoulShards</c> and
+    /// <c>BossDefeated</c> (`02` §5's reward-banking and run-end payout — see <c>Run.BankRewards</c>
+    /// and <c>Run.EndRun</c>), and <c>PlayerSnapshot.ClearedChapterTiers</c> (`02` §5.3's first-clear
+    /// gate) — cut from a parallel lane based on SchemaVersion 6, reconciled after both landed. Same
+    /// ruling, no migration; all four fields are defaulted so every pre-existing positional
+    /// construction still compiles.
     /// </para>
     /// </remarks>
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 8;
 }

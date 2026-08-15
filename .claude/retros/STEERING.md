@@ -43,6 +43,9 @@ The compiler inlines a `const` as a literal and folds `SomeConst + "."` into a s
 **S19 · The task that first populates a rule's subject set owns proving that rule bites — arm by arm. [M1]**
 Five M1 tasks found live M0-authored defects the moment they gave a rule real subjects; every one would have gone **green**, not red. A rule that is 90 % live reads as "live" in every summary. State which *arm* each mutation exercised: M1-11's first mutation demonstrated the arm that had been asserting since M0, and it said so rather than claiming the win.
 
+**S24 · A kind that resolves via its own follow-up command must clear the pending state as the last step of that command's handler. [M3]**
+Same shape every single-command tile kind already used — but two different M3 tasks independently omitted it for their own kind (Minigame's handler recorded the resolution but never cleared `Run`'s pending-tile fields; Portal's own RESOLVE_TILE branch was a no-op that never got there at all). Both left the run permanently unable to legally act again once it landed on that kind. Only the milestone-review cross-task pass caught it — no per-task acceptance test was shaped to ask "can the run *leave* this tile." Any task adding a "lands on X, needs its own follow-up command" resolver should treat "clear the pending state once the follow-up command lands" as a standing checklist item, not something to derive fresh.
+
 ## Dispatch
 
 **S8 · Block on your review subagents in the foreground. A backgrounded review is not a result. [M0, rewritten M1, amended M2]**
@@ -57,6 +60,9 @@ A "98" repeated from a report was really 96, and it propagated into two dispatch
 
 **S10 · Agents sharing a checkout stage explicit paths. [M0]**
 Never `git add -A` or `git commit -a` when another agent may be mid-edit in the same worktree. Prefer separate worktrees; when that is not possible, say so in the prompt and name the file territory explicitly.
+
+**S23 · Pre-assign the next value of a single shared version counter at the lane-map stage, not after the fact. [M3]**
+`RunSnapshot.SchemaVersion` (or any other one-number-for-the-whole-aggregate counter) collided twice in M3 — M3-03 vs. M3-02 (both bumped 3→4) and M3-13 vs. M3-06 (both bumped 6→7) — because both lanes' branches were cut before their sibling merged, and each independently claimed the next integer. Both were caught immediately (a real conflict, not a silent bug) and hand-reconciled, but the cost is avoidable: when the lane map shows two lanes will each touch the same counter before the other lands, tell each dispatch prompt which version number it owns (e.g. "you are vN+1; the sibling lane owns vN+2") instead of leaving both to guess "next".
 
 **S20 · Re-read `STEERING.md` at the start of every kickoff turn, including resumes, and diff it against what you last pasted. [M1]**
 This file is edited *between* dispatches — by the product owner, or by a retro. M1's conductor read it once at kickoff and pasted that snapshot into eight later dispatches, carrying a rule the owner had deleted hours earlier and missing one they had added about the conductor's own behaviour. A stale paste is invisible to every downstream agent.
@@ -96,6 +102,9 @@ M0's kickoff asked how deep the iOS spike should go and never asked whether iOS 
 
 **S16 · Carry forward every doc contradiction a milestone surfaces, with a named owner. [M0]**
 Agents reading specs closely find real conflicts (M0 found four). Each needs a ruling at the kickoff of the milestone that implements it — not a note nobody owns.
+
+**S22 · A "nothing is deferred" or "fully in scope" kickoff ruling must be checked against every existing ⬜ tracker row touching the same area, not just against the tasks selected for this milestone. [M3]**
+M3's kickoff decision #2 ruled the tile vocabulary "fully live from Chapter 1, nothing deferred to M11 for the tile vocabulary itself" — true of the *resolver types*, but two tile kinds (Shop, Dice Forge) still needed already-scheduled, not-yet-started tracker rows (`M3-08b`, `M3-11`) to become actually reachable mid-run, and the ruling never checked against those rows before being stated as settled. It reached the milestone-review's cross-task-consistency pass before anyone caught the gap between "the resolver type exists" and "a run can legally act after landing on it." At the moment a kickoff ruling claims completeness for some area, grep the tracker for every ⬜ row whose description touches that same area, not only the rows already inside this milestone's task list.
 
 **S21 · Before ruling against an apparent gap, check what the repo has already decided about it. [M2]**
 A conductor ruling is pasted into dispatches as *authority*, so a wrong one propagates faster than any agent's mistake and is harder to challenge. S4 makes you re-read declared **exemptions** at each kickoff; nothing makes you re-read committed **classifications**, and that is the gap.

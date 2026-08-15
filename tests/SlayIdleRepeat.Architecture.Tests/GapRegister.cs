@@ -59,8 +59,9 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// The transcription is below — <b>and all forty-nine subjects are authored</b>. What that
 /// discharges is `14` §2.3's <b>inventory</b>: M1-02 declared every row of the registry, so the
 /// table's <em>first</em> column has nothing left to defer. ⚠️ Its <b>payload</b> column does — some
-/// twenty fields whose value sets belong to M2-15, M3-10, M4-02, M4-03, M4-06, M4-09, M5-08, M12
-/// and M15-03 are carried as <c>int</c>/<c>string</c> today — and that deferral is written up in
+/// twenty fields whose value sets belong to M2-15, M4-02, M4-03, M4-06, M4-09, M5-08, M12 and
+/// M15-03 are carried as <c>int</c>/<c>string</c> today (M3-03c settled <c>MinigameSubmitCommand
+/// .Result</c>'s, the one that used to be tagged M3-10 here) — and that deferral is written up in
 /// <c>SlayIdleRepeat.Core.Commands.CommandPayload</c>, with the two entries below that already
 /// expire on the right commits (<c>Inventory</c>/M4-03 and <c>ContainerShelf</c>/M4-02) naming the
 /// payloads they cover.
@@ -132,10 +133,11 @@ internal static class GapRegister
     /// </summary>
     internal static readonly Gap[] Deferred =
     {
-        new("DiceRolled", "M3-04", "DieFace",
-            "30 §7 writes it as (int Sequence, DieFace Face). DieFace is the die-face vocabulary of 04, " +
-            "authored by M3-04. Inventing one here would put a guessed type under the dice, board and " +
-            "combat milestones that all read it (S6)."),
+        // 🔒 M3-04 discharged the DiceRolled entry that used to sit here: DieFace is authored
+        // (Core.Content.Dice) and Events.DiceRolled is written, so the deferral is satisfied rather
+        // than merely expired. The Surfaces transcription below still lists "DiceRolled" under
+        // 30 §7 — Undeclared() now finds it authored under Domain.EventsNamespace directly, with no
+        // entry needed to carry it.
 
         new("TileResolved", "M3-03", "TileType",
             "30 §7 writes it as (int Sequence, TileType Type, NodeId Node). Both payload types are the " +
@@ -217,23 +219,31 @@ internal static class GapRegister
         // position, HP, run Gold, RNG stream positions, per-run ad uses — and these five without.
         // Plus the run's PHASE, which 02 §1.1 draws and which is deferred for a sharper reason than
         // "no element type yet": nobody has ruled which of its states are server-side.
+        //
+        // 🔒 M3-02 DISCHARGED TWO OF THE FIVE — 'Board' and 'PendingFork' — and this is the OTHER
+        // direction the register's own remarks describe: a subject built rather than merely expired.
+        // Both used to sit here, keyed on 'ChooseFork'; that predicate is now satisfied
+        // (Handlers/ChooseFork.cs exists), which is exactly what forces their removal rather than a
+        // stale re-point.
+        //
+        //   · 'Board' is NOT authored as a Model-namespace type, and never will be: 30 §11.4 forbids
+        //     Model from referencing Rules at all, so a literal 'Board' type living beside PendingFork
+        //     is structurally impossible, not merely unbuilt. The functionality is real —
+        //     Rules.Board.BoardResolution regenerates a run's board deterministically from RunSeed and
+        //     the committed 'board' stream position on every command that needs one — so 'Board' is
+        //     dropped from the 30 §4 Run-contents transcription below entirely, the same move 30 §2.3's
+        //     row makes for its own BUILT-BUT-NOT-TYPE-SHAPED items (see that row's comment).
+        //   · 'PendingFork' IS authored, literally: SlayIdleRepeat.Core.Model.PendingFork (junction
+        //     position + remaining steps, Run.PendingFork's own storage). It stays in the
+        //     transcription below and needs no Deferred entry — Undeclared() finds it authored.
 
-        new("Board", "M3-01", "NodeId",
-            "30 §4 lists 'Board' first among the Run aggregate's contents, and M3-01 authors the DAG " +
-            "generator plus GenerateBoard. A board is a graph of nodes, so it cannot be stored before " +
-            "node identity exists. 🔒 THIS ENTRY ALSO CARRIES A DEFERRED INVARIANT, which is why it " +
-            "matters more than a missing field: 30 §11.5 names 'a run's position is a valid node' as " +
-            "an invariant of this aggregate, and it CANNOT be implemented today. Run.Position " +
-            "therefore stores the linear index and validates only 03 §1.1's authored floor — the " +
-            "virtual trailhead at -1, where every run stands before its first roll — deliberately, " +
-            "because a range check invented here (0..42, say) would be a PARTIAL invariant wearing " +
-            "the real one's name and would be trusted as such by every rule downstream."),
-
-        new("DraftedPerks", "M3-06", "PerkDefinition",
-            "30 §4 lists 'drafted perks' on Run. 06 §5 forbids per-perk code — a perk IS DSL data — so " +
-            "the element type is M3-07's 98-perk catalogue read through M3-06's draft. Freezing a list " +
-            "element type now would put a guessed perk shape under both (S6). Keyed on " +
-            "PerkDefinition rather than on the draft handler, because the shape is what is missing."),
+        // 🔒 M3-06 DISCHARGED THE DraftedPerks ENTRY THAT USED TO SIT HERE, in BOTH directions at
+        // once: Content.Perks.PerkDefinition is authored (Expired()'s WaitsFor arm would fire) AND
+        // Model.DraftedPerks — the read-only wrapper over Run's own owned-perk map — is authored
+        // under Domain.ModelNamespace (Expired()'s Subject arm would ALSO fire). The 30 §4 Run-
+        // contents Surfaces transcription below still lists "DraftedPerks" — Undeclared() now finds
+        // it authored directly under Domain.ModelNamespace, with no entry needed to carry it, on
+        // 'PendingFork's own precedent two entries above this one.
 
         new("HeldConsumables", "M3-08", "ConsumableDefinition",
             "30 §4 lists 'held consumables and the armed Escape Rope flag (03 §7.1)'. Both are M3-08's " +
@@ -242,28 +252,19 @@ internal static class GapRegister
             "one consumable's state, not a second field on the aggregate — storing a bool for it now " +
             "would fix the Escape Rope's mechanics before M3-08 has chosen them."),
 
-        new("PendingFork", "M3-02", "NodeId",
-            "30 §4 lists 'pending fork choice (mid-move junction pause, 03 §1.1)'. A pending choice " +
-            "names the junction node and the branches on offer, so it cannot be stored before node " +
-            "identity exists; the pause itself is M3-02's movement engine. ⚠️ It shares its predicate " +
-            "with the Board entry DELIBERATELY: both become writable on the same day, and pointing " +
-            "this one at a different type to make the register look more granular would be buying " +
-            "silence with a predicate that does not describe the reason."),
-
         new("Curses", "M3-11", "CurseDefinition",
             "30 §4 lists 'curses' on Run. 19 E catalogues twelve of them and M3-11 owns the rules " +
             "engine around them — no stacking, paired rewards, the AD_SKIP_CURSE hook and mount " +
             "immunity. A held-curse list authored now would freeze the curse shape under all four of " +
             "those rules before any of them is written (S6)."),
 
-        new("RunPhase", "M3-05", "TileType",
-            "02 §1-3's run state machine. Do NOT invent the state set: 02 §1.1's diagram is a CLIENT " +
-            "PRESENTATION machine (0.8 s die animation, banners) while 14 §2.3's ROLL_DICE answers " +
-            "face, movement and landing in ONE command — so which of its nine states are server-side " +
-            "aggregate state is a ruling M3-05 makes together with the tile resolvers. Keyed on " +
-            "TileType because RESOLVE_TILE branches by it. ⚠️ THE CONSEQUENCE, STATED: without a " +
-            "phase, Apply cannot produce 14 §16.2's RUN_ALREADY_ENDED or ILLEGAL_STATE, and M3-05 " +
-            "pays a SchemaVersion bump to add it. That cost is named here rather than discovered."),
+        // 🔒 M3-05 DISCHARGED THE RunPhase ENTRY THAT USED TO SIT HERE. RunPhase is authored
+        // (SlayIdleRepeat.Core.Primitives.RunPhase) — Expired()'s second arm would fire the moment
+        // IsPresentInCore("RunPhase") is true, which is now, so the entry is removed rather than
+        // left to go stale. The 02 §1.1 Surfaces transcription below still lists "RunPhase" —
+        // Undeclared() now finds it authored under Domain.PrimitivesNamespace directly, with no
+        // entry needed to carry it. The ruling itself — which of the nine 02 §1.1 states are
+        // server-side aggregate state, and why — is written on RunPhase's own remarks.
 
         // ---------------------------------------------------------------- M1-06, 30 §4.1
         //
@@ -473,12 +474,16 @@ internal static class GapRegister
             "FeatCounters",
         }),
 
-        new("30 §4 (the Run-contents row, the five items M1-05 did not build)", Domain.ModelNamespace, new[]
+        // 🔒 M3-02 dropped BOTH 'Board' and 'PendingFork' from this row, for two different reasons —
+        // see the M1-05 comment above this array's Run-contents Deferred entries. 'Board' is
+        // BUILT-BUT-NOT-TYPE-SHAPED (the same move 30 §2.3's row below makes for its own items) and
+        // can never be authored as a literal Model-namespace type at all. 'PendingFork' IS a type —
+        // SlayIdleRepeat.Core.Model.PendingFork — and Undeclared() finds it authored directly, so
+        // listing it here would only duplicate what IsAuthoredUnder already proves.
+        new("30 §4 (the Run-contents row, the three items still unbuilt)", Domain.ModelNamespace, new[]
         {
-            "Board",
             "DraftedPerks",
             "HeldConsumables",
-            "PendingFork",
             "Curses",
         }),
 
@@ -616,8 +621,9 @@ internal static class GapRegister
         //
         // ⚠️ 14 §16.3's RUN TTL is not here at all, and that is not an omission: it is not one of
         // §2.3's boundaries. Catch-up never touches Run.LastAppliedAtUtc (M1-05's ruling), and
-        // EXPIRING a run needs RunPhase, which is already an entry above owned by M3-05 whose Why
-        // states this very consequence. A second entry for it would be two promises about one gap.
+        // EXPIRING a run needed RunPhase, which M3-05 has now authored (see the discharged entry's
+        // note above) — GameRules.Execute's phase gate answers RUN_ALREADY_ENDED once a run reaches
+        // RunPhase.Ended, which is M3-13's to produce (EndRunCommand/AbandonRunCommand).
         new("30 §2.3 (the lazy-catch-up boundaries whose state does not exist)", Domain.ModelNamespace, new[]
         {
             "QuestSlate",

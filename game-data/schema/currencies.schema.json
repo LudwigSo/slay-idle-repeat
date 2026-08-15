@@ -5,7 +5,7 @@
   "description": "03 §7a (in-run income, the single source of truth), 03 §6.1 (minigame rewards), 03 §7 (shop tile prices), 10 §2-§6 (Soul Shards, Crowns, the Shop, daily quests), 19 Part G (the 28-day login calendar). 10 §1: no currency in this game can be bought with money.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "wallet", "nonWalletCounters", "chapterScalars", "inRunIncome", "minigameRewards", "shopTile", "soulShards", "crowns", "shop", "dailyQuests", "loginCalendar"],
+  "required": ["$schema", "_doc", "_status", "wallet", "nonWalletCounters", "chapterScalars", "inRunIncome", "minigameRewards", "shopTile", "soulShards", "crowns", "shop", "dailyQuests", "draftEconomy", "boardGeneration", "loginCalendar"],
   "$defs": {
     "currencyId": { "enum": ["GOLD", "CROWNS", "SOUL_SHARDS", "ENERGY", "ENHANCE_STONES", "MERGE_DUST", "BEAST_FEED", "HONOR"] },
     "locKey": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" }
@@ -66,7 +66,7 @@
       "description": "03 §7a — the single source of truth for every in-run payout. 02 §5.1 and 10 §4 point here.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["goldPerKill", "runCompletionCrowns", "treasureProfiles", "cache", "shrineBuffPool"],
+      "required": ["goldPerKill", "runCompletionCrowns", "treasureProfiles", "cache", "campfire", "stageGate", "shrineBuffPool"],
       "properties": {
         "goldPerKill": {
           "description": "03 §7a.1 — GoldPerKill(c) = base * G(c). No Gold is paid for run victory: Gold is run-local and vanishes at run end.",
@@ -126,6 +126,26 @@
             "_doc": { "type": "string", "minLength": 1 },
             "beastFeedBase": { "type": "number", "exclusiveMinimum": 0 },
             "eggChance": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "campfire": {
+          "description": "03 §2 — the campfire's rest option heals healPctMaxHp of Max HP. Flat across chapters: a share of a run-scoped maximum takes no M(c) or G(c) scalar. Exclusive of 0 because a rest that heals nothing is not a rest; 1 is allowed because a full heal is a coherent tuning.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "healPctMaxHp"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "healPctMaxHp": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+          }
+        },
+        "stageGate": {
+          "description": "03 §2 — the Stage Gate's heal, alongside the campfire's rest option. Flat across chapters, the same reasoning as campfire. Exclusive of 0 because a Stage Gate that heals nothing is not a heal; 1 is allowed because a full heal is a coherent tuning.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "healPctMaxHp"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "healPctMaxHp": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
           }
         },
         "shrineBuffPool": {
@@ -396,6 +416,28 @@
           }
         },
         "allThreeBonusChest": { "type": "boolean" }
+      }
+    },
+    "draftEconomy": {
+      "description": "M3-06, 06 §1 — the perk draft's skip/reroll economy. skipGoldReward is the one number SkipDraftCommand's own doc comment named ('60 Gold skip'); rerollGoldCost is M3-06's smallest-defensible extension of it, flagged as a placeholder for balance retuning against the economy simulator once it exists, not a ruling.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "skipGoldReward", "rerollGoldCost"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "skipGoldReward": { "type": "integer", "exclusiveMinimum": 0 },
+        "rerollGoldCost": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "boardGeneration": {
+      "description": "M3-01, 03 §3.1 — the fork-label bias multipliers. The document names which tile kinds each label boosts/suppresses but states no magnitude; both figures are M3-01's judgment call, flagged for balance-simulator retuning.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "forkBiasPlusMultiplier", "forkBiasMinusMultiplier"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "forkBiasPlusMultiplier": { "type": "number", "exclusiveMinimum": 1 },
+        "forkBiasMinusMultiplier": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 }
       }
     },
     "loginCalendar": {

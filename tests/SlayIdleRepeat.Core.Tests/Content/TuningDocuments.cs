@@ -51,6 +51,7 @@ internal static class TuningDocuments
                 ProgressionDocuments.With(legendLevelMin: legendLevelMin)
                     .GetDocument(ProgressionDocuments.DocumentPath),
                 Currencies(cycleDays),
+                ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
             ]);
 
     /// <summary>
@@ -71,6 +72,15 @@ internal static class TuningDocuments
     /// </remarks>
     internal static ContentSnapshot WithoutCurrencies() => ProgressionDocuments.Shipped;
 
+    /// <summary>`03` §7a — `03` §6.1's chapter-scaling factor, shared with ad bundles and the shop.</summary>
+    internal const double ShippedAdBundleScalar = 0.35;
+
+    /// <summary>`03` §3.1 — the fork-bias boost multiplier, as shipped. M3-01's judgment call.</summary>
+    internal const double ShippedForkBiasPlusMultiplier = 2.5;
+
+    /// <summary>`03` §3.1 — the fork-bias suppression multiplier, as shipped. M3-01's judgment call.</summary>
+    internal const double ShippedForkBiasMinusMultiplier = 0.2;
+
     private static ContentDocument Currencies(ContentValue? cycleDays)
     {
         var calendar = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
@@ -83,6 +93,46 @@ internal static class TuningDocuments
             ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
             {
                 ["loginCalendar"] = calendar,
+                ["chapterScalars"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["adBundleScalar"] = ContentValue.Number((decimal)ShippedAdBundleScalar),
+                }),
+                ["boardGeneration"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["forkBiasPlusMultiplier"] = ContentValue.Number((decimal)ShippedForkBiasPlusMultiplier),
+                    ["forkBiasMinusMultiplier"] = ContentValue.Number((decimal)ShippedForkBiasMinusMultiplier),
+                }),
+                ["minigameRewards"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["MG_CHEST_PICK"] = Rewards(
+                        (150, 0, 0, 0, 0),
+                        (300, 20, 0, 0, 0),
+                        (500, 60, 15, 0, 0)),
+                    ["MG_TIMING_BAR"] = Rewards(
+                        (100, 0, 0, 0, 0),
+                        (250, 0, 0, 0, 0),
+                        (400, 30, 0, 0, 0),
+                        (600, 80, 0, 5, 0)),
+                    ["MG_DICE_DUEL"] = Rewards(
+                        (150, 0, 0, 0, 0),
+                        (400, 40, 0, 0, 0),
+                        (550, 50, 0, 0, 1)),
+                    ["MG_MEMORY_RUNE"] = Rewards(
+                        (100, 0, 0, 0, 0),
+                        (300, 25, 0, 0, 0),
+                        (550, 70, 20, 0, 0)),
+                }),
             }));
     }
+
+    /// <summary>`03` §6.1's per-minigame reward array, in (gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
+    private static ContentValue Rewards(params (int Gold, int Crowns, int BeastFeed, int EnhanceStones, int RerollCharges)[] rows) =>
+        ContentValue.Array(rows.Select(row => ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["gold"] = ContentValue.Number(row.Gold),
+            ["crowns"] = ContentValue.Number(row.Crowns),
+            ["beastFeed"] = ContentValue.Number(row.BeastFeed),
+            ["enhanceStones"] = ContentValue.Number(row.EnhanceStones),
+            ["rerollCharges"] = ContentValue.Number(row.RerollCharges),
+        })));
 }

@@ -72,15 +72,15 @@ public sealed class GapRegisterTests
     public void The_anchoring_check_fires_on_a_deferral_no_transcription_enumerates()
     {
         var surface = new GapRegister.SpecifiedSurface(
-            "30 §7", Domain.EventsNamespace, new[] { "DiceRolled" });
+            "30 §7", Domain.EventsNamespace, new[] { "TileResolved" });
 
         var anchored = new GapRegister.Gap(
-            "DiceRolled", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+            "TileResolved", "M3-04", "TileType", "a reason long enough to be worth falsifying.");
 
         GapRegister.Unanchored(new[] { surface }, new[] { anchored }).ShouldBeEmpty();
 
         var floating = new GapRegister.Gap(
-            "AnEventNoSpecAsksFor", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+            "AnEventNoSpecAsksFor", "M3-04", "TileType", "a reason long enough to be worth falsifying.");
 
         GapRegister.Unanchored(new[] { surface }, new[] { floating })
             .ShouldHaveSingleItem()
@@ -120,7 +120,7 @@ public sealed class GapRegisterTests
             .ShouldContain("now exists in SlayIdleRepeat.Core", Case.Sensitive);
 
         var subjectAlreadyAuthored = new GapRegister.Gap(
-            Domain.CurrencyChangedEvent, "M9-01", "DieFace", "a reason long enough to be worth falsifying.");
+            Domain.CurrencyChangedEvent, "M9-01", "TileType", "a reason long enough to be worth falsifying.");
 
         GapRegister.Expired(new[] { subjectAlreadyAuthored })
             .ShouldHaveSingleItem()
@@ -148,7 +148,7 @@ public sealed class GapRegisterTests
     public void The_undeclared_check_fires_on_a_specified_subject_that_nobody_claimed()
     {
         var surface = new GapRegister.SpecifiedSurface(
-            "30 §7", Domain.EventsNamespace, new[] { "DiceRolled" });
+            "30 §7", Domain.EventsNamespace, new[] { "TileResolved" });
 
         GapRegister.Undeclared(new[] { surface }, Array.Empty<GapRegister.Gap>())
             .ShouldHaveSingleItem()
@@ -169,10 +169,10 @@ public sealed class GapRegisterTests
         GapRegister.Undeclared(new[] { authored }, Array.Empty<GapRegister.Gap>()).ShouldBeEmpty();
 
         var deferred = new GapRegister.SpecifiedSurface(
-            "30 §7", Domain.EventsNamespace, new[] { "DiceRolled" });
+            "30 §7", Domain.EventsNamespace, new[] { "TileResolved" });
 
         var entry = new GapRegister.Gap(
-            "DiceRolled", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+            "TileResolved", "M3-04", "TileType", "a reason long enough to be worth falsifying.");
 
         GapRegister.Undeclared(new[] { deferred }, new[] { entry }).ShouldBeEmpty();
     }
@@ -185,12 +185,12 @@ public sealed class GapRegisterTests
     [Fact]
     public void The_wellformedness_check_fires_on_a_missing_subject_owner_predicate_or_reason()
     {
-        var noSubject = new GapRegister.Gap("  ", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+        var noSubject = new GapRegister.Gap("  ", "M3-04", "TileType", "a reason long enough to be worth falsifying.");
         GapRegister.Malformed(new[] { noSubject })
             .ShouldHaveSingleItem()
             .ShouldContain("names no subject", Case.Sensitive);
 
-        var noOwner = new GapRegister.Gap("X", "later", "DieFace", "a reason long enough to be worth falsifying.");
+        var noOwner = new GapRegister.Gap("X", "later", "TileType", "a reason long enough to be worth falsifying.");
         GapRegister.Malformed(new[] { noOwner })
             .ShouldHaveSingleItem()
             .ShouldContain("not a milestone task id", Case.Sensitive);
@@ -200,12 +200,12 @@ public sealed class GapRegisterTests
             .ShouldHaveSingleItem()
             .ShouldContain("nothing can expire it", Case.Sensitive);
 
-        var noReason = new GapRegister.Gap("X", "M3-04", "DieFace", "later");
+        var noReason = new GapRegister.Gap("X", "M3-04", "TileType", "later");
         GapRegister.Malformed(new[] { noReason })
             .ShouldHaveSingleItem()
             .ShouldContain("no written reason worth falsifying", Case.Sensitive);
 
-        var wellFormed = new GapRegister.Gap("X", "M3-04", "DieFace", "a reason long enough to be worth falsifying.");
+        var wellFormed = new GapRegister.Gap("X", "M3-04", "TileType", "a reason long enough to be worth falsifying.");
         GapRegister.Malformed(new[] { wellFormed }).ShouldBeEmpty();
     }
 
@@ -248,11 +248,13 @@ public sealed class GapRegisterTests
             s => s.Citation.StartsWith("30 §4 (the Run-contents row", StringComparison.Ordinal));
 
         runContents.Subjects.Count.ShouldBe(
-            5,
+            3,
             "30 §4's Run row enumerates ten things; M1-05 built five (position, HP, run Gold, RNG " +
-            "stream positions, per-run ad uses) and this transcription is the other five. Five plus " +
-            "five is the row — if this shrinks, the arithmetic in GapRegister.Surfaces' remarks stops " +
-            "adding up and the dropped item is deferred by nobody.");
+            "stream positions, per-run ad uses), M3-02 built two more (Board — regenerated, never " +
+            "stored, so not type-shaped — and PendingFork, authored directly and therefore no longer " +
+            "carried by THIS transcription either) and this transcription is the three still unbuilt " +
+            "(DraftedPerks, HeldConsumables, Curses). If this shrinks for any reason other than one of " +
+            "those three actually being authored, the dropped item is deferred by nobody.");
 
         runContents.Namespace.ShouldBe(Domain.ModelNamespace);
 
@@ -411,29 +413,60 @@ public sealed class GapRegisterTests
             .ToArray();
 
         // 🔒 M1-09 lowered the deferred floor from 49 to 48 by exactly the one row that became
-        // Handled — BEGIN_SESSION — and added the Handled floor beside it rather than only editing
-        // the number. That is the difference between "48 rows are deferred" and "48 are deferred AND
-        // the 49th is handled": the sentence this replaces would have been satisfied just as well by
-        // a row that was DELETED, which is the failure 14 §2.3's registry ("a command not listed here
+        // Handled — BEGIN_SESSION — M3-15 lowered it again to 47 by START_RUN, M3-03c lowered it
+        // again to 46 by MINIGAME_SUBMIT, and M3-04 lowers it again to 44 by ROLL_DICE and
+        // USE_REROLL, adding the Handled floor beside it rather than only editing the number. That
+        // is the difference between "44 rows are deferred" and "44 are deferred AND the other five
+        // are handled": the sentence this replaces would have been satisfied just as well by a row
+        // that was DELETED, which is the failure 14 §2.3's registry ("a command not listed here
         // does not exist") most needs a rule to notice. The two are asserted, and then their sum.
-        var handled = Regex.Matches(dispatch, @"\.Handled<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), (?<handler>[\w.]+)\)")
+        var handled = Regex.Matches(dispatch, @"\.Handled<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), (?<handler>[\w.]+)(?:,\s*\w+:\s*\w+)?\)")
             .Select(m => m.Groups["wire"].Value)
             .ToArray();
 
         owners.Length.ShouldBe(
-            48,
-            "14 §2.3's registry is 19 run + 30 meta, and 48 of the 49 rows are Deferred since M1-09 " +
-            "landed the BEGIN_SESSION handler. If this is 0 the pattern has stopped matching the " +
-            "dispatch table and the comparison below holds over nothing; if it shrinks, either a row " +
-            "went away or a row became Handled — in which case lower this by exactly that many and " +
-            "raise the Handled floor by the same.");
+            30,
+            "14 §2.3's registry is 19 run + 30 meta, and 30 of the 49 rows are Deferred since M3-13 " +
+            "landed the REVIVE/END_RUN/ABANDON_RUN handlers (beside M3-06's " +
+            "PICK_PERK/REROLL_DRAFT/SKIP_DRAFT, M3-05's START_BATTLE/CONFIRM_BATTLE_RESULT, M3-03's " +
+            "RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE, M3-02's CHOOSE_FORK, M3-08's " +
+            "SHOP_BUY/SHOP_REFRESH, M3-15's START_RUN, M3-03c's MINIGAME_SUBMIT, M3-04's " +
+            "ROLL_DICE/USE_REROLL, and M1-09's BEGIN_SESSION). If this is 0 " +
+            "the pattern has stopped matching the dispatch table and the comparison below holds over " +
+            "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
+            "lower this by exactly that many and raise the Handled floor by the same.");
 
         handled.ShouldBe(
-            new[] { "BEGIN_SESSION" },
+            new[]
+            {
+                "BEGIN_SESSION", "START_RUN", "MINIGAME_SUBMIT", "ROLL_DICE", "USE_REROLL",
+                "SHOP_BUY", "SHOP_REFRESH", "CHOOSE_FORK",
+                "RESOLVE_TILE", "EVENT_CHOOSE", "CAMPFIRE_CHOOSE",
+                "START_BATTLE", "CONFIRM_BATTLE_RESULT",
+                "PICK_PERK", "REROLL_DRAFT", "SKIP_DRAFT",
+                "REVIVE", "END_RUN", "ABANDON_RUN",
+            },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
-            "satisfied by whatever handler replaced the one this names. 30 §2.3's BEGIN_SESSION is " +
-            "the first and, on this commit, the only one.");
+            "satisfied by whatever handler replaced the one this names. 30 §2.3's BEGIN_SESSION was " +
+            "the first; 02 §2's START_RUN (M3-15) the second; 03 §6's MINIGAME_SUBMIT (M3-03c) the " +
+            "third; 04 §§1,3-4's ROLL_DICE and USE_REROLL (M3-04) the fourth and fifth; 03 §7's " +
+            "SHOP_BUY and SHOP_REFRESH (M3-08) the sixth and seventh — real, dispatched handlers " +
+            "that refuse every call today because no Run shaped by today's aggregate can carry an " +
+            "active shop offer yet (see Handlers.ShopBuy's remarks); 03 §1.1's CHOOSE_FORK (M3-02) " +
+            "the eighth, resolving the junction pause the same movement engine actually opens; " +
+            "03 §2's RESOLVE_TILE, EVENT_CHOOSE and CAMPFIRE_CHOOSE (M3-03) the ninth, tenth and " +
+            "eleventh — one tile-resolver system reached through three commands; 14 §2.3's " +
+            "START_BATTLE and CONFIRM_BATTLE_RESULT (M3-05) the twelfth and thirteenth, opening and " +
+            "closing a battle over Run's new RunPhase.BattlePending; 06 §1's PICK_PERK, " +
+            "REROLL_DRAFT and SKIP_DRAFT (M3-06) the fourteenth, fifteenth and sixteenth, resolving " +
+            "the perk draft CONFIRM_BATTLE_RESULT opens; and 02 §5-6's REVIVE, END_RUN " +
+            "and ABANDON_RUN (M3-13) the seventeenth, eighteenth and nineteenth — reward banking and " +
+            "run-end payout. ⚠️ EVENT_CHOOSE and " +
+            "CAMPFIRE_CHOOSE were Deferred to 'M3-09' and 'M3-11' respectively, both STALE owners " +
+            "read off an earlier tracker; the M3 kickoff put both under M3-03 with the rest of the " +
+            "tile vocabulary. Their dispatch rows were corrected rather than left to go stale " +
+            "(steering S4).");
 
 
         (owners.Length + handled.Length).ShouldBe(
@@ -506,7 +539,7 @@ public sealed class GapRegisterTests
         // it happens to name reads as dispatched. Nothing constrained the composition of that
         // directory at all. The regex above already captures the handler group; it was being
         // discarded.
-        var handlers = Regex.Matches(dispatch, @"\.Handled<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), (?<handler>[\w.]+)\)")
+        var handlers = Regex.Matches(dispatch, @"\.Handled<(?<command>\w+)>\(""(?<wire>[A-Z0-9_]+)"", CommandKind\.(?:Run|Meta), (?<handler>[\w.]+)(?:,\s*\w+:\s*\w+)?\)")
             .Select(m => m.Groups["handler"].Value.Split('.')[0])
             .ToHashSet(StringComparer.Ordinal);
 
@@ -545,15 +578,15 @@ public sealed class GapRegisterTests
         GapRegister.IsPresentInCore(Domain.CurrencyIdType).ShouldBeTrue(
             "CurrencyId landed in M1-01. If this is false the lookup is broken and every deferral looks live.");
 
-        GapRegister.IsPresentInCore("DieFace").ShouldBeFalse(
-            "DieFace is M3-04's. If this is true, either it has arrived — in which case the DiceRolled entry " +
-            "is stale — or the lookup matches names it should not.");
+        GapRegister.IsPresentInCore("TileType").ShouldBeFalse(
+            "TileType is M3-03's. If this is true, either it has arrived — in which case the TileResolved " +
+            "entry is stale — or the lookup matches names it should not.");
 
         GapRegister.IsAuthoredUnder(Domain.EventsNamespace, Domain.CurrencyChangedEvent).ShouldBeTrue(
             "M1-03 authored it under Core/Events/. If this is false the undeclared direction would demand a " +
             "register entry for an event that already exists.");
 
-        GapRegister.IsAuthoredUnder(Domain.EventsNamespace, "DiceRolled").ShouldBeFalse(
+        GapRegister.IsAuthoredUnder(Domain.EventsNamespace, "TileResolved").ShouldBeFalse(
             "nothing has authored it. If this is true, the namespace filter is matching by something other " +
             "than the name and the undeclared direction is silent.");
 
