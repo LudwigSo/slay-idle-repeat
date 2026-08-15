@@ -729,6 +729,37 @@ public sealed class Player
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is not positive, or the count overflows.</exception>
     internal void CountFeat(string counterId, long amount)
     {
+        if (string.IsNullOrWhiteSpace(counterId))
+        {
+            throw new ArgumentException(BlankFeatCounterId, nameof(counterId));
+        }
+
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "A lifetime feat counter only ever grows; '" + counterId + "' cannot be advanced " +
+                "by " + Text(amount) + ". These counters are never reset and never settled back " +
+                "down — a Feat is claimed retroactively against the count, so an advance that " +
+                "lowered it would pay out against a history the player did not have, and a zero " +
+                "advance would register a counter nothing has actually counted.");
+        }
+
+        _featCounters.TryGetValue(counterId, out var current);
+
+        try
+        {
+            _featCounters[counterId] = checked(current + amount);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Advancing the lifetime feat counter '" + counterId + "' by " + Text(amount) +
+                " from " + Text(current) + " overflows a 64-bit count.");
+        }
     }
 
     /// <summary>Advances the tutorial to the next beat, as each beat's interaction completes.</summary>
@@ -900,6 +931,19 @@ public sealed class Player
 
         return counters.TryGetValue(counterKey, out var count) ? count : 0L;
     }
+
+    /// <summary>The blank-id refusal for a feat counter, said once.</summary>
+    /// <remarks>
+    /// Separate from <see cref="RequireCounterKey"/>'s, which explains an OPEN key space in terms of
+    /// the daily-reset systems that have not been written. A feat counter's id space is open for a
+    /// different reason — what each Feat measures is not decided yet — and a reader who hits this
+    /// needs that reason, not the other one.
+    /// </remarks>
+    private const string BlankFeatCounterId =
+        "A feat counter id names the projection that owns it, so it is never blank. The id space is " +
+        "deliberately open rather than a closed enum, because what each Feat measures is a decision " +
+        "the milestone that ships Feats still has to take — but 'open' means the owner picks the " +
+        "token, not that there is no token.";
 
     private static void RequireCounterKey(string counterKey, string parameterName)
     {

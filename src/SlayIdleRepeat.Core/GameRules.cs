@@ -120,7 +120,8 @@ public static class GameRules
     /// <exception cref="InvalidOperationException">
     /// A defect, never a refusal: the slice doesn't carry the run its command acts on, an aggregate
     /// doesn't round-trip through its own snapshot, a handler hand-wrote an RNG stream position or
-    /// its own event sequence, or a meta command's handler tried to draw randomness. Every case is a
+    /// its own event sequence, a meta command's handler tried to draw randomness, or a handler
+    /// produced an event carrying a value no lifetime counter can be named for. Every case is a
     /// miswired caller or a broken rule, never a player asking for something they cannot have.
     /// </exception>
     public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>

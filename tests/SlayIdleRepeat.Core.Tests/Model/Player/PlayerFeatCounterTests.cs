@@ -317,12 +317,20 @@ public sealed class PlayerFeatCounterTests
 
         var counts = player.FeatCounters.Counts;
 
-        counts.ShouldNotBeAssignableTo<IDictionary<string, long>>(
-            "an IReadOnlyDictionary backed by a bare Dictionary casts straight back to a writable " +
+        counts.ShouldNotBeOfType<Dictionary<string, long>>(
+            "an IReadOnlyDictionary backed by a BARE Dictionary casts straight back to a writable " +
             "one, and 30 §11.2's 'everything the outside world can see is a getter' would be a " +
             "claim nothing enforces.");
 
-        (counts as ICollection<KeyValuePair<string, long>>)?.IsReadOnly.ShouldBe(true);
+        // ReadOnlyDictionary DOES implement IDictionary — explicitly, with throwing writers — so
+        // the property worth asserting is that the writers throw, not that the interface is absent.
+        var writable = counts.ShouldBeAssignableTo<IDictionary<string, long>>();
+
+        writable.IsReadOnly.ShouldBeTrue();
+        Should.Throw<NotSupportedException>(() => writable[Counter] = 99L);
+        Should.Throw<NotSupportedException>(() => writable.Remove(Counter));
+
+        player.FeatCount(Counter).ShouldBe(1L);
     }
 
     /// <summary>A counter nobody has registered reads as zero — while a registered one still reads its own count.</summary>
