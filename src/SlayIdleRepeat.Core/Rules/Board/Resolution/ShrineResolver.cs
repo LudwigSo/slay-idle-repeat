@@ -11,6 +11,11 @@ namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 /// </summary>
 /// <remarks>
 /// <para>
+/// 🔒 <b>Two options are OFFERED; exactly one is applied.</b> §7a.5's shrine is a choice, and a
+/// player never receives both rows — see <see cref="Resolve"/> for why slot 1 is the one taken and
+/// what has to exist before that stops being an assumption.
+/// </para>
+/// <para>
 /// ⚠️ <b>Only the immediate-heal half of a drawn buff is applied.</b> §7a.5 makes the buffs
 /// <em>"permanent for the run and stack additively"</em>, which needs a run-scoped stat-aggregation
 /// consumer that does not exist — <c>SubjectSetFloorTests</c>' and <c>GapRegister</c>'s
@@ -69,12 +74,17 @@ internal static class ShrineResolver
             second = DistinctSecond(stream, first, count);
         }
 
+        // 🔒 ONE option is applied — slot 1 — and NOT both, which is the correctness of this line.
+        // §7a.5 OFFERS two distinct options and the player takes ONE of them; there is no state in
+        // which they receive both. Applying both drawn rows' heals paid up to 58% of Max HP
+        // (SHR_HEAL's 40 plus SHR_HP's 18) where no single option pays more than 40, so it was not a
+        // generous reading of the spec but an impossible one.
+        // ⚠️ That slot 1 is the one taken IS an assumption, and it is the narrow kind: there is no
+        // SHRINE_CHOOSE in 14 §2.3's registry, so the player cannot express a pick and the resolver
+        // has to settle it. Slot 1 is the option present in BOTH branches — the cleanse branch has
+        // no slot 2 at all — so it is the only choice that resolves identically either way. The day
+        // a choose command exists, this is the line it replaces.
         ApplyImmediateHeal(input.Run, tuning.Buffs[first]);
-
-        if (second is { } index)
-        {
-            ApplyImmediateHeal(input.Run, tuning.Buffs[index]);
-        }
 
         return new ShrineOffer(
             tuning.Buffs[first].Id,

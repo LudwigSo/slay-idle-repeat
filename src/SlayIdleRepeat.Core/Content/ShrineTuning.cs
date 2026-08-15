@@ -96,6 +96,7 @@ internal sealed class ShrineTuning
         }
 
         var buffs = new ShrineBuffPoolEntry[array.Items.Count];
+        var ids = new HashSet<string>(array.Items.Count, StringComparer.Ordinal);
 
         for (var i = 0; i < array.Items.Count; i++)
         {
@@ -108,7 +109,20 @@ internal sealed class ShrineTuning
                 throw new InvalidTunableException(pointer + "/id", "A shrine buff id must not be blank.");
             }
 
-            var displayName = Member(entry, "displayName", pointer).AsText(pointer + "/displayName");
+            // 🔒 It matters MORE here than in the catalogues that make the same check, and that is
+            // worth stating: ShrineResolver.DistinctSecond guarantees 03 §7a.5's "2 DISTINCT
+            // options" by INDEX, which is only distinctness of the offer if the ids differ too. A
+            // pool carrying one id twice would silently offer the same buff in both slots and the
+            // sampling-without-replacement draw would look like it had worked.
+            if (!ids.Add(id))
+            {
+                throw new InvalidTunableException(
+                    pointer + "/id",
+                    "'" + id + "' is authored twice. 14 §6 makes a duplicate id a build failure, and " +
+                    "here it would also defeat the distinct-options draw — see the comment above.");
+            }
+
+            var displayName = RequiredText(entry, "displayName", pointer);
 
             var stat = OptionalText(entry, "stat", pointer);
             var magnitude = OptionalNumber(entry, "magnitude", pointer);
@@ -123,6 +137,21 @@ internal sealed class ShrineTuning
                     "carries only immediateHealPctMaxHp.");
             }
 
+            // 🔒 A stat buff is BOTH halves or neither. 03 §7a.5's nine stat rows each author a stat
+            // and the magnitude it is raised by; a row with one and not the other says nothing a
+            // consumer could act on — "raises ATK by nothing", or "raises nothing by 12%" — and is
+            // exactly the plausible-looking hole this reader's own remarks argue against, since it
+            // would pass the all-three-null check above and read as a real buff.
+            if (stat is null != magnitude is null)
+            {
+                throw new InvalidTunableException(
+                    pointer,
+                    "'" + id + "' authors " + (stat is null ? "a magnitude with no stat" : "a stat " +
+                    "with no magnitude") + ". 03 §7a.5's stat rows carry both — the stat raised and " +
+                    "the amount it is raised by — and SHR_HEAL carries neither, because it raises " +
+                    "no stat at all.");
+            }
+
             if (immediateHeal is { } heal && (!double.IsFinite(heal) || heal is < 0.0 or > 1.0))
             {
                 throw new InvalidTunableException(
@@ -135,6 +164,18 @@ internal sealed class ShrineTuning
         }
 
         return new ShrineTuning(Array.AsReadOnly(buffs), optionsOffered);
+    }
+
+    /// <summary>A required text member, refused when blank. The same helper shape
+    /// <c>EventCatalogue</c> and <c>CurseTuning</c> use.</summary>
+    private static string RequiredText(ContentValue obj, string name, string pointer)
+    {
+        var reference = pointer + "/" + name;
+        var text = Member(obj, name, pointer).AsText(reference);
+
+        return string.IsNullOrWhiteSpace(text)
+            ? throw new InvalidTunableException(reference, "'" + name + "' must not be blank.")
+            : text;
     }
 
     /// <summary>

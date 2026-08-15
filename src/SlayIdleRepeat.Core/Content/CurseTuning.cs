@@ -122,8 +122,12 @@ internal sealed class CurseTuning
                     "would be unreachable by id.");
             }
 
-            var effect = Member(entry, "effect", pointer).AsText(pointer + "/effect");
-            var reward = Member(entry, "reward", pointer).AsText(pointer + "/reward");
+            // Both columns are 19 Part E's prose, and both are blank-checked for the reason the id
+            // is: nothing in Core parses them, so a blank one is invisible until it reaches a player
+            // as an empty curse description or defeats CurseRewardsTests' cross-check of the reward
+            // amounts against this prose.
+            var effect = RequiredText(entry, "effect", pointer);
+            var reward = RequiredText(entry, "reward", pointer);
             var availableFrom = Member(entry, "availableFromChapter", pointer)
                 .AsInt32(pointer + "/availableFromChapter");
 
@@ -139,6 +143,18 @@ internal sealed class CurseTuning
         }
 
         return new CurseTuning(Array.AsReadOnly(rows));
+    }
+
+    /// <summary>A required text member, refused when blank. The same helper shape
+    /// <c>EventCatalogue</c> uses.</summary>
+    private static string RequiredText(ContentValue obj, string name, string pointer)
+    {
+        var reference = pointer + "/" + name;
+        var text = Member(obj, name, pointer).AsText(reference);
+
+        return string.IsNullOrWhiteSpace(text)
+            ? throw new InvalidTunableException(reference, "'" + name + "' must not be blank.")
+            : text;
     }
 
     private static ContentValue Member(ContentValue obj, string name, string pointer) =>

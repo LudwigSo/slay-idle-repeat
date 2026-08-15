@@ -60,6 +60,7 @@ internal sealed class TreasureTuning
         }
 
         var profiles = new TreasureProfile[array.Items.Count];
+        var ids = new HashSet<string>(array.Items.Count, StringComparer.Ordinal);
         var totalWeight = 0.0;
 
         for (var i = 0; i < array.Items.Count; i++)
@@ -71,6 +72,16 @@ internal sealed class TreasureTuning
             if (string.IsNullOrWhiteSpace(id))
             {
                 throw new InvalidTunableException(pointer + "/id", "A treasure profile id must not be blank.");
+            }
+
+            if (!ids.Add(id))
+            {
+                throw new InvalidTunableException(
+                    pointer + "/id",
+                    "'" + id + "' is authored twice. 14 §6 makes a duplicate id a build failure: the " +
+                    "draw is by index so both rows are reachable, but they are indistinguishable to " +
+                    "everything downstream that names a profile by id — 21 §8.3's attribution log " +
+                    "first among them. The same check CurseTuning and EventCatalogue make.");
             }
 
             var weight = Member(entry, "weight", pointer).AsDouble(pointer + "/weight");

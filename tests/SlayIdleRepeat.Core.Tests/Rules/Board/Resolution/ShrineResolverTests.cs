@@ -168,6 +168,30 @@ public sealed class ShrineResolverTests
         healed.ShouldContain(10, "…and one that offered neither healing row heals nothing");
     }
 
+    /// <summary>
+    /// 🔒 `03` §7a.5 offers TWO options and applies exactly ONE — a shrine never heals twice.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>The regression test for a real over-payment.</b> The resolver used to apply the
+    /// immediate heal of BOTH drawn rows, so an offer of <c>SHR_HEAL</c> (40%) beside <c>SHR_HP</c>
+    /// (18%) healed 58% of the bar — more than any single option pays, and a state §7a.5 has no
+    /// reading under which a player reaches: they take one of the two. 40% of a 100 HP bar from 10
+    /// is the most any shrine can leave, so a 68 anywhere in this sweep is that bug returning.
+    /// </remarks>
+    [Fact]
+    public void A_shrine_applies_exactly_one_of_its_two_offers()
+    {
+        for (var seed = 1UL; seed <= 200UL; seed++)
+        {
+            var result = Resolve(TileWorlds.OnTile(TileKind.Shrine, currentHp: 10, runSeed: seed));
+
+            result.NewState.Run!.CurrentHp.ShouldBeLessThanOrEqualTo(
+                50,
+                "SHR_HEAL's 40% of a 100 Max HP bar is the largest single option, so a shrine that " +
+                "left more than 50 applied more than one of its two offers");
+        }
+    }
+
     /// <summary>🔒 …and an immediate heal is clamped at Max HP rather than overhealing.</summary>
     [Fact]
     public void An_immediate_heal_never_exceeds_max_hp()

@@ -63,8 +63,26 @@ internal sealed class EventCatalogue
     }
 
     /// <summary>The cards a run in <paramref name="chapterId"/> may draw, in the document's order.</summary>
+    /// <param name="chapterId">`02` §1's chapter, from 1.</param>
+    /// <remarks>
+    /// A chapter below 1 is refused rather than answered with an empty list — the same line
+    /// <c>CurseTuning.AvailableFrom</c> draws, and for the same reason: an empty answer would reach
+    /// <c>EventTileResolver.DrawCard</c> as "the content file lost a band", which is a different and
+    /// much more alarming defect than the caller having asked about a chapter that does not exist.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
     internal IReadOnlyList<EventCard> AvailableIn(int chapterId)
     {
+        if (chapterId < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(chapterId),
+                chapterId,
+                "02 §1 runs chapters from 1 and chapter.schema.json sets \"minimum\": 1. ⚠️ There is " +
+                "deliberately no upper bound: content/chapters/ holds chapters 1-2 today and 3-8 are " +
+                "M11-02's, so a ceiling here would be a content bound in code (21 §3.1).");
+        }
+
         var eligible = new List<EventCard>(All.Count);
 
         foreach (var card in All)
@@ -254,14 +272,33 @@ internal sealed class EventCatalogue
         switch (op)
         {
             case "CURRENCY":
+            {
+                var amount = Member(entry, "amount", pointer).AsInt64(pointer + "/amount");
+
+                // 🔒 Zero is refused for the same reason an empty `effects` array is, three methods
+                // below: EventTileResolver.Move skips a zero delta (a CurrencyChanged of 0 would be
+                // a misleading row in 21 §8.3's attribution log), so a zero-amount effect resolves
+                // to nothing at all and is indistinguishable from a row nobody finished authoring.
+                // A deliberate no-op is a NONE effect, which says so.
+                if (amount == 0)
+                {
+                    throw new InvalidTunableException(
+                        pointer + "/amount",
+                        "A CURRENCY effect moves a non-zero amount — its sign is the direction, a " +
+                        "grant or a charge. A zero is dropped by the resolver and would leave an " +
+                        "outcome that looks authored and does nothing; a deliberate no-op carries a " +
+                        "NONE effect instead.");
+                }
+
                 return new EventEffect(
                     EventEffectOp.Currency,
                     ParseCurrency(RequiredText(entry, "currency", pointer), pointer + "/currency"),
-                    Member(entry, "amount", pointer).AsInt64(pointer + "/amount"),
+                    amount,
                     Member(entry, "chapterScaled", pointer).AsBoolean(pointer + "/chapterScaled"),
                     HpPct: null,
                     CurseId: null,
                     Note: null);
+            }
 
             case "HP_PCT":
             {
