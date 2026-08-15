@@ -53,6 +53,9 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M3-04's die math — outside the Combat/Stats/Effects ordering entirely, like <see cref="EconomyNamespace"/>.</summary>
     internal const string DiceNamespace = "SlayIdleRepeat.Core.Rules.Dice";
 
+    /// <summary>M3-01's board DAG + generator — outside the Combat/Stats/Effects ordering entirely.</summary>
+    internal const string BoardNamespace = "SlayIdleRepeat.Core.Rules.Board";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -113,6 +116,25 @@ public sealed class IntraRulesLayeringRuleTests
         (DiceNamespace, CombatNamespace,
             "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — die-face arithmetic has no current reason to read the combat simulator."),
+
+        // 🔒 M3-01 added Rules/Board/ (the board DAG + GenerateBoard). Verified by inspection, same
+        // as Economy above: BoardGenerator's only Core dependency outside its own namespace is
+        // Rules.Board itself plus Rng (DeterministicRng, RngStreams) — zero current coupling to
+        // Combat/Stats/Effects in either direction. Board is a graph-shape/content-placement
+        // concern; it has no business reading combat stats or the effect DSL, and EnemyPower(i)
+        // reads Board's linear index as a plain int rather than Board naming Rules.Combat, so the
+        // dependency (when M3-03's tile resolvers need it) runs the other way. Pinned as a fourth
+        // independent leaf rather than guessed into the Combat/Stats/Effects ordering, for the same
+        // reason Economy was.
+        (BoardNamespace, EffectsNamespace,
+            "Board is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — board generation has no current reason to read the effect DSL."),
+        (BoardNamespace, StatsNamespace,
+            "Board is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — board generation has no current reason to read stat aggregation."),
+        (BoardNamespace, CombatNamespace,
+            "Board is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — board generation has no current reason to read the combat simulator."),
     };
 
     /// <summary>

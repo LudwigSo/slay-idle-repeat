@@ -220,16 +220,22 @@ internal static class GapRegister
         // Plus the run's PHASE, which 02 §1.1 draws and which is deferred for a sharper reason than
         // "no element type yet": nobody has ruled which of its states are server-side.
 
-        new("Board", "M3-01", "NodeId",
-            "30 §4 lists 'Board' first among the Run aggregate's contents, and M3-01 authors the DAG " +
-            "generator plus GenerateBoard. A board is a graph of nodes, so it cannot be stored before " +
-            "node identity exists. 🔒 THIS ENTRY ALSO CARRIES A DEFERRED INVARIANT, which is why it " +
-            "matters more than a missing field: 30 §11.5 names 'a run's position is a valid node' as " +
-            "an invariant of this aggregate, and it CANNOT be implemented today. Run.Position " +
-            "therefore stores the linear index and validates only 03 §1.1's authored floor — the " +
-            "virtual trailhead at -1, where every run stands before its first roll — deliberately, " +
-            "because a range check invented here (0..42, say) would be a PARTIAL invariant wearing " +
-            "the real one's name and would be trusted as such by every rule downstream."),
+        new("Board", "M3-02", "RollDice",
+            "30 §4 lists 'Board' first among the Run aggregate's contents. M3-01 CLOSED THE HALF THIS " +
+            "ENTRY ORIGINALLY WAITED ON: SlayIdleRepeat.Core.Rules.Board now has NodeId, BoardNode, " +
+            "Board (the DAG) and BoardGenerator.GenerateBoard(config, rng), so node identity exists " +
+            "and 03 §1's graph is real. What remains is NOT a missing type but missing WIRING, which " +
+            "is why this entry survives M3-01 rather than being deleted by it: 30 §11.5 names 'a run's " +
+            "position is a valid node' as an invariant, and checking it needs the specific board a " +
+            "specific run stands on — which needs a handler that calls GenerateBoard(over the run's " +
+            "chapter/tier/seed via RunRngScope) and then Run.MoveTo, i.e. the movement engine itself. " +
+            "Run.Position therefore still stores the linear index and validates only 03 §1.1's " +
+            "authored floor (the virtual trailhead at -1) — a range check invented here (0..42, say) " +
+            "would be a PARTIAL invariant wearing the real one's name. Keyed on 'RollDice': M3-02's " +
+            "own tracker row is 'movement engine ... stepwise traversal, junction pause + CHOOSE_FORK, " +
+            "stage clamp, boss-exact rule, chain hops, portal draws' — ROLL_DICE's handler — and " +
+            "Handlers/StartRun.cs + Handlers/BeginSession.cs are the two existing precedents for that " +
+            "file/class naming, so this is the first Core type M3-02 adds, not an invented one."),
 
         new("DraftedPerks", "M3-06", "PerkDefinition",
             "30 §4 lists 'drafted perks' on Run. 06 §5 forbids per-perk code — a perk IS DSL data — so " +
@@ -244,13 +250,18 @@ internal static class GapRegister
             "one consumable's state, not a second field on the aggregate — storing a bool for it now " +
             "would fix the Escape Rope's mechanics before M3-08 has chosen them."),
 
-        new("PendingFork", "M3-02", "NodeId",
+        new("PendingFork", "M3-02", "RollDice",
             "30 §4 lists 'pending fork choice (mid-move junction pause, 03 §1.1)'. A pending choice " +
-            "names the junction node and the branches on offer, so it cannot be stored before node " +
-            "identity exists; the pause itself is M3-02's movement engine. ⚠️ It shares its predicate " +
-            "with the Board entry DELIBERATELY: both become writable on the same day, and pointing " +
-            "this one at a different type to make the register look more granular would be buying " +
-            "silence with a predicate that does not describe the reason."),
+            "names the junction node (SlayIdleRepeat.Core.Rules.Board.NodeId, now authored by M3-01) " +
+            "and the branches on offer (Board.OutgoingEdges), so the SHAPE it would be stored as now " +
+            "exists — but the pause itself is still unbuilt: it is M3-02's movement engine, which is " +
+            "what actually reaches a junction mid-move and has something to pend. ⚠️ It shares its " +
+            "predicate with the Board entry DELIBERATELY, same as before M3-01: both become writable " +
+            "on the same day (M3-02's), and pointing this one at a different type to make the register " +
+            "look more granular would be buying silence with a predicate that does not describe the " +
+            "reason. The predicate moved from NodeId to RollDice on the commit that authored NodeId, " +
+            "not to a type invented for the occasion — see the Board entry's Why for the naming " +
+            "precedent (Handlers/StartRun.cs, Handlers/BeginSession.cs)."),
 
         new("Curses", "M3-11", "CurseDefinition",
             "30 §4 lists 'curses' on Run. 19 E catalogues twelve of them and M3-11 owns the rules " +
