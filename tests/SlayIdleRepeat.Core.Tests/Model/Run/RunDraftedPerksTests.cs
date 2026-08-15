@@ -127,4 +127,53 @@ public sealed class RunDraftedPerksTests
 
         Should.Throw<ArgumentOutOfRangeException>(() => run.MarkDraftPending(-1, 1));
     }
+
+    // ------------------------------------------------------------------ ReadOwnedPerkTiers via Rehydrate (M3-06)
+
+    /// <summary>
+    /// 🔒 Pins the deliberate asymmetry with <c>AdUses</c>/<c>ResolvedMinigames</c>: those two refuse a
+    /// null map, but <c>OwnedPerkTiers</c> is a trailing-defaulted M3-06 field, so a pre-M3-06 row's
+    /// null is accepted as "no perks drafted yet", not refused.
+    /// </summary>
+    [Fact]
+    public void A_null_OwnedPerkTiers_row_is_accepted_as_empty_not_refused()
+    {
+        var result = RunAggregate.Rehydrate(RunSnapshots.Valid with { OwnedPerkTiers = null });
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.DraftedPerks.TierOf("PK_ANYTHING").ShouldBe(0);
+    }
+
+    [Fact]
+    public void A_blank_perk_id_key_is_a_fault()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("  ", 1))));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.OwnedPerkTiers), Case.Sensitive);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    public void A_tier_outside_1_3_in_the_snapshot_is_a_fault(int badTier)
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("PK_TEST", badTier))));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.OwnedPerkTiers), Case.Sensitive);
+    }
+
+    /// <summary>…and the negative control: a well-formed map rehydrates and reads back correctly.</summary>
+    [Fact]
+    public void A_well_formed_OwnedPerkTiers_row_rehydrates_and_reads_back()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("PK_TEST", 2))));
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.DraftedPerks.TierOf("PK_TEST").ShouldBe(2);
+    }
 }

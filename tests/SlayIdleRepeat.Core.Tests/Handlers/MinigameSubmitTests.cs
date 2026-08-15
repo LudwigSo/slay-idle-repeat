@@ -2,6 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Tests.Model;
@@ -146,10 +147,14 @@ public sealed class MinigameSubmitTests
             state, new MinigameSubmitCommand(MinigameCatalogue.TimingBar, 1), Worlds.Context);
 
         first.Accepted.ShouldBeTrue();
-        first.NewState.Run!.MoveTo(9);
+
+        // 🔒 Run.MoveTo is documented as MovementEngine's alone to call — a second WorldSlice built
+        // from a snapshot at the new position is the seam this test is actually allowed to use.
+        var movedSnapshot = first.NewState.Run!.ToSnapshot() with { Position = 9 };
+        var movedState = first.NewState with { Run = Run.Rehydrate(movedSnapshot).Value };
 
         var second = SlayIdleRepeat.Core.GameRules.Apply(
-            first.NewState, new MinigameSubmitCommand(MinigameCatalogue.MemoryRune, 0), Worlds.Context);
+            movedState, new MinigameSubmitCommand(MinigameCatalogue.MemoryRune, 0), Worlds.Context);
 
         second.Accepted.ShouldBeTrue();
         second.NewState.Run!.ResolvedMinigames.Count.ShouldBe(2);

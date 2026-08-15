@@ -171,6 +171,94 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.RerollChargesSpentThisStage));
     }
 
+    // ------------------------------------------------------------------ RequirePendingFork faults (M3-02)
+
+    /// <summary>One half of the pair present without the other is not a row `Run.BeginPendingFork` could write.</summary>
+    [Fact]
+    public void Rehydrate_refuses_a_pending_fork_with_only_one_half_present()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(pendingForkJunctionPosition: 3, pendingForkRemainingSteps: null));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.PendingForkJunctionPosition), Case.Sensitive);
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.PendingForkRemainingSteps), Case.Sensitive);
+    }
+
+    /// <summary>A junction is a real node of the board — never negative.</summary>
+    [Fact]
+    public void Rehydrate_refuses_a_negative_pending_fork_junction()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(pendingForkJunctionPosition: -1, pendingForkRemainingSteps: 2));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.PendingForkJunctionPosition), Case.Sensitive);
+    }
+
+    /// <summary>`03` §1.1: zero movement left at a junction never prompts CHOOSE_FORK in the first place.</summary>
+    [Fact]
+    public void Rehydrate_refuses_a_pending_fork_with_zero_remaining_steps()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(pendingForkJunctionPosition: 3, pendingForkRemainingSteps: 0));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.PendingForkRemainingSteps), Case.Sensitive);
+    }
+
+    /// <summary>…and the negative control: a well-formed pending fork rehydrates.</summary>
+    [Fact]
+    public void Rehydrate_accepts_a_well_formed_pending_fork()
+    {
+        RunAggregate.Rehydrate(RunSnapshots.With(pendingForkJunctionPosition: 3, pendingForkRemainingSteps: 2))
+            .IsSuccess.ShouldBeTrue();
+    }
+
+    // ------------------------------------------------------------------ RequireDraftBattle faults (M3-06)
+
+    /// <summary>ClearDraftPending resets both fields to their sentinels; a stale value with no draft pending is a fault.</summary>
+    [Fact]
+    public void Rehydrate_refuses_a_stale_draft_battle_kind_with_no_draft_pending()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(draftPending: false, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 1));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleKind), Case.Sensitive);
+    }
+
+    /// <summary>A battle's tile kind is Enemy, Elite or Boss — all non-negative `03` §2 values.</summary>
+    [Fact]
+    public void Rehydrate_refuses_a_negative_draft_battle_kind_while_pending()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(draftPending: true, draftBattleKind: -2, draftBattleStage: 1));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleKind), Case.Sensitive);
+    }
+
+    /// <summary>`03` §1's three stages plus the boss node are the only legal values while a draft is pending.</summary>
+    [Fact]
+    public void Rehydrate_refuses_a_draft_battle_stage_outside_the_four_while_pending()
+    {
+        var result = RunAggregate.Rehydrate(
+            RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 9));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleStage), Case.Sensitive);
+    }
+
+    /// <summary>…and the negative control: a well-formed pending draft battle rehydrates.</summary>
+    [Fact]
+    public void Rehydrate_accepts_a_well_formed_pending_draft_battle()
+    {
+        RunAggregate.Rehydrate(
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Elite, draftBattleStage: 2))
+            .IsSuccess.ShouldBeTrue();
+    }
+
     [Fact]
     public void ToSnapshot_round_trips_all_four_fields()
     {

@@ -1,9 +1,11 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Tests.Content;
+using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
@@ -207,26 +209,41 @@ public sealed class EventChooseTests
         result.NewState.Run!.Gold.ShouldBe(0);
     }
 
+    /// <summary>
+    /// A player fixture with <see cref="CurrencyId.ENHANCE_STONES"/> pinned to a known balance, so a
+    /// wallet-cost test's outcome doesn't depend on a shared fixture's undocumented starting value.
+    /// </summary>
+    private static WorldSlice WithEnhanceStones(WorldSlice state, long enhanceStones) =>
+        state with
+        {
+            Player = Worlds.Rehydrated(
+                PlayerSnapshots.With(wallet: PlayerSnapshots.Wallet((CurrencyId.ENHANCE_STONES, enhanceStones)))),
+        };
+
     /// <summary>🔒 A META wallet cost is checked against the PLAYER's balance, not the run's Gold.</summary>
     [Fact]
-    public void A_wallet_cost_is_checked_against_the_players_balance()
+    public void A_wallet_cost_is_affordable_when_the_players_balance_covers_it()
     {
-        var state = OnCard(FixtureCards.CostlyMeta, gold: 100_000);
+        var state = WithEnhanceStones(OnCard(FixtureCards.CostlyMeta, gold: 100_000), enhanceStones: 6);
 
         var result = Choose(state, 0);
 
-        if (state.Player.BalanceOf(CurrencyId.ENHANCE_STONES) >= 6)
-        {
-            result.Accepted.ShouldBeTrue();
-            result.NewState.Player.BalanceOf(CurrencyId.ENHANCE_STONES)
-                .ShouldBe(state.Player.BalanceOf(CurrencyId.ENHANCE_STONES) - 6);
-        }
-        else
-        {
-            result.Rejection.ShouldBe(
-                RejectionReason.INSUFFICIENT_FUNDS,
-                "a wallet cost is not affordable out of the run's Gold, however much of it there is");
-        }
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Player.BalanceOf(CurrencyId.ENHANCE_STONES).ShouldBe(0);
+    }
+
+    /// <summary>🔒 The negative control: however much run Gold exists, it never substitutes for the wallet cost.</summary>
+    [Fact]
+    public void A_wallet_cost_is_refused_when_the_players_balance_does_not_cover_it()
+    {
+        var state = WithEnhanceStones(OnCard(FixtureCards.CostlyMeta, gold: 100_000), enhanceStones: 5);
+
+        var result = Choose(state, 0);
+
+        result.Accepted.ShouldBeFalse();
+        result.Rejection.ShouldBe(
+            RejectionReason.INSUFFICIENT_FUNDS,
+            "a wallet cost is not affordable out of the run's Gold, however much of it there is");
     }
 
     /// <summary>A free option costs nothing and reports no cost row.</summary>

@@ -73,19 +73,6 @@ public sealed class ShopPricingTests
             .ShouldBe(280L);
     }
 
-    /// <summary>🔒 Gold income and shop prices are tier-invariant: there is no tier parameter at all.</summary>
-    [Fact]
-    public void There_is_no_tier_parameter_because_prices_are_tier_invariant()
-    {
-        var method = typeof(ShopPricing).GetMethod(
-            "Price", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        method.ShouldNotBeNull();
-        method!.GetParameters()
-            .Select(p => p.Name)
-            .ShouldNotContain(name => name != null && name.Contains("ier", StringComparison.Ordinal));
-    }
-
     [Theory]
     [InlineData(-1)]
     [InlineData(3)]

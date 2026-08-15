@@ -585,4 +585,46 @@ public sealed class RunRehydrateTests
         run.HasResolvedMinigameAt(3).ShouldBeTrue();
         run.HasResolvedMinigameAt(4).ShouldBeFalse();
     }
+
+    // ------------------------------------------------------------------ RequireBankedRewards faults (M3-13)
+
+    /// <summary>Banked Legend XP is a pending grant — it never goes negative.</summary>
+    [Fact]
+    public void A_negative_BankedLegendXp_is_refused()
+    {
+        var result = Run.Rehydrate(RunSnapshots.With(bankedLegendXp: -1));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedLegendXp), Case.Sensitive);
+    }
+
+    /// <summary>Banked Soul Shards are a pending grant — they never go negative.</summary>
+    [Fact]
+    public void A_negative_BankedSoulShards_is_refused()
+    {
+        var result = Run.Rehydrate(RunSnapshots.With(bankedSoulShards: -1));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedSoulShards), Case.Sensitive);
+    }
+
+    /// <summary>🔒 Faults accumulate: both pools negative reports both problems, not just the first.</summary>
+    [Fact]
+    public void Negative_banked_rewards_in_both_pools_accumulate()
+    {
+        var result = Run.Rehydrate(RunSnapshots.With(bankedLegendXp: -5, bankedSoulShards: -3));
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedLegendXp), Case.Sensitive);
+        result.Error.ShouldContain(nameof(RunSnapshot.BankedSoulShards), Case.Sensitive);
+    }
+
+    /// <summary>…and the negative control: non-negative banked rewards rehydrate and read back.</summary>
+    [Fact]
+    public void A_well_formed_banked_rewards_row_rehydrates()
+    {
+        var run = Run.Rehydrate(RunSnapshots.With(bankedLegendXp: 40, bankedSoulShards: 15)).Value;
+
+        run.BankedLegendXp.ShouldBe(40);
+    }
 }

@@ -108,14 +108,16 @@ public sealed class RunRewardMathTests
 
     // ------------------------------------------------------------------ FinalPayoutFor: CompletionMultiplier
 
-    [Fact]
-    public void FinalPayout_applies_the_exact_completion_multiplier()
+    [Theory]
+    [InlineData(RunCompletionOutcome.Victory, 1000)]
+    [InlineData(RunCompletionOutcome.Stage3Death, 600)]
+    [InlineData(RunCompletionOutcome.Stage2Death, 400)]
+    [InlineData(RunCompletionOutcome.Stage1Death, 250)]
+    [InlineData(RunCompletionOutcome.Abandon, 100)]
+    internal void FinalPayout_applies_the_exact_completion_multiplier(
+        RunCompletionOutcome outcome, long expectedXp)
     {
-        RunRewardMath.FinalPayoutFor(1000, 0, RunCompletionOutcome.Victory, false, Content).LegendXp.ShouldBe(1000);
-        RunRewardMath.FinalPayoutFor(1000, 0, RunCompletionOutcome.Stage3Death, false, Content).LegendXp.ShouldBe(600);
-        RunRewardMath.FinalPayoutFor(1000, 0, RunCompletionOutcome.Stage2Death, false, Content).LegendXp.ShouldBe(400);
-        RunRewardMath.FinalPayoutFor(1000, 0, RunCompletionOutcome.Stage1Death, false, Content).LegendXp.ShouldBe(250);
-        RunRewardMath.FinalPayoutFor(1000, 0, RunCompletionOutcome.Abandon, false, Content).LegendXp.ShouldBe(100);
+        RunRewardMath.FinalPayoutFor(1000, 0, outcome, false, Content).LegendXp.ShouldBe(expectedXp);
     }
 
     /// <summary>🔒 Negative control: death still pays — even the harshest death row is never zero.</summary>
