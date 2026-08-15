@@ -186,9 +186,9 @@ public static class GameRules
         .Handled<UseRerollCommand>("USE_REROLL", CommandKind.Run, UseReroll.Handle)
         .Handled<ChooseForkCommand>("CHOOSE_FORK", CommandKind.Run, ChooseFork.Handle)
         .Handled<ResolveTileCommand>("RESOLVE_TILE", CommandKind.Run, ResolveTile.Handle)
-        .Deferred<PickPerkCommand>("PICK_PERK", CommandKind.Run, "M3-06")
-        .Deferred<RerollDraftCommand>("REROLL_DRAFT", CommandKind.Run, "M3-06")
-        .Deferred<SkipDraftCommand>("SKIP_DRAFT", CommandKind.Run, "M3-06")
+        .Handled<PickPerkCommand>("PICK_PERK", CommandKind.Run, PickPerk.Handle)
+        .Handled<RerollDraftCommand>("REROLL_DRAFT", CommandKind.Run, RerollDraft.Handle)
+        .Handled<SkipDraftCommand>("SKIP_DRAFT", CommandKind.Run, SkipDraft.Handle)
         .Handled<ShopBuyCommand>("SHOP_BUY", CommandKind.Run, ShopBuy.Handle)
         .Handled<ShopRefreshCommand>("SHOP_REFRESH", CommandKind.Run, ShopRefresh.Handle)
         .Handled<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, EventChoose.Handle)
@@ -413,6 +413,16 @@ public static class GameRules
             {
                 // A battle is open. CONFIRM_BATTLE_RESULT is the only legal next move — the same "an
                 // illegal move is data" shape RollDice draws for a pending fork.
+                return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
+            }
+
+            // 🔒 M3-06 — the DraftPending gate, mirroring BattlePending's above: DraftPending is
+            // orthogonal to RunPhase (Primitives.RunPhase's own remarks), so it is checked here
+            // rather than added as a fourth phase value. PICK_PERK/REROLL_DRAFT/SKIP_DRAFT are the
+            // only legal moves while a draft is open.
+            if (state.Run.DraftPending &&
+                command is not (PickPerkCommand or RerollDraftCommand or SkipDraftCommand))
+            {
                 return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
             }
         }

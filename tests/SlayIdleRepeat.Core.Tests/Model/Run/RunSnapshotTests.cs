@@ -190,6 +190,20 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.RerollChargesSpentThisStage), v,
                 RunSnapshots.With(rerollChargesSpentThisStage: 1)),
             (nameof(RunSnapshot.StageGateDiceAnchor), v, RunSnapshots.With(stageGateDiceAnchor: 5UL)),
+
+            // 🔒 M3-06's DraftBattleKind/DraftBattleStage, on the pending-tile probes' own precedent
+            // above: Run.Rehydrate's RequireDraftBattle refuses a row that carries a kind or stage
+            // with no draft pending, so each is probed TOGETHER WITH DraftPending true rather than
+            // in isolation against `v` — a probe that varied the field alone would move the hash of
+            // a row no run could ever be in.
+            (nameof(RunSnapshot.DraftBattleKind),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 1),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Elite, draftBattleStage: 1)),
+            (nameof(RunSnapshot.DraftBattleStage),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 1),
+                RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 2)),
+            (nameof(RunSnapshot.OwnedPerkTiers), v,
+                RunSnapshots.With(ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("PK_SHARP_EDGE", 1)))),
         };
 
         var invisible = probes

@@ -56,6 +56,9 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M3-01's board DAG + generator — outside the Combat/Stats/Effects ordering entirely.</summary>
     internal const string BoardNamespace = "SlayIdleRepeat.Core.Rules.Board";
 
+    /// <summary>M3-06's draft rarity weights/composition seams — outside the ordering entirely, like <see cref="BoardNamespace"/>.</summary>
+    internal const string PerksNamespace = "SlayIdleRepeat.Core.Rules.Perks";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -135,6 +138,22 @@ public sealed class IntraRulesLayeringRuleTests
         (BoardNamespace, CombatNamespace,
             "Board is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — board generation has no current reason to read the combat simulator."),
+
+        // 🔒 M3-06's Rules/Perks/ (DraftRarityWeights, DraftCompositionRules, PerkDraftEngine),
+        // pinned OUTSIDE the ordering the same way Board is, for the same reason: the draft engine's
+        // only Core dependencies outside its own namespace are Content.Perks, Model and Rng — zero
+        // current coupling to Combat/Stats/Effects in either direction. Drafting a perk chooses an
+        // id and a tier; it never evaluates what a tier's effects do (see PerkCatalogueEntry's own
+        // remarks for why the DSL is deliberately not read here).
+        (PerksNamespace, EffectsNamespace,
+            "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the draft engine has no current reason to read the effect DSL's resolver."),
+        (PerksNamespace, StatsNamespace,
+            "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the draft engine has no current reason to read stat aggregation."),
+        (PerksNamespace, CombatNamespace,
+            "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the draft engine has no current reason to read the combat simulator."),
     };
 
     /// <summary>

@@ -57,6 +57,12 @@ internal static class InRunIncomeDocuments
     /// <summary>🔒 M3-05, `03` §1.1 — the Stage Gate's healed share of Max HP, as shipped.</summary>
     internal const decimal ShippedStageGateHeal = 0.15m;
 
+    /// <summary>🔒 M3-06, `06` §1 — the draft's skip Gold reward, as shipped.</summary>
+    internal const long ShippedSkipGoldReward = 60;
+
+    /// <summary>🔒 M3-06 — the draft's reroll Gold cost, as shipped.</summary>
+    internal const long ShippedRerollGoldCost = 60;
+
     /// <summary>`03` §7a.3's three profiles, in the document's own order.</summary>
     internal static readonly (string Id, decimal Weight, long Crowns, long Stones, long Dust)[]
         ShippedTreasureProfiles =
@@ -147,6 +153,8 @@ internal static class InRunIncomeDocuments
         ContentValue? optionsOffered = null,
         ContentValue? campfireHeal = null,
         ContentValue? stageGateHeal = null,
+        ContentValue? skipGoldReward = null,
+        ContentValue? rerollGoldCost = null,
         ContentValue? curses = null,
         ContentValue? cards = null) =>
         new(
@@ -160,7 +168,7 @@ internal static class InRunIncomeDocuments
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
                 new ContentDocument(CurrenciesPath, Currencies(
                     eggChance, metaGrowth, goldGrowth, roundingMode, treasureProfiles, shrineBuffs,
-                    optionsOffered, campfireHeal, stageGateHeal)),
+                    optionsOffered, campfireHeal, stageGateHeal, skipGoldReward, rerollGoldCost)),
                 new ContentDocument(CursesPath, Curses(curses)),
                 new ContentDocument(BoardEventsPath, BoardEvents(cards)),
             ]);
@@ -194,7 +202,9 @@ internal static class InRunIncomeDocuments
         ContentValue? shrineBuffs,
         ContentValue? optionsOffered,
         ContentValue? campfireHeal,
-        ContentValue? stageGateHeal) =>
+        ContentValue? stageGateHeal,
+        ContentValue? skipGoldReward,
+        ContentValue? rerollGoldCost) =>
         Obj(
             ("chapterScalars", Obj(
                 ("goldGrowth", goldGrowth ?? ContentValue.Number(ShippedGoldGrowth)),
@@ -219,7 +229,10 @@ internal static class InRunIncomeDocuments
                 ("shrineBuffPool", Obj(
                     ("optionsOffered", optionsOffered ?? ContentValue.Number(ShippedOptionsOffered)),
                     ("buffs", shrineBuffs ?? ContentValue.Array(
-                        ShippedShrineBuffs.Select(ShrineBuff))))))));
+                        ShippedShrineBuffs.Select(ShrineBuff))))))),
+            ("draftEconomy", Obj(
+                ("skipGoldReward", skipGoldReward ?? ContentValue.Number(ShippedSkipGoldReward)),
+                ("rerollGoldCost", rerollGoldCost ?? ContentValue.Number(ShippedRerollGoldCost)))));
 
     private static ContentValue ShrineBuff((string Id, string? Stat, decimal? Magnitude, decimal? Heal) buff)
     {

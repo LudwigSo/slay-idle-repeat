@@ -50,6 +50,14 @@ public static class SnapshotSchema
     /// four are defaulted on the record so every pre-existing positional construction still compiles
     /// against the value a run implicitly held before this task.
     /// </para>
+    /// <para>
+    /// <b>7</b> — M3-06 added three fields to <c>RunSnapshot</c>: <c>DraftBattleKind</c> and
+    /// <c>DraftBattleStage</c> (the battle a pending draft was opened by, captured before
+    /// <c>Handlers.ConfirmBattleResult</c> clears the pending tile it came from — `06` §4's
+    /// <c>RarityWeights(stage, isElite, isBoss)</c> needs it) and <c>OwnedPerkTiers</c> (`30` §4's
+    /// drafted perks: perk id → owned tier). Same ruling, no migration; all three are defaulted on
+    /// the record so every pre-existing positional construction still compiles.
+    /// </para>
     /// </remarks>
-    public const int SchemaVersion = 6;
+    public const int SchemaVersion = 7;
 }

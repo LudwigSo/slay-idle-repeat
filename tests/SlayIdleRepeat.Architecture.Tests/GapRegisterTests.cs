@@ -425,9 +425,10 @@ public sealed class GapRegisterTests
             .ToArray();
 
         owners.Length.ShouldBe(
-            36,
-            "14 §2.3's registry is 19 run + 30 meta, and 36 of the 49 rows are Deferred since M3-05 " +
-            "landed the START_BATTLE/CONFIRM_BATTLE_RESULT handlers (beside M3-03's " +
+            33,
+            "14 §2.3's registry is 19 run + 30 meta, and 33 of the 49 rows are Deferred since M3-06 " +
+            "landed the PICK_PERK/REROLL_DRAFT/SKIP_DRAFT handlers (beside M3-05's " +
+            "START_BATTLE/CONFIRM_BATTLE_RESULT, M3-03's " +
             "RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE, M3-02's CHOOSE_FORK, M3-08's " +
             "SHOP_BUY/SHOP_REFRESH, M3-15's START_RUN, M3-03c's MINIGAME_SUBMIT, M3-04's " +
             "ROLL_DICE/USE_REROLL, and M1-09's BEGIN_SESSION). If this is 0 " +
@@ -442,6 +443,7 @@ public sealed class GapRegisterTests
                 "SHOP_BUY", "SHOP_REFRESH", "CHOOSE_FORK",
                 "RESOLVE_TILE", "EVENT_CHOOSE", "CAMPFIRE_CHOOSE",
                 "START_BATTLE", "CONFIRM_BATTLE_RESULT",
+                "PICK_PERK", "REROLL_DRAFT", "SKIP_DRAFT",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
@@ -455,7 +457,9 @@ public sealed class GapRegisterTests
             "03 §2's RESOLVE_TILE, EVENT_CHOOSE and CAMPFIRE_CHOOSE (M3-03) the ninth, tenth and " +
             "eleventh — one tile-resolver system reached through three commands; and 14 §2.3's " +
             "START_BATTLE and CONFIRM_BATTLE_RESULT (M3-05) the twelfth and thirteenth, opening and " +
-            "closing a battle over Run's new RunPhase.BattlePending. ⚠️ EVENT_CHOOSE and " +
+            "closing a battle over Run's new RunPhase.BattlePending; and 06 §1's PICK_PERK, " +
+            "REROLL_DRAFT and SKIP_DRAFT (M3-06) the fourteenth, fifteenth and sixteenth, resolving " +
+            "the perk draft CONFIRM_BATTLE_RESULT opens. ⚠️ EVENT_CHOOSE and " +
             "CAMPFIRE_CHOOSE were Deferred to 'M3-09' and 'M3-11' respectively, both STALE owners " +
             "read off an earlier tracker; the M3 kickoff put both under M3-03 with the rest of the " +
             "tile vocabulary. Their dispatch rows were corrected rather than left to go stale " +

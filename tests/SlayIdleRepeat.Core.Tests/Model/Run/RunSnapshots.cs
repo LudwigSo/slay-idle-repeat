@@ -53,6 +53,15 @@ internal static class RunSnapshots
         params (int Position, string MinigameId)[] entries) =>
         new ReadOnlyDictionary<int, string>(entries.ToDictionary(e => e.Position, e => e.MinigameId));
 
+    /// <summary>A <c>perk id → owned tier</c> map of the shape M3-06's field carries.</summary>
+    internal static IReadOnlyDictionary<string, int> OwnedPerkTiers(
+        params (string PerkId, int Tier)[] entries) =>
+        new ReadOnlyDictionary<string, int>(
+            entries.ToDictionary(e => e.PerkId, e => e.Tier, StringComparer.Ordinal));
+
+    /// <summary>M3-06 — <c>RunSnapshot.DraftBattleKind</c>'s "no draft pending" sentinel.</summary>
+    internal const int NoDraftBattleKind = -1;
+
     /// <summary>
     /// A valid row: chapter 1 on <see cref="DifficultyTier.NORMAL"/>, at position 0, unhurt, with no
     /// Gold, no stream ever drawn from and no ad watched.
@@ -115,7 +124,10 @@ internal static class RunSnapshots
         RunPhase? phase = null,
         bool? draftPending = null,
         int? rerollChargesSpentThisStage = null,
-        ulong? stageGateDiceAnchor = null) =>
+        ulong? stageGateDiceAnchor = null,
+        int? draftBattleKind = null,
+        int? draftBattleStage = null,
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -140,7 +152,10 @@ internal static class RunSnapshots
             phase ?? RunPhase.InProgress,
             draftPending ?? false,
             rerollChargesSpentThisStage ?? 0,
-            stageGateDiceAnchor ?? 0);
+            stageGateDiceAnchor ?? 0,
+            draftBattleKind ?? NoDraftBattleKind,
+            draftBattleStage ?? 0,
+            ownedPerkTiers ?? OwnedPerkTiers());
 
     /// <summary>
     /// M3-03 — <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here for

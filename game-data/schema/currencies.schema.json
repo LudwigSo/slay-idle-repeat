@@ -5,7 +5,7 @@
   "description": "03 §7a (in-run income, the single source of truth), 03 §6.1 (minigame rewards), 03 §7 (shop tile prices), 10 §2-§6 (Soul Shards, Crowns, the Shop, daily quests), 19 Part G (the 28-day login calendar). 10 §1: no currency in this game can be bought with money.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "wallet", "nonWalletCounters", "chapterScalars", "inRunIncome", "minigameRewards", "shopTile", "soulShards", "crowns", "shop", "dailyQuests", "loginCalendar"],
+  "required": ["$schema", "_doc", "_status", "wallet", "nonWalletCounters", "chapterScalars", "inRunIncome", "minigameRewards", "shopTile", "soulShards", "crowns", "shop", "dailyQuests", "draftEconomy", "loginCalendar"],
   "$defs": {
     "currencyId": { "enum": ["GOLD", "CROWNS", "SOUL_SHARDS", "ENERGY", "ENHANCE_STONES", "MERGE_DUST", "BEAST_FEED", "HONOR"] },
     "locKey": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" }
@@ -416,6 +416,17 @@
           }
         },
         "allThreeBonusChest": { "type": "boolean" }
+      }
+    },
+    "draftEconomy": {
+      "description": "M3-06, 06 §1 — the perk draft's skip/reroll economy. skipGoldReward is the one number SkipDraftCommand's own doc comment named ('60 Gold skip'); rerollGoldCost is M3-06's smallest-defensible extension of it, flagged as a placeholder for balance retuning against the economy simulator once it exists, not a ruling.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "skipGoldReward", "rerollGoldCost"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "skipGoldReward": { "type": "integer", "exclusiveMinimum": 0 },
+        "rerollGoldCost": { "type": "integer", "exclusiveMinimum": 0 }
       }
     },
     "loginCalendar": {

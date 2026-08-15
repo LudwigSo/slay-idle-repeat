@@ -66,7 +66,10 @@ internal static class ConfirmBattleResult
         }
 
         run.ExitBattle();
-        run.MarkDraftPending();
+        // 🔒 M3-06 — read BEFORE ClearPendingTile wipes them: 06 §4's RarityWeights(stage, isElite,
+        // isBoss) needs to know which battle this draft opened for, and PendingTileKindValue/
+        // PendingTileStage are the only place that fact lives once the tile clears.
+        run.MarkDraftPending(run.PendingTileKindValue, run.PendingTileStage);
         run.ClearPendingTile();
 
         return HandlerResult.Accept();
