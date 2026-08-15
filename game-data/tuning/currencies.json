@@ -204,6 +204,11 @@
     ],
     "allThreeBonusChest": true
   },
+  "draftEconomy": {
+    "_doc": "M3-06, 06 §1 — the perk draft's skip/reroll economy. No tuning data existed for this before M3-06: SkipDraftCommand's own XML doc comment cited '60 Gold skip + free reroll' as prose, not authored data. skipGoldReward (60) is that one number, transcribed rather than re-guessed. rerollGoldCost has no authored number anywhere in the repo; M3-06 picked the smallest defensible extension -- reusing the one known magnitude (60) rather than inventing a second, unrelated figure -- and flags it explicitly as a placeholder for the balance team to retune against the economy simulator once it exists, not a ruling.",
+    "skipGoldReward": 60,
+    "rerollGoldCost": 60
+  },
   "loginCalendar": {
     "_doc": "19 Part G — the 28-day cycle. Advances at BEGIN_SESSION, not by date; it advances at most once per game day and only when the currently open day has been claimed. Crown and Merge Dust values are Chapter-1 base and scale by the adBundleScalar. Pet Eggs are EGG_PET; day-14/28 S-tier chests are CHEST_PREMIUM.",
     "cycleDays": 28,

@@ -237,11 +237,13 @@ internal static class GapRegister
         //     position + remaining steps, Run.PendingFork's own storage). It stays in the
         //     transcription below and needs no Deferred entry — Undeclared() finds it authored.
 
-        new("DraftedPerks", "M3-06", "PerkDefinition",
-            "30 §4 lists 'drafted perks' on Run. 06 §5 forbids per-perk code — a perk IS DSL data — so " +
-            "the element type is M3-07's 98-perk catalogue read through M3-06's draft. Freezing a list " +
-            "element type now would put a guessed perk shape under both (S6). Keyed on " +
-            "PerkDefinition rather than on the draft handler, because the shape is what is missing."),
+        // 🔒 M3-06 DISCHARGED THE DraftedPerks ENTRY THAT USED TO SIT HERE, in BOTH directions at
+        // once: Content.Perks.PerkDefinition is authored (Expired()'s WaitsFor arm would fire) AND
+        // Model.DraftedPerks — the read-only wrapper over Run's own owned-perk map — is authored
+        // under Domain.ModelNamespace (Expired()'s Subject arm would ALSO fire). The 30 §4 Run-
+        // contents Surfaces transcription below still lists "DraftedPerks" — Undeclared() now finds
+        // it authored directly under Domain.ModelNamespace, with no entry needed to carry it, on
+        // 'PendingFork's own precedent two entries above this one.
 
         new("HeldConsumables", "M3-08", "ConsumableDefinition",
             "30 §4 lists 'held consumables and the armed Escape Rope flag (03 §7.1)'. Both are M3-08's " +

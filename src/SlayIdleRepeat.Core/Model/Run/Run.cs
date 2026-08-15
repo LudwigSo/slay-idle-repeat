@@ -247,6 +247,32 @@ public sealed class Run
     private bool _draftPending;
 
     /// <summary>
+    /// 🔒 M3-06 — the <c>(int)TileKind</c> of the battle <c>CONFIRM_BATTLE_RESULT</c> just closed
+    /// when it set <see cref="_draftPending"/>: Enemy, Elite or Boss. Meaningless while
+    /// <see cref="_draftPending"/> is false — <see cref="ClearDraftPending"/> resets it to
+    /// <see cref="NoDraftBattleKind"/> for the same reason <see cref="ClearPendingTile"/> resets its
+    /// own fields: `30` §11.3's snapshot is flat and hashed whole, so two runs with no draft pending
+    /// must produce the same bytes for this slot. Held as an <c>int</c> rather than
+    /// <c>Rules.Board.TileKind</c> for the same layering reason <see cref="_pendingTileKind"/> is —
+    /// <c>Model</c> may not name <c>Rules</c>' vocabulary (`30` §11.4).
+    /// </summary>
+    private int _draftBattleKind;
+
+    /// <summary>
+    /// 🔒 M3-06 — the stage (1, 2, 3, or <see cref="BossStage"/>) the just-closed battle belonged
+    /// to. Meaningless while <see cref="_draftPending"/> is false, reset to 0 alongside
+    /// <see cref="_draftBattleKind"/> for the same reason.
+    /// </summary>
+    private int _draftBattleStage;
+
+    /// <summary>
+    /// 🔒 M3-06, `30` §4 — the perks this run has drafted: perk id → owned internal tier (1-3).
+    /// M3-06's answer to <c>GapRegister</c>'s <c>DraftedPerks</c> entry (see
+    /// <see cref="Model.DraftedPerks"/>, the public wrapper type this dictionary is exposed through).
+    /// </summary>
+    private readonly Dictionary<string, int> _ownedPerkTiers;
+
+    /// <summary>
     /// 🔒 M3-05, `04` §3 — reroll charges spent since the run's current stage began. Reset to 0 at
     /// every Stage Gate (<see cref="ApplyStageGate"/>); compared against
     /// <see cref="Rules.Dice.RerollEconomy.TotalCharges"/> by <c>Handlers.UseReroll</c>, which is the
@@ -302,6 +328,9 @@ public sealed class Run
         string? pendingEventCardId,
         RunPhase phase,
         bool draftPending,
+        int draftBattleKind,
+        int draftBattleStage,
+        Dictionary<string, int> ownedPerkTiers,
         int rerollChargesSpentThisStage,
         ulong stageGateDiceAnchor)
     {
@@ -327,6 +356,9 @@ public sealed class Run
         _pendingEventCardId = pendingEventCardId;
         _phase = phase;
         _draftPending = draftPending;
+        _draftBattleKind = draftBattleKind;
+        _draftBattleStage = draftBattleStage;
+        _ownedPerkTiers = ownedPerkTiers;
         _rerollChargesSpentThisStage = rerollChargesSpentThisStage;
         _stageGateDiceAnchor = stageGateDiceAnchor;
     }
@@ -342,6 +374,13 @@ public sealed class Run
     /// <see cref="Rehydrate"/>'s validation — cannot drift apart.
     /// </remarks>
     private const int NoPendingTile = -1;
+
+    /// <summary>
+    /// 🔒 M3-06 — what <see cref="_draftBattleKind"/> holds while <see cref="_draftPending"/> is
+    /// false. −1 for the same reason <see cref="NoPendingTile"/> is: <c>Rules.Board.TileKind</c>'s
+    /// members run <c>0..13</c>, so no legal kind can collide with it.
+    /// </summary>
+    private const int NoDraftBattleKind = -1;
 
     /// <summary>
     /// 🔒 M3-03 — `03` §1's stage value for the boss node, which belongs to no stage.
@@ -536,6 +575,19 @@ public sealed class Run
     /// <inheritdoc cref="_draftPending"/>
     internal bool DraftPending => _draftPending;
 
+    /// <inheritdoc cref="_draftBattleKind"/>
+    /// <exception cref="InvalidOperationException">No draft is pending.</exception>
+    internal int DraftBattleKindValue =>
+        _draftPending ? _draftBattleKind : throw NoDraftPending(nameof(DraftBattleKindValue));
+
+    /// <inheritdoc cref="_draftBattleStage"/>
+    /// <exception cref="InvalidOperationException">No draft is pending.</exception>
+    internal int DraftBattleStage =>
+        _draftPending ? _draftBattleStage : throw NoDraftPending(nameof(DraftBattleStage));
+
+    /// <inheritdoc cref="_ownedPerkTiers"/>
+    internal DraftedPerks DraftedPerks => new(new ReadOnlyDictionary<string, int>(_ownedPerkTiers));
+
     /// <inheritdoc cref="_rerollChargesSpentThisStage"/>
     internal int RerollChargesSpentThisStage => _rerollChargesSpentThisStage;
 
@@ -637,7 +689,10 @@ public sealed class Run
         _phase,
         _draftPending,
         _rerollChargesSpentThisStage,
-        _stageGateDiceAnchor);
+        _stageGateDiceAnchor,
+        _draftBattleKind,
+        _draftBattleStage,
+        CopyOwnedPerkTiers(_ownedPerkTiers));
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
@@ -705,11 +760,14 @@ public sealed class Run
         RequirePendingTile(snapshot, faults);
         RequirePhase(snapshot, faults);
         RequireRerollCharges(snapshot, faults);
+        RequireDraftBattle(snapshot, faults);
+        var ownedPerkTiers = ReadOwnedPerkTiers(snapshot, faults);
 
-        // The three `is null` arms are unreachable while `faults` is empty — every path that returns
-        // null also adds a fault — but they are written as a pattern rather than as three `!`
+        // The four `is null` arms are unreachable while `faults` is empty — every path that returns
+        // null also adds a fault — but they are written as a pattern rather than as four `!`
         // operators so the correlation is checked rather than asserted at the compiler.
-        if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null)
+        if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null ||
+            ownedPerkTiers is null)
         {
             return Result<Run>.Failure(
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -746,6 +804,9 @@ public sealed class Run
             string.IsNullOrWhiteSpace(snapshot.PendingEventCardId) ? null : snapshot.PendingEventCardId,
             snapshot.Phase,
             snapshot.DraftPending,
+            snapshot.DraftBattleKind,
+            snapshot.DraftBattleStage,
+            ownedPerkTiers,
             snapshot.RerollChargesSpentThisStage,
             snapshot.StageGateDiceAnchor));
     }
@@ -1414,9 +1475,37 @@ public sealed class Run
     /// future M3-06 command (<c>PICK_PERK</c>/<c>REROLL_DRAFT</c>/<c>SKIP_DRAFT</c>) reads
     /// <see cref="DraftPending"/> and calls <see cref="ClearDraftPending"/> once the draft resolves.
     /// </summary>
+    /// <param name="battleKind">
+    /// 🔒 M3-06 — the <c>(int)TileKind</c> of the battle just closed (Enemy, Elite or Boss), so
+    /// M3-06's <c>RarityWeights(stage, isElite, isBoss)</c> can tell which table to draw from once
+    /// <see cref="Handlers.ConfirmBattleResult"/> has already cleared <c>PendingTileKind</c>. Never
+    /// negative — the caller reads it off <see cref="PendingTileKindValue"/> before clearing it.
+    /// </param>
+    /// <param name="battleStage">The stage the battle belonged to — 1, 2, 3, or <see cref="BossStage"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="battleKind"/> is negative, or <paramref name="battleStage"/> is not one of the four.
+    /// </exception>
     /// <exception cref="InvalidOperationException">A draft is already pending.</exception>
-    internal void MarkDraftPending()
+    internal void MarkDraftPending(int battleKind, int battleStage)
     {
+        if (battleKind < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(battleKind), battleKind,
+                "A battle's tile kind is Enemy, Elite or Boss, all non-negative 03 §2 values. The " +
+                "caller reads this off PendingTileKindValue before ClearPendingTile wipes it — see " +
+                "PendingTileKindValue's remarks for why this aggregate cannot check it is one of " +
+                "those three specifically.");
+        }
+
+        if (battleStage is not (1 or 2 or 3 or BossStage))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(battleStage), battleStage,
+                "03 §1 gives a board three stages (1, 2, 3) plus a boss node carried as stage " +
+                Text(BossStage) + ". " + Text(battleStage) + " is not one of the four.");
+        }
+
         if (_draftPending)
         {
             throw new InvalidOperationException(
@@ -1427,10 +1516,67 @@ public sealed class Run
         }
 
         _draftPending = true;
+        _draftBattleKind = battleKind;
+        _draftBattleStage = battleStage;
     }
 
     /// <summary>🔒 M3-05 — clears the draft-pending hook. Idempotent, for the reason <see cref="ClearPendingTile"/> is.</summary>
-    internal void ClearDraftPending() => _draftPending = false;
+    internal void ClearDraftPending()
+    {
+        _draftPending = false;
+
+        // 🔒 Reset for the same determinism reason ClearPendingTile resets its own fields: two runs
+        // with no draft pending must hash identically (30 §11.3's snapshot is flat and hashed whole).
+        _draftBattleKind = NoDraftBattleKind;
+        _draftBattleStage = 0;
+    }
+
+    /// <summary>
+    /// 🔒 M3-06, `06` §1.1 — grants or upgrades a drafted perk: a fresh grant at Tier I, or an
+    /// upgrade to <paramref name="newTier"/> for a perk already owned one tier below it.
+    /// </summary>
+    /// <param name="perkId">The `06` §3 perk id. Never blank.</param>
+    /// <param name="newTier">1 for a fresh grant, or the perk's next tier (2 or 3) for an upgrade.</param>
+    /// <exception cref="ArgumentException"><paramref name="perkId"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="newTier"/> is not 1, 2 or 3, or is not exactly one tier above the perk's
+    /// currently-owned tier (0 for an unowned perk).
+    /// </exception>
+    internal void UpsertPerkTier(string perkId, int newTier)
+    {
+        if (string.IsNullOrWhiteSpace(perkId))
+        {
+            throw new ArgumentException(
+                "A drafted perk is recorded against the 06 §3 PK_* id that was taken, never blank.",
+                nameof(perkId));
+        }
+
+        if (newTier is < 1 or > 3)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(newTier), newTier,
+                "06 §1.1 gives every perk exactly three internal tiers, numbered 1-3. " +
+                Text(newTier) + " is outside that range.");
+        }
+
+        var ownedTier = _ownedPerkTiers.TryGetValue(perkId, out var tier) ? tier : 0;
+
+        if (newTier != ownedTier + 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(newTier), newTier,
+                "'" + perkId + "' is owned at tier " + Text(ownedTier) + " (0 meaning unowned). " +
+                "06 §1.1's draft either grants a fresh perk at Tier I or upgrades an owned one by " +
+                "exactly one tier — " + Text(newTier) + " is neither.");
+        }
+
+        _ownedPerkTiers[perkId] = newTier;
+    }
+
+    /// <summary>🔒 M3-06 — the "nothing pending" refusal for the draft hook, on <see cref="NothingPending"/>'s pattern.</summary>
+    private static InvalidOperationException NoDraftPending(string member) =>
+        new("Run." + member + " describes the battle a pending perk draft was opened by, and this " +
+            "run has no draft pending. Ask Run.DraftPending first.");
 
     /// <summary>
     /// 🔒 M3-05, `04` §3 — records that one reroll charge was spent this stage.
@@ -1586,6 +1732,16 @@ public sealed class Run
         resolvedMinigames.Count == 0
             ? NoResolvedMinigames
             : new ReadOnlyDictionary<int, string>(new Dictionary<int, string>(resolvedMinigames));
+
+    /// <inheritdoc cref="NoResolvedMinigames"/>
+    private static readonly ReadOnlyDictionary<string, int> NoOwnedPerkTiers =
+        new(new Dictionary<string, int>(0, StringComparer.Ordinal));
+
+    /// <inheritdoc cref="CopyAdUses"/>
+    private static ReadOnlyDictionary<string, int> CopyOwnedPerkTiers(Dictionary<string, int> ownedPerkTiers) =>
+        ownedPerkTiers.Count == 0
+            ? NoOwnedPerkTiers
+            : new ReadOnlyDictionary<string, int>(new Dictionary<string, int>(ownedPerkTiers, StringComparer.Ordinal));
 
     /// <summary>
     /// 🔒 <c>GOLD</c> is the one <c>RUN</c>-scoped currency (`10` §1, assumption <b>A3</b>). The
@@ -2073,6 +2229,86 @@ public sealed class Run
                 nameof(RunSnapshot.RerollChargesSpentThisStage) + " is " +
                 Text(snapshot.RerollChargesSpentThisStage) + ". A spent count is never negative.");
         }
+    }
+
+    /// <summary>
+    /// 🔒 M3-06 — <see cref="RunSnapshot.DraftBattleKind"/>/<see cref="RunSnapshot.DraftBattleStage"/>
+    /// are meaningless while <see cref="RunSnapshot.DraftPending"/> is false, and must then stand at
+    /// their reset values — the same pairing discipline <see cref="RequirePendingFork"/> checks.
+    /// </summary>
+    private static void RequireDraftBattle(RunSnapshot snapshot, List<string> faults)
+    {
+        if (!snapshot.DraftPending)
+        {
+            if (snapshot.DraftBattleKind != NoDraftBattleKind || snapshot.DraftBattleStage != 0)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.DraftPending) + " is false but " +
+                    nameof(RunSnapshot.DraftBattleKind) + " is " + Text(snapshot.DraftBattleKind) +
+                    " and " + nameof(RunSnapshot.DraftBattleStage) + " is " +
+                    Text(snapshot.DraftBattleStage) + ". ClearDraftPending resets both to their " +
+                    "sentinel values; a row with no draft pending and non-sentinel values is not a " +
+                    "state Run's own mutators could have written.");
+            }
+
+            return;
+        }
+
+        if (snapshot.DraftBattleKind < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.DraftBattleKind) + " is " + Text(snapshot.DraftBattleKind) +
+                " while a draft is pending. A battle's tile kind is Enemy, Elite or Boss, all " +
+                "non-negative 03 §2 values.");
+        }
+
+        if (snapshot.DraftBattleStage is not (1 or 2 or 3 or BossStage))
+        {
+            faults.Add(
+                nameof(RunSnapshot.DraftBattleStage) + " is " + Text(snapshot.DraftBattleStage) +
+                ", which names none of 03 §1's three stages plus the boss node (stage " +
+                Text(BossStage) + ").");
+        }
+    }
+
+    private static Dictionary<string, int>? ReadOwnedPerkTiers(RunSnapshot snapshot, List<string> faults)
+    {
+        // 🔒 Unlike AdUses/ResolvedMinigames, null IS a legitimate empty answer here rather than a
+        // fault: OwnedPerkTiers is a trailing DEFAULTED positional field (default null) added by
+        // M3-06 so every pre-M3-06 positional RunSnapshot construction still compiles — the same
+        // reason Phase/DraftPending/RerollChargesSpentThisStage/StageGateDiceAnchor default to their
+        // own "run implicitly held this" values rather than faulting a caller that predates them.
+        if (snapshot.OwnedPerkTiers is null)
+        {
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+        }
+
+        var copy = new Dictionary<string, int>(snapshot.OwnedPerkTiers.Count, StringComparer.Ordinal);
+        var faulted = false;
+
+        foreach (var (perkId, tier) in snapshot.OwnedPerkTiers)
+        {
+            if (string.IsNullOrWhiteSpace(perkId))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.OwnedPerkTiers) + " carries a blank perk id key.");
+                faulted = true;
+                continue;
+            }
+
+            if (tier is < 1 or > 3)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.OwnedPerkTiers) + "['" + perkId + "'] is " + Text(tier) +
+                    ". 06 §1.1 gives every perk exactly three internal tiers, numbered 1-3.");
+                faulted = true;
+                continue;
+            }
+
+            copy[perkId] = tier;
+        }
+
+        return faulted ? null : copy;
     }
 
     /// <summary>

@@ -183,6 +183,23 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <see cref="SlayIdleRepeat.Core.Rules.Dice.FairDiceBag.Replay"/>'s <c>resetAtDraw</c>. Defaulted to 0, the anchor every
 /// run implicitly held before a real Stage Gate existed.
 /// </param>
+/// <param name="DraftBattleKind">
+/// 🔒 M3-06, SchemaVersion 7 — the <c>(int)TileKind</c> of the battle that set
+/// <paramref name="DraftPending"/> (Enemy, Elite or Boss), captured before
+/// <c>Handlers.ConfirmBattleResult</c> clears the pending tile it came from — `06` §4's
+/// <c>RarityWeights(stage, isElite, isBoss)</c> needs to know which battle a draft opened for after
+/// that tile is gone. <b>−1</b> ("no draft pending") when <paramref name="DraftPending"/> is false.
+/// </param>
+/// <param name="DraftBattleStage">
+/// 🔒 M3-06, SchemaVersion 7 — the stage (1, 2, 3, or <c>BoardGraph.BossStage</c>) the battle named
+/// by <paramref name="DraftBattleKind"/> belonged to. <c>0</c> when no draft is pending, which is
+/// also <c>BossStage</c>'s value and unambiguous for the same reason <paramref name="PendingTileStage"/>'s is.
+/// </param>
+/// <param name="OwnedPerkTiers">
+/// 🔒 M3-06, SchemaVersion 7, `30` §4 — the perks this run has drafted: perk id → owned internal
+/// tier (1-3). Sparse; a perk absent from here has not been drafted. Discharges
+/// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>'s <c>DraftedPerks</c> entry.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -256,4 +273,7 @@ public sealed record RunSnapshot(
     RunPhase Phase = RunPhase.InProgress,
     bool DraftPending = false,
     int RerollChargesSpentThisStage = 0,
-    ulong StageGateDiceAnchor = 0);
+    ulong StageGateDiceAnchor = 0,
+    int DraftBattleKind = -1,
+    int DraftBattleStage = 0,
+    IReadOnlyDictionary<string, int>? OwnedPerkTiers = null);

@@ -81,7 +81,7 @@ public sealed class RunPhaseTests
     {
         var run = NewRun();
 
-        run.MarkDraftPending();
+        run.MarkDraftPending((int)TileKind.Enemy, 1);
 
         run.DraftPending.ShouldBeTrue();
     }
@@ -90,9 +90,9 @@ public sealed class RunPhaseTests
     public void MarkDraftPending_twice_is_a_defect()
     {
         var run = NewRun();
-        run.MarkDraftPending();
+        run.MarkDraftPending((int)TileKind.Enemy, 1);
 
-        Should.Throw<InvalidOperationException>(() => run.MarkDraftPending());
+        Should.Throw<InvalidOperationException>(() => run.MarkDraftPending((int)TileKind.Enemy, 1));
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class RunPhaseTests
         Should.NotThrow(run.ClearDraftPending);
         run.DraftPending.ShouldBeFalse();
 
-        run.MarkDraftPending();
+        run.MarkDraftPending((int)TileKind.Enemy, 1);
         run.ClearDraftPending();
         run.DraftPending.ShouldBeFalse();
 
@@ -180,7 +180,7 @@ public sealed class RunPhaseTests
         run.SpendReroll();
         run.ApplyStageGate(50, 7UL);
         run.ExitBattle();
-        run.MarkDraftPending();
+        run.MarkDraftPending((int)TileKind.Enemy, 1);
 
         var snapshot = run.ToSnapshot();
 
@@ -188,6 +188,8 @@ public sealed class RunPhaseTests
         snapshot.DraftPending.ShouldBeTrue();
         snapshot.RerollChargesSpentThisStage.ShouldBe(0);
         snapshot.StageGateDiceAnchor.ShouldBe(7UL);
+        snapshot.DraftBattleKind.ShouldBe((int)TileKind.Enemy);
+        snapshot.DraftBattleStage.ShouldBe(1);
 
         var rehydrated = RunAggregate.Rehydrate(snapshot).Value;
         rehydrated.Phase.ShouldBe(RunPhase.InProgress);

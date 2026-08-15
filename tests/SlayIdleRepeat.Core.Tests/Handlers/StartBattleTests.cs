@@ -93,9 +93,16 @@ public sealed class StartBattleTests
 
         closed.Run!.HasPendingTile.ShouldBeFalse("CONFIRM_BATTLE_RESULT must clear the pending tile");
 
+        // 🔒 M3-06 — CONFIRM_BATTLE_RESULT also marks a draft pending, and GameRules.Execute's
+        // DraftPending gate refuses every run command but PICK_PERK/REROLL_DRAFT/SKIP_DRAFT while
+        // one is open. This test is about the combat stream's monotonicity, not the draft, so it
+        // resolves the draft with SKIP_DRAFT before splicing a second fight tile onto the run.
+        var draftResolved = SlayIdleRepeat.Core.GameRules.Apply(
+            closed, new SkipDraftCommand(), TileWorlds.Context).NewState;
+
         // Splice a second pending fight tile directly onto the closed run's snapshot — this test is
         // about the combat stream's monotonicity, not about how a second tile is arrived at.
-        var secondTileSnapshot = closed.Run!.ToSnapshot() with
+        var secondTileSnapshot = draftResolved.Run!.ToSnapshot() with
         {
             PendingTileKind = (int)TileKind.Boss,
             PendingTileLinearIndex = 41,
