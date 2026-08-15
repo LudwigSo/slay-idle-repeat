@@ -1,0 +1,160 @@
+using Shouldly;
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Primitives;
+using Xunit;
+
+namespace SlayIdleRepeat.Core.Tests.Content;
+
+/// <summary>
+/// 🔒 `19` Part E — <see cref="CurseTuning"/>'s read of <c>content/curses/curses.json</c> and
+/// <see cref="CurseRewards"/>' narrow four-row payout table.
+/// </summary>
+public sealed class CurseTuningTests
+{
+    private static readonly CurseTuning Shipped = CurseTuning.Read(InRunIncomeDocuments.Shipped);
+
+    /// <summary>🔒 The twelve rows, in the document's own order.</summary>
+    [Fact]
+    public void Every_curse_row_comes_from_the_curses_document()
+    {
+        Shipped.All.Count.ShouldBe(InRunIncomeDocuments.ShippedCurses.Length);
+
+        for (var i = 0; i < Shipped.All.Count; i++)
+        {
+            var (id, reward, availableFrom) = InRunIncomeDocuments.ShippedCurses[i];
+
+            Shipped.All[i].Id.ShouldBe(id);
+            Shipped.All[i].Reward.ShouldBe(reward);
+            Shipped.All[i].AvailableFromChapter.ShouldBe(availableFrom);
+        }
+    }
+
+    /// <summary>
+    /// 🔒 `19` Part E's chapter gate — the column is the EARLIEST chapter a curse opens in, so the
+    /// comparison is <c>availableFromChapter &lt;= chapterId</c> and a curse stays available after.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 4)]
+    [InlineData(2, 4)]
+    [InlineData(3, 11)]
+    [InlineData(4, 11)]
+    [InlineData(5, 12)]
+    [InlineData(8, 12)]
+    public void The_chapter_gate_opens_a_curse_and_keeps_it_open(int chapterId, int expected)
+    {
+        Shipped.AvailableFrom(chapterId).Count.ShouldBe(expected);
+    }
+
+    /// <summary>
+    /// 🔒 The gate genuinely EXCLUDES a later curse from an earlier chapter — the half of the filter
+    /// that a missing or inverted comparison would break, and the one that matters: <c>CUR_HUNTED</c>
+    /// pays a per-Elite gear drop no system can grant.
+    /// </summary>
+    [Fact]
+    public void A_chapter_five_curse_is_excluded_from_a_chapter_one_draw()
+    {
+        Shipped.AvailableFrom(1).Select(c => c.Id).ShouldNotContain("CUR_HUNTED");
+        Shipped.AvailableFrom(1).Select(c => c.Id).ShouldNotContain("CUR_UNTIMELY");
+    }
+
+    /// <summary>…and the negative control: it IS included from the chapter it opens in.</summary>
+    [Fact]
+    public void A_chapter_five_curse_is_included_from_chapter_five()
+    {
+        Shipped.AvailableFrom(5).Select(c => c.Id).ShouldContain("CUR_HUNTED");
+    }
+
+    /// <summary>🔒 The four chapter-1 curses are exactly `19` Part E's, in its order.</summary>
+    [Fact]
+    public void Chapter_one_opens_exactly_the_four_authored_curses()
+    {
+        Shipped.AvailableFrom(1).Select(c => c.Id)
+            .ShouldBe(["CUR_SLIPPERY", "CUR_MARKED", "CUR_DIZZY", "CUR_FRACTURED"]);
+    }
+
+    /// <summary>A chapter below `02` §1's floor has no eligible set to compute.</summary>
+    [Fact]
+    public void A_chapter_below_one_is_refused()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => Shipped.AvailableFrom(0));
+    }
+
+    /// <summary>A duplicate id would make one curse unreachable and the other twice as likely.</summary>
+    [Fact]
+    public void A_duplicate_curse_id_is_refused()
+    {
+        var row = InRunIncomeDocuments.Obj(
+            ("id", ContentValue.Text("CUR_SLIPPERY")),
+            ("displayName", ContentValue.Text("loc.curse.slippery.name")),
+            ("effect", ContentValue.Text("-1 to all Pip rolls (minimum 1)")),
+            ("reward", ContentValue.Text("+250 Gold")),
+            ("availableFromChapter", ContentValue.Number(1m)));
+
+        Should.Throw<InvalidTunableException>(() =>
+                CurseTuning.Read(InRunIncomeDocuments.With(curses: ContentValue.Array([row, row]))))
+            .Message.ShouldContain("CUR_SLIPPERY", Case.Sensitive);
+    }
+
+    /// <summary>An empty catalogue leaves a curse tile with nothing to draw.</summary>
+    [Fact]
+    public void An_empty_curse_catalogue_is_refused()
+    {
+        Should.Throw<InvalidTunableException>(() =>
+            CurseTuning.Read(InRunIncomeDocuments.With(curses: ContentValue.EmptyArray)));
+    }
+
+    // ------------------------------------------------------------------ CurseRewards
+
+    /// <summary>
+    /// 🔒 The four-row payout table pays exactly what `19` Part E's <c>reward</c> prose says —
+    /// asserted against the <b>content's own string</b>, so a content edit that changed "+250 Gold"
+    /// fails the build rather than leaving this table quietly wrong.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ This is the test that earns <see cref="CurseRewards"/> the right to be a hardcoded table
+    /// rather than a parser: the numbers are transcribed once and checked against their source, which
+    /// is a far narrower claim than a grammar for a prose column nothing specifies.
+    /// </remarks>
+    [Theory]
+    [InlineData("CUR_SLIPPERY", CurrencyId.GOLD, 250L, "+250 Gold")]
+    [InlineData("CUR_MARKED", CurrencyId.ENHANCE_STONES, 2L, "+2 Enhance Stones")]
+    [InlineData("CUR_DIZZY", CurrencyId.GOLD, 180L, "+180 Gold")]
+    [InlineData("CUR_FRACTURED", CurrencyId.GOLD, 500L, "+500 Gold")]
+    public void Each_payable_reward_matches_the_content_files_own_prose(
+        string curseId, CurrencyId currency, long amount, string authoredProse)
+    {
+        CurseRewards.For(curseId).ShouldBe((currency, amount));
+
+        Shipped.All.Single(c => c.Id == curseId).Reward.ShouldBe(authoredProse);
+    }
+
+    /// <summary>🔒 Exactly four ids are payable — the table is narrow on purpose.</summary>
+    [Fact]
+    public void Only_the_four_chapter_one_curses_are_payable()
+    {
+        CurseRewards.PayableIds
+            .ShouldBe(["CUR_SLIPPERY", "CUR_MARKED", "CUR_DIZZY", "CUR_FRACTURED"]);
+
+        foreach (var row in Shipped.All.Where(c => !CurseRewards.PayableIds.Contains(c.Id)))
+        {
+            CurseRewards.IsPayable(row.Id).ShouldBeFalse(row.Id + " must not be payable");
+        }
+    }
+
+    /// <summary>
+    /// A curse whose `19` Part E reward is a percentage, a reroll charge or a gear drop is refused
+    /// rather than paid a guessed amount.
+    /// </summary>
+    [Theory]
+    [InlineData("CUR_HUNTED")]
+    [InlineData("CUR_FAMISHED")]
+    [InlineData("CUR_BLIND")]
+    [InlineData("CUR_NOT_REAL")]
+    public void An_unpayable_curse_is_refused(string curseId)
+    {
+        CurseRewards.IsPayable(curseId).ShouldBeFalse();
+
+        Should.Throw<ArgumentException>(() => CurseRewards.For(curseId))
+            .Message.ShouldContain(curseId, Case.Sensitive);
+    }
+}
