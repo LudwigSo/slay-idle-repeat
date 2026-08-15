@@ -100,6 +100,21 @@ public static class ContentLayout
             // (plural), and a bare fallback would demand schema/perks.schema.json — a one-letter
             // difference the stem rule cannot bridge on its own. Authored by M3-07.
             [ContentDirectory + "perks/"] = SchemaDirectory + "perk" + SchemaSuffix,
+
+            // 19 Part A — the 30 in-run event cards a TILE_EVENT draws from. Authored by M3-03.
+            // 🔒 The one row in this table where the one-letter hazard the remarks above warn about
+            // is a THREE-WAY one, so it is spelled out: schema/board_events.schema.json (this row,
+            // the tile you land on mid-run), schema/event.schema.json (26 §2's live-ops event
+            // PACKAGE, content/liveops_events/) and schema/events.schema.json (26's framework-wide
+            // TUNING file, tuning/events.json) are three different schemas whose names differ by a
+            // letter and a word. game-data/README.md declares board_events/ for exactly this content
+            // and says its schema is "a distinct board-event schema"; this is that schema.
+            //
+            // The stem rule would in fact resolve content/board_events/board_events.json correctly
+            // without this row — the file is named after its own directory, the same shape that made
+            // bosses/, enemies/ and curses/ easy to forget above. It is named here for their reason:
+            // a SECOND board-event file would silently ask for schema/<that file>.schema.json.
+            [ContentDirectory + "board_events/"] = SchemaDirectory + "board_events" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

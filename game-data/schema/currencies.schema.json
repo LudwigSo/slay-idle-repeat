@@ -66,7 +66,7 @@
       "description": "03 §7a — the single source of truth for every in-run payout. 02 §5.1 and 10 §4 point here.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["goldPerKill", "runCompletionCrowns", "treasureProfiles", "cache", "shrineBuffPool"],
+      "required": ["goldPerKill", "runCompletionCrowns", "treasureProfiles", "cache", "campfire", "shrineBuffPool"],
       "properties": {
         "goldPerKill": {
           "description": "03 §7a.1 — GoldPerKill(c) = base * G(c). No Gold is paid for run victory: Gold is run-local and vanishes at run end.",
@@ -126,6 +126,16 @@
             "_doc": { "type": "string", "minLength": 1 },
             "beastFeedBase": { "type": "number", "exclusiveMinimum": 0 },
             "eggChance": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "campfire": {
+          "description": "03 §2 — the campfire's rest option heals healPctMaxHp of Max HP. Flat across chapters: a share of a run-scoped maximum takes no M(c) or G(c) scalar. Exclusive of 0 because a rest that heals nothing is not a rest; 1 is allowed because a full heal is a coherent tuning.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "healPctMaxHp"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "healPctMaxHp": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
           }
         },
         "shrineBuffPool": {

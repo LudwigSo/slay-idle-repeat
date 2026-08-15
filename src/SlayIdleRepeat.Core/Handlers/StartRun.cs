@@ -92,6 +92,31 @@ internal static class StartRun
     /// </summary>
     private static readonly ReadOnlyDictionary<int, string> NoResolvedMinigames = new(new Dictionary<int, string>(0));
 
+    /// <summary>
+    /// 🔒 M3-03 — <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel. A run at `03`
+    /// §1.1's trailhead is standing on no node, so it is on no tile either.
+    /// </summary>
+    /// <remarks>
+    /// Restated here rather than read off <c>Run</c>, whose own constant is <c>private</c> for the
+    /// reason every aggregate constant is: the sentinel is part of the <b>snapshot's</b> contract
+    /// (<c>RunSnapshot.PendingTileKind</c> documents it), and this handler is writing a snapshot.
+    /// <c>Run.Rehydrate</c> is what checks the two agree, and refuses this row loudly if they ever
+    /// stop agreeing.
+    /// </remarks>
+    private const int NoPendingTile = -1;
+
+    /// <inheritdoc cref="NoPendingTile"/>
+    private const int NoPendingTileLinearIndex = 0;
+
+    /// <inheritdoc cref="NoPendingTile"/>
+    private const int NoPendingTileStage = 0;
+
+    /// <summary>
+    /// 🔒 M3-03 — <c>RunSnapshot.PendingEventCardId</c>'s "no card drawn" value. The empty string
+    /// and never <c>null</c>: see that field's own remarks.
+    /// </summary>
+    private const string NoPendingEventCard = "";
+
     /// <summary>🔒 `02` §2 — applies <c>START_RUN</c>.</summary>
     /// <param name="command">The chapter and tier to start on.</param>
     /// <param name="input">
@@ -162,7 +187,15 @@ internal static class StartRun
             NoAdUses,
             NoResolvedMinigames,
             PendingForkJunctionPosition: null,
-            PendingForkRemainingSteps: null);
+            PendingForkRemainingSteps: null,
+            // 🔒 M3-03 — a run begins at 03 §1.1's virtual trailhead, one step BEFORE node 0, so it
+            // is standing on no tile at all: NoPendingTile, and the other three at their "nothing
+            // pending" values. The first tile arrives on the first ROLL_DICE, through
+            // Run.ArriveAtTile.
+            NoPendingTile,
+            NoPendingTileLinearIndex,
+            NoPendingTileStage,
+            NoPendingEventCard);
 
         var run = Run.Rehydrate(snapshot);
 

@@ -123,7 +123,7 @@ sits at the end. It is authored per milestone (M2/M3/M11). M2 filled `enemies/`,
 > `board_events/` and `liveops_events/` are two different things that the design docs both call
 > "events". The first is a tile you land on mid-run; the second is a two-week live-ops package. They
 > are kept in separate directories, and their schemas are named `event.schema.json` (live-ops, the
-> path `26` §2 names) and — when authored — a distinct board-event schema.
+> path `26` §2 names) and `board_events.schema.json` (the tile, authored by M3-03).
 
 Plus one file that sits **directly** under `content/`, because it is a single document rather than a
 type with many instances:
@@ -190,6 +190,9 @@ mistake the paragraph above warns about.
 | `content/liveops_events/` | `schema/event.schema.json` |
 | `content/enemies/` | `schema/enemies.schema.json` |
 | `content/bosses/` | `schema/bosses.schema.json` |
+| `content/board_events/` | `schema/board_events.schema.json` |
+| `content/curses/` | `schema/curses.schema.json` |
+| `content/perks/` | `schema/perk.schema.json` |
 
 The remaining directories have no schema yet. Their first file therefore fails the build with
 `MissingSchema` — deliberately. Authoring a content type means authoring its schema **and** adding

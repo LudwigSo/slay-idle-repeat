@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/board_events.schema.json",
+  "title": "content/board_events/board_events.json",
+  "description": "19 Part A — the 30 in-run event cards a TILE_EVENT draws from, in the executable shape 03 §5's illustrative JSON describes. 🔒 NOT schema/event.schema.json (26 §2's live-ops event PACKAGE) and NOT schema/events.schema.json (26's framework-wide tuning file): game-data/README.md states that board_events/ and liveops_events/ 'are two different things that the design docs both call events', and that the board-event schema is a DISTINCT one. ⚠️ Effects are a CLOSED, five-op vocabulary — CURRENCY, HP_PCT, CURSE_REWARD, NONE, UNSUPPORTED — and not 18 §1 effect-DSL ops: 19 Part A's prose describes mechanics (board movement, battles, gear, perks, stat buffs, tile reveals, consumables) whose systems do not exist in Core yet, so every outcome the domain genuinely cannot execute carries an UNSUPPORTED op with a human-readable note naming the milestone that owns it, rather than a plausible-looking op nothing implements.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "cards"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "cards": {
+      "description": "19 Part A — exactly thirty cards, ids unique. A1 rows are chapters 1-3, A2 rows chapters 3-6, A3 rows chapters 6-8, carried on each card's own minChapter/maxChapter pair.",
+      "type": "array",
+      "minItems": 30,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/card" }
+    }
+  },
+  "$defs": {
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "body", "minChapter", "maxChapter", "options"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^EVT_[A-Z0-9_]+$" },
+        "title": {
+          "description": "19 Part A's Title column, verbatim.",
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "description": "19 Part A's Body column, verbatim, without the document's surrounding italic markers.",
+          "type": "string",
+          "minLength": 1
+        },
+        "minChapter": {
+          "description": "The first chapter this card may be drawn in — 19 Part A's own A1/A2/A3 banding.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "maxChapter": {
+          "description": "The last chapter this card may be drawn in. Never below minChapter; the band overlap at chapters 3 and 6 is 19 Part A's own, not a transcription slip.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "options": {
+          "description": "19 Part A's Options column — two or three per card, in the document's order. The order is load-bearing: EVENT_CHOOSE names an option by index.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/option" }
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "outcomes"],
+      "properties": {
+        "label": {
+          "description": "19 Part A's bolded option text, verbatim.",
+          "type": "string",
+          "minLength": 1
+        },
+        "cost": {
+          "description": "What taking this option costs BEFORE its outcome is rolled — paid by the EVENT_CHOOSE handler, which refuses the command with INSUFFICIENT_FUNDS rather than paying it when the player cannot. Absent means free. ⚠️ A cost is always a FLAT amount: 19 Part A's two proportional costs ('15% of current Gold', 'all of it') are not expressible here and are authored as UNSUPPORTED outcomes instead.",
+          "$ref": "#/$defs/cost"
+        },
+        "outcomes": {
+          "description": "The weighted branches this option may resolve to — exactly ONE weighted layer, never nested. Where 19 Part A describes a guaranteed cost followed by a split (EVT_WELL's 'Reach in'), the guaranteed part is repeated as its own effect in EVERY outcome rather than modelled as a second layer.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/outcome" }
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "amount"],
+      "properties": {
+        "currency": { "$ref": "#/$defs/currency" },
+        "amount": {
+          "description": "Always positive — a cost's direction is the field's meaning, not its sign.",
+          "type": "integer",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["w", "effects"],
+      "properties": {
+        "w": {
+          "description": "19 Part A's outcome weight. The document writes percentages; those percentages are transcribed as whole-number weights that carry the same ratio. A lone outcome carries weight 1.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "effects": {
+          "description": "Applied in order, all of them, once this outcome is drawn.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/effect" }
+        }
+      }
+    },
+    "effect": {
+      "description": "🔒 The closed five-op vocabulary. Extending it means a new resolver branch, not a new content row.",
+      "oneOf": [
+        {
+          "description": "Move one currency. GOLD moves on the Run (10 §1's one RUN-scoped currency); the other seven move on the Player's wallet.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "currency", "amount", "chapterScaled"],
+          "properties": {
+            "op": { "const": "CURRENCY" },
+            "currency": { "$ref": "#/$defs/currency" },
+            "amount": {
+              "description": "Signed. Positive is a grant, negative a loss.",
+              "type": "integer"
+            },
+            "chapterScaled": {
+              "description": "Whether the amount is multiplied by M(c) = metaGrowth^(c-1) (tuning/currencies.json#/chapterScalars). 19 Part A's header note reads 'Costs and rewards scale with chapterScalar unless marked flat' and marks nothing flat; the transcription reads GOLD figures as already being at the in-run scale (false) and metacurrency figures as scaled (true).",
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "description": "Change the hero's hit points by a share of Max HP, clamped into 0..MaxHp by the resolver. Positive heals, negative costs.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "amount"],
+          "properties": {
+            "op": { "const": "HP_PCT" },
+            "amount": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "description": "⚠️ Pay a curse's authored PAIRED REWARD (19 Part E, content/curses/curses.json) and nothing else. It deliberately does NOT apply or persist the curse: the held-curse list and the rules around it (no stacking, AD_SKIP_CURSE, mount immunity) are M3-11's, tracked by GapRegister's 'Curses' entry, and half a curse engine authored here would freeze its shape early. Only the four chapter-1 curses are referenceable — the resolver's reward lookup is a narrow, named table, not a parser for arbitrary reward prose.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "curseId"],
+          "properties": {
+            "op": { "const": "CURSE_REWARD" },
+            "curseId": { "enum": ["CUR_SLIPPERY", "CUR_MARKED", "CUR_DIZZY", "CUR_FRACTURED"] }
+          }
+        },
+        {
+          "description": "A deliberate no-op — 19 Part A's 'Walk away', 'Leave it', 'Decline'. Authored explicitly so that an empty effects list is always a defect rather than an intent.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op"],
+          "properties": { "op": { "const": "NONE" } }
+        },
+        {
+          "description": "🔒 A mechanic 19 Part A authors and Core genuinely cannot execute yet. The resolver applies NOTHING for it — no currency moves, no event fires — and that is correct rather than a bug: inventing a mechanism for it would be the plausible-looking hole steering S6 forbids. The note names what was authored and which milestone owns it, so a reader can tell a deferral from an omission.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "note"],
+          "properties": {
+            "op": { "const": "UNSUPPORTED" },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "currency": {
+      "description": "10 §1's eight currencies, less ENERGY — an event card neither grants nor charges Energy, and Energy's two banks move through Player.SetEnergy rather than a wallet row.",
+      "enum": [
+        "GOLD",
+        "CROWNS",
+        "SOUL_SHARDS",
+        "ENHANCE_STONES",
+        "MERGE_DUST",
+        "BEAST_FEED",
+        "HONOR"
+      ]
+    }
+  }
+}

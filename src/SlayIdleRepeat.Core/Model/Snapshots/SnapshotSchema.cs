@@ -39,8 +39,12 @@ public static class SnapshotSchema
     /// per-tile minigame legality gate (position → the <c>MG_*</c> id resolved there). <b>4</b> —
     /// M3-02 added <c>RunSnapshot.PendingForkJunctionPosition</c> and
     /// <c>PendingForkRemainingSteps</c>, `03` §1.1's junction pause (<c>Run.PendingFork</c>). Same
-    /// ruling, no migration.
+    /// ruling, no migration. <b>5</b> — M3-03 added <c>RunSnapshot</c>'s four pending-tile fields
+    /// (<c>PendingTileKind</c>, <c>PendingTileLinearIndex</c>, <c>PendingTileStage</c>,
+    /// <c>PendingEventCardId</c>), the seam between arriving at a tile and resolving it — cut from a
+    /// parallel lane based on SchemaVersion 3, reconciled after both landed. Same ruling, no
+    /// migration.
     /// </para>
     /// </remarks>
-    public const int SchemaVersion = 4;
+    public const int SchemaVersion = 5;
 }

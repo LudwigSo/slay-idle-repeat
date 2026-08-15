@@ -48,6 +48,10 @@
       "beastFeedBase": 25,
       "eggChance": 0.06
     },
+    "campfire": {
+      "_doc": "03 §2 — the campfire's rest option heals healPctMaxHp of Max HP. Flat across chapters: it is a share of a run-scoped maximum, so it takes no M(c) or G(c) scalar. The campfire's other two options (upgrade a perk tier, +2 Reroll Charges) move no currency and are authored where those systems are.",
+      "healPctMaxHp": 0.4
+    },
     "shrineBuffPool": {
       "_doc": "03 §7a.5 — a shrine offers 2 distinct options drawn seeded (stream 'shrine', equal weights) from this pool of 10. Buffs are permanent for the run and stack additively. Cleanse rule: with at least one active cleansable curse, option slot 2 is always a Cleanse.",
       "seedStream": "shrine",
