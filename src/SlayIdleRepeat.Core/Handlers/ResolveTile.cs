@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content.BoardEvents;
 using SlayIdleRepeat.Core.Primitives;
@@ -151,16 +152,18 @@ internal static class ResolveTile
                 return HandlerResult.Accept();
 
             default:
-                throw new ArgumentOutOfRangeException(
-                    nameof(input),
-                    run.PendingTileKindValue,
+                // 🔒 InvalidOperationException, not ArgumentOutOfRangeException: the bad value is not
+                // an argument passed to this method, it's a state value read off run.PendingTileKindValue
+                // — the same defect shape ConfirmBattleResult.cs and StartRun.cs both use this
+                // exception type for.
+                throw new InvalidOperationException(
                     "03 §2 fixes fourteen tile kinds and RESOLVE_TILE has a branch for each. A kind " +
-                    "arriving here that none of them names is one of two things, both defects: the " +
-                    "vocabulary grew a fifteenth member and this handler was not extended, or a " +
-                    "persisted row carried a value outside it — which Run.Rehydrate deliberately " +
-                    "cannot catch, because 30 §11.4 forbids Model from naming this vocabulary. " +
-                    "Either way it throws, so the gap is loud rather than silently accepted as a " +
-                    "tile that does nothing.");
+                    "of " + run.PendingTileKindValue.ToString(CultureInfo.InvariantCulture) + " arriving " +
+                    "here that none of them names is one of two things, both defects: the vocabulary " +
+                    "grew a fifteenth member and this handler was not extended, or a persisted row " +
+                    "carried a value outside it — which Run.Rehydrate deliberately cannot catch, " +
+                    "because 30 §11.4 forbids Model from naming this vocabulary. Either way it throws, " +
+                    "so the gap is loud rather than silently accepted as a tile that does nothing.");
         }
     }
 

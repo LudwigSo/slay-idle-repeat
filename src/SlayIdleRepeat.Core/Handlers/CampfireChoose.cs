@@ -69,7 +69,7 @@ internal static class CampfireChoose
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
-        if (command.ChoiceIndex != RestChoiceIndex)
+        if (command.ChoiceIndex is UpgradePerkChoiceIndex or RerollChargesChoiceIndex or not RestChoiceIndex)
         {
             // UpgradePerkChoiceIndex, RerollChargesChoiceIndex and anything outside the three share
             // one answer, and deliberately: 14 §16.2 has no finer value, and the two unbuilt options

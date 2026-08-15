@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
@@ -156,9 +157,5 @@ internal static class ConfirmBattleResult
     /// </summary>
     private static bool IsWellFormedLogHash(string? logHash) =>
         !string.IsNullOrWhiteSpace(logHash) &&
-        ulong.TryParse(
-            logHash,
-            System.Globalization.NumberStyles.None,
-            System.Globalization.CultureInfo.InvariantCulture,
-            out _);
+        ulong.TryParse(logHash, NumberStyles.None, CultureInfo.InvariantCulture, out _);
 }

@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Economy;
 
@@ -86,7 +87,7 @@ internal static class EndRun
     }
 
     /// <summary>🔒 M3-13 — which Death row of <c>CompletionMultiplier</c> a dead-but-not-victorious run pays.</summary>
-    private static RunCompletionOutcome DeathOutcomeFor(SlayIdleRepeat.Core.Model.Run run)
+    private static RunCompletionOutcome DeathOutcomeFor(Run run)
     {
         if (!run.HasPendingTile)
         {

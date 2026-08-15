@@ -1661,10 +1661,16 @@ public sealed class Run
                 nameof(soulShards), soulShards, "Banked Soul Shards only ever grow during a run.");
         }
 
+        long nextLegendXp;
+        long nextSoulShards;
+
+        // 🔒 Both sums computed into locals before either field is written — the same "validate/compute
+        // fully before mutating" discipline SetHitPoints/MoveCurrency/CommitStreamPositions all follow,
+        // so a second-sum overflow can never leave _bankedLegendXp written while this call still throws.
         try
         {
-            _bankedLegendXp = checked(_bankedLegendXp + legendXp);
-            _bankedSoulShards = checked(_bankedSoulShards + soulShards);
+            nextLegendXp = checked(_bankedLegendXp + legendXp);
+            nextSoulShards = checked(_bankedSoulShards + soulShards);
         }
         catch (OverflowException)
         {
@@ -1675,6 +1681,9 @@ public sealed class Run
                 "Shards overflows a 64-bit pool. An amount this size is an economy defect upstream, " +
                 "not a reward to store.");
         }
+
+        _bankedLegendXp = nextLegendXp;
+        _bankedSoulShards = nextSoulShards;
     }
 
     /// <summary>

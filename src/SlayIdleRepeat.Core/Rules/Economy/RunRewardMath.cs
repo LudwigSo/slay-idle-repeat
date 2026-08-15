@@ -58,13 +58,20 @@ internal static class RunRewardMath
     }
 
     /// <summary>`02` §5.1a — the banked Legend XP a run's Victory bonus adds, before <see cref="FinalPayoutFor"/>.</summary>
-    internal static long VictoryBonus(int chapterId, DifficultyTier tier, ContentSnapshot content) =>
-        RunXpTuning.Read(content ?? throw new ArgumentNullException(nameof(content)))
-            .LegendXpFor(RunXpTuning.RunVictoryBonusSource, chapterId, tier);
+    internal static long VictoryBonus(int chapterId, DifficultyTier tier, ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        return RunXpTuning.Read(content).LegendXpFor(RunXpTuning.RunVictoryBonusSource, chapterId, tier);
+    }
 
     /// <summary>`02` §5.3 — the one-time Soul Shard grant for a Chapter/Tier's first clear.</summary>
-    internal static long FirstClearBonus(ContentSnapshot content) =>
-        SoulShardTuning.Read(content ?? throw new ArgumentNullException(nameof(content))).FirstClearShards();
+    internal static long FirstClearBonus(ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        return SoulShardTuning.Read(content).FirstClearShards();
+    }
 
     /// <summary>
     /// 🔒 `02` §5.2 — <c>FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier</c>,

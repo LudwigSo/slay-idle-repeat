@@ -411,6 +411,6 @@ public sealed class ResolveTileTests
             Worlds.NewPlayer(),
             Worlds.NewRun(RunSnapshots.OnPendingTile(tileKind: 99)));
 
-        Should.Throw<ArgumentOutOfRangeException>(() => Resolve(alien));
+        Should.Throw<InvalidOperationException>(() => Resolve(alien));
     }
 }
