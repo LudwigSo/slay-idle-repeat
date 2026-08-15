@@ -422,19 +422,23 @@ public sealed class GapRegisterTests
             .ToArray();
 
         owners.Length.ShouldBe(
-            47,
-            "14 §2.3's registry is 19 run + 30 meta, and 47 of the 49 rows are Deferred since M3-15 " +
-            "landed the START_RUN handler. If this is 0 the pattern has stopped matching the " +
-            "dispatch table and the comparison below holds over nothing; if it shrinks, either a row " +
-            "went away or a row became Handled — in which case lower this by exactly that many and " +
-            "raise the Handled floor by the same.");
+            45,
+            "14 §2.3's registry is 19 run + 30 meta, and 45 of the 49 rows are Deferred since M3-08 " +
+            "landed the SHOP_BUY/SHOP_REFRESH handlers (beside M3-15's START_RUN and M1-09's " +
+            "BEGIN_SESSION). If this is 0 the pattern has stopped matching the dispatch table and " +
+            "the comparison below holds over nothing; if it shrinks, either a row went away or a row " +
+            "became Handled — in which case lower this by exactly that many and raise the Handled " +
+            "floor by the same.");
 
         handled.ShouldBe(
-            new[] { "BEGIN_SESSION", "START_RUN" },
+            new[] { "BEGIN_SESSION", "START_RUN", "SHOP_BUY", "SHOP_REFRESH" },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
             "satisfied by whatever handler replaced the one this names. 30 §2.3's BEGIN_SESSION was " +
-            "the first; 02 §2's START_RUN (M3-15) is the second.");
+            "the first; 02 §2's START_RUN (M3-15) the second; 03 §7's SHOP_BUY and SHOP_REFRESH " +
+            "(M3-08) the third and fourth — both real, dispatched handlers that refuse every call " +
+            "today because no Run shaped by today's aggregate can carry an active shop offer yet " +
+            "(see Handlers.ShopBuy's remarks).");
 
 
         (owners.Length + handled.Length).ShouldBe(
