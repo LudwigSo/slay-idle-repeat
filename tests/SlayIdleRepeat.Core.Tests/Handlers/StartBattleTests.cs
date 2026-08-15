@@ -89,7 +89,7 @@ public sealed class StartBattleTests
         var firstBattle = Start(TileWorlds.OnTile(TileKind.Enemy)).NewState;
 
         var closed = SlayIdleRepeat.Core.GameRules.Apply(
-            firstBattle, new ConfirmBattleResultCommand("1"), TileWorlds.Context).NewState;
+            firstBattle, new ConfirmBattleResultCommand("1", Won: true), TileWorlds.Context).NewState;
 
         closed.Run!.HasPendingTile.ShouldBeFalse("CONFIRM_BATTLE_RESULT must clear the pending tile");
 

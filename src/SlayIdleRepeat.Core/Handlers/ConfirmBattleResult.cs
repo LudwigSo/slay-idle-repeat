@@ -1,5 +1,8 @@
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Economy;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
@@ -27,22 +30,31 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <c>ActorStats</c> snapshot exists (M4), this is the seam that grows the real comparison.
 /// </para>
 /// <para>
-/// 🔒 <b>What "closing the battle" applies, and what it does not.</b> This handler assumes the
-/// battle the client confirms was won: `14` §2.3's <c>REVIVE</c> and <c>END_RUN</c>/<c>ABANDON_RUN</c>
-/// rows are still <c>Deferred</c> to M3-13, so no rule in this milestone ever reduces a run's HP to 0
-/// or ends it — there is nothing yet for a "the hero lost" branch to do that a win's branch does not
-/// already do more simply. HP change and gold/XP reward are <b>not</b> applied here: M3-13 owns
-/// "Reward banking + run-end payout" as its own task, and paying rewards from this handler would
-/// duplicate that task's ruling on where a battle's win pays out (`03` §7a.1's <c>GoldPerKill</c>
-/// versus a resolved-tile reward). What this handler does: validates the battle is actually open,
-/// clears the pending fight tile, marks M3-06's draft-pending hook (see below), and closes the
-/// phase.
+/// 🔒 <b>M3-13 fills in the win/loss branch and the reward payout this handler's own remarks used to
+/// defer.</b> <c>Won</c> was added to <see cref="ConfirmBattleResultCommand"/> for exactly this: `02`
+/// §6's death/revive flow needs a way for a battle loss to reduce HP toward zero, and nothing else in
+/// the command family could carry that signal (see the field's own remarks). On a <b>win</b>, this
+/// handler pays `03` §7a.1's Gold-per-kill <b>immediately</b> into <c>Run.Gold</c>, banks `02`
+/// §5.1a's Legend XP (and, on a Boss kill, `10` §2's Soul Shards) onto <c>Run</c> via
+/// <c>Run.BankRewards</c> — Legend XP and Soul Shards are <b>not</b> paid to <c>Player</c> here; they
+/// wait for the run-end payout in <c>Handlers.EndRun</c>/<c>Handlers.AbandonRun</c> — marks a Boss
+/// kill with <c>Run.MarkBossDefeated()</c>, grants the one-time first-clear Soul Shard bonus the
+/// first time this player clears this (Chapter, Tier), marks the M3-06 draft-pending hook, and clears
+/// the pending tile. On a <b>loss</b>, it sets the hero's HP to zero
+/// (<c>Run.SetHitPoints(0, MaxHp)</c> — already a legal call: that seam's own floor is zero, "the
+/// state a downed hero is in") and leaves the pending tile <b>in place</b>, so
+/// <c>Handlers.Revive</c> can re-open the same fight and <c>Handlers.EndRun</c> can still read which
+/// tile/stage the hero died on. Either way, <c>Run.ExitBattle()</c> always runs: `02` §1.1's
+/// <c>DEATH_PROMPT</c> is client-only UI, not a server phase (see <c>RunPhase</c>'s remarks), so a
+/// dead hero standing at <see cref="RunPhase.InProgress"/> with HP 0 is the correct server state
+/// either way.
 /// </para>
 /// <para>
 /// 🔒 <b>The M3-06 hook, named exactly.</b> <c>Run.MarkDraftPending()</c>, called from this handler
-/// immediately before <c>Run.ClearPendingTile()</c>. `02` §1-3's post-battle perk draft is drawn the
-/// instant a fight is won — this is that instant, and <c>Run.DraftPending</c> is the flag a future
-/// M3-06 <c>PickPerkCommand</c>/<c>RerollDraftCommand</c>/<c>SkipDraftCommand</c> reads and clears.
+/// immediately before <c>Run.ClearPendingTile()</c>, on a win only. `02` §1-3's post-battle perk draft
+/// is drawn the instant a fight is won — this is that instant, and <c>Run.DraftPending</c> is the
+/// flag a future M3-06 <c>PickPerkCommand</c>/<c>RerollDraftCommand</c>/<c>SkipDraftCommand</c> reads
+/// and clears.
 /// </para>
 /// </remarks>
 internal static class ConfirmBattleResult
@@ -65,15 +77,77 @@ internal static class ConfirmBattleResult
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
+        if (!run.HasPendingTile)
+        {
+            // 🔒 A defect rather than a rejection: RunPhase.BattlePending only ever exists because
+            // Run.EnterBattle checked HasPendingTile before opening it, and nothing between then and
+            // now clears a pending tile without also leaving BattlePending. Reaching here is a
+            // miswired caller, not a player asking for something illegal.
+            throw new InvalidOperationException(
+                "This run is BattlePending but carries no pending tile. Run.EnterBattle refuses to " +
+                "open a battle without one, so this is unreachable through the production dispatch " +
+                "table.");
+        }
+
+        var kind = (TileKind)run.PendingTileKindValue;
+        var events = new List<DomainEvent>();
+
+        if (command.Won)
+        {
+            ApplyWin(input, kind, events);
+        }
+        else
+        {
+            run.SetHitPoints(0, run.MaxHp);
+        }
+
         run.ExitBattle();
+
+        return HandlerResult.Accept(events);
+    }
+
+    /// <summary>
+    /// 🔒 M3-13 — the whole win branch: immediate Gold, banked Legend XP/Soul Shards, the Boss-kill
+    /// and first-clear marks, and M3-06's draft-pending hook.
+    /// </summary>
+    private static void ApplyWin(HandlerInput input, TileKind kind, List<DomainEvent> events)
+    {
+        var run = input.Run;
+
+        if (kind is TileKind.Enemy or TileKind.Elite or TileKind.Boss)
+        {
+            var reward = RunRewardMath.ForKill(kind, run.ChapterId, run.Tier, input.Context.Content);
+
+            if (reward.Gold != 0)
+            {
+                events.Add(run.MoveCurrency(CurrencyId.GOLD, reward.Gold, RewardReason));
+            }
+
+            run.BankRewards(reward.LegendXp, reward.SoulShards);
+        }
+
+        if (kind == TileKind.Boss)
+        {
+            run.MarkBossDefeated();
+
+            var player = input.Player;
+            if (!player.HasClearedChapterTier(run.ChapterId, run.Tier))
+            {
+                player.MarkChapterTierCleared(run.ChapterId, run.Tier);
+                run.BankRewards(legendXp: 0, RunRewardMath.FirstClearBonus(input.Context.Content));
+            }
+        }
+
         // 🔒 M3-06 — read BEFORE ClearPendingTile wipes them: 06 §4's RarityWeights(stage, isElite,
         // isBoss) needs to know which battle this draft opened for, and PendingTileKindValue/
-        // PendingTileStage are the only place that fact lives once the tile clears.
+        // PendingTileStage are the only place that fact lives once the tile clears. Still intact
+        // here: `kind` was captured from PendingTileKindValue in Handle before ClearPendingTile ran.
         run.MarkDraftPending(run.PendingTileKindValue, run.PendingTileStage);
         run.ClearPendingTile();
-
-        return HandlerResult.Accept();
     }
+
+    /// <summary>The `21` §8.3 income-attribution reason every kill's Gold payment carries.</summary>
+    private const string RewardReason = "battle_kill";
 
     /// <summary>
     /// Whether <paramref name="logHash"/> could legitimately be a `05` §7 <c>LogHash</c>: non-blank,

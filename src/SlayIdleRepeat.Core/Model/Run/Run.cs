@@ -297,6 +297,26 @@ public sealed class Run
     private PendingFork? _pendingFork;
 
     /// <summary>
+    /// 🔒 M3-13, `02` §5.1a — Legend XP banked so far this run, pending the run-end
+    /// <c>CompletionMultiplier</c>/<c>AdDoubleMultiplier</c> payout (<see cref="BankRewards"/>).
+    /// Unlike <see cref="_wallet"/>'s Gold, never paid to <c>Player</c> until the run ends.
+    /// </summary>
+    private long _bankedLegendXp;
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §5.3 / `10` §2 — Soul Shards banked so far this run (Boss kills and the
+    /// one-time first-clear grant), pending the same run-end payout as <see cref="_bankedLegendXp"/>.
+    /// </summary>
+    private long _bankedSoulShards;
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §5.2 — whether this run's Boss has been killed. The Victory/Death split
+    /// <c>Handlers.EndRun</c> reads to pick a <c>CompletionMultiplier</c> row, and the gate on
+    /// `02` §5.3's first-clear bonus.
+    /// </summary>
+    private bool _bossDefeated;
+
+    /// <summary>
     /// The one constructor. Private, and it <b>trusts</b>: every value has already been checked by
     /// <see cref="Rehydrate"/>, which is the only caller.
     /// </summary>
@@ -332,7 +352,10 @@ public sealed class Run
         int draftBattleStage,
         Dictionary<string, int> ownedPerkTiers,
         int rerollChargesSpentThisStage,
-        ulong stageGateDiceAnchor)
+        ulong stageGateDiceAnchor,
+        long bankedLegendXp,
+        long bankedSoulShards,
+        bool bossDefeated)
     {
         Id = id;
         PlayerId = playerId;
@@ -361,6 +384,9 @@ public sealed class Run
         _ownedPerkTiers = ownedPerkTiers;
         _rerollChargesSpentThisStage = rerollChargesSpentThisStage;
         _stageGateDiceAnchor = stageGateDiceAnchor;
+        _bankedLegendXp = bankedLegendXp;
+        _bankedSoulShards = bankedSoulShards;
+        _bossDefeated = bossDefeated;
     }
 
     /// <summary>
@@ -591,6 +617,15 @@ public sealed class Run
     /// <inheritdoc cref="_rerollChargesSpentThisStage"/>
     internal int RerollChargesSpentThisStage => _rerollChargesSpentThisStage;
 
+    /// <summary>🔒 M3-13 — Legend XP banked so far this run. See <see cref="_bankedLegendXp"/>.</summary>
+    internal long BankedLegendXp => _bankedLegendXp;
+
+    /// <summary>🔒 M3-13 — Soul Shards banked so far this run. See <see cref="_bankedSoulShards"/>.</summary>
+    internal long BankedSoulShards => _bankedSoulShards;
+
+    /// <summary>🔒 M3-13 — whether this run's Boss has been killed. See <see cref="_bossDefeated"/>.</summary>
+    internal bool BossDefeated => _bossDefeated;
+
     /// <inheritdoc cref="_stageGateDiceAnchor"/>
     internal ulong StageGateDiceAnchor => _stageGateDiceAnchor;
 
@@ -692,7 +727,10 @@ public sealed class Run
         _stageGateDiceAnchor,
         _draftBattleKind,
         _draftBattleStage,
-        CopyOwnedPerkTiers(_ownedPerkTiers));
+        CopyOwnedPerkTiers(_ownedPerkTiers),
+        _bankedLegendXp,
+        _bankedSoulShards,
+        _bossDefeated);
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
@@ -762,6 +800,7 @@ public sealed class Run
         RequireRerollCharges(snapshot, faults);
         RequireDraftBattle(snapshot, faults);
         var ownedPerkTiers = ReadOwnedPerkTiers(snapshot, faults);
+        RequireBankedRewards(snapshot, faults);
 
         // The four `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as four `!`
@@ -808,7 +847,28 @@ public sealed class Run
             snapshot.DraftBattleStage,
             ownedPerkTiers,
             snapshot.RerollChargesSpentThisStage,
-            snapshot.StageGateDiceAnchor));
+            snapshot.StageGateDiceAnchor,
+            snapshot.BankedLegendXp,
+            snapshot.BankedSoulShards,
+            snapshot.BossDefeated));
+    }
+
+    /// <summary>🔒 M3-13 — the two banked-reward pools are never negative.</summary>
+    private static void RequireBankedRewards(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.BankedLegendXp < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.BankedLegendXp) + " is " + Text(snapshot.BankedLegendXp) +
+                ". Banked Legend XP is a pending grant and never goes negative.");
+        }
+
+        if (snapshot.BankedSoulShards < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.BankedSoulShards) + " is " + Text(snapshot.BankedSoulShards) +
+                ". Banked Soul Shards are a pending grant and never go negative.");
+        }
     }
 
     /// <summary>
@@ -1577,6 +1637,85 @@ public sealed class Run
     private static InvalidOperationException NoDraftPending(string member) =>
         new("Run." + member + " describes the battle a pending perk draft was opened by, and this " +
             "run has no draft pending. Ask Run.DraftPending first.");
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §5.1a / §5.3 — banks Legend XP and/or Soul Shards a kill (or a Victory/first-clear
+    /// bonus) just earned. Unlike <see cref="MoveCurrency"/>, this is <b>not</b> a currency movement —
+    /// nothing has yet reached <c>Player</c>'s wallet — so it emits no <c>CurrencyChanged</c>; the real
+    /// currency movement happens once at run end, in <see cref="EndRun"/>'s caller.
+    /// </summary>
+    /// <param name="legendXp">Legend XP to add to <see cref="BankedLegendXp"/>. Never negative.</param>
+    /// <param name="soulShards">Soul Shards to add to <see cref="BankedSoulShards"/>. Never negative.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Either amount is negative, or either pool would overflow.</exception>
+    internal void BankRewards(long legendXp, long soulShards)
+    {
+        if (legendXp < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(legendXp), legendXp, "Banked Legend XP only ever grows during a run.");
+        }
+
+        if (soulShards < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(soulShards), soulShards, "Banked Soul Shards only ever grow during a run.");
+        }
+
+        try
+        {
+            _bankedLegendXp = checked(_bankedLegendXp + legendXp);
+            _bankedSoulShards = checked(_bankedSoulShards + soulShards);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(legendXp),
+                legendXp,
+                "Banking " + Text(legendXp) + " Legend XP and/or " + Text(soulShards) + " Soul " +
+                "Shards overflows a 64-bit pool. An amount this size is an economy defect upstream, " +
+                "not a reward to store.");
+        }
+    }
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §5.2 — records that this run's Boss has been killed. Called by
+    /// <c>Handlers.ConfirmBattleResult</c> the instant a Boss-kind battle is won; read by
+    /// <c>Handlers.EndRun</c> to pick the <c>VICTORY</c> row of <c>CompletionMultiplier</c> and by the
+    /// first-clear gate to know a clear actually happened.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The Boss is already recorded as defeated.</exception>
+    internal void MarkBossDefeated()
+    {
+        if (_bossDefeated)
+        {
+            throw new InvalidOperationException(
+                "This run's Boss is already recorded as defeated. A run has exactly one Boss tile, " +
+                "so a second call is a miswired caller, not a player winning twice.");
+        }
+
+        _bossDefeated = true;
+    }
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §1.1 — closes the run: <see cref="Phase"/> moves to <see cref="RunPhase.Ended"/>,
+    /// the terminal phase authored (with no producer) by M3-05. <c>GameRules.Execute</c>'s phase gate
+    /// already refuses every <c>CommandKind.Run</c> command against a run at this phase as
+    /// <c>RUN_ALREADY_ENDED</c>. Called by <c>Handlers.EndRun</c> and <c>Handlers.AbandonRun</c>, after
+    /// each has computed and paid the run's <c>FinalPayout</c>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">This run has already ended.</exception>
+    internal void EndRun()
+    {
+        if (_phase == RunPhase.Ended)
+        {
+            throw new InvalidOperationException(
+                "This run has already ended. Handlers.EndRun/Handlers.AbandonRun's own legality " +
+                "checks (RunPhase.Ended answering RUN_ALREADY_ENDED) are what are supposed to refuse " +
+                "a second END_RUN/ABANDON_RUN as a RejectionReason before this seam is ever reached.");
+        }
+
+        _phase = RunPhase.Ended;
+    }
 
     /// <summary>
     /// 🔒 M3-05, `04` §3 — records that one reroll charge was spent this stage.

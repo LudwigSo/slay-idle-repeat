@@ -57,7 +57,13 @@ public static class SnapshotSchema
     /// <c>RarityWeights(stage, isElite, isBoss)</c> needs it) and <c>OwnedPerkTiers</c> (`30` §4's
     /// drafted perks: perk id → owned tier). Same ruling, no migration; all three are defaulted on
     /// the record so every pre-existing positional construction still compiles.
+    /// <b>8</b> — M3-13 added <c>RunSnapshot.BankedLegendXp</c>, <c>BankedSoulShards</c> and
+    /// <c>BossDefeated</c> (`02` §5's reward-banking and run-end payout — see <c>Run.BankRewards</c>
+    /// and <c>Run.EndRun</c>), and <c>PlayerSnapshot.ClearedChapterTiers</c> (`02` §5.3's first-clear
+    /// gate) — cut from a parallel lane based on SchemaVersion 6, reconciled after both landed. Same
+    /// ruling, no migration; all four fields are defaulted so every pre-existing positional
+    /// construction still compiles.
     /// </para>
     /// </remarks>
-    public const int SchemaVersion = 7;
+    public const int SchemaVersion = 8;
 }

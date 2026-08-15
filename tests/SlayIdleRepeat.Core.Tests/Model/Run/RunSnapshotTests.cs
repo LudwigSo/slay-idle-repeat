@@ -204,6 +204,11 @@ public sealed class RunSnapshotTests
                 RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 2)),
             (nameof(RunSnapshot.OwnedPerkTiers), v,
                 RunSnapshots.With(ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("PK_SHARP_EDGE", 1)))),
+
+            // 🔒 M3-13's three fields.
+            (nameof(RunSnapshot.BankedLegendXp), v, RunSnapshots.With(bankedLegendXp: 5L)),
+            (nameof(RunSnapshot.BankedSoulShards), v, RunSnapshots.With(bankedSoulShards: 5L)),
+            (nameof(RunSnapshot.BossDefeated), v, RunSnapshots.With(bossDefeated: true)),
         };
 
         var invisible = probes

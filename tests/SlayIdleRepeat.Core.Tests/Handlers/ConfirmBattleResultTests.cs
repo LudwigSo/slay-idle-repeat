@@ -14,7 +14,7 @@ public sealed class ConfirmBattleResultTests
 {
     private static CommandResult Confirm(WorldSlice state, string logHash) =>
         SlayIdleRepeat.Core.GameRules.Apply(
-            state, new ConfirmBattleResultCommand(logHash), TileWorlds.Context);
+            state, new ConfirmBattleResultCommand(logHash, Won: true), TileWorlds.Context);
 
     // ------------------------------------------------------------------ the gate
 
@@ -105,17 +105,76 @@ public sealed class ConfirmBattleResultTests
         result.NewState.Run!.ToSnapshot().DraftPending.ShouldBeTrue();
     }
 
-    /// <summary>Closing a battle spends no currency and pays no reward — M3-13's, not this task's.</summary>
+    /// <summary>
+    /// 🔒 M3-13 — a WON battle pays Gold immediately and banks Legend XP; HP is untouched.
+    /// Chapter 1, NORMAL tier, a normal Enemy kill: Gold = 40 * G(1) = 40 (03 §7a.1); Legend XP =
+    /// 25 * 1.55^0 * 1.0 (NORMAL tier) * 1 (NORMAL_ENEMY_KILL) = 25 (02 §5.1a).
+    /// </summary>
     [Fact]
-    public void Closing_a_battle_pays_no_reward()
+    public void Winning_a_battle_pays_gold_and_banks_legend_xp()
     {
         var opened = TileWorlds.OnTile(TileKind.Enemy, gold: 250, currentHp: 60, phase: RunPhase.BattlePending);
 
         var result = Confirm(opened, "1");
 
-        result.NewState.Run!.Gold.ShouldBe(250);
+        result.NewState.Run!.Gold.ShouldBe(290);
         result.NewState.Run!.CurrentHp.ShouldBe(60);
-        result.Events.ShouldBeEmpty();
+        result.NewState.Run!.BankedLegendXp.ShouldBe(25);
+        result.NewState.Run!.BankedSoulShards.ShouldBe(0);
+        result.Events.ShouldNotBeEmpty();
+    }
+
+    /// <summary>🔒 M3-13 — a LOST battle sets HP to zero, pays nothing, and leaves the tile pending for a revive.</summary>
+    [Fact]
+    public void Losing_a_battle_sets_HP_to_zero_and_pays_nothing()
+    {
+        var opened = TileWorlds.OnTile(TileKind.Enemy, gold: 250, currentHp: 60, phase: RunPhase.BattlePending);
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            opened, new ConfirmBattleResultCommand("1", Won: false), TileWorlds.Context);
+
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Run!.Gold.ShouldBe(250);
+        result.NewState.Run!.CurrentHp.ShouldBe(0);
+        result.NewState.Run!.BankedLegendXp.ShouldBe(0);
+        result.NewState.Run!.Phase.ShouldBe(RunPhase.InProgress);
+        result.NewState.Run!.HasPendingTile.ShouldBeTrue("a loss leaves the fight pending for REVIVE");
+    }
+
+    /// <summary>
+    /// 🔒 M3-13 — a Boss kill's banked Soul Shards = per-chapter Boss rate (15 at chapter 1 NORMAL)
+    /// PLUS the 450 first-clear grant, the first time this (Chapter, Tier) is cleared.
+    /// </summary>
+    [Fact]
+    public void Killing_the_boss_marks_it_defeated_and_banks_soul_shards()
+    {
+        var opened = TileWorlds.OnTile(TileKind.Boss, phase: RunPhase.BattlePending);
+
+        var result = Confirm(opened, "1");
+
+        result.NewState.Run!.BossDefeated.ShouldBeTrue();
+        result.NewState.Run!.BankedSoulShards.ShouldBe(15 + 450);
+    }
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §5.3 — the first-clear grant is a ONE-TIME bonus: a player who has already
+    /// cleared this (Chapter, Tier) pair banks only the per-kill Boss Soul Shards, not the 450 again.
+    /// </summary>
+    [Fact]
+    public void First_clear_bonus_does_not_repeat_for_an_already_cleared_chapter_tier()
+    {
+        var opened = TileWorlds.OnTile(TileKind.Boss, phase: RunPhase.BattlePending);
+
+        // Rehydrate a player who has already cleared chapter 1 NORMAL.
+        var clearedPlayerSnapshot = SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.With(
+            clearedChapterTiers: SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.Counters(("1:NORMAL", 1)));
+        var clearedPlayer = SlayIdleRepeat.Core.Model.Player.Rehydrate(
+            clearedPlayerSnapshot, TileWorlds.Context.Content).Value;
+        var world = opened with { Player = clearedPlayer };
+
+        var result = Confirm(world, "1");
+
+        result.NewState.Run!.BankedSoulShards.ShouldBe(15);
     }
 
     /// <summary>A second CONFIRM_BATTLE_RESULT after the first closed it is refused — nothing is open.</summary>

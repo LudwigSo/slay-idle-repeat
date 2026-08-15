@@ -41,7 +41,7 @@ public sealed class GameRulesRunPhaseGateTests
         var state = Worlds.InARun(RunSnapshots.With(phase: RunPhase.Ended));
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
-            state, new ConfirmBattleResultCommand("1"), Worlds.Context);
+            state, new ConfirmBattleResultCommand("1", Won: true), Worlds.Context);
 
         result.Accepted.ShouldBeFalse();
         result.Rejection.ShouldBe(RejectionReason.RUN_ALREADY_ENDED);
@@ -93,7 +93,7 @@ public sealed class GameRulesRunPhaseGateTests
         var state = TileWorlds.OnTile(TileKind.Enemy, phase: RunPhase.BattlePending);
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
-            state, new ConfirmBattleResultCommand("1"), TileWorlds.Context);
+            state, new ConfirmBattleResultCommand("1", Won: true), TileWorlds.Context);
 
         result.Accepted.ShouldBeTrue();
     }

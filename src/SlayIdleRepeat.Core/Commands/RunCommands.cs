@@ -272,7 +272,19 @@ public sealed record StartBattleCommand : GameCommand;
 /// `05` §7 / `14` §16.6's combat-log hash, as text. Typed by <b>M2-15</b>, which authors
 /// <c>LogHash</c> together with the log format it is taken over.
 /// </param>
-public sealed record ConfirmBattleResultCommand(string LogHash) : GameCommand;
+/// <param name="Won">
+/// 🔒 M3-13 — whether the hero won the fight. Added by M3-13, which is explicitly the task that
+/// "adds a way for a battle loss to reduce HP toward 0 and trigger the death/revive flow" (`02` §6):
+/// before this task, <c>REVIVE</c>/<c>END_RUN</c>/<c>ABANDON_RUN</c> were all <c>Deferred</c>, so no
+/// rule ever reduced a run's HP, and this field had nothing to carry. See
+/// <c>Handlers.ConfirmBattleResult</c>'s remarks for why the payload had to widen rather than reading
+/// a loss off some other existing signal — there was none: <c>LogHash</c> is an opaque hash and
+/// nothing else in the command family names an outcome.
+/// ⚠️ <b>No default.</b> A parameter default of <c>true</c> would make an omitted/mis-bound field on
+/// the wire silently read as a WIN — the wrong fail direction for a field that gates a reward payout.
+/// Every construction site, production or test, states its intent.
+/// </param>
+public sealed record ConfirmBattleResultCommand(string LogHash, bool Won) : GameCommand;
 
 /// <summary>
 /// 🔒 `14` §2.3 <c>REVIVE</c> — once per run (`02` §6). The battle restarts, and `14` §8.1 makes

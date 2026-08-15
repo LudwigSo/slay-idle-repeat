@@ -126,8 +126,9 @@ public static class GameRules
     /// instead, and M3-03c's <c>MINIGAME_SUBMIT</c> and M3-03's three tile rows are below it.
     /// </para>
     /// <para>
-    /// 🔒 <b>Thirty-seven rows are <c>Deferred</c> and twelve are <c>Handled</c>.</b> (M3-05 swapped
-    /// <c>START_BATTLE</c> and <c>CONFIRM_BATTLE_RESULT</c>, ten becoming twelve.)
+    /// 🔒 <b>Thirty-four rows are <c>Deferred</c> and fifteen are <c>Handled</c>.</b> (M3-05 swapped
+    /// <c>START_BATTLE</c> and <c>CONFIRM_BATTLE_RESULT</c>, ten becoming twelve; M3-13 swapped
+    /// <c>REVIVE</c>, <c>END_RUN</c> and <c>ABANDON_RUN</c>, twelve becoming fifteen.)
     /// <para>
     /// ⚠️ <b>This sentence said "forty-six / three" until M3-03 and had been wrong for two
     /// milestones</b> — M3-04's <c>ROLL_DICE</c> and <c>USE_REROLL</c> and M3-08's <c>SHOP_BUY</c> and
@@ -196,10 +197,10 @@ public static class GameRules
         .Handled<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, CampfireChoose.Handle)
         .Handled<StartBattleCommand>("START_BATTLE", CommandKind.Run, StartBattle.Handle)
         .Handled<ConfirmBattleResultCommand>("CONFIRM_BATTLE_RESULT", CommandKind.Run, ConfirmBattleResult.Handle)
-        .Deferred<ReviveCommand>("REVIVE", CommandKind.Run, "M3-13")
+        .Handled<ReviveCommand>("REVIVE", CommandKind.Run, Revive.Handle)
         .Deferred<UseConsumableCommand>("USE_CONSUMABLE", CommandKind.Run, "M3-08")
-        .Deferred<EndRunCommand>("END_RUN", CommandKind.Run, "M3-13")
-        .Deferred<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, "M3-13")
+        .Handled<EndRunCommand>("END_RUN", CommandKind.Run, EndRun.Handle)
+        .Handled<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, AbandonRun.Handle)
 
         // ----------------------------------------------- `14` §2.3 — the 30 META commands
         .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)

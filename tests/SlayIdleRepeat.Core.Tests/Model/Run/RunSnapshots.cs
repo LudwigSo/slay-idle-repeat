@@ -127,7 +127,10 @@ internal static class RunSnapshots
         ulong? stageGateDiceAnchor = null,
         int? draftBattleKind = null,
         int? draftBattleStage = null,
-        IReadOnlyDictionary<string, int>? ownedPerkTiers = null) =>
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
+        long? bankedLegendXp = null,
+        long? bankedSoulShards = null,
+        bool? bossDefeated = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -155,7 +158,10 @@ internal static class RunSnapshots
             stageGateDiceAnchor ?? 0,
             draftBattleKind ?? NoDraftBattleKind,
             draftBattleStage ?? 0,
-            ownedPerkTiers ?? OwnedPerkTiers());
+            ownedPerkTiers ?? OwnedPerkTiers(),
+            bankedLegendXp ?? 0,
+            bankedSoulShards ?? 0,
+            bossDefeated ?? false);
 
     /// <summary>
     /// M3-03 — <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here for
