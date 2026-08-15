@@ -17,10 +17,26 @@ public sealed class RerollEconomyTests
     [Fact]
     public void Every_bonus_source_adds()
     {
-        // Kept under RerollEconomy.MaxStoredCharges so this asserts addition, not the separately
-        // tested cap.
+        // Hardcoded literal, not RerollEconomy's own constants — a test that read the constants
+        // back would pass no matter what values production used (S1; the same fix already applied
+        // to FairDiceBagTests.Decay_and_boost_constants_are_04_4s_own_numbers). Kept under
+        // MaxStoredCharges so this asserts addition, not the separately tested cap: base 1 + talent
+        // 1 + Campfire 2 = 4.
         RerollEconomy.TotalCharges(talentBonus: 1, campfireVisited: true, perkBonus: 0, rerollTokensUsed: 0)
-            .ShouldBe(RerollEconomy.BaseChargesPerStage + 1 + RerollEconomy.CampfireBonus);
+            .ShouldBe(4);
+    }
+
+    /// <summary>
+    /// S1 — pins <see cref="RerollEconomy.CampfireBonus"/>'s own value, which the test above no
+    /// longer does now that it asserts a hardcoded literal instead of reading the constant back.
+    /// </summary>
+    [Fact]
+    public void Campfire_grants_exactly_04_3s_own_number()
+    {
+        RerollEconomy.CampfireBonus.ShouldBe(2);
+        RerollEconomy.BaseChargesPerStage.ShouldBe(1);
+        RerollEconomy.MaxTalentBonus.ShouldBe(2);
+        RerollEconomy.MaxStoredCharges.ShouldBe(5);
     }
 
     [Fact]
