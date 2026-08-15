@@ -361,12 +361,14 @@ public sealed class ResolveTileTests
 
     /// <summary>
     /// The tiles that resolve through their OWN command are acknowledged and left pending for it.
+    /// Portal is deliberately not among these — Review M3's dead-end-tile fix wired it into
+    /// RESOLVE_TILE itself (see <see cref="A_portal_tile_resolves_the_jump_immediately"/>), since
+    /// `03` §2's Portal row names no command of its own to leave it pending for.
     /// </summary>
     [Theory]
     [InlineData((int)TileKind.Shop)]
     [InlineData((int)TileKind.Minigame)]
     [InlineData((int)TileKind.DiceForge)]
-    [InlineData((int)TileKind.Portal)]
     public void A_tile_with_its_own_command_is_acknowledged_and_left_pending(int kind)
     {
         var result = Resolve(TileWorlds.OnTile((TileKind)kind));
@@ -374,6 +376,25 @@ public sealed class ResolveTileTests
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty();
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(kind);
+    }
+
+    /// <summary>
+    /// 🔒 Review M3 (dead-end tile fix) — the Portal tile now fully resolves within RESOLVE_TILE
+    /// itself, via <c>Rules.Board.BoardResolution</c>/<c>MovementEngine.AdvancePortal</c>: the run
+    /// either lands on a new node or pauses at a junction with a genuine pending fork, but is never
+    /// left stuck pending on the Portal tile it started from.
+    /// </summary>
+    [Fact]
+    public void A_portal_tile_resolves_the_jump_immediately()
+    {
+        var result = Resolve(TileWorlds.OnTile(TileKind.Portal));
+
+        result.Accepted.ShouldBeTrue();
+
+        var snapshot = result.NewState.Run!.ToSnapshot();
+
+        (snapshot.PendingTileKind != (int)TileKind.Portal || snapshot.PendingForkJunctionPosition.HasValue)
+            .ShouldBeTrue("a Portal jump must not leave the run stuck on the Portal tile it started from");
     }
 
     // ------------------------------------------------------------------ the vocabulary floor

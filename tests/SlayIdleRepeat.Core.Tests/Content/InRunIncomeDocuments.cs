@@ -218,6 +218,12 @@ internal static class InRunIncomeDocuments
                 new ContentDocument(CursesPath, Curses(curses)),
                 new ContentDocument(BoardEventsPath, BoardEvents(cards)),
                 new ContentDocument(AdsPath, Ads(reviveHealPctMaxHp, reviveInvulnerabilitySeconds)),
+
+                // 🔒 Review M3 (dead-end tile fix): RESOLVE_TILE's Portal branch now calls
+                // Rules.Board.BoardResolution.Resolve, which reads a real content/chapters/ document
+                // via ChapterBoardTuning — every ResolveTileTests world needs one to exist, the same
+                // chapter-1 shape ChapterDocuments.ChapterOne already mirrors for Rules-level tests.
+                ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
             ]);
 
     private static ContentValue Ads(ContentValue? healPctMaxHp, ContentValue? invulnerabilitySeconds) =>
@@ -271,6 +277,9 @@ internal static class InRunIncomeDocuments
                 ("goldGrowth", goldGrowth ?? ContentValue.Number(ShippedGoldGrowth)),
                 ("metaGrowth", metaGrowth ?? ContentValue.Number(ShippedMetaGrowth)),
                 ("roundingMode", roundingMode ?? ContentValue.Text(ShippedRoundingMode)))),
+            ("boardGeneration", Obj(
+                ("forkBiasPlusMultiplier", ContentValue.Number((decimal)TuningDocuments.ShippedForkBiasPlusMultiplier)),
+                ("forkBiasMinusMultiplier", ContentValue.Number((decimal)TuningDocuments.ShippedForkBiasMinusMultiplier)))),
             ("inRunIncome", Obj(
                 ("goldPerKill", Obj(
                     ("base", goldPerKillBase ?? ContentValue.Number(ShippedGoldPerKillBase)),

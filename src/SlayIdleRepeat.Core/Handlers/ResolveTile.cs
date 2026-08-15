@@ -1,7 +1,9 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content.BoardEvents;
+using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Board.Resolution;
 
@@ -147,9 +149,13 @@ internal static class ResolveTile
                 return HandlerResult.Accept();
 
             case TileKind.Portal:
-                // 03 §1.1's forward jump. The jump itself is movement, which is M3-02's; this is the
-                // seam it will resolve through and a no-op until then.
-                return HandlerResult.Accept();
+                // 🔒 Review M3 (cross-task consistency finding) — wired into the exact seam
+                // MovementEngine.AdvancePortal's own remarks describe: "Portal tiles resolve under
+                // M3-03's RESOLVE_TILE... the seam is exposed here, tested in isolation, and ready
+                // for M3-03 to wire in." Left as a no-op until now, this permanently deadlocked a
+                // run the instant it drew a Portal tile — ROLL_DICE refuses while HasPendingTile is
+                // true, and nothing else ever cleared it.
+                return ResolvePortal(input, run);
 
             default:
                 // 🔒 InvalidOperationException, not ArgumentOutOfRangeException: the bad value is not
@@ -189,6 +195,50 @@ internal static class ResolveTile
         var catalogue = EventCatalogue.Read(input.Context.Content);
 
         run.SetPendingEventCard(EventTileResolver.DrawCard(input, catalogue));
+
+        return HandlerResult.Accept();
+    }
+
+    /// <summary>
+    /// `03` §1.1 — the Portal jump: draws its 3-6 distance from the run's own <c>board</c> stream,
+    /// applies <see cref="MovementEngine.AdvancePortal"/>'s stage-3 pre-boss campfire clamp, then
+    /// either lands (clearing this tile and arriving at the new one) or pauses at a junction inside
+    /// the jump (clearing this tile and opening a <c>PendingFork</c>, the same way <c>ROLL_DICE</c>
+    /// does).
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>A known, narrower gap left OPEN, not silently accepted.</b> If this jump pauses at a
+    /// junction, <c>Handlers.ChooseFork</c> resumes the remaining steps with an ordinary
+    /// <see cref="MovementEngine.Advance"/> call — it has no way to know the resumed movement
+    /// originated from a Portal and therefore still owes stage 3's pre-boss campfire clamp on
+    /// whatever remains. <see cref="MovementEngine.AdvancePortal"/>'s own remarks note the clamp is
+    /// only reachable this way because fork-placement keeps every junction candidate strictly before
+    /// the campfire (`spineLength - 4` vs. the campfire's `spineLength - 2`) — so a portal jump that
+    /// pauses can only do so before reaching the campfire, and the campfire's own placement (always
+    /// the second-to-last node of stage 3) means the unclamped remainder from that junction is very
+    /// unlikely to overshoot it in practice. Left open rather than fixed here because closing it
+    /// properly needs <c>PendingFork</c> to carry a "this pause owes stage 3's Portal clamp" fact
+    /// (a schema-affecting change), which is more than a review pass should take on unprompted.
+    /// </remarks>
+    private static HandlerResult ResolvePortal(HandlerInput input, Model.Run run)
+    {
+        var board = BoardResolution.Resolve(run, input.Context.Content, input.Rng);
+        var distance = MovementEngine.DrawPortalDistance(input.Rng.Stream(RngStreams.Board));
+        var result = MovementEngine.AdvancePortal(board, new NodeId(run.Position), distance);
+
+        run.ClearPendingTile();
+
+        if (result.PausedAtJunction)
+        {
+            run.MoveTo(result.Node.Value);
+            run.BeginPendingFork(new PendingFork(result.Node.Value, result.RemainingSteps));
+            return HandlerResult.Accept();
+        }
+
+        run.MoveTo(result.Node.Value);
+
+        var landed = board.Node(result.Node);
+        run.ArriveAtTile((int)landed.Tile, landed.LinearIndex, landed.Stage);
 
         return HandlerResult.Accept();
     }

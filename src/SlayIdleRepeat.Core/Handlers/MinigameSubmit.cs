@@ -19,7 +19,9 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// position stands in); (3) decide the outcome tier — server-rolled minigames draw their own from
 /// the run's `14` §8.1 <c>minigame:{index}</c> stream and ignore <paramref name="command"/>'s
 /// claim; client-asserted minigames validate the claim is a real tier and trust it; (4) apply `03`
-/// §6.1's chapter-scaled reward and record the resolution.
+/// §6.1's chapter-scaled reward, record the resolution, and clear the pending tile so
+/// <c>ROLL_DICE</c> is legal again — the same way every other tile kind that resolves in one
+/// command does.
 /// </para>
 /// <para>
 /// ⚠️ <b>Legality item (c) — rate limits — is not checked here, and that is a scope boundary, not
@@ -163,6 +165,13 @@ internal static class MinigameSubmit
 
         // reward.RerollCharges is deliberately not spent — see this type's remarks.
         run.RecordMinigameResolution(run.Position, command.MinigameId);
+
+        // 🔒 Review M3 (cross-task consistency finding): the pending tile must be cleared here or
+        // ROLL_DICE can never legally fire again — Run.HasPendingTile stays true forever otherwise,
+        // since RecordMinigameResolution only records the tile-instance proxy, it doesn't touch the
+        // pending-tile fields. Every other tile kind that resolves in one command (Treasure/Cache/
+        // Shrine/Curse/Empty) clears here too; Minigame was the one omission.
+        run.ClearPendingTile();
 
         return HandlerResult.Accept(events);
     }
