@@ -431,12 +431,13 @@ internal static class DeclaredRules
         // exactly what an eighth-chapter-plus content pack would do — and it costs one pass.
         EveryChapterWithAPoolHasABaseEnemyLevel,
 
-        // ── R34 · `05` §6.4 / `03` §4 — the pool weights are authored TWICE, and the second copy
-        // does not exist yet. enemies.json#/chapterPools is M2-11's producer-side transcription;
-        // each chapter's own `enemyPool` field (chapter.schema.json) is what the board actually
-        // draws from, and M3-14 authors the eight chapter files. Nothing would compare them.
-        // Vacuous today — content/chapters/ is empty — and armed the day the first chapter file
-        // lands, which is the only moment the two can start to disagree.
+        // ── R34 · `05` §6.4 / `03` §4 — the pool weights are authored TWICE.
+        // enemies.json#/chapterPools is M2-11's producer-side transcription; each chapter's own
+        // `enemyPool` field (chapter.schema.json) is what the board actually draws from. M3-14
+        // landed chapters 1-2 (content/chapters/CH_01_GREENWOOD_VALE.json,
+        // CH_02_ASHEN_MIRE.json), so this rule is armed for those two today and stays vacuous for
+        // chapters 3-8 until M11-02 lands their rows — the only moment each pair can start to
+        // disagree.
         ChapterFilesAgreeWithTheProducerSideEnemyPool,
     ];
 

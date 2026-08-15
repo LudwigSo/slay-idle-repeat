@@ -182,10 +182,12 @@ public sealed class RunRehydrateTests
     /// assertion that keeps the chapter rule honest.
     /// </summary>
     /// <remarks>
-    /// <c>content/chapters/</c> is empty and its schema sits on <c>SchemasAwaitingContent</c> (M3-14).
-    /// Hard-coding <c>8</c> would put a content bound in code and be a <em>partial</em> invariant
-    /// masquerading as the real one; the deferral already has a self-expiring mechanism in
-    /// <c>RealDataSetTests</c>, and this pins that <c>Core</c> did not grow a second one.
+    /// <c>content/chapters/</c> holds only chapters 1-2 (M3-14); chapters 3-8 are M11-02's
+    /// unauthored rows, so the content set still does not span the full range and no ceiling is
+    /// derivable from it. Hard-coding <c>8</c> would put a content bound in code and be a
+    /// <em>partial</em> invariant masquerading as the real one; the deferral already has a
+    /// self-expiring mechanism in <c>RealDataSetTests</c>, and this pins that <c>Core</c> did not
+    /// grow a second one.
     /// </remarks>
     [Theory]
     [InlineData(1)]

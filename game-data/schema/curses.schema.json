@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/curses.schema.json",
+  "title": "content/curses/curses.json",
+  "description": "19 Part E — the twelve-curse catalogue (id, flavour, effect, paired reward) and the chapter-gating column the M3 kickoff resolved for O13 (`19` Part E line 320 calls the gating only a 'suggestion' and never marks it 🔒; the kickoff accepted it as the ruling anyway, so it is authored here as a real value, not left null). 🔒 Content transcription only: `effect` and `reward` are the design doc's own prose, not effect-DSL ops. The mechanical implementation — no-stacking, paired-reward payout, the AD_SKIP_CURSE hook, mount immunity — is M3-11's rules engine (tracked by GapRegister.Deferred's 'Curses' entry, keyed on Core's CurseDefinition), which is expected to read this file rather than restate it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "curses"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "curses": {
+      "description": "19 Part E — exactly twelve, ids unique.",
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "displayName", "effect", "reward", "availableFromChapter"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^CUR_[A-Z0-9_]+$" },
+          "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+          "effect": {
+            "description": "19 Part E's Effect column, verbatim. The forced debuff a landed TILE_CURSE (or an authored APPLY_CURSE outcome, 03 §5) applies.",
+            "type": "string",
+            "minLength": 1
+          },
+          "reward": {
+            "description": "19 Part E's Reward column, verbatim. Curses pay — the debuff is never free.",
+            "type": "string",
+            "minLength": 1
+          },
+          "availableFromChapter": {
+            "description": "O13 (resolved at the M3 kickoff): the earliest chapter this curse can be drawn in. 1-4 (CUR_SLIPPERY, CUR_MARKED, CUR_DIZZY, CUR_FRACTURED) open from Chapter 1; CUR_HUNTED specifically from Chapter 5; the remaining seven open from Chapter 3.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          }
+        }
+      }
+    }
+  }
+}

@@ -84,9 +84,10 @@ public static class SeedDerivation
                 nameof(chapterId),
                 chapterId,
                 "02 §1 runs chapters from 1 and chapter.schema.json sets \"minimum\": 1. There is " +
-                "deliberately no upper bound here — content/chapters/ is empty (M3-14) — but a " +
-                "chapter below 1 names no chapter at all, and hashing it would produce a perfectly " +
-                "stable runSeed for a run that cannot be played.");
+                "deliberately no upper bound here — content/chapters/ holds only chapters 1-2 (M3-14), " +
+                "chapters 3-8 are M11-02's unauthored rows — but a chapter below 1 names no chapter at " +
+                "all, and hashing it would produce a perfectly stable runSeed for a run that cannot be " +
+                "played.");
         }
 
         if (!Enum.IsDefined(tier))

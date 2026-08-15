@@ -227,14 +227,16 @@ public sealed class Run
     /// <c>"minimum": 1</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>No upper bound and no existence check, deliberately.</b> <c>content/chapters/</c> is
-    /// empty and <c>chapter.schema.json</c> sits on <c>ContentLoader.SchemasAwaitingContent</c> for
-    /// exactly that reason (M3-14). Hard-coding <c>8</c> in <c>Core</c> would put a content bound in
-    /// code (`21` §3.1) and — worse — would be a <em>partial</em> invariant wearing the real one's
-    /// name, the same trap as <see cref="Position"/>. The deferral already has a live, self-expiring
-    /// mechanism: <c>RealDataSetTests.An_exemption_that_outlived_its_milestone_fails_the_build</c>
-    /// fails the build when M3-14's exemption outlives its milestone, so no second mechanism is
-    /// built here (steering S4).
+    /// ⚠️ <b>No upper bound and no existence check, deliberately.</b> M3-14 landed
+    /// <c>content/chapters/CH_01_GREENWOOD_VALE.json</c> and <c>CH_02_ASHEN_MIRE.json</c>, so
+    /// <c>chapter.schema.json</c> no longer sits on <c>ContentLoader.SchemasAwaitingContent</c> — but
+    /// chapters 3-8 remain M11-02's unauthored rows, so the content set still does not span `02` §1's
+    /// full range. Hard-coding <c>8</c> in <c>Core</c> would put a content bound in code (`21` §3.1)
+    /// and — worse — would be a <em>partial</em> invariant wearing the real one's name, the same trap
+    /// as <see cref="Position"/>. The deferral already has a live, self-expiring mechanism:
+    /// <c>RealDataSetTests.An_exemption_that_outlived_its_milestone_fails_the_build</c> pins the same
+    /// mechanism against <c>event.schema.json</c> now that chapter's own exemption has expired for
+    /// real, so no second mechanism is built here (steering S4).
     /// </remarks>
     public int ChapterId { get; }
 
@@ -1017,8 +1019,8 @@ public sealed class Run
             faults.Add(
                 nameof(RunSnapshot.ChapterId) + " is " + Text(snapshot.ChapterId) + ". 02 §1 runs " +
                 "chapters from 1 and chapter.schema.json sets \"minimum\": 1. ⚠️ There is " +
-                "deliberately no upper bound: content/chapters/ is empty and the schema sits on " +
-                "ContentLoader.SchemasAwaitingContent (M3-14), so a ceiling here would be a content " +
+                "deliberately no upper bound: content/chapters/ holds only chapters 1-2 (M3-14); " +
+                "chapters 3-8 are M11-02's unauthored rows, so a ceiling here would be a content " +
                 "bound in code (21 §3.1) and a partial invariant wearing the real one's name.");
         }
 
