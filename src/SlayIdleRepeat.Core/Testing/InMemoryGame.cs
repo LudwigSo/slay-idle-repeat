@@ -183,7 +183,9 @@ public sealed class InMemoryGame
             GameCalendar.GameWeekStartAt(nowUtc),
             new Dictionary<string, long>(StringComparer.Ordinal),
             LoginCalendarTuning.FirstDay,
-            LoginCalendarDayClaimed: false);
+            LoginCalendarDayClaimed: false,
+            ClearedChapterTiers: new Dictionary<string, long>(StringComparer.Ordinal),
+            FeatCounters: new Dictionary<string, long>(StringComparer.Ordinal));
 
         var player = Player.Rehydrate(snapshot, Content);
 

@@ -372,6 +372,27 @@ public sealed class GapRegisterTests
             ignoreOrder: true,
             "30 §6 names these two and no others; a count-only floor is satisfied by whatever pair " +
             "replaced them.");
+
+        // 🔒 M4-13. The floor under `28` D2's transcription, on the same pattern and for the same
+        // reason: a literal, never the transcription's own Count.
+        //
+        // ⚠️ This one guards a gap that is EASY to close by accident. M4-13 authored the feat
+        // counters' storage and left what each counter MEASURES to 16 O29 at the M16 kickoff. The
+        // FeatDefinition entry is the only thing in this repository that says so — and it is exactly
+        // the entry someone tidying up would delete, because 'FeatCounters' next door now reads as
+        // built. Trimming this row would make that deletion silent: Expired stays quiet (neither
+        // FeatDefinition nor FeatCounterId exists), Undeclared stays quiet (nothing asks for it any
+        // more) and Unanchored stays quiet (no entry is left dangling).
+        var feats = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("28 D2", StringComparison.Ordinal));
+
+        feats.Subjects.ShouldBe(
+            new[] { "FeatDefinition" },
+            "28 D2's deferral is exactly one type — the definition that reads feats.json and names " +
+            "the counter its measure is stated over. The counters themselves are BUILT (M4-13), and " +
+            "Renown is a number on the profile rather than a type (28 D5), so neither belongs here.");
+
+        feats.Namespace.ShouldBe(Domain.ContentNamespace);
     }
 
     /// <summary>

@@ -22,6 +22,13 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="LoginCalendarDay">The login-calendar day currently open, counted from 1. Never below 1.</param>
 /// <param name="LoginCalendarDayClaimed">Whether <see cref="LoginCalendarDay"/> has been claimed. A missed or unclaimed day pauses the calendar rather than skipping it.</param>
 /// <param name="ClearedChapterTiers">The (Chapter, Tier) pairs cleared at least once, gating the one-time first-clear Soul Shard grant. Defaulted to <c>null</c>, read as "nothing cleared yet".</param>
+/// <param name="FeatCounters">
+/// The lifetime feat counters: counter id → count, additive, never reset. ⚠️ Unlike
+/// <see cref="ClearedChapterTiers"/>, <c>null</c> is a <b>fault</b> and not an empty map — the
+/// optional default is a C# requirement (an optional parameter cannot be followed by a required
+/// one) rather than a permitted value. A missing lifetime map read as empty is exactly the failure
+/// these counters exist to prevent: every Feat would evaluate against a history of zero.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.PlayerId"/> and
 /// <see cref="Primitives.EnergyBanks"/>, plus the counter dictionaries. Every timestamp is refused
@@ -51,4 +58,5 @@ public sealed record PlayerSnapshot(
     IReadOnlyDictionary<string, long> WeeklyCounters,
     int LoginCalendarDay,
     bool LoginCalendarDayClaimed,
-    IReadOnlyDictionary<string, long>? ClearedChapterTiers = null);
+    IReadOnlyDictionary<string, long>? ClearedChapterTiers = null,
+    IReadOnlyDictionary<string, long>? FeatCounters = null);

@@ -105,6 +105,16 @@ public sealed class Player
     /// <inheritdoc cref="_clearedChapterTiers"/>
     private readonly ReadOnlyDictionary<string, long> _clearedChapterTiersView;
 
+    // ---------------------------------------------------------------- feat counters (M4-13)
+
+    /// <summary>The lifetime feat counters, and the view <see cref="FeatCounters"/> hands out.</summary>
+    /// <remarks>
+    /// Mutated in place like the daily and weekly counters, so the view stays valid across every
+    /// increment. Unlike them it is never cleared: nothing on this aggregate resets it.
+    /// </remarks>
+    private readonly Dictionary<string, long> _featCounters;
+    private readonly FeatCounters _featCountersView;
+
     private long _legendXp;
 
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
@@ -126,7 +136,8 @@ public sealed class Player
         Dictionary<string, long> weeklyCounters,
         int loginCalendarDay,
         bool loginCalendarDayClaimed,
-        Dictionary<string, long> clearedChapterTiers)
+        Dictionary<string, long> clearedChapterTiers,
+        Dictionary<string, long> featCounters)
     {
         Id = id;
         DisplayName = displayName;
@@ -149,6 +160,8 @@ public sealed class Player
         _loginCalendarDayClaimed = loginCalendarDayClaimed;
         _clearedChapterTiers = clearedChapterTiers;
         _clearedChapterTiersView = new ReadOnlyDictionary<string, long>(clearedChapterTiers);
+        _featCounters = featCounters;
+        _featCountersView = new FeatCounters(new ReadOnlyDictionary<string, long>(featCounters));
     }
 
     /// <summary>The aggregate root's identity.</summary>
@@ -229,6 +242,22 @@ public sealed class Player
     /// <summary>The (Chapter, Tier) pairs cleared at least once. See <see cref="_clearedChapterTiers"/>.</summary>
     internal IReadOnlyDictionary<string, long> ClearedChapterTiers => _clearedChapterTiersView;
 
+    // ---------------------------------------------------------------- feat counters (M4-13)
+
+    /// <summary>The player's lifetime feat counters. A live view, like <see cref="DailyCounters"/>.</summary>
+    /// <remarks>
+    /// Lifetime and additive: nothing on this aggregate clears it, and
+    /// <see cref="ResetDailyCounters"/> and <see cref="ResetWeeklyCounters"/> deliberately do not
+    /// reach it. A Feat is claimed retroactively against these counts, so a reset would understate
+    /// a history that cannot be rebuilt.
+    /// </remarks>
+    public FeatCounters FeatCounters => _featCountersView;
+
+    /// <summary>The lifetime count of one feat counter, or zero when nothing has advanced it.</summary>
+    /// <param name="counterId">The counter's id. Never null, empty or whitespace.</param>
+    /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
+    public long FeatCount(string counterId) => CountIn(_featCounters, counterId);
+
     /// <summary>The key <see cref="ClearedChapterTiers"/> is stored under.</summary>
     internal static string ChapterTierKey(int chapterId, DifficultyTier tier) =>
         chapterId.ToString(CultureInfo.InvariantCulture) + ":" + tier;
@@ -290,7 +319,8 @@ public sealed class Player
         Copy(_weeklyCounters),
         _loginCalendarDay,
         _loginCalendarDayClaimed,
-        Copy(_clearedChapterTiers));
+        Copy(_clearedChapterTiers),
+        Copy(_featCounters));
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -344,10 +374,12 @@ public sealed class Player
         var weekly = ReadCounters(snapshot.WeeklyCounters, nameof(PlayerSnapshot.WeeklyCounters), faults);
         RequireLoginCalendar(snapshot, faults);
         var clearedChapterTiers = ReadClearedChapterTiers(snapshot.ClearedChapterTiers, faults);
+        var featCounters = ReadCounters(snapshot.FeatCounters, nameof(PlayerSnapshot.FeatCounters), faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns null
         // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
-        if (faults.Count > 0 || wallet is null || daily is null || weekly is null || clearedChapterTiers is null)
+        if (faults.Count > 0 || wallet is null || daily is null || weekly is null ||
+            clearedChapterTiers is null || featCounters is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -372,7 +404,8 @@ public sealed class Player
             weekly,
             snapshot.LoginCalendarDay,
             snapshot.LoginCalendarDayClaimed,
-            clearedChapterTiers));
+            clearedChapterTiers,
+            featCounters));
     }
 
     /// <summary>Moves one player-scoped wallet currency and produces the <c>CurrencyChanged</c> that attributes it.</summary>
@@ -683,6 +716,20 @@ public sealed class Player
     /// <inheritdoc cref="CountDaily"/>
     internal void CountWeekly(string counterKey, long amount) =>
         Count(_weeklyCounters, counterKey, amount, "weekly");
+
+    // ---------------------------------------------------------------- feat counters (M4-13)
+
+    /// <summary>Advances a lifetime feat counter. The counter comes into existence on its first increment.</summary>
+    /// <param name="counterId">A stable <c>lower_snake_case</c> id owned by the projection that counts. Deliberately not a closed enum.</param>
+    /// <param name="amount">
+    /// How much to add. Never negative and never zero — a lifetime counter only ever grows, and a
+    /// zero advance would register a counter that nothing has actually counted.
+    /// </param>
+    /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is not positive, or the count overflows.</exception>
+    internal void CountFeat(string counterId, long amount)
+    {
+    }
 
     /// <summary>Advances the tutorial to the next beat, as each beat's interaction completes.</summary>
     /// <param name="beat">The beat now reached. Strictly after the current one.</param>

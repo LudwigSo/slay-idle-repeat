@@ -9,6 +9,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Economy;
+using SlayIdleRepeat.Core.Rules.Feats;
 
 namespace SlayIdleRepeat.Core;
 
@@ -244,7 +245,33 @@ public static class GameRules
         RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
-        return CommandResult.Accept(working, Stamp(Combine(caughtUp, handled.Events)));
+        var events = Stamp(Combine(caughtUp, handled.Events));
+
+        CountFeats(working.Player, events);
+
+        return CommandResult.Accept(working, events);
+    }
+
+    /// <summary>Advances the player's lifetime feat counters for everything this command's events imply.</summary>
+    /// <remarks>
+    /// <para>
+    /// The counters are aggregate state written here, not a projection rebuilt from a retained log:
+    /// a Feat is claimed retroactively against a lifetime count, and a count that can only be
+    /// recovered by replaying every event a player ever produced is a count nobody can guarantee.
+    /// </para>
+    /// <para>
+    /// Runs only on an accepted command, and after the events are stamped — the same list the
+    /// caller receives is the one the counters are taken from, so what the client replays and what
+    /// the counters say can never disagree. A refused command discards the working copy, counters
+    /// included.
+    /// </para>
+    /// </remarks>
+    private static void CountFeats(Player player, IReadOnlyList<DomainEvent> events)
+    {
+        foreach (var (counterId, amount) in FeatCounterProjection.Project(events))
+        {
+            player.CountFeat(counterId, amount);
+        }
     }
 
     /// <summary>The catch-up's events followed by the handler's — one list, in the order they happened.</summary>
