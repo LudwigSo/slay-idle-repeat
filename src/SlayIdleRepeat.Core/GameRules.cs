@@ -121,18 +121,19 @@ public static class GameRules
     /// <see cref="CommandRegistration.OpensRun"/> — declared <c>true</c> on this row alone, read by
     /// <c>Execute</c>'s run-less guard to exempt exactly this row and by nothing else, so the other 18
     /// <c>CommandKind.Run</c> rows still throw on a run-less slice exactly as before. This row is now
-    /// the second of two <c>Handled</c> rows described below — the first, <c>BEGIN_SESSION</c>,
+    /// the second of three <c>Handled</c> rows described below — the first, <c>BEGIN_SESSION</c>,
     /// answers the 29 remaining <c>Deferred</c> meta rows' <c>ILLEGAL_STATE</c> with `30` §2.3's day
-    /// cycle instead.
+    /// cycle instead, and the third, M3-03c's <c>MINIGAME_SUBMIT</c>, is below it.
     /// </para>
     /// <para>
-    /// 🔒 <b>Forty-seven rows are <c>Deferred</c> and two are <c>Handled</c>.</b> M1-09 swapped
+    /// 🔒 <b>Forty-six rows are <c>Deferred</c> and three are <c>Handled</c>.</b> M1-09 swapped
     /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which was the one-line edit
     /// this table's shape was designed for and the first time <see cref="Execute"/>'s
     /// <c>registration.IsHandled</c> arm ran over the production table; M3-15 swapped
-    /// <c>START_RUN</c> the same way. ⚠️ <b>The consequence for every handler-shaped rule stated over
-    /// this table, which used to be quantifying over nothing:</b> they now have two subjects rather
-    /// than one, so a floor by identity rather than by count is what keeps them honest — see
+    /// <c>START_RUN</c> the same way, and M3-03c swapped <c>MINIGAME_SUBMIT</c> a third time. ⚠️
+    /// <b>The consequence for every handler-shaped rule stated over this table, which used to be
+    /// quantifying over nothing:</b> they now have three subjects rather than one, so a floor by
+    /// identity rather than by count is what keeps them honest — see
     /// <c>Every_command_type_is_handled_by_Apply</c>. Each row's owner
     /// is the task the tracker gives for the
     /// system behind the command — read off <c>IMPLEMENTATION_TRACKER.md</c>'s task rows rather than
@@ -163,7 +164,7 @@ public static class GameRules
         .Deferred<ShopBuyCommand>("SHOP_BUY", CommandKind.Run, "M3-08")
         .Deferred<ShopRefreshCommand>("SHOP_REFRESH", CommandKind.Run, "M3-08")
         .Deferred<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, "M3-09")
-        .Deferred<MinigameSubmitCommand>("MINIGAME_SUBMIT", CommandKind.Run, "M3-10")
+        .Handled<MinigameSubmitCommand>("MINIGAME_SUBMIT", CommandKind.Run, MinigameSubmit.Handle)
         .Deferred<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, "M3-11")
         .Deferred<StartBattleCommand>("START_BATTLE", CommandKind.Run, "M3-05")
         .Deferred<ConfirmBattleResultCommand>("CONFIRM_BATTLE_RESULT", CommandKind.Run, "M3-05")

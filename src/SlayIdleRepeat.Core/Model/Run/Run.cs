@@ -157,6 +157,35 @@ public sealed class Run
     /// <inheritdoc cref="_adUses"/>
     private readonly ReadOnlyDictionary<string, long> _adUsesView;
 
+    /// <summary>
+    /// 🔒 M3-03c — `03` §6.2's per-tile legality gate: the linear node index of every tile whose
+    /// minigame has already been resolved this run, mapped to which `03` §6 <c>MG_*</c> id resolved
+    /// there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Keyed on <see cref="Position"/> as the tile-instance identity — a recorded assumption,
+    /// not `03` §3's tile system speaking.</b> §6.2 requires "exactly one submission per tile", but
+    /// `RESOLVE_TILE` and the pending-tile-resolution state that would name a tile instance are
+    /// M3-03's, not yet built (<c>GapRegister</c>'s <c>PendingFork</c>/<c>Board</c> entries). The
+    /// run's own linear node index is the one tile-instance proxy that already exists: `03` §1 makes
+    /// movement forward-only with no backtracking, so one position is visited at most once per run,
+    /// and the day M3-03's real pending-tile state lands, a tile instance and a position coincide for
+    /// exactly the tiles this gate protects.
+    /// </para>
+    /// <para>
+    /// A map rather than a count, for the same reason <see cref="_adUses"/> is: `03` §6 has four
+    /// minigames and a run can face more than one, at different positions, in one run.
+    /// <see cref="Handlers.MinigameSubmit"/> also reads <c>Count</c> as the next `14` §8.1
+    /// <c>minigame:{index}</c> stream to draw a server-rolled outcome from — one index per resolved
+    /// instance, the same shape <c>combat</c>'s <c>battleIndex</c> already uses.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<int, string> _resolvedMinigames;
+
+    /// <inheritdoc cref="_resolvedMinigames"/>
+    private readonly ReadOnlyDictionary<int, string> _resolvedMinigamesView;
+
     private DateTimeOffset _lastAppliedAtUtc;
     private int _position;
     private int _currentHp;
@@ -185,7 +214,8 @@ public sealed class Run
         int maxHp,
         long gold,
         IReadOnlyDictionary<string, ulong> streamPositions,
-        Dictionary<string, long> adUses)
+        Dictionary<string, long> adUses,
+        Dictionary<int, string> resolvedMinigames)
     {
         Id = id;
         PlayerId = playerId;
@@ -200,6 +230,8 @@ public sealed class Run
         _streamPositions = streamPositions;
         _adUses = adUses;
         _adUsesView = new ReadOnlyDictionary<string, long>(adUses);
+        _resolvedMinigames = resolvedMinigames;
+        _resolvedMinigamesView = new ReadOnlyDictionary<int, string>(resolvedMinigames);
     }
 
     /// <summary>The aggregate root's identity (`30` §4).</summary>
@@ -346,6 +378,9 @@ public sealed class Run
     /// </remarks>
     public IReadOnlyDictionary<string, long> AdUses => _adUsesView;
 
+    /// <inheritdoc cref="_resolvedMinigames"/>
+    public IReadOnlyDictionary<int, string> ResolvedMinigames => _resolvedMinigamesView;
+
     /// <summary>
     /// The next draw index of one `14` §8.1 stream, or <b>zero</b> for a registered stream this run
     /// has never drawn from.
@@ -428,7 +463,8 @@ public sealed class Run
         _maxHp,
         _wallet,
         _streamPositions,
-        CopyAdUses(_adUses));
+        CopyAdUses(_adUses),
+        CopyResolvedMinigames(_resolvedMinigames));
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
@@ -491,11 +527,12 @@ public sealed class Run
         RequireGold(snapshot, faults);
         var streams = ReadStreamPositions(snapshot, faults);
         var adUses = ReadAdUses(snapshot, faults);
+        var resolvedMinigames = ReadResolvedMinigames(snapshot, faults);
 
-        // The two `is null` arms are unreachable while `faults` is empty — every path that returns
-        // null also adds a fault — but they are written as a pattern rather than as two `!`
+        // The three `is null` arms are unreachable while `faults` is empty — every path that returns
+        // null also adds a fault — but they are written as a pattern rather than as three `!`
         // operators so the correlation is checked rather than asserted at the compiler.
-        if (faults.Count > 0 || streams is null || adUses is null)
+        if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null)
         {
             return Result<Run>.Failure(
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -514,7 +551,8 @@ public sealed class Run
             snapshot.MaxHp,
             snapshot.Gold,
             streams,
-            adUses));
+            adUses,
+            resolvedMinigames));
     }
 
     /// <summary>
@@ -786,6 +824,51 @@ public sealed class Run
     }
 
     /// <summary>
+    /// 🔒 M3-03c, `03` §6.2 — whether a minigame has already been resolved at
+    /// <paramref name="position"/> this run. See <see cref="_resolvedMinigames"/> for why the
+    /// position stands in for a tile instance.
+    /// </summary>
+    internal bool HasResolvedMinigameAt(int position) => _resolvedMinigames.ContainsKey(position);
+
+    /// <summary>
+    /// 🔒 M3-03c, `03` §6.2 — records that <paramref name="minigameId"/> was resolved at
+    /// <paramref name="position"/>, closing the legality gate for that tile.
+    /// </summary>
+    /// <param name="position">The run's node index at resolution — see <see cref="_resolvedMinigames"/>.</param>
+    /// <param name="minigameId">`03` §6's <c>MG_*</c> id that resolved.</param>
+    /// <remarks>
+    /// A defect, not a rejection, on a duplicate: <see cref="Handlers.MinigameSubmit"/> calls
+    /// <see cref="HasResolvedMinigameAt"/> and answers the player <c>ILLEGAL_STATE</c> itself before
+    /// this seam is ever reached, exactly as <c>StartRun.Handle</c> rejects an already-active run
+    /// before <see cref="HandlerInput.OpenRun"/>. Reaching here with a duplicate means that check was
+    /// skipped, which is a miswired handler and not a player asking for something twice.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="minigameId"/> is blank.</exception>
+    /// <exception cref="InvalidOperationException">A minigame is already recorded at <paramref name="position"/>.</exception>
+    internal void RecordMinigameResolution(int position, string minigameId)
+    {
+        if (string.IsNullOrWhiteSpace(minigameId))
+        {
+            throw new ArgumentException(
+                "A resolved minigame is recorded against the MG_* id that resolved, never blank.",
+                nameof(minigameId));
+        }
+
+        if (_resolvedMinigames.ContainsKey(position))
+        {
+            throw new InvalidOperationException(
+                "Position " + Text(position) + " already has a resolved minigame recorded ('" +
+                _resolvedMinigames[position] + "'). 03 §6.2 allows exactly one submission per tile, " +
+                "and the caller's legality check (Run.HasResolvedMinigameAt) is what is supposed to " +
+                "refuse a duplicate BEFORE this seam is reached, as a RejectionReason. Reaching here " +
+                "with one already recorded means that check was skipped — a miswired handler, not a " +
+                "player asking twice.");
+        }
+
+        _resolvedMinigames[position] = minigameId;
+    }
+
+    /// <summary>
     /// 🔒 `14` §8.1 — the <b>one</b> seam that writes the per-stream draw counters: it replaces the
     /// whole map, and it refuses a map that is not a superset of the one already committed.
     /// </summary>
@@ -898,6 +981,15 @@ public sealed class Run
         adUses.Count == 0
             ? NoAdUses
             : new ReadOnlyDictionary<string, long>(new Dictionary<string, long>(adUses, StringComparer.Ordinal));
+
+    /// <inheritdoc cref="NoStreamPositions"/>
+    private static readonly ReadOnlyDictionary<int, string> NoResolvedMinigames = new(new Dictionary<int, string>(0));
+
+    /// <inheritdoc cref="CopyAdUses"/>
+    private static ReadOnlyDictionary<int, string> CopyResolvedMinigames(Dictionary<int, string> resolvedMinigames) =>
+        resolvedMinigames.Count == 0
+            ? NoResolvedMinigames
+            : new ReadOnlyDictionary<int, string>(new Dictionary<int, string>(resolvedMinigames));
 
     /// <summary>
     /// 🔒 <c>GOLD</c> is the one <c>RUN</c>-scoped currency (`10` §1, assumption <b>A3</b>). The
@@ -1178,6 +1270,47 @@ public sealed class Run
             }
 
             copy[placementId] = uses;
+        }
+
+        return faulted ? null : copy;
+    }
+
+    private static Dictionary<int, string>? ReadResolvedMinigames(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.ResolvedMinigames is null)
+        {
+            faults.Add(
+                nameof(RunSnapshot.ResolvedMinigames) + " is null. An absent map is not an empty " +
+                "one: the sparse map means 'no minigame has resolved at any position', which a null " +
+                "cannot say.");
+            return null;
+        }
+
+        var copy = new Dictionary<int, string>(snapshot.ResolvedMinigames.Count);
+        var faulted = false;
+
+        foreach (var (position, minigameId) in snapshot.ResolvedMinigames)
+        {
+            if (position < TrailheadPosition)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.ResolvedMinigames) + " carries position " + Text(position) +
+                    ", below 03 §1.1's virtual trailhead at " + Text(TrailheadPosition) + " — no " +
+                    "minigame can have resolved at a position the run could never have stood at.");
+                faulted = true;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(minigameId))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.ResolvedMinigames) + "[" + Text(position) + "] is blank. A " +
+                    "resolved minigame is recorded against the 03 §6 MG_* id that resolved.");
+                faulted = true;
+                continue;
+            }
+
+            copy[position] = minigameId;
         }
 
         return faulted ? null : copy;

@@ -103,6 +103,12 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <c>AD_REVIVE</c> is what carries `02` §6's once-per-run revive, so there is no separate revive
 /// flag.
 /// </param>
+/// <param name="ResolvedMinigames">
+/// 🔒 M3-03c, SchemaVersion 3 — `03` §6.2's per-tile legality gate: linear node index → the `03` §6
+/// <c>MG_*</c> id resolved there. Sparse; a position absent from here has not had a minigame
+/// resolved at it. See <c>Run</c>'s private field of the same name for why the position stands in
+/// for a tile instance no board/pending-tile state exists to name yet.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -160,4 +166,5 @@ public sealed record RunSnapshot(
     int MaxHp,
     long Gold,
     IReadOnlyDictionary<string, ulong> RngStreamPositions,
-    IReadOnlyDictionary<string, long> AdUses);
+    IReadOnlyDictionary<string, long> AdUses,
+    IReadOnlyDictionary<int, string> ResolvedMinigames);

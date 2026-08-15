@@ -87,8 +87,10 @@ namespace SlayIdleRepeat.Core.Commands;
 /// register entry already fires on the right commit: <c>Inventory</c> (M4-03, keyed on
 /// <c>GearInstance</c>) covers the six forge-and-gear payloads, and <c>ContainerShelf</c> (M4-02,
 /// keyed on <c>ContainerClass</c>) covers the three container ids. The rest are carried by <b>this
-/// remark and the per-command ones alone</b>: the two <c>logHash</c> fields (M2-15), the minigame id
-/// and its tier encoding (M3-10), the talent <c>nodeId</c> (M4-06), <c>offerId</c> (M4-09),
+/// remark and the per-command ones alone</b>: the two <c>logHash</c> fields (M2-15) — the minigame id
+/// and its tier encoding were the same shape until M3-03c settled <c>Result</c> against `03` §6.1's
+/// four reward tables, at <c>MinigameSubmitCommand</c>'s own remarks — the talent <c>nodeId</c>
+/// (M4-06), <c>offerId</c> (M4-09),
 /// <c>placementId</c> (M15-03), <c>messageIds</c> (M5-08), and <c>ghostId</c>/<c>duelId</c>
 /// (M12-01/M12-04).
 /// </para>

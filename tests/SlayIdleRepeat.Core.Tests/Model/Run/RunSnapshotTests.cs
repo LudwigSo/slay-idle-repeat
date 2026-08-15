@@ -25,7 +25,8 @@ public sealed class RunSnapshotTests
         gold: 1_450,
         rngStreamPositions: RunSnapshots.Streams(
             (RngStreams.Dice, 12UL), (RngStreams.Board, 8UL), (RngStreams.Combat, 3UL)),
-        adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)));
+        adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)),
+        resolvedMinigames: RunSnapshots.ResolvedMinigames((3, "MG_CHEST_PICK"), (11, "MG_TIMING_BAR")));
 
     /// <summary>
     /// 🔒 The <c>stateHash</c> of a <b>run</b> command (`14` §16.6): the player snapshot then the
@@ -73,6 +74,7 @@ public sealed class RunSnapshotTests
         round.Gold.ShouldBe(Populated.Gold);
         round.RngStreamPositions.ShouldBe(Populated.RngStreamPositions, ignoreOrder: true);
         round.AdUses.ShouldBe(Populated.AdUses, ignoreOrder: true);
+        round.ResolvedMinigames.ShouldBe(Populated.ResolvedMinigames, ignoreOrder: true);
     }
 
     /// <summary>
@@ -153,6 +155,8 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.Gold), v, RunSnapshots.With(gold: 1)),
             (nameof(RunSnapshot.RngStreamPositions), v, RunSnapshots.With(rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, 1UL)))),
             (nameof(RunSnapshot.AdUses), v, RunSnapshots.With(adUses: RunSnapshots.AdUses(("AD_REVIVE", 1)))),
+            (nameof(RunSnapshot.ResolvedMinigames), v,
+                RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((0, "MG_CHEST_PICK")))),
         };
 
         var invisible = probes

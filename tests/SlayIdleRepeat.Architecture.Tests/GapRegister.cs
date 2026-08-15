@@ -59,8 +59,9 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// The transcription is below — <b>and all forty-nine subjects are authored</b>. What that
 /// discharges is `14` §2.3's <b>inventory</b>: M1-02 declared every row of the registry, so the
 /// table's <em>first</em> column has nothing left to defer. ⚠️ Its <b>payload</b> column does — some
-/// twenty fields whose value sets belong to M2-15, M3-10, M4-02, M4-03, M4-06, M4-09, M5-08, M12
-/// and M15-03 are carried as <c>int</c>/<c>string</c> today — and that deferral is written up in
+/// twenty fields whose value sets belong to M2-15, M4-02, M4-03, M4-06, M4-09, M5-08, M12 and
+/// M15-03 are carried as <c>int</c>/<c>string</c> today (M3-03c settled <c>MinigameSubmitCommand
+/// .Result</c>'s, the one that used to be tagged M3-10 here) — and that deferral is written up in
 /// <c>SlayIdleRepeat.Core.Commands.CommandPayload</c>, with the two entries below that already
 /// expire on the right commits (<c>Inventory</c>/M4-03 and <c>ContainerShelf</c>/M4-02) naming the
 /// payloads they cover.

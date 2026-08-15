@@ -86,6 +86,12 @@ internal static class StartRun
     private static readonly ReadOnlyDictionary<string, long> NoAdUses =
         new(new Dictionary<string, long>(0, StringComparer.Ordinal));
 
+    /// <summary>
+    /// M3-03c — a just-started run has resolved no minigames. See <c>Run</c>'s
+    /// <c>_resolvedMinigames</c> field remarks.
+    /// </summary>
+    private static readonly ReadOnlyDictionary<int, string> NoResolvedMinigames = new(new Dictionary<int, string>(0));
+
     /// <summary>🔒 `02` §2 — applies <c>START_RUN</c>.</summary>
     /// <param name="command">The chapter and tier to start on.</param>
     /// <param name="input">
@@ -153,7 +159,8 @@ internal static class StartRun
             StartingHitPoints,
             StartingGold,
             NoStreamPositions,
-            NoAdUses);
+            NoAdUses,
+            NoResolvedMinigames);
 
         var run = Run.Rehydrate(snapshot);
 
