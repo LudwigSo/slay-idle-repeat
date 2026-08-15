@@ -423,20 +423,28 @@ public sealed class GapRegisterTests
             .ToArray();
 
         owners.Length.ShouldBe(
-            44,
-            "14 §2.3's registry is 19 run + 30 meta, and 44 of the 49 rows are Deferred since M3-04 " +
-            "landed the ROLL_DICE and USE_REROLL handlers. If this is 0 the pattern has stopped " +
-            "matching the dispatch table and the comparison below holds over nothing; if it shrinks, " +
-            "either a row went away or a row became Handled — in which case lower this by exactly " +
-            "that many and raise the Handled floor by the same.");
+            42,
+            "14 §2.3's registry is 19 run + 30 meta, and 42 of the 49 rows are Deferred since M3-08 " +
+            "landed the SHOP_BUY/SHOP_REFRESH handlers (beside M3-15's START_RUN, M3-03c's " +
+            "MINIGAME_SUBMIT, M3-04's ROLL_DICE/USE_REROLL, and M1-09's BEGIN_SESSION). If this is 0 " +
+            "the pattern has stopped matching the dispatch table and the comparison below holds over " +
+            "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
+            "lower this by exactly that many and raise the Handled floor by the same.");
 
         handled.ShouldBe(
-            new[] { "BEGIN_SESSION", "START_RUN", "MINIGAME_SUBMIT", "ROLL_DICE", "USE_REROLL" },
+            new[]
+            {
+                "BEGIN_SESSION", "START_RUN", "MINIGAME_SUBMIT", "ROLL_DICE", "USE_REROLL",
+                "SHOP_BUY", "SHOP_REFRESH",
+            },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
             "satisfied by whatever handler replaced the one this names. 30 §2.3's BEGIN_SESSION was " +
             "the first; 02 §2's START_RUN (M3-15) the second; 03 §6's MINIGAME_SUBMIT (M3-03c) the " +
-            "third; 04 §§1,3-4's ROLL_DICE and USE_REROLL (M3-04) the fourth and fifth.");
+            "third; 04 §§1,3-4's ROLL_DICE and USE_REROLL (M3-04) the fourth and fifth; 03 §7's " +
+            "SHOP_BUY and SHOP_REFRESH (M3-08) the sixth and seventh — real, dispatched handlers " +
+            "that refuse every call today because no Run shaped by today's aggregate can carry an " +
+            "active shop offer yet (see Handlers.ShopBuy's remarks).");
 
 
         (owners.Length + handled.Length).ShouldBe(
