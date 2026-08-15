@@ -390,22 +390,33 @@ public sealed class EventChooseTests
     }
 
     /// <summary>
-    /// 🔒 …and the heavier branch really is heavier. Not an exact ratio — this is 40 samples, not a
-    /// distribution test — but a strict majority, which a 70/30 split gives and a 50/50 or an
-    /// inverted walk would not.
+    /// 🔒 …and each branch is drawn at roughly ITS OWN weight — the 70 branch near 70%, not merely
+    /// "more often than not".
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>A bare majority assertion is too weak to be worth writing here, and that is a measured
+    /// claim rather than a preference.</b> Swapping the two weights (a plausible off-by-one in the
+    /// table's construction) turns 70/30 into 30/70, which over a small sample still lands near a
+    /// coin flip and slipped past a <c>&gt; half</c> assertion by a handful of draws. Pinning each
+    /// branch inside a band around its own weight fails that mutation by a wide margin instead. The
+    /// band is deliberately generous — 600 samples of a 70/30 split, so ±12 points is far outside
+    /// sampling noise while leaving no room for a swapped or ignored weight.
+    /// </remarks>
     [Fact]
-    public void The_heavier_branch_of_a_seventy_thirty_split_wins_the_majority()
+    public void Each_branch_of_a_seventy_thirty_split_is_drawn_at_its_own_weight()
     {
-        var draws = Enumerable.Range(1, 40)
+        const int samples = 600;
+
+        var draws = Enumerable.Range(1, samples)
             .Select(seed => TileWorlds.OnTile(
                 TileKind.Event, eventCardId: FixtureCards.Split, runSeed: (ulong)seed))
             .Select(state => Choose(state, 0))
             .Select(r => r.Events.Cast<CurrencyChanged>().Single().Id)
             .ToArray();
 
-        draws.Count(id => id == CurrencyId.ENHANCE_STONES)
-            .ShouldBeGreaterThan(draws.Length / 2, "the 70-weighted branch is the majority");
+        var heavyShare = draws.Count(id => id == CurrencyId.ENHANCE_STONES) / (double)samples;
+
+        heavyShare.ShouldBeInRange(0.58, 0.82, "the 70-weighted branch is drawn at about 70%");
     }
 
     /// <summary>🔒 A guaranteed effect applies on EVERY branch of the split — the flattened cost.</summary>
