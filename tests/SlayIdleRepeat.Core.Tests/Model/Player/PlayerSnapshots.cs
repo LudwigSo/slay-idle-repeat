@@ -123,7 +123,8 @@ internal static class PlayerSnapshots
         DateTimeOffset? weeklyPeriodStartUtc = null,
         IReadOnlyDictionary<string, long>? weeklyCounters = null,
         int? loginCalendarDay = null,
-        bool? loginCalendarDayClaimed = null) =>
+        bool? loginCalendarDayClaimed = null,
+        IReadOnlyDictionary<string, long>? clearedChapterTiers = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -148,5 +149,6 @@ internal static class PlayerSnapshots
             // exception rather than the rule, and M1-09's suite drives the advance arm by asking for
             // it explicitly.
             loginCalendarDay ?? LoginCalendarTuning.FirstDay,
-            loginCalendarDayClaimed ?? false);
+            loginCalendarDayClaimed ?? false,
+            clearedChapterTiers ?? Counters());
 }

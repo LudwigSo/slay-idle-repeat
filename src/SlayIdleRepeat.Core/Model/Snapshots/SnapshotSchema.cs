@@ -50,6 +50,13 @@ public static class SnapshotSchema
     /// four are defaulted on the record so every pre-existing positional construction still compiles
     /// against the value a run implicitly held before this task.
     /// </para>
+    /// <para>
+    /// <b>7</b> — M3-13 added <c>RunSnapshot.BankedLegendXp</c>, <c>BankedSoulShards</c> and
+    /// <c>BossDefeated</c> (`02` §5's reward-banking and run-end payout — see <c>Run.BankRewards</c>
+    /// and <c>Run.EndRun</c>), and <c>PlayerSnapshot.ClearedChapterTiers</c> (`02` §5.3's first-clear
+    /// gate). Same ruling, no migration; all four fields are defaulted so every pre-existing
+    /// positional construction still compiles.
+    /// </para>
     /// </remarks>
-    public const int SchemaVersion = 6;
+    public const int SchemaVersion = 7;
 }

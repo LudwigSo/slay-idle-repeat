@@ -49,6 +49,30 @@ internal static class ProgressionDocuments
     /// <inheritdoc cref="ShippedLegendLevelMin"/>
     internal const int ShippedLegendLevelMax = 200;
 
+    /// <summary>`02` §5.1a — <c>BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1)</c>'s coefficient, as shipped.</summary>
+    internal const int ShippedBaseXpCoefficient = 25;
+
+    /// <summary>`02` §5.1a — the Legend XP growth base, as shipped.</summary>
+    internal const decimal ShippedBaseXpGrowth = 1.55m;
+
+    /// <summary>`02` §5.1a — the Victory completion multiplier, as shipped.</summary>
+    internal const decimal ShippedVictoryMultiplier = 1.0m;
+
+    /// <summary>`02` §5.2 — the Stage 3 death completion multiplier, as shipped.</summary>
+    internal const decimal ShippedStage3DeathMultiplier = 0.6m;
+
+    /// <summary>`02` §5.2 — the Stage 2 death completion multiplier, as shipped.</summary>
+    internal const decimal ShippedStage2DeathMultiplier = 0.4m;
+
+    /// <summary>`02` §5.2 — the Stage 1 death completion multiplier, as shipped.</summary>
+    internal const decimal ShippedStage1DeathMultiplier = 0.25m;
+
+    /// <summary>`02` §5.2 — the Abandon completion multiplier, as shipped.</summary>
+    internal const decimal ShippedAbandonMultiplier = 0.1m;
+
+    /// <summary>`02` §5.2 — the run-end ad-double multiplier, as shipped.</summary>
+    internal const decimal ShippedAdDoubleMultiplier = 2.0m;
+
     /// <summary>A snapshot holding exactly the shipped energy block.</summary>
     internal static ContentSnapshot Shipped { get; } = With();
 
@@ -65,7 +89,17 @@ internal static class ProgressionDocuments
         ContentValue? runCost = null,
         ContentValue? reserveMultipleOfMax = null,
         ContentValue? legendLevelMin = null,
-        ContentValue? legendLevelMax = null)
+        ContentValue? legendLevelMax = null,
+        ContentValue? baseXpCoefficient = null,
+        ContentValue? baseXpGrowth = null,
+        ContentValue? tierMultiplier = null,
+        ContentValue? sourceMultiplier = null,
+        ContentValue? victoryMultiplier = null,
+        ContentValue? stage3DeathMultiplier = null,
+        ContentValue? stage2DeathMultiplier = null,
+        ContentValue? stage1DeathMultiplier = null,
+        ContentValue? abandonMultiplier = null,
+        ContentValue? adDoubleMultiplier = null)
     {
         var energy = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
@@ -86,10 +120,48 @@ internal static class ProgressionDocuments
             ["max"] = legendLevelMax ?? ContentValue.Number(ShippedLegendLevelMax),
         });
 
+        var runXp = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["baseXpCoefficient"] = baseXpCoefficient ?? ContentValue.Number(ShippedBaseXpCoefficient),
+            ["baseXpGrowth"] = baseXpGrowth ?? ContentValue.Number(ShippedBaseXpGrowth),
+            ["tierMultiplier"] = tierMultiplier ?? ContentValue.Object(
+                new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["NORMAL"] = ContentValue.Number(1.0m),
+                    ["HEROIC"] = ContentValue.Number(1.6m),
+                    ["MYTHIC"] = ContentValue.Number(2.5m),
+                }),
+            ["sourceMultiplier"] = sourceMultiplier ?? ContentValue.Object(
+                new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["NORMAL_ENEMY_KILL"] = ContentValue.Number(1),
+                    ["ELITE_KILL"] = ContentValue.Number(3),
+                    ["BOSS_KILL"] = ContentValue.Number(15),
+                    ["RUN_VICTORY_BONUS"] = ContentValue.Number(10),
+                }),
+        });
+
+        var completionMultiplier = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["VICTORY"] = victoryMultiplier ?? ContentValue.Number(ShippedVictoryMultiplier),
+            ["STAGE_3_DEATH"] = stage3DeathMultiplier ?? ContentValue.Number(ShippedStage3DeathMultiplier),
+            ["STAGE_2_DEATH"] = stage2DeathMultiplier ?? ContentValue.Number(ShippedStage2DeathMultiplier),
+            ["STAGE_1_DEATH"] = stage1DeathMultiplier ?? ContentValue.Number(ShippedStage1DeathMultiplier),
+            ["ABANDON"] = abandonMultiplier ?? ContentValue.Number(ShippedAbandonMultiplier),
+        });
+
+        var adDoubleMultiplierBlock = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["value"] = adDoubleMultiplier ?? ContentValue.Number(ShippedAdDoubleMultiplier),
+        });
+
         return Document(ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
             ["energy"] = energy,
             ["legendLevel"] = legendLevel,
+            ["runXp"] = runXp,
+            ["completionMultiplier"] = completionMultiplier,
+            ["adDoubleMultiplier"] = adDoubleMultiplierBlock,
         }));
     }
 

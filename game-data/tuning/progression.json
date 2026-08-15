@@ -39,9 +39,16 @@
     }
   },
   "completionMultiplier": {
-    "_doc": "02 §5.2",
+    "_doc": "02 §5.2 — FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier. Death still pays: even a Stage 1 death returns 25%, never zero.",
     "VICTORY": 1.0,
-    "STAGE_3_DEATH": 0.6
+    "STAGE_3_DEATH": 0.6,
+    "STAGE_2_DEATH": 0.4,
+    "STAGE_1_DEATH": 0.25,
+    "ABANDON": 0.1
+  },
+  "adDoubleMultiplier": {
+    "_doc": "02 §5.2 — AdDoubleMultiplier = 2.0 if the player watches the run-end rewarded ad, else 1.0.",
+    "value": 2.0
   },
   "energy": {
     "_doc": "10 §3. 28 Part C is the authority for the Energy Reserve.",

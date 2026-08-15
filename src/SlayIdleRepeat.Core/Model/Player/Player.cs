@@ -148,6 +148,19 @@ public sealed class Player
     private readonly ReadOnlyDictionary<string, long> _weeklyCountersView;
 
     /// <summary>
+    /// 🔒 M3-13, SchemaVersion 7, `02` §5.3 — the (Chapter, Tier) pairs this player has cleared at
+    /// least once (a Boss kill), keyed <c>"{chapterId}:{tier}"</c> — the same open-map shape
+    /// <see cref="_dailyCounters"/> uses, for the same reason: gating a one-time grant is a count/flag
+    /// mechanism, not a currency. The value is always 1; only the key's presence is read.
+    /// </summary>
+    private readonly Dictionary<string, long> _clearedChapterTiers;
+
+    /// <inheritdoc cref="_clearedChapterTiers"/>
+    private readonly ReadOnlyDictionary<string, long> _clearedChapterTiersView;
+
+    private long _legendXp;
+
+    /// <summary>
     /// The one constructor. Private, and it <b>trusts</b>: every value has already been checked by
     /// <see cref="Rehydrate"/>, which is the only caller.
     /// </summary>
@@ -174,12 +187,13 @@ public sealed class Player
         DateTimeOffset weeklyPeriodStartUtc,
         Dictionary<string, long> weeklyCounters,
         int loginCalendarDay,
-        bool loginCalendarDayClaimed)
+        bool loginCalendarDayClaimed,
+        Dictionary<string, long> clearedChapterTiers)
     {
         Id = id;
         DisplayName = displayName;
         LegendLevel = legendLevel;
-        LegendXp = legendXp;
+        _legendXp = legendXp;
         _runsStarted = runsStarted;
         _wallet = wallet;
         _energy = energy;
@@ -195,6 +209,8 @@ public sealed class Player
         _weeklyCountersView = new ReadOnlyDictionary<string, long>(weeklyCounters);
         _loginCalendarDay = loginCalendarDay;
         _loginCalendarDayClaimed = loginCalendarDayClaimed;
+        _clearedChapterTiers = clearedChapterTiers;
+        _clearedChapterTiersView = new ReadOnlyDictionary<string, long>(clearedChapterTiers);
     }
 
     /// <summary>The aggregate root's identity (`30` §4).</summary>
@@ -215,8 +231,12 @@ public sealed class Player
     /// </remarks>
     public int LegendLevel { get; }
 
-    /// <summary>Lifetime Legend XP. Never negative. Get-only for the same reason as <see cref="LegendLevel"/>.</summary>
-    public long LegendXp { get; }
+    /// <summary>
+    /// Lifetime Legend XP. Never negative. Mutated by <see cref="GrantLegendXp"/> — M3-13's run-end
+    /// payout is the first grantor; the levelling curve that turns it into <see cref="LegendLevel"/>
+    /// is still M4-10's.
+    /// </summary>
+    public long LegendXp => _legendXp;
 
     /// <summary>
     /// 🔒 `02` §2's <c>runCounter</c> — the player's lifetime runs-started counter, and the fourth
@@ -311,6 +331,24 @@ public sealed class Player
     /// </remarks>
     public bool LoginCalendarDayClaimed => _loginCalendarDayClaimed;
 
+    /// <summary>🔒 M3-13 — the (Chapter, Tier) pairs cleared at least once. See <see cref="_clearedChapterTiers"/>.</summary>
+    internal IReadOnlyDictionary<string, long> ClearedChapterTiers => _clearedChapterTiersView;
+
+    /// <summary>🔒 M3-13, `02` §5.3 — the key <see cref="ClearedChapterTiers"/> is stored under.</summary>
+    internal static string ChapterTierKey(int chapterId, DifficultyTier tier) =>
+        chapterId.ToString(CultureInfo.InvariantCulture) + ":" + tier;
+
+    /// <summary>🔒 M3-13, `02` §5.3 — whether (<paramref name="chapterId"/>, <paramref name="tier"/>) has been cleared before.</summary>
+    internal bool HasClearedChapterTier(int chapterId, DifficultyTier tier) =>
+        _clearedChapterTiers.ContainsKey(ChapterTierKey(chapterId, tier));
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §5.3 — records that (<paramref name="chapterId"/>, <paramref name="tier"/>) has
+    /// now been cleared. Idempotent, for the reason <c>Run.ClearDraftPending</c> is.
+    /// </summary>
+    internal void MarkChapterTierCleared(int chapterId, DifficultyTier tier) =>
+        _clearedChapterTiers[ChapterTierKey(chapterId, tier)] = 1;
+
     /// <summary>
     /// The balance of one player-scoped wallet currency.
     /// </summary>
@@ -371,7 +409,8 @@ public sealed class Player
         _weeklyPeriodStartUtc,
         Copy(_weeklyCounters),
         _loginCalendarDay,
-        _loginCalendarDayClaimed);
+        _loginCalendarDayClaimed,
+        Copy(_clearedChapterTiers));
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted player: <em>"a corrupt row
@@ -448,11 +487,12 @@ public sealed class Player
         var daily = ReadCounters(snapshot.DailyCounters, nameof(PlayerSnapshot.DailyCounters), faults);
         var weekly = ReadCounters(snapshot.WeeklyCounters, nameof(PlayerSnapshot.WeeklyCounters), faults);
         RequireLoginCalendar(snapshot, faults);
+        var clearedChapterTiers = ReadClearedChapterTiers(snapshot.ClearedChapterTiers, faults);
 
         // The three `is null` arms are unreachable while `faults` is empty — every path that
         // returns null also adds a fault — but they are written as a pattern rather than as three
         // `!` operators so the correlation is checked rather than asserted at the compiler.
-        if (faults.Count > 0 || wallet is null || daily is null || weekly is null)
+        if (faults.Count > 0 || wallet is null || daily is null || weekly is null || clearedChapterTiers is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -476,7 +516,8 @@ public sealed class Player
             snapshot.WeeklyPeriodStartUtc,
             weekly,
             snapshot.LoginCalendarDay,
-            snapshot.LoginCalendarDayClaimed));
+            snapshot.LoginCalendarDayClaimed,
+            clearedChapterTiers));
     }
 
     /// <summary>
@@ -537,6 +578,39 @@ public sealed class Player
         }
 
         return MoveBalance(currency, delta, next, _energy, reason);
+    }
+
+    /// <summary>
+    /// 🔒 M3-13, `02` §5.1a / §5.2 — grants Legend XP from a run's <c>FinalPayout</c>. Not a
+    /// <see cref="CurrencyId"/> movement (`10` §1 does not list Legend XP among the eight wallet
+    /// currencies), so it emits no <c>CurrencyChanged</c> — the same reasoning
+    /// <c>Run.BankRewards</c> states for the banking half of this seam. Turning the new total into a
+    /// <see cref="LegendLevel"/> is still M4-10's levelling curve; this seam only ever raises the
+    /// lifetime total.
+    /// </summary>
+    /// <param name="amount">Legend XP to add. Never negative.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is negative, or the total would overflow.</exception>
+    internal void GrantLegendXp(long amount)
+    {
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount), amount, "Legend XP is a lifetime total; it only ever grows.");
+        }
+
+        try
+        {
+            _legendXp = checked(_legendXp + amount);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Granting " + amount.ToString(CultureInfo.InvariantCulture) + " Legend XP overflows " +
+                "a 64-bit lifetime total. An amount this size is an economy defect upstream, not a " +
+                "reward to store.");
+        }
     }
 
     /// <summary>
@@ -1380,6 +1454,24 @@ public sealed class Player
         }
 
         return faulted ? null : copy;
+    }
+
+    /// <summary>
+    /// 🔒 M3-13, SchemaVersion 7 — reads <see cref="PlayerSnapshot.ClearedChapterTiers"/>. Unlike
+    /// <see cref="ReadCounters"/>, <c>null</c> is <b>not</b> a fault here: this field was appended
+    /// after <see cref="PlayerSnapshot.WeeklyCounters"/> with a defaulted parameter (the same pattern
+    /// M3-05 used for <c>RunSnapshot.Phase</c>), so a row from before this bump has no opinion on it
+    /// and reads as "nothing cleared yet" rather than a corrupt row.
+    /// </summary>
+    private static Dictionary<string, long>? ReadClearedChapterTiers(
+        IReadOnlyDictionary<string, long>? clearedChapterTiers, List<string> faults)
+    {
+        if (clearedChapterTiers is null)
+        {
+            return new Dictionary<string, long>(StringComparer.Ordinal);
+        }
+
+        return ReadCounters(clearedChapterTiers, nameof(PlayerSnapshot.ClearedChapterTiers), faults);
     }
 
     /// <summary>

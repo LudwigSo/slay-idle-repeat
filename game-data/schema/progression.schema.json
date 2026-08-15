@@ -5,7 +5,7 @@
   "description": "07 §1.1 (Legend XP curve, unlock ladder), 02 §5.1a (Legend XP income), 10 §3 (Energy), 10 §8 (catch-up / frontier curve).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "legendLevel", "unlocks", "runXp", "completionMultiplier", "energy", "chapterGating", "catchUp"],
+  "required": ["$schema", "_doc", "_status", "legendLevel", "unlocks", "runXp", "completionMultiplier", "adDoubleMultiplier", "energy", "chapterGating", "catchUp"],
   "$defs": {
     "gate": {
       "type": "object",
@@ -76,14 +76,27 @@
       }
     },
     "completionMultiplier": {
-      "description": "02 §5.2 — FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier.",
+      "description": "02 §5.2 — FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier. Death still pays: even a Stage 1 death returns 25%, never zero.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["_doc", "VICTORY", "STAGE_3_DEATH"],
+      "required": ["_doc", "VICTORY", "STAGE_3_DEATH", "STAGE_2_DEATH", "STAGE_1_DEATH", "ABANDON"],
       "properties": {
         "_doc": { "type": "string", "minLength": 1 },
         "VICTORY": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
-        "STAGE_3_DEATH": { "type": "number", "minimum": 0, "maximum": 1 }
+        "STAGE_3_DEATH": { "type": "number", "minimum": 0, "maximum": 1 },
+        "STAGE_2_DEATH": { "type": "number", "minimum": 0, "maximum": 1 },
+        "STAGE_1_DEATH": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "ABANDON": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "adDoubleMultiplier": {
+      "description": "02 §5.2 — AdDoubleMultiplier = 2.0 if the player watches the run-end rewarded ad, else 1.0.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "value"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "value": { "type": "number", "exclusiveMinimum": 1 }
       }
     },
     "energy": {

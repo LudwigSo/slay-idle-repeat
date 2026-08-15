@@ -85,6 +85,13 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// 🔒 `19` Part G — whether <see cref="LoginCalendarDay"/> has been claimed. The <b>pause</b> flag:
 /// <em>"a missed day — or an unclaimed one — pauses the calendar. Nothing is skipped or lost."</em>
 /// </param>
+/// <param name="ClearedChapterTiers">
+/// 🔒 M3-13, SchemaVersion 7, `02` §5.3 — the (Chapter, Tier) pairs cleared at least once, keyed
+/// <c>"{chapterId}:{tier}"</c>, gating the one-time first-clear Soul Shard grant. Defaulted to
+/// <c>null</c>, which <c>Player.Rehydrate</c> reads as "nothing cleared yet" rather than a fault —
+/// unlike <see cref="DailyCounters"/>/<see cref="WeeklyCounters"/>, a row from before this field
+/// existed genuinely has no opinion on it.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -181,4 +188,5 @@ public sealed record PlayerSnapshot(
     DateTimeOffset WeeklyPeriodStartUtc,
     IReadOnlyDictionary<string, long> WeeklyCounters,
     int LoginCalendarDay,
-    bool LoginCalendarDayClaimed);
+    bool LoginCalendarDayClaimed,
+    IReadOnlyDictionary<string, long>? ClearedChapterTiers = null);

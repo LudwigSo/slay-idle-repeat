@@ -374,27 +374,29 @@ public sealed class CommandVocabularyTests
         // by MINIGAME_SUBMIT, M3-04 lowered it again to 44 by ROLL_DICE and USE_REROLL, M3-08
         // lowered it again to 42 by SHOP_BUY/SHOP_REFRESH, M3-02 lowered it again to 41 by
         // CHOOSE_FORK, M3-03 lowered it again to 38 by RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE —
-        // 03 §2's tile resolvers, which are one system reached through three commands — and M3-05
-        // lowers it again to 36 by START_BATTLE/CONFIRM_BATTLE_RESULT. It is stated as "the registry
-        // minus the handled rows" rather than as the literal 36 so the next task to land a handler
-        // lowers it by construction, and so the number can never drift below what the loop can
-        // reach: an equality against a computed total fails in BOTH directions, where a hand-lowered
-        // literal only fails when the count goes up.
+        // 03 §2's tile resolvers, which are one system reached through three commands — M3-05
+        // lowered it again to 36 by START_BATTLE/CONFIRM_BATTLE_RESULT, and M3-13 lowers it again
+        // to 33 by REVIVE/END_RUN/ABANDON_RUN. It is stated as "the registry minus the handled
+        // rows" rather than as the literal 33 so the next task to land a handler lowers it by
+        // construction, and so the number can never drift below what the loop can reach: an
+        // equality against a computed total fails in BOTH directions, where a hand-lowered literal
+        // only fails when the count goes up.
         deferred.ShouldBe(
             Registry.Count(row => !RegistrationFor(row.Key).IsHandled),
-            "every DEFERRED row of 14 §2.3 is driven here — 36 of the 49 since M3-05 landed the " +
-            "START_BATTLE/CONFIRM_BATTLE_RESULT handlers. A mismatch means the loop skipped " +
+            "every DEFERRED row of 14 §2.3 is driven here — 33 of the 49 since M3-13 landed the " +
+            "REVIVE/END_RUN/ABANDON_RUN handlers. A mismatch means the loop skipped " +
             "a deferred row rather than that the count moved.");
 
         deferred.ShouldBe(
-            36,
+            33,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly thirteen of them — BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
+            "is 49 rows and exactly sixteen of them — BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
             "(02 §2's runSeed commit), MINIGAME_SUBMIT (03 §6's minigame resolution), ROLL_DICE and " +
             "USE_REROLL (04 §§1,3-4), SHOP_BUY/SHOP_REFRESH (03 §7's shop, M3-08), CHOOSE_FORK " +
             "(03 §1.1's junction pause, M3-02), RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE " +
-            "(03 §2's tile resolvers, M3-03), and START_BATTLE/CONFIRM_BATTLE_RESULT (M3-05) — have " +
+            "(03 §2's tile resolvers, M3-03), START_BATTLE/CONFIRM_BATTLE_RESULT (M3-05), and " +
+            "REVIVE/END_RUN/ABANDON_RUN (02 §5-6's reward banking and run-end payout, M3-13) — have " +
             "a handler. Lower this by exactly the number of " +
             "rows that become Handled, and never to a " +
             "number the loop cannot reach.");

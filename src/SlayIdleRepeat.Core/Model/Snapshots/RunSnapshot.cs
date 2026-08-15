@@ -183,6 +183,18 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <see cref="SlayIdleRepeat.Core.Rules.Dice.FairDiceBag.Replay"/>'s <c>resetAtDraw</c>. Defaulted to 0, the anchor every
 /// run implicitly held before a real Stage Gate existed.
 /// </param>
+/// <param name="BankedLegendXp">
+/// 🔒 M3-13, SchemaVersion 7, `02` §5.1a — Legend XP banked so far this run, pending the run-end
+/// <c>CompletionMultiplier</c>/<c>AdDoubleMultiplier</c> payout. Never negative. Defaulted to 0.
+/// </param>
+/// <param name="BankedSoulShards">
+/// 🔒 M3-13, SchemaVersion 7, `02` §5.3 / `10` §2 — Soul Shards banked so far this run (Boss kills
+/// and the one-time first-clear grant), pending the same run-end payout. Never negative. Defaulted to 0.
+/// </param>
+/// <param name="BossDefeated">
+/// 🔒 M3-13, SchemaVersion 7, `02` §5.2 — whether this run's Boss has been killed, the Victory/Death
+/// split <c>Handlers.EndRun</c> reads. Defaulted to <c>false</c>.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -256,4 +268,7 @@ public sealed record RunSnapshot(
     RunPhase Phase = RunPhase.InProgress,
     bool DraftPending = false,
     int RerollChargesSpentThisStage = 0,
-    ulong StageGateDiceAnchor = 0);
+    ulong StageGateDiceAnchor = 0,
+    long BankedLegendXp = 0,
+    long BankedSoulShards = 0,
+    bool BossDefeated = false);

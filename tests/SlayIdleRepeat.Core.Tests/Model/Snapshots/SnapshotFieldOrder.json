@@ -404,6 +404,80 @@
           "StageGateDiceAnchor:System.UInt64"
         ]
       }
+    },
+    {
+      "schemaVersion": 7,
+      "_why": [
+        "M3-13 appended RunSnapshot.BankedLegendXp, BankedSoulShards and BossDefeated (02 SS5's",
+        "reward-banking and run-end payout -- Run.BankRewards banks Legend XP and Soul Shards",
+        "during the run, Run.MarkBossDefeated records the Victory/Death split Handlers.EndRun",
+        "reads), and PlayerSnapshot.ClearedChapterTiers (02 SS5.3's one-time first-clear Soul Shard",
+        "grant, gated per (Chapter, Tier) pair). The four steps in the README above were walked:",
+        "SchemaVersion went 6 -> 7, this NEW entry was added, v6 was left exactly as it is, and no",
+        "migration was written -- the M1 kickoff's ruling that no migration code exists before soft",
+        "launch, with Rehydrate refusing a row stamped 6 or below LOUDLY rather than reading it",
+        "against this layout."
+      ],
+      "snapshots": {
+        "PlayerSnapshot": [
+          "SchemaVersion:System.Int32",
+          "Id.Value:System.String",
+          "DisplayName:System.String",
+          "LegendLevel:System.Int32",
+          "LegendXp:System.Int64",
+          "RunsStarted:System.Int64",
+          "Wallet{key}:SlayIdleRepeat.Core.Primitives.CurrencyId",
+          "Wallet{value}:System.Int64",
+          "Energy.Energy:System.Int32",
+          "Energy.Reserve:System.Int32",
+          "EnergyAnchorUtc:System.DateTimeOffset",
+          "LastAppliedAtUtc:System.DateTimeOffset",
+          "FtueBeatId:SlayIdleRepeat.Core.Primitives.FtueBeat",
+          "FtueCompletedAtUtc:System.Nullable<System.DateTimeOffset>",
+          "DailyPeriodStartUtc:System.DateTimeOffset",
+          "DailyCounters{key}:System.String",
+          "DailyCounters{value}:System.Int64",
+          "WeeklyPeriodStartUtc:System.DateTimeOffset",
+          "WeeklyCounters{key}:System.String",
+          "WeeklyCounters{value}:System.Int64",
+          "LoginCalendarDay:System.Int32",
+          "LoginCalendarDayClaimed:System.Boolean",
+          "ClearedChapterTiers{key}:System.String",
+          "ClearedChapterTiers{value}:System.Int64"
+        ],
+        "RunSnapshot": [
+          "SchemaVersion:System.Int32",
+          "Id.Value:System.String",
+          "PlayerId.Value:System.String",
+          "RunSeed:System.UInt64",
+          "ChapterId:System.Int32",
+          "Tier:SlayIdleRepeat.Core.Primitives.DifficultyTier",
+          "LastAppliedAtUtc:System.DateTimeOffset",
+          "Position:System.Int32",
+          "CurrentHp:System.Int32",
+          "MaxHp:System.Int32",
+          "Gold:System.Int64",
+          "RngStreamPositions{key}:System.String",
+          "RngStreamPositions{value}:System.UInt64",
+          "AdUses{key}:System.String",
+          "AdUses{value}:System.Int64",
+          "ResolvedMinigames{key}:System.Int32",
+          "ResolvedMinigames{value}:System.String",
+          "PendingForkJunctionPosition:System.Nullable<System.Int32>",
+          "PendingForkRemainingSteps:System.Nullable<System.Int32>",
+          "PendingTileKind:System.Int32",
+          "PendingTileLinearIndex:System.Int32",
+          "PendingTileStage:System.Int32",
+          "PendingEventCardId:System.String",
+          "Phase:SlayIdleRepeat.Core.Primitives.RunPhase",
+          "DraftPending:System.Boolean",
+          "RerollChargesSpentThisStage:System.Int32",
+          "StageGateDiceAnchor:System.UInt64",
+          "BankedLegendXp:System.Int64",
+          "BankedSoulShards:System.Int64",
+          "BossDefeated:System.Boolean"
+        ]
+      }
     }
   ]
 }

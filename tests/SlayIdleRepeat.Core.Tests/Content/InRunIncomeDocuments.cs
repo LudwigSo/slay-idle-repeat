@@ -33,6 +33,15 @@ internal static class InRunIncomeDocuments
     /// <summary>The document `19` Part A is transcribed into.</summary>
     internal const string BoardEventsPath = "content/board_events/board_events.json";
 
+    /// <summary>🔒 M3-13 — the document `02` §6's AD_REVIVE numbers live in.</summary>
+    internal const string AdsPath = "tuning/ads.json";
+
+    /// <summary>🔒 M3-13, `02` §6 — the revive heal share of Max HP, as shipped.</summary>
+    internal const decimal ShippedReviveHealPctMaxHp = 0.5m;
+
+    /// <summary>🔒 M3-13, `02` §6 — the revive invulnerability window in seconds, as shipped.</summary>
+    internal const int ShippedReviveInvulnerabilitySeconds = 2;
+
     /// <summary>`03` §7a — <c>G(c) = goldGrowth^(c-1)</c>'s base, as shipped.</summary>
     internal const decimal ShippedGoldGrowth = 1.55m;
 
@@ -56,6 +65,30 @@ internal static class InRunIncomeDocuments
 
     /// <summary>🔒 M3-05, `03` §1.1 — the Stage Gate's healed share of Max HP, as shipped.</summary>
     internal const decimal ShippedStageGateHeal = 0.15m;
+
+    /// <summary>🔒 M3-13, `03` §7a.1 — GoldPerKill's chapter-1 base, as shipped.</summary>
+    internal const long ShippedGoldPerKillBase = 40;
+
+    /// <summary>🔒 M3-13, `03` §7a.1 — the Elite Gold multiplier, as shipped.</summary>
+    internal const long ShippedGoldPerKillEliteMultiplier = 3;
+
+    /// <summary>🔒 M3-13, `03` §7a.1 — the Boss Gold multiplier, as shipped.</summary>
+    internal const long ShippedGoldPerKillBossMultiplier = 10;
+
+    /// <summary>🔒 M3-13, `10` §2 — Normal-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
+    internal const long ShippedBossKillNormalPerChapter = 15;
+
+    /// <summary>🔒 M3-13, `10` §2 — Heroic-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
+    internal const long ShippedBossKillHeroicPerChapter = 40;
+
+    /// <summary>🔒 M3-13, `10` §2 — Mythic-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
+    internal const long ShippedBossKillMythicPerChapter = 100;
+
+    /// <summary>🔒 M3-13, `02` §5.3 — the first-clear grant range floor, as shipped.</summary>
+    internal const long ShippedFirstClearMin = 100;
+
+    /// <summary>🔒 M3-13, `02` §5.3 — the first-clear grant range ceiling, as shipped.</summary>
+    internal const long ShippedFirstClearMax = 800;
 
     /// <summary>`03` §7a.3's three profiles, in the document's own order.</summary>
     internal static readonly (string Id, decimal Weight, long Crowns, long Stones, long Dust)[]
@@ -148,7 +181,17 @@ internal static class InRunIncomeDocuments
         ContentValue? campfireHeal = null,
         ContentValue? stageGateHeal = null,
         ContentValue? curses = null,
-        ContentValue? cards = null) =>
+        ContentValue? cards = null,
+        ContentValue? goldPerKillBase = null,
+        ContentValue? goldPerKillEliteMultiplier = null,
+        ContentValue? goldPerKillBossMultiplier = null,
+        ContentValue? bossKillNormalPerChapter = null,
+        ContentValue? bossKillHeroicPerChapter = null,
+        ContentValue? bossKillMythicPerChapter = null,
+        ContentValue? firstClearMin = null,
+        ContentValue? firstClearMax = null,
+        ContentValue? reviveHealPctMaxHp = null,
+        ContentValue? reviveInvulnerabilitySeconds = null) =>
         new(
             ContentVersion.FromHex(new string('a', ContentVersion.HexLength)),
             [
@@ -160,10 +203,19 @@ internal static class InRunIncomeDocuments
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
                 new ContentDocument(CurrenciesPath, Currencies(
                     eggChance, metaGrowth, goldGrowth, roundingMode, treasureProfiles, shrineBuffs,
-                    optionsOffered, campfireHeal, stageGateHeal)),
+                    optionsOffered, campfireHeal, stageGateHeal, goldPerKillBase,
+                    goldPerKillEliteMultiplier, goldPerKillBossMultiplier, bossKillNormalPerChapter,
+                    bossKillHeroicPerChapter, bossKillMythicPerChapter, firstClearMin, firstClearMax)),
                 new ContentDocument(CursesPath, Curses(curses)),
                 new ContentDocument(BoardEventsPath, BoardEvents(cards)),
+                new ContentDocument(AdsPath, Ads(reviveHealPctMaxHp, reviveInvulnerabilitySeconds)),
             ]);
+
+    private static ContentValue Ads(ContentValue? healPctMaxHp, ContentValue? invulnerabilitySeconds) =>
+        Obj(("placementRewardValues", Obj(
+            ("AD_REVIVE", Obj(
+                ("healPctMaxHp", healPctMaxHp ?? ContentValue.Number(ShippedReviveHealPctMaxHp)),
+                ("invulnerabilitySeconds", invulnerabilitySeconds ?? ContentValue.Number(ShippedReviveInvulnerabilitySeconds)))))));
 
     /// <summary>A snapshot whose <c>tuning/currencies.json</c> has an arbitrary root value.</summary>
     /// <remarks>For the "the block is not an array / not an object" refusals, which
@@ -194,13 +246,25 @@ internal static class InRunIncomeDocuments
         ContentValue? shrineBuffs,
         ContentValue? optionsOffered,
         ContentValue? campfireHeal,
-        ContentValue? stageGateHeal) =>
+        ContentValue? stageGateHeal,
+        ContentValue? goldPerKillBase = null,
+        ContentValue? goldPerKillEliteMultiplier = null,
+        ContentValue? goldPerKillBossMultiplier = null,
+        ContentValue? bossKillNormalPerChapter = null,
+        ContentValue? bossKillHeroicPerChapter = null,
+        ContentValue? bossKillMythicPerChapter = null,
+        ContentValue? firstClearMin = null,
+        ContentValue? firstClearMax = null) =>
         Obj(
             ("chapterScalars", Obj(
                 ("goldGrowth", goldGrowth ?? ContentValue.Number(ShippedGoldGrowth)),
                 ("metaGrowth", metaGrowth ?? ContentValue.Number(ShippedMetaGrowth)),
                 ("roundingMode", roundingMode ?? ContentValue.Text(ShippedRoundingMode)))),
             ("inRunIncome", Obj(
+                ("goldPerKill", Obj(
+                    ("base", goldPerKillBase ?? ContentValue.Number(ShippedGoldPerKillBase)),
+                    ("eliteMultiplier", goldPerKillEliteMultiplier ?? ContentValue.Number(ShippedGoldPerKillEliteMultiplier)),
+                    ("bossMultiplier", goldPerKillBossMultiplier ?? ContentValue.Number(ShippedGoldPerKillBossMultiplier)))),
                 ("treasureProfiles", Obj(
                     ("profiles", treasureProfiles ?? ContentValue.Array(
                         ShippedTreasureProfiles.Select(p => Obj(
@@ -219,7 +283,14 @@ internal static class InRunIncomeDocuments
                 ("shrineBuffPool", Obj(
                     ("optionsOffered", optionsOffered ?? ContentValue.Number(ShippedOptionsOffered)),
                     ("buffs", shrineBuffs ?? ContentValue.Array(
-                        ShippedShrineBuffs.Select(ShrineBuff))))))));
+                        ShippedShrineBuffs.Select(ShrineBuff))))))),
+            ("soulShards", Obj(
+                ("sources", Obj(
+                    ("BOSS_KILL_NORMAL_PER_CHAPTER", bossKillNormalPerChapter ?? ContentValue.Number(ShippedBossKillNormalPerChapter)),
+                    ("BOSS_KILL_HEROIC_PER_CHAPTER", bossKillHeroicPerChapter ?? ContentValue.Number(ShippedBossKillHeroicPerChapter)),
+                    ("BOSS_KILL_MYTHIC_PER_CHAPTER", bossKillMythicPerChapter ?? ContentValue.Number(ShippedBossKillMythicPerChapter)),
+                    ("FIRST_CLEAR_MIN", firstClearMin ?? ContentValue.Number(ShippedFirstClearMin)),
+                    ("FIRST_CLEAR_MAX", firstClearMax ?? ContentValue.Number(ShippedFirstClearMax)))))));
 
     private static ContentValue ShrineBuff((string Id, string? Stat, decimal? Magnitude, decimal? Heal) buff)
     {
