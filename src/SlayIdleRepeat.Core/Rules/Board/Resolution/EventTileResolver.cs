@@ -109,20 +109,46 @@ internal static class EventTileResolver
         var outcome = input.Rng.Stream(RngStreams.Events).WeightedPick(table);
         var events = new List<DomainEvent>(outcome.Effects.Count);
 
+        // 🔒 Read ONCE for the whole outcome, and only when an effect actually scales — the read
+        // resolves three JSON pointers and re-runs their validation, and doing it per effect inside
+        // the loop below would repeat that work for every scaled row of a multi-effect outcome. Both
+        // sibling resolvers hoist it the same way (TreasureResolver, CacheResolver).
+        var scalars = NeedsChapterScalars(outcome.Effects)
+            ? ChapterScalarTuning.Read(input.Context.Content)
+            : null;
+
         foreach (var effect in outcome.Effects)
         {
-            Apply(input, effect, events);
+            Apply(input, effect, scalars, events);
         }
 
         return events;
     }
 
-    private static void Apply(HandlerInput input, EventEffect effect, List<DomainEvent> events)
+    /// <summary>
+    /// Whether any effect of this outcome is a chapter-scaled currency grant, and therefore whether
+    /// the chapter scalars have to be read at all. Most of `19` Part A's outcomes do not scale.
+    /// </summary>
+    private static bool NeedsChapterScalars(IReadOnlyList<EventEffect> effects)
+    {
+        for (var i = 0; i < effects.Count; i++)
+        {
+            if (effects[i].Op == EventEffectOp.Currency && effects[i].ChapterScaled)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void Apply(
+        HandlerInput input, EventEffect effect, ChapterScalarTuning? scalars, List<DomainEvent> events)
     {
         switch (effect.Op)
         {
             case EventEffectOp.Currency:
-                PayCurrency(input, effect, events);
+                PayCurrency(input, effect, scalars, events);
                 return;
 
             case EventEffectOp.HpPct:
@@ -160,13 +186,18 @@ internal static class EventTileResolver
         }
     }
 
-    private static void PayCurrency(HandlerInput input, EventEffect effect, List<DomainEvent> events)
+    private static void PayCurrency(
+        HandlerInput input, EventEffect effect, ChapterScalarTuning? scalars, List<DomainEvent> events)
     {
         var amount = effect.Amount!.Value;
 
         if (effect.ChapterScaled)
         {
-            amount *= ChapterScalarTuning.Read(input.Context.Content).MetaScalar(input.Run.ChapterId);
+            // 🔒 ScaleMeta rather than a multiply by the scalar: 03 §7a rounds the scaled AMOUNT to
+            // a whole currency unit, never the scalar itself — see ChapterScalarTuning.ScaleMeta.
+            // `scalars` is non-null exactly when this branch is reachable: NeedsChapterScalars asks
+            // the same question of the same effects before the loop starts.
+            amount = scalars!.ScaleMeta(amount, input.Run.ChapterId);
         }
 
         Move(input, effect.Currency!.Value, amount, events);

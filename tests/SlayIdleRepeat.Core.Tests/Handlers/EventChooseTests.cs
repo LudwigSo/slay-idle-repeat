@@ -119,10 +119,16 @@ public sealed class EventChooseTests
     }
 
     /// <summary>🔒 A <c>chapterScaled</c> amount is multiplied by <c>M(c)</c>.</summary>
+    /// <remarks>
+    /// ⚠️ <c>round(40 · 1.35^(c-1))</c> — the AMOUNT scaled and then rounded to a whole currency
+    /// unit, which is what `03` §7a says. The values are 73 and 327 rather than the tidier 80 and
+    /// 320 because <c>M(c)</c> is a real number and only the payout is quantised; see
+    /// <c>InRunIncomeTuningTests.A_meta_amount_is_scaled_then_rounded</c>.
+    /// </remarks>
     [Theory]
     [InlineData(1, 40L)]
-    [InlineData(3, 80L)]
-    [InlineData(8, 320L)]
+    [InlineData(3, 73L)]
+    [InlineData(8, 327L)]
     public void A_chapter_scaled_grant_is_multiplied_by_the_meta_scalar(int chapterId, long expected)
     {
         var state = OnCard(FixtureCards.Crowns, chapterId: chapterId);

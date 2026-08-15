@@ -59,13 +59,19 @@ internal sealed class ChapterScalarTuning
         _metaGrowth = metaGrowth;
     }
 
-    /// <summary>`03` §7a — <c>G(c)</c>, the Gold/XP/shop-price growth curve, rounded to a whole unit.</summary>
+    /// <summary>
+    /// 🔒 `03` §7a — <c>G(c) = goldGrowth^(c-1)</c>, the Gold/XP/shop-price growth curve, <b>as the
+    /// real multiplier it is</b>.
+    /// </summary>
     /// <param name="chapterId">`02` §1's chapter, from 1.</param>
+    /// <remarks>
+    /// ⚠️ <b>Unrounded, and that is the whole point of the type.</b> See <see cref="ScaleGold"/>.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
-    internal long GoldScalar(int chapterId) => Scalar(_goldGrowth, chapterId);
+    internal double GoldScalar(int chapterId) => Scalar(_goldGrowth, chapterId);
 
     /// <summary>
-    /// `03` §7a — <c>M(c)</c>, the material/meta growth curve, rounded to a whole unit.
+    /// 🔒 `03` §7a — <c>M(c) = metaGrowth^(c-1)</c>, the material/meta growth curve, unrounded.
     /// </summary>
     /// <param name="chapterId">`02` §1's chapter, from 1.</param>
     /// <remarks>
@@ -73,9 +79,50 @@ internal sealed class ChapterScalarTuning
     /// table can be authored at its chapter-1 value and multiplied.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
-    internal long MetaScalar(int chapterId) => Scalar(_metaGrowth, chapterId);
+    internal double MetaScalar(int chapterId) => Scalar(_metaGrowth, chapterId);
 
-    private static long Scalar(double growth, int chapterId)
+    /// <summary>
+    /// 🔒 `03` §7a — scales a chapter-1 authored Gold amount to <paramref name="chapterId"/> and
+    /// rounds the <b>product</b> back to a whole currency unit.
+    /// </summary>
+    /// <inheritdoc cref="ScaleMeta"/>
+    internal long ScaleGold(long chapter1Amount, int chapterId) =>
+        Scale(chapter1Amount, Scalar(_goldGrowth, chapterId), chapterId);
+
+    /// <summary>
+    /// 🔒 `03` §7a — scales a chapter-1 authored meta-currency amount by <c>M(c)</c> and rounds the
+    /// <b>product</b> back to a whole currency unit.
+    /// </summary>
+    /// <param name="chapter1Amount">The amount as the income table authors it, at its chapter-1 value.</param>
+    /// <param name="chapterId">`02` §1's chapter, from 1.</param>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The rounding happens HERE, on the scaled amount, and never on the scalar.</b> `03` §7a
+    /// makes the in-run amounts <em>multiples of</em> <c>M(c)</c> rounded to a whole currency unit —
+    /// the scalar itself is a real number and quantising it first destroys the curve rather than the
+    /// payout. ⚠️ This is not a hypothetical: with the shipped <c>metaGrowth: 1.35</c>, rounding the
+    /// scalar gives <c>round(1.35) = 1</c>, so <b>chapter 2 would pay exactly what chapter 1 pays</b>
+    /// — no growth at all — and chapter 3 would then jump by 100%. Gold is worse: <c>round(1.55) = 2</c>
+    /// doubles chapter 2 instead of raising it by 55%. Every in-run income table is a multiple of one
+    /// of these two scalars, so the quantisation was the whole economy curve, not a rounding detail.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b><see cref="MidpointRounding.AwayFromZero"/>, matching
+    /// <see cref="MinigameRewardTuning"/>'s own chapter-scaled payout</b> — the one existing reader
+    /// that already scales an authored chapter-1 currency amount by a growth curve, and therefore the
+    /// precedent that governs. ⚠️ It is <b>not</b> <c>ShopPricing</c>'s <see cref="MidpointRounding.ToEven"/>:
+    /// the two genuinely differ, and this remark says so rather than claiming a single economy-wide
+    /// convention that does not exist. Both are `03` §7a's <c>NEAREST_INTEGER</c>; they part company
+    /// only at an exact <c>.5</c>, and a payout rounds the player's way there.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="chapterId"/> is below 1, or the scaled amount leaves 64-bit range.
+    /// </exception>
+    internal long ScaleMeta(long chapter1Amount, int chapterId) =>
+        Scale(chapter1Amount, Scalar(_metaGrowth, chapterId), chapterId);
+
+    private static double Scalar(double growth, int chapterId)
     {
         if (chapterId < 1)
         {
@@ -89,9 +136,33 @@ internal sealed class ChapterScalarTuning
                 "(21 §3.1).");
         }
 
-        // MidpointRounding.ToEven is Math.Round's default and the same mode ShopPricing already
-        // rounds its prices under — one rounding convention for the whole economy, not two.
-        return (long)Math.Round(Math.Pow(growth, chapterId - 1), MidpointRounding.ToEven);
+        return Math.Pow(growth, chapterId - 1);
+    }
+
+    /// <summary>
+    /// Multiplies first and rounds second — see <see cref="ScaleMeta"/> for why that order is the
+    /// entire correctness of this type.
+    /// </summary>
+    private static long Scale(long chapter1Amount, double scalar, int chapterId)
+    {
+        var scaled = Math.Round(chapter1Amount * scalar, MidpointRounding.AwayFromZero);
+
+        // 03 §7a's curve is exponential, so a large authored base at a high chapter genuinely can
+        // leave 64-bit range — and a bare (long) cast of an out-of-range double is UNDEFINED in an
+        // unchecked context (it yields long.MinValue on x64), which would turn an overflowing GRANT
+        // into a debt. Refused loudly instead: an amount this size is an authoring defect.
+        if (!double.IsFinite(scaled) || scaled is < long.MinValue or > long.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(chapter1Amount),
+                chapter1Amount,
+                "Scaling " + Text(chapter1Amount) + " to chapter " + Text(chapterId) + " gives " +
+                Text(scaled) + ", which is outside a 64-bit currency amount. 03 §7a's growth curve " +
+                "is exponential, so this is an authored base far too large for the curve rather " +
+                "than an arithmetic accident.");
+        }
+
+        return (long)scaled;
     }
 
     /// <summary>Reads the chapter-scalar block. Throws rather than defaulting on anything unusable.</summary>
@@ -124,19 +195,27 @@ internal sealed class ChapterScalarTuning
     {
         var growth = content.ReadDouble(reference);
 
-        if (growth <= 0.0)
+        // ⚠️ IsFinite FIRST, and it is a CONSISTENCY guard rather than a live one: ContentValue
+        // backs every number with a decimal, so ReadDouble cannot hand back a NaN or an infinity
+        // today and this arm is unreachable. It is written anyway because CacheTuning, TreasureTuning
+        // and EventCatalogue all guard in exactly this order — a reader here that checked only the
+        // sign would read as the one that had thought about it least, and NaN failing every
+        // comparison is precisely the trap a lone `<= 0.0` walks into if that backing ever widens.
+        if (!double.IsFinite(growth) || growth <= 0.0)
         {
             throw new InvalidTunableException(
                 reference,
-                "A growth base of zero or below makes every chapter's scalar zero, negative or " +
-                "oscillating. 03 §7a authors 1.55 (gold) and 1.35 (meta); this document authors " +
-                Text(growth) + ".");
+                "A growth base is a finite number above zero; anything else makes every chapter's " +
+                "scalar zero, negative, oscillating or not a number at all. 03 §7a authors 1.55 " +
+                "(gold) and 1.35 (meta); this document authors " + Text(growth) + ".");
         }
 
         return growth;
     }
 
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string Text(long value) => value.ToString(CultureInfo.InvariantCulture);
 
     private static string Text(double value) => value.ToString(CultureInfo.InvariantCulture);
 }

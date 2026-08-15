@@ -16,7 +16,7 @@ public sealed class InRunIncomeTuningTests
     // ------------------------------------------------------------------ ChapterScalarTuning
 
     /// <summary>
-    /// 🔒 `03` §7a — <c>M(c) = metaGrowth^(c-1)</c>, rounded to the nearest whole unit.
+    /// 🔒 `03` §7a — <c>M(c) = metaGrowth^(c-1)</c>, as the <b>unrounded real multiplier</b> it is.
     /// </summary>
     /// <remarks>
     /// The expectations are computed from 1.35 rather than restated as literals per row, because a
@@ -25,26 +25,88 @@ public sealed class InRunIncomeTuningTests
     /// reason every in-run income table can be authored at its chapter-1 value.
     /// </remarks>
     [Theory]
-    [InlineData(1, 1L)]
-    [InlineData(2, 1L)]
-    [InlineData(3, 2L)]
-    [InlineData(4, 2L)]
-    [InlineData(5, 3L)]
-    [InlineData(8, 8L)]
-    public void The_meta_scalar_is_metaGrowth_to_the_chapter_minus_one(int chapterId, long expected)
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(5)]
+    [InlineData(8)]
+    public void The_meta_scalar_is_metaGrowth_to_the_chapter_minus_one(int chapterId)
     {
-        ChapterScalarTuning.Read(Shipped).MetaScalar(chapterId).ShouldBe(expected);
+        ChapterScalarTuning.Read(Shipped)
+            .MetaScalar(chapterId)
+            .ShouldBe(Math.Pow(1.35, chapterId - 1), 1e-12);
+    }
+
+    /// <summary>…and chapter 1 is exactly 1, the one row that does not depend on the base.</summary>
+    [Fact]
+    public void Chapter_one_scales_by_exactly_one()
+    {
+        var tuning = ChapterScalarTuning.Read(Shipped);
+
+        tuning.MetaScalar(1).ShouldBe(1.0);
+        tuning.GoldScalar(1).ShouldBe(1.0);
     }
 
     /// <summary>🔒 …and the gold curve is the same shape over its own, faster base.</summary>
     [Theory]
-    [InlineData(1, 1L)]
-    [InlineData(2, 2L)]
-    [InlineData(3, 2L)]
-    [InlineData(4, 4L)]
-    public void The_gold_scalar_is_goldGrowth_to_the_chapter_minus_one(int chapterId, long expected)
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void The_gold_scalar_is_goldGrowth_to_the_chapter_minus_one(int chapterId)
     {
-        ChapterScalarTuning.Read(Shipped).GoldScalar(chapterId).ShouldBe(expected);
+        ChapterScalarTuning.Read(Shipped)
+            .GoldScalar(chapterId)
+            .ShouldBe(Math.Pow(1.55, chapterId - 1), 1e-12);
+    }
+
+    /// <summary>
+    /// 🔒 `03` §7a — the rounding lands on the scaled <b>amount</b>, never on the scalar.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This is the regression test for a real defect.</b> <c>Scalar</c> used to return a
+    /// <c>long</c>, quantising <c>M(c)</c> itself: with the shipped 1.35 that made
+    /// <c>round(1.35) = 1</c>, so chapter 2 paid <em>exactly</em> what chapter 1 paid and the growth
+    /// curve only moved in steps. The assertions below are the shape that catches it — 100 at
+    /// chapter 2 is 135, not 100, and Gold's 100 is 155, not 200.
+    /// </remarks>
+    [Theory]
+    [InlineData(1, 100L, 100L)]
+    [InlineData(2, 100L, 135L)]
+    [InlineData(3, 100L, 182L)]
+    [InlineData(2, 7L, 9L)]
+    public void A_meta_amount_is_scaled_then_rounded(int chapterId, long amount, long expected)
+    {
+        ChapterScalarTuning.Read(Shipped).ScaleMeta(amount, chapterId).ShouldBe(expected);
+    }
+
+    /// <inheritdoc cref="A_meta_amount_is_scaled_then_rounded"/>
+    [Theory]
+    [InlineData(1, 100L, 100L)]
+    [InlineData(2, 100L, 155L)]
+    [InlineData(3, 100L, 240L)]
+    public void A_gold_amount_is_scaled_then_rounded(int chapterId, long amount, long expected)
+    {
+        ChapterScalarTuning.Read(Shipped).ScaleGold(amount, chapterId).ShouldBe(expected);
+    }
+
+    /// <summary>A negative amount — an event card that charges — scales by the same curve.</summary>
+    [Fact]
+    public void A_negative_amount_scales_by_the_same_curve()
+    {
+        ChapterScalarTuning.Read(Shipped).ScaleMeta(-100L, 2).ShouldBe(-135L);
+    }
+
+    /// <summary>
+    /// 🔒 An amount whose scaled value leaves 64-bit range is refused rather than cast — an
+    /// out-of-range double cast is undefined and would turn an overflowing grant into a debt.
+    /// </summary>
+    [Fact]
+    public void An_amount_that_overflows_the_scaled_range_is_refused()
+    {
+        var tuning = ChapterScalarTuning.Read(Shipped);
+
+        Should.Throw<ArgumentOutOfRangeException>(() => tuning.ScaleMeta(long.MaxValue, 8));
     }
 
     /// <summary>
@@ -60,9 +122,16 @@ public sealed class InRunIncomeTuningTests
     {
         var doubling = InRunIncomeDocuments.With(metaGrowth: ContentValue.Number(2m));
 
-        ChapterScalarTuning.Read(doubling).MetaScalar(4).ShouldBe(8L);
-        ChapterScalarTuning.Read(Shipped).MetaScalar(4).ShouldBe(2L);
+        ChapterScalarTuning.Read(doubling).MetaScalar(4).ShouldBe(8.0, 1e-12);
+        ChapterScalarTuning.Read(Shipped).MetaScalar(4).ShouldBe(Math.Pow(1.35, 3), 1e-12);
     }
+
+    // ⚠️ There is deliberately NO test for a non-finite growth base, and its absence is recorded
+    // rather than an oversight: ContentValue backs every number with a decimal, so ReadDouble cannot
+    // produce a NaN or an infinity and the reader's IsFinite arm is unreachable from content. It is
+    // a consistency guard matching the three sibling readers — see ChapterScalarTuning.ReadGrowth —
+    // and a test that could only reach it by bypassing the content seam would be asserting against a
+    // state the game cannot be in.
 
     /// <summary>A chapter below `02` §1's floor of 1 has no exponent to raise the base to.</summary>
     [Theory]
@@ -105,6 +174,55 @@ public sealed class InRunIncomeTuningTests
 
         Should.Throw<InvalidTunableException>(() =>
             ChapterScalarTuning.Read(InRunIncomeDocuments.With(goldGrowth: ContentValue.Number(-1m))));
+    }
+
+    // ------------------------------------------------------------------ CampfireTuning
+
+    /// <summary>🔒 `03` §2 — the campfire's rest heal comes from the document.</summary>
+    [Fact]
+    public void The_campfire_heal_comes_from_the_currencies_document()
+    {
+        CampfireTuning.Read(Shipped).HealPctMaxHp.ShouldBe(0.4);
+    }
+
+    /// <summary>
+    /// 🔒 …and is genuinely READ rather than the constant it used to be.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ This test is the point of the whole block: the rest heal shipped as a
+    /// <c>const double HealPctMaxHp = 0.40</c> on <c>CampfireResolver</c> until M3-03's review moved
+    /// it into <c>#/inRunIncome/campfire</c> under `21` §3.1. Asserting only the shipped 0.4 would
+    /// pass just as well against the constant.
+    /// </remarks>
+    [Fact]
+    public void A_different_authored_campfire_heal_is_honoured()
+    {
+        var half = InRunIncomeDocuments.With(campfireHeal: ContentValue.Number(0.5m));
+
+        CampfireTuning.Read(half).HealPctMaxHp.ShouldBe(0.5);
+    }
+
+    /// <summary>
+    /// 🔒 A rest that heals nothing, or more than a full bar, is refused. ⚠️ Zero is refused here
+    /// where the cache's egg rate accepts it — see <see cref="CampfireTuning"/> for the asymmetry.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-0.1)]
+    [InlineData(1.5)]
+    public void A_campfire_heal_outside_the_unit_interval_is_refused(decimal heal)
+    {
+        Should.Throw<InvalidTunableException>(() =>
+            CampfireTuning.Read(InRunIncomeDocuments.With(campfireHeal: ContentValue.Number(heal))));
+    }
+
+    /// <summary>…and a full-bar heal is accepted: the resolver clamps at Max HP anyway.</summary>
+    [Fact]
+    public void A_full_bar_campfire_heal_is_accepted()
+    {
+        var full = InRunIncomeDocuments.With(campfireHeal: ContentValue.Number(1m));
+
+        CampfireTuning.Read(full).HealPctMaxHp.ShouldBe(1.0);
     }
 
     // ------------------------------------------------------------------ TreasureTuning

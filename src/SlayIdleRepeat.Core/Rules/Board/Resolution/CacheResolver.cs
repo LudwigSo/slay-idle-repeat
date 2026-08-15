@@ -55,7 +55,10 @@ internal static class CacheResolver
         }
 
         var scalars = ChapterScalarTuning.Read(input.Context.Content);
-        var feed = tuning.BeastFeedBase * scalars.MetaScalar(input.Run.ChapterId);
+
+        // 🔒 ScaleMeta rather than a multiply by the scalar: 03 §7a rounds the scaled AMOUNT to a
+        // whole currency unit, never the scalar itself — see ChapterScalarTuning.ScaleMeta.
+        var feed = scalars.ScaleMeta(tuning.BeastFeedBase, input.Run.ChapterId);
 
         return feed == 0
             ? Array.Empty<DomainEvent>()

@@ -141,10 +141,17 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>🔒 The cache's Beast Feed scales by <c>M(c)</c>.</summary>
+    /// <remarks>
+    /// ⚠️ The expectations are <c>round(25 · 1.35^(c-1))</c> — the AMOUNT scaled and then rounded,
+    /// not the amount times a rounded scalar. They read 46 and 204 rather than the tidier 50 and 200
+    /// precisely because <c>M(c)</c> is a real number: the tidy values were what the curve produced
+    /// while <c>ChapterScalarTuning</c> quantised the scalar itself, which flattened chapter 2 onto
+    /// chapter 1. See <c>InRunIncomeTuningTests.A_meta_amount_is_scaled_then_rounded</c>.
+    /// </remarks>
     [Theory]
     [InlineData(1, 25L)]
-    [InlineData(3, 50L)]
-    [InlineData(8, 200L)]
+    [InlineData(3, 46L)]
+    [InlineData(8, 204L)]
     public void The_cache_payout_scales_by_the_chapter_scalar(int chapterId, long expected)
     {
         var noEggs = TileWorlds.ContextOver(

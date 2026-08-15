@@ -48,13 +48,15 @@ internal static class TreasureResolver
         }
 
         var profile = input.Rng.Stream(RngStreams.Treasure).WeightedPick(table);
-        var scalar = scalars.MetaScalar(input.Run.ChapterId);
+        var chapterId = input.Run.ChapterId;
 
         var events = new List<DomainEvent>(3);
 
-        Pay(events, input, CurrencyId.CROWNS, profile.Crowns * scalar);
-        Pay(events, input, CurrencyId.ENHANCE_STONES, profile.EnhanceStones * scalar);
-        Pay(events, input, CurrencyId.MERGE_DUST, profile.MergeDust * scalar);
+        // 🔒 ScaleMeta rather than a multiply by the scalar: 03 §7a rounds the scaled AMOUNT to a
+        // whole currency unit, never the scalar itself — see ChapterScalarTuning.ScaleMeta.
+        Pay(events, input, CurrencyId.CROWNS, scalars.ScaleMeta(profile.Crowns, chapterId));
+        Pay(events, input, CurrencyId.ENHANCE_STONES, scalars.ScaleMeta(profile.EnhanceStones, chapterId));
+        Pay(events, input, CurrencyId.MERGE_DUST, scalars.ScaleMeta(profile.MergeDust, chapterId));
 
         return events;
     }
