@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/perk.schema.json",
+  "title": "content/perks/perks.json",
+  "description": "06 §3 and §5 — the standard, drafted perk catalogue. 06 §5: 'The effects array is interpreted by a single generic effect resolver. Do not write per-perk code.' A perk is an id, its category and rarity, and exactly 3 internal tiers (06 §1.1: Tier I base, Tier II x1.8, Tier III x2.8 plus a small bonus clause) — each tier's own embedded effect set. 🔒 THE EFFECT OBJECTS HERE ARE VALIDATED ELSEWHERE, on bosses.schema.json's own pattern: this schema constrains an embedded effect STRUCTURALLY (an object with an id and an op, both the right shape) and states nothing about which keys go with which op, because it may neither $ref schema/effect.schema.json (same-document pointers only) nor restate it (the duplicate-vocabulary rule). The strict per-op check is DeclaredRules' R35, a cross-file content rule that walks every embedded effect in this file (and every other content file) and validates it against schema/effect.schema.json. 14 §6's guarantee is delivered by the pair, not by this file alone. Cursed Perks (06 §3.7, the 7th non-drafted category) are OUT OF SCOPE for this schema and this file — they carry a Benefit/Cost shape, not tiers, and arrive with the curse system (M3-03/M3-11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "perks"],
+
+  "$defs": {
+    "perkId": {
+      "description": "06 §3 — a standard perk id, and the same id space its effects are authored in (one shared prefix per perk, on bosses.schema.json's bossId pattern) so a mechanic's origin is readable from the id alone.",
+      "type": "string",
+      "pattern": "^PK_[A-Z0-9_]+$"
+    },
+
+    "category": {
+      "description": "06 §2 — the 6 standard drafted categories. Cursed Perks are the 7th, non-drafted category and carry no row in this closed set.",
+      "enum": ["OFFENSE", "DEFENSE", "SUSTAIN", "DICE_AND_BOARD", "ECONOMY", "TRIGGER_SYNERGY"]
+    },
+
+    "rarity": {
+      "description": "06 §4's RarityWeights bands — the four rarities every draft-pool weight table is keyed on.",
+      "enum": ["COMMON", "RARE", "EPIC", "LEGENDARY"]
+    },
+
+    "embeddedEffect": {
+      "description": "18 §1 — one authored effect, embedded in the perk tier that owns it. 🔒 An effect is NEVER a file and never lives in a registry: it is always embedded in the perk, talent, pet, mount, curse or boss script that owns it. Only the two keys 18 §1 makes universal are required here, and every other key is admitted without comment — the closed op-to-key partition is schema/effect.schema.json's, applied to this array by DeclaredRules' R35. Restating it here would be the second copy of a 44-member closed set 18 §10 exists to keep singular.",
+      "type": "object",
+      "required": ["id", "op"],
+      "properties": {
+        "id": { "$ref": "#/$defs/perkId" },
+        "op": {
+          "description": "18 §2 — which operation the effect performs. Shape only, deliberately: the token set is enumerated in schema/effect.schema.json and nowhere else.",
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        }
+      }
+    },
+
+    "tier": {
+      "description": "06 §1.1 — one of a perk's 3 internal tiers. Tier I is the base effect; Tier II is stated as the base effect x1.8; Tier III is x2.8 'plus a small bonus clause' — both scalings are authored directly into each tier's own effects rather than derived, because 06 §1.1 states them as the DESIGN rule and a derivation at read time would be a second, silently-agreeing copy of arithmetic a content author already did by hand.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "effects"],
+      "properties": {
+        "tier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "effects": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/embeddedEffect" }
+        }
+      }
+    }
+  },
+
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+
+    "perks": {
+      "description": "06 §3.1-3.6 — the standard drafted catalogue (90 rows total; 8 of the 12 Dice & Board rows live in 04 §5 and are out of THIS document's scope, so 06 §3's own catalogue is 82 rows). M3-07 authors a starter subset; the remainder is registered as unauthored input for M3-07b, per the M3-07 task's own register (checkable against this array in both directions).",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "category", "rarity", "iconId", "description", "tiers", "excludes", "requires", "poolTags"],
+        "properties": {
+          "id": { "$ref": "#/$defs/perkId" },
+          "name": { "type": "string", "minLength": 1 },
+          "category": { "$ref": "#/$defs/category" },
+          "rarity": { "$ref": "#/$defs/rarity" },
+          "iconId": { "type": "string", "pattern": "^icon_[a-z0-9_]+$" },
+          "description": {
+            "description": "06 §5 — a player-facing template. '{value}' is the tier's own authored magnitude, substituted at render time; it is not re-derived here.",
+            "type": "string",
+            "minLength": 1
+          },
+
+          "tiers": {
+            "description": "06 §1.1 — exactly 3, numbered 1, 2, 3 in that order. 'Once a perk is at Tier III it is removed from that run's draft pool' — a run-time rule the draft system (M3-06) enforces, not a shape this schema can state.",
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": { "$ref": "#/$defs/tier" }
+          },
+
+          "excludes": {
+            "description": "06 does not name any mutually-exclusive perk pair in the v1 catalogue; the key is authored empty on every row rather than omitted, so a future exclusion is a data edit and not a schema change.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/perkId" }
+          },
+
+          "requires": {
+            "description": "06 does not name any prerequisite perk in the v1 catalogue; authored empty on every row for the same reason as excludes.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/perkId" }
+          },
+
+          "poolTags": {
+            "description": "06 §5's worked example authors exactly one tag, 'standard' — the fresh-pool draw 06 §4 weights over. No other tag is named anywhere in 06, so 'standard' is the only token this file uses; a future tag (e.g. an event-exclusive pool) is a data decision for the milestone that adds one.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+          }
+        }
+      }
+    }
+  }
+}

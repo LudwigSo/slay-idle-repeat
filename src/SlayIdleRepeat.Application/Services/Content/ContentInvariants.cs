@@ -29,6 +29,67 @@ public static partial class ContentInvariants
     private const string StringsMemberName = "strings";
 
     /// <summary>
+    /// 🔒 Perk ids <c>tuning/calibration_builds.json</c> references from its <c>draftPriority</c>
+    /// rows ahead of the perk that authors them — a forward reference the M2-16 kickoff decision
+    /// named explicitly, not a defect this change introduced.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// M2-16a wrote <c>calibration_builds.json</c>'s five archetype rows with the full-catalogue
+    /// <c>draftPriority</c> lists 06 §3 implies, while <c>content/perks/</c> was still empty — and
+    /// the kickoff record says so: <em>"The archetypes' frozenPerks/pets reference ids that do not
+    /// exist until M3-07/M4-07"</em>. <c>CheckIdSpaces</c> only turns a schema <c>pattern</c> into a
+    /// checked id space once <em>some</em> document declares an <c>id</c> under it (`14` §6 duplicate
+    /// ids and orphaned references, over the id spaces the schemas define) — so with no perk ever
+    /// authored, <c>^PK_[A-Z0-9_]+$</c> was not yet an id space and every <c>draftPriority</c> string
+    /// validated by shape alone. M3-07 is the commit that authors the FIRST perk, which is also the
+    /// commit that turns the pattern into a real id space and starts checking every reference — a
+    /// consequence of authoring 46 of 06 §3's 82 rows honestly, not a defect in either file.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Self-expiring, entry by entry.</b> <c>CheckIdSpaces</c> only consults this set for a
+    /// value that is ALREADY otherwise-orphaned — so the day M3-07b (or M4-07) authors
+    /// <c>PK_KEEN_EYE</c>, that reference resolves on its own and the entry sits here inert. A test
+    /// (<c>ContentInvariantsTests</c>) asserts every entry is REACHED — still exercised by at least
+    /// one live reference in the shipped content set — so a name that stops being referenced, or one
+    /// that gets authored and silently drops out of the failure list, is caught rather than rotting.
+    /// </para>
+    /// <para>
+    /// 🔒 Scoped to <c>calibration_builds.json</c>'s <c>draftPriority</c> arrays specifically
+    /// (checked by the caller against <see cref="PatternBinding.Location"/>'s document), not a bare
+    /// id allowlist — an orphaned <c>PK_</c> reference appearing anywhere else in the content set is
+    /// exactly the authoring mistake `14` §6 exists to catch, and this exemption must not swallow it.
+    /// </para>
+    /// </remarks>
+    private const string CalibrationBuildsDocument = "tuning/calibration_builds.json";
+
+    /// <summary>
+    /// The exemption set itself, exposed so a test can assert its self-expiry: every entry must
+    /// still be an id that is BOTH referenced from <see cref="CalibrationBuildsDocument"/>'s
+    /// <c>draftPriority</c> arrays AND absent from <c>content/perks/perks.json</c>. An entry for
+    /// which either half stops being true has gone stale — the id was authored, or the reference
+    /// was edited out — and this exemption is the one thing in this file that does not fail on its
+    /// own the way <see cref="ContentLoader.SchemasAwaitingContent"/> does, so the test must ask.
+    /// </summary>
+    public static IReadOnlyCollection<string> KnownForwardPerkReferences { get; } = new HashSet<string>(
+        StringComparer.Ordinal)
+    {
+        // 06 §3.1 Offense — unauthored by M3-07's coverage-driven selection; owner M3-07b.
+        "PK_QUICK_HANDS", "PK_KEEN_EYE", "PK_HEAVY_SWING", "PK_PIERCING", "PK_CRIT_CASCADE",
+        "PK_IGNITE", "PK_TWIN_STRIKE", "PK_ANNIHILATE",
+
+        // 06 §3.2 Defense.
+        "PK_TOUGH_HIDE", "PK_IRON_SKIN", "PK_BULWARK", "PK_STOIC", "PK_SECOND_SKIN", "PK_ANCHOR",
+        "PK_REACTIVE", "PK_AEGIS",
+
+        // 06 §3.3 Sustain.
+        "PK_LEECH", "PK_BLOODLETTER", "PK_FEAST", "PK_HEALERS_TOUCH",
+
+        // 06 §3.6 Trigger/Synergy.
+        "PK_SYMBIOSIS", "PK_ECHO",
+    };
+
+    /// <summary>
     /// 🔒 Every <c>path#/pointer</c> the declared cross-file rules have looked up so far.
     /// </summary>
     /// <remarks>
@@ -275,6 +336,14 @@ public static partial class ContentInvariants
                          !string.Equals(b.MemberName, IdMemberName, StringComparison.Ordinal) &&
                          !declared.Contains(b.Value)))
             {
+                if (reference.Location.StartsWith(CalibrationBuildsDocument, StringComparison.Ordinal) &&
+                    reference.Location.Contains("/draftPriority/", StringComparison.Ordinal) &&
+                    KnownForwardPerkReferences.Contains(reference.Value))
+                {
+                    // Known, dated forward reference — see KnownForwardPerkReferences' remarks.
+                    continue;
+                }
+
                 issues.Add(new ContentIssue(
                     ContentIssueCode.OrphanedReference, reference.Location,
                     $"references '{reference.Value}', which matches the id pattern " +

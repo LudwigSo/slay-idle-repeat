@@ -71,6 +71,20 @@ internal static class DeclaredRules
     private const string OpMemberName = "op";
 
     /// <summary>
+    /// 🔒 `18` §1's OTHER universal key, required alongside <see cref="OpMemberName"/> on every one
+    /// of the seventeen branches — required together because <c>op</c> alone collides with `18` §4's
+    /// OWN vocabulary. A condition's comparison node is <c>{"fn", "op", "value"}</c> (the comparator
+    /// is spelled <c>op</c> there too), so a walk keyed on <c>op</c> alone finds a perk's own
+    /// <c>condition</c> block and reports it against the top-level effect <c>oneOf</c> — which no
+    /// condition node can ever satisfy, since none of the seventeen branches is shaped like one. M3-07
+    /// hit this on its first perk with a non-null <c>condition</c>; no earlier content (bosses.json)
+    /// ever authored one, which is why nothing caught it sooner. Both keys together are still exactly
+    /// `18` §1's universal pair and still nothing a condition node, a <c>duration</c> block or a
+    /// <c>stacking</c> block can accidentally satisfy.
+    /// </summary>
+    private const string IdMemberName = "id";
+
+    /// <summary>
     /// 🔒 Every embedded effect <b>R35</b> has validated so far, as
     /// <c>path#/pointer</c> — the subject-set floor a test asserts against (steering S3).
     /// </summary>
@@ -179,23 +193,39 @@ internal static class DeclaredRules
     }
 
     /// <summary>
-    /// Finds every embedded effect: any object that declares an <c>op</c>, wherever it sits.
+    /// Finds every embedded effect: any object that declares both <c>id</c> and <c>op</c>, wherever
+    /// it sits.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>The signature is the <c>op</c> key, NOT the member name the list is spelled under.</b>
-    /// Keying on <c>effects</c> looked equivalent and is not: `18` §7.7 spells a pet's list
-    /// <c>aura</c>, and a curse or a mount catalogue may well spell it something else again — so a
-    /// name-keyed walk would let a whole content type ship unvalidated while
-    /// <see cref="ValidatedEmbeddedEffects"/> stayed comfortably non-empty, which is the one failure
-    /// the floor test cannot see. An <c>op</c> member is what `18` §1 makes universal and what
-    /// <c>effect.schema.json</c> requires of every one of its seventeen branches, so it is the
-    /// signature that actually means <em>this is an effect</em>.
+    /// 🔴 <b>The signature is the <c>id</c>+<c>op</c> PAIR, NOT the member name the list is spelled
+    /// under, and NOT <c>op</c> alone.</b> Keying on <c>effects</c> looked equivalent and is not: `18`
+    /// §7.7 spells a pet's list <c>aura</c>, and a curse or a mount catalogue may well spell it
+    /// something else again — so a name-keyed walk would let a whole content type ship unvalidated
+    /// while <see cref="ValidatedEmbeddedEffects"/> stayed comfortably non-empty, which is the one
+    /// failure the floor test cannot see. <c>id</c> and <c>op</c> together are what `18` §1 makes
+    /// universal and what <c>effect.schema.json</c> requires of every one of its seventeen branches,
+    /// so the pair is the signature that actually means <em>this is an effect</em>.
+    /// </para>
+    /// <para>
+    /// 🔴 <b><c>op</c> ALONE IS NOT ENOUGH, and M3-07 is the commit that found out why.</b> `18` §4's
+    /// own condition vocabulary spells its comparator <c>op</c> too — a comparison node is
+    /// <c>{"fn", "op", "value", …}</c> — so a perk (or talent, pet, mount, curse, boss script) whose
+    /// effect carries a non-null <c>condition</c> nests a SECOND object with an <c>op</c> member
+    /// several keys down, and a walk keyed on <c>op</c> alone finds it too and reports it against the
+    /// top-level effect <c>oneOf</c>, which no condition node can ever satisfy — none of the
+    /// seventeen branches is shaped like one. Every earlier embedder (bosses.json) happened to author
+    /// no <c>condition</c> at all, so nothing exposed this until M3-07's perks — several of 06 §3's
+    /// rows are literally conditional damage bonuses ("+X% damage to enemies below 30% health") and
+    /// could not be authored honestly without one. <c>id</c> is the key that tells the two apart: every
+    /// effect branch requires it and no condition, duration or stacking shape ever carries one.
     /// </para>
     /// <para>
     /// ⚠️ No double-counting: an effect is added when it is reached, and the walk then descends into
-    /// it — but <c>effect.schema.json</c> is <c>additionalProperties: false</c> on every branch and
-    /// no branch nests an object carrying an <c>op</c>, so there is nothing inside one to find.
+    /// it — but <c>effect.schema.json</c> is <c>additionalProperties: false</c> on every branch and no
+    /// branch nests a SECOND <c>id</c>+<c>op</c> pair at its own top level, so there is nothing
+    /// shaped like an effect inside one to double-count. (A <c>condition</c> block CAN nest a bare
+    /// <c>op</c>, which is exactly the collision above — it just never nests an <c>id</c> beside it.)
     /// </para>
     /// </remarks>
     private static void CollectEmbeddedEffects(
@@ -217,7 +247,7 @@ internal static class DeclaredRules
             return;
         }
 
-        if (value.TryGetMember(OpMemberName, out _))
+        if (value.TryGetMember(OpMemberName, out _) && value.TryGetMember(IdMemberName, out _))
         {
             found.Add(($"{documentPath}#{pointer}", value));
         }

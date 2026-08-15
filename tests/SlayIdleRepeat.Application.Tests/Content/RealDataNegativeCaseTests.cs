@@ -462,13 +462,28 @@ public sealed class RealDataNegativeCaseTests
     /// anything tries to use it, and the obligation expires by itself through
     /// <c>SubjectSetFloorTests.Pending</c>'s <c>StatusDecayCurve</c> entry.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>M3-07 opened 176 holes, all in <c>content/perks/perks.json</c>, and they are the reason
+    /// this number is now 275.</b> Every one is a canonical DSL token `18` names explicitly, not an
+    /// undecided value: <b>149</b> are <c>condition: null</c> — `18` §4's own worked example writes
+    /// it that way for "ungated", and §4 states no default, so authoring one here would be
+    /// manufacturing a rule the DSL does not have. <b>21</b> are <c>valueScale.cap: null</c> — `18`
+    /// §1.1 fixes <c>null</c> as "uncapped" (<c>PK_HOARD</c>'s own worked example). <b>6</b> are
+    /// <c>trigger: null</c>, all on <c>PK_GAMBLER</c>'s two per-tier sibling effects — `18` §10.1's
+    /// <c>RANDOM_OUTCOME</c> extension has the outcome table's own trigger fire the draw, and its
+    /// winning row's effect fires only through that reference, never independently, so the sibling
+    /// carries no trigger of its own (the same shape `18` §9.1 and §7.7 already establish for
+    /// <c>CP_GLASS_HEART</c> and a pet's aura). None of the three needs a <c>Require…</c> accessor:
+    /// unlike the four holes above, nothing in <c>Core</c> can ever legitimately ask "what was this
+    /// undecided value" of a token the vocabulary itself defines as null.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_99_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_275_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(99,
+        CountUnauthorised(snapshot).ShouldBe(275,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -519,6 +534,11 @@ public sealed class RealDataNegativeCaseTests
     // heal — are mechanics the DSL cannot express at all, so there is no key to write null INTO;
     // they are recorded in the affected scripts' own _doc.
     [InlineData("content/bosses/bosses.json", 0)]
+
+    // M3-07 — 176 holes, all canonical DSL tokens `18` names explicitly (condition: null for
+    // ungated, valueScale.cap: null for uncapped, trigger: null on RANDOM_OUTCOME's siblings); see
+    // the remarks on the total above.
+    [InlineData("content/perks/perks.json", 176)]
     public void Each_shipped_file_carries_exactly_the_unauthorised_holes_it_is_recorded_as_carrying(
         string documentPath, int expected)
     {
